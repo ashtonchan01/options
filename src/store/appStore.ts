@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import type { AppState, RawPosition, RawTrade } from '../types'
 import { syncFromXML, syncFromFlexAPI } from '../services/ibkr'
 import { classifyPositions } from '../engine/classifier'
+import { generateActions } from '../engine/actions'
 
 const INITIAL: AppState = {
   sync: { mode: 'xml', status: 'idle', positions: [], trades: [], cashBalance: 0 },
@@ -16,10 +17,12 @@ export function useAppStore() {
 
   const applyData = useCallback((positions: RawPosition[], trades: RawTrade[], cashBalance: number) => {
     const strategies = classifyPositions(positions)
+    const actions    = generateActions(strategies, positions)
     setState(s => ({
       ...s,
       sync: { ...s.sync, status: 'success', lastSync: Date.now(), positions, trades, cashBalance },
       strategies,
+      actions,
     }))
   }, [])
 
