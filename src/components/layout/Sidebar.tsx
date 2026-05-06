@@ -10,22 +10,19 @@ export const TAB_IDS = ['portfolio', 'calendar', 'strategies', 'opportunities', 
 export type TabId = typeof TAB_IDS[number]
 
 const NAV_ITEMS: { id: TabId; label: string; Icon: React.FC<{ size?: number }> }[] = [
-  { id: 'portfolio',     label: 'Portfolio',      Icon: LayoutDashboard },
-  { id: 'calendar',      label: 'Calendar',       Icon: CalendarDays },
-  { id: 'strategies',    label: 'Strategies',     Icon: Layers },
-  { id: 'opportunities', label: 'Opportunities',  Icon: Telescope },
-  { id: 'actions',       label: 'Actions',        Icon: Zap },
-  { id: 'growth',        label: 'Growth',         Icon: TrendingUp },
+  { id: 'portfolio',     label: 'PORTFOLIO',      Icon: LayoutDashboard },
+  { id: 'calendar',      label: 'CALENDAR',       Icon: CalendarDays },
+  { id: 'strategies',    label: 'STRATEGIES',     Icon: Layers },
+  { id: 'opportunities', label: 'OPPORTUNITIES',  Icon: Telescope },
+  { id: 'actions',       label: 'ACTIONS',        Icon: Zap },
+  { id: 'growth',        label: 'GROWTH',         Icon: TrendingUp },
 ]
 
-const SYNC_DOT: Record<SyncStatus, string> = {
-  idle:    'bg-neutral-600',
-  loading: 'bg-amber-400 animate-pulse',
-  success: 'bg-emerald-400',
-  error:   'bg-rose-500',
+const SYNC_COLOR: Record<SyncStatus, string> = {
+  idle: '#606060', loading: '#F0B429', success: '#00D084', error: '#FF4757',
 }
 const SYNC_LABEL: Record<SyncStatus, string> = {
-  idle: 'No data', loading: 'Syncing…', success: 'Synced', error: 'Error',
+  idle: 'NO DATA', loading: 'SYNCING', success: 'SYNCED', error: 'ERROR',
 }
 
 interface SidebarProps {
@@ -40,85 +37,85 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
 
   return (
     <aside
-      className="flex flex-col h-screen shrink-0 transition-all duration-200 ease-in-out"
+      className="flex flex-col h-screen shrink-0"
       style={{
-        width: collapsed ? 64 : 220,
-        background: '#13121c',
-        borderRight: '1px solid rgba(124,58,237,0.15)',
+        width: collapsed ? 52 : 200,
+        transition: 'width 0.2s ease',
+        background: '#1A1A1A',
+        borderRight: '1px solid #2E2E2E',
       }}
     >
       {/* Logo + toggle */}
-      <div className="flex items-center justify-between px-3 py-4" style={{ minHeight: 56 }}>
+      <div
+        className="flex items-center justify-between px-3"
+        style={{ height: 48, borderBottom: '1px solid #2E2E2E' }}
+      >
         {!collapsed && (
           <span
-            className="font-bold tracking-widest text-sm select-none"
-            style={{
-              background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
+            className="display font-bold tracking-widest text-xs select-none"
+            style={{ color: '#00E5FF', letterSpacing: 4 }}
           >
             OPTIONS
           </span>
         )}
         <button
           onClick={() => setCollapsed(c => !c)}
-          className="rounded-md p-1 transition-colors"
           style={{
             marginLeft: collapsed ? 'auto' : 0,
-            background: 'rgba(124,58,237,0.15)',
-            border: '1px solid rgba(124,58,237,0.25)',
-            color: '#c4b5fd',
+            background: 'transparent',
+            border: '1px solid #2E2E2E',
+            color: '#606060',
             cursor: 'pointer',
+            padding: '3px 5px',
+            display: 'flex',
+            alignItems: 'center',
           }}
         >
-          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
         </button>
       </div>
 
       {/* Nav */}
-      <nav className="flex flex-col gap-1 px-2 flex-1">
+      <nav className="flex flex-col flex-1 py-2">
         {NAV_ITEMS.map(({ id, label, Icon }) => {
           const active = activeTab === id
           return (
             <button
               key={id}
               onClick={() => onTabChange(id)}
-              className={clsx(
-                'flex items-center rounded-lg text-sm transition-all duration-150 relative w-full',
-                collapsed ? 'justify-center py-3' : 'gap-3 px-3 py-2.5',
-                active
-                  ? 'text-violet-300'
-                  : 'text-base-400 hover:text-base-200',
-              )}
+              className={clsx('flex items-center w-full relative', collapsed ? 'justify-center py-3 px-0' : 'gap-3 px-4 py-2.5')}
               style={{
-                background: active ? 'rgba(124,58,237,0.15)' : 'transparent',
+                background: active ? 'rgba(0,229,255,0.06)' : 'transparent',
                 border: 'none',
-                borderLeft: active ? '2px solid #7c3aed' : '2px solid transparent',
+                borderLeft: active ? '2px solid #00E5FF' : '2px solid transparent',
+                color: active ? '#00E5FF' : '#606060',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
+                fontSize: 10,
+                letterSpacing: 2,
+                fontWeight: 600,
+                transition: 'all 0.15s',
               }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#909090' }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#606060' }}
             >
               <div className="relative shrink-0">
-                <Icon size={18} />
+                <Icon size={15} />
                 {id === 'actions' && actionCount > 0 && (
                   <span
-                    className="absolute -top-1.5 -right-1.5 text-white rounded-full flex items-center justify-center"
+                    className="absolute -top-1.5 -right-1.5 flex items-center justify-center"
                     style={{
-                      fontSize: 9,
-                      fontWeight: 700,
-                      background: '#f43f5e',
-                      minWidth: 14,
-                      height: 14,
-                      padding: '0 3px',
+                      fontSize: 8, fontWeight: 700,
+                      background: '#FF4757', color: '#fff',
+                      minWidth: 13, height: 13,
+                      borderRadius: '50%', padding: '0 2px',
                     }}
                   >
                     {actionCount > 9 ? '9+' : actionCount}
                   </span>
                 )}
               </div>
-              {!collapsed && <span className="truncate">{label}</span>}
+              {!collapsed && <span>{label}</span>}
             </button>
           )
         })}
@@ -126,12 +123,15 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
 
       {/* Sync status */}
       <div
-        className="flex items-center gap-2 px-4 py-3"
-        style={{ borderTop: '1px solid rgba(124,58,237,0.1)' }}
+        className="flex items-center gap-2 px-3 py-3"
+        style={{ borderTop: '1px solid #2E2E2E' }}
       >
-        <span className={clsx('rounded-full shrink-0', SYNC_DOT[syncStatus])} style={{ width: 7, height: 7 }} />
+        <span
+          className={syncStatus === 'loading' ? 'pulsing' : ''}
+          style={{ width: 7, height: 7, borderRadius: '50%', background: SYNC_COLOR[syncStatus], display: 'inline-block', flexShrink: 0 }}
+        />
         {!collapsed && (
-          <span className="text-xs truncate" style={{ color: '#6b6490' }}>
+          <span style={{ fontSize: 9, color: '#606060', letterSpacing: 2 }}>
             {SYNC_LABEL[syncStatus]}
           </span>
         )}

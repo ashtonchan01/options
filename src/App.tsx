@@ -25,7 +25,7 @@ export default function App() {
   const View = VIEWS[activeTab]
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#0e0d14' }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: '#121212' }}>
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -43,7 +43,7 @@ export default function App() {
           onXmlUpload={uploadXML}
         />
 
-        <main className="flex-1 overflow-auto" style={{ background: '#0e0d14' }}>
+        <main className="flex-1 overflow-auto" style={{ background: '#121212' }}>
           <View />
         </main>
       </div>
