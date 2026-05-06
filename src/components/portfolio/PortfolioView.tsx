@@ -43,7 +43,7 @@ function fmtExpiry(raw: string): string {
 interface PortfolioViewProps { state: AppState }
 
 export default function PortfolioView({ state }: PortfolioViewProps) {
-  const { positions, trades, cashBalance } = state.sync
+  const { positions, trades, cashBalance, netLiquidation: ibkrNetLiq } = state.sync
   const { strategies } = state
 
   const hasData = positions.length > 0 || strategies.length > 0
@@ -65,10 +65,10 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
   const totalStockPnL   = stocks.reduce((s, p) => s + p.unrealizedPnL, 0)
   const totalOptionPnL  = strategies.reduce((s, st) => s + st.unrealizedPnL, 0)
   const totalPremium    = strategies.reduce((s, st) => s + st.netPremiumReceived, 0)
-  // Use raw positionValue for all positions so short option values (negative) correctly
-  // offset the cash collateral that IBKR includes in endingCash
+  // Prefer IBKR's own netLiquidation from EquitySummary; fall back to computed
   const allPositionsValue = positions.reduce((s, p) => s + p.positionValue, 0)
-  const netLiq            = allPositionsValue + cashBalance
+  const computedNetLiq    = allPositionsValue + cashBalance
+  const netLiq            = ibkrNetLiq ?? computedNetLiq
   const totalPnL          = totalStockPnL + totalOptionPnL
 
   // Group strategies by type

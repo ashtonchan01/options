@@ -5,15 +5,15 @@ const FLEX_PROXY = 'https://options-jade.vercel.app'
 
 // ─── XML Upload ───────────────────────────────────────────────────────────────
 
-export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number }> {
+export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number }> {
   const text = await file.text()
   const doc = new DOMParser().parseFromString(text, 'application/xml')
-  return { positions: parsePositions(doc), trades: parseTrades(doc), cashBalance: parseCash(doc) }
+  return { positions: parsePositions(doc), trades: parseTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc) }
 }
 
 // ─── Flex API ─────────────────────────────────────────────────────────────────
 
-export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number }> {
+export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number }> {
   if (!token || !queryId) throw new Error('Token and Query ID are required')
 
   const url = `${FLEX_PROXY}/api/flex-sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
@@ -31,7 +31,7 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<{
 
   const xml = text
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
-  return { positions: parsePositions(doc), trades: parseTrades(doc), cashBalance: parseCash(doc) }
+  return { positions: parsePositions(doc), trades: parseTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc) }
 }
 
 // ─── Ping ─────────────────────────────────────────────────────────────────────
@@ -42,27 +42,63 @@ export async function pingProxy(): Promise<{ ok: boolean }> {
   return { ok: res.status === 400 || res.status === 200 }
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Try multiple attribute names, return first non-null */
+function attr(el: Element, ...names: string[]): string | null {
+  for (const n of names) {
+    const v = el.getAttribute(n)
+    if (v !== null) return v
+  }
+  return null
+}
+
+function numAttr(el: Element, ...names: string[]): number {
+  const v = attr(el, ...names)
+  return v ? Number(v) : 0
+}
+
 // ─── Parsers ──────────────────────────────────────────────────────────────────
 
 function parsePositions(doc: Document): RawPosition[] {
-  return Array.from(doc.querySelectorAll('OpenPosition')).map(el => ({
-    accountId:        el.getAttribute('accountId') ?? '',
-    symbol:           el.getAttribute('symbol') ?? '',
-    description:      el.getAttribute('description') ?? '',
-    assetClass:       (el.getAttribute('assetClass') ?? '') as RawPosition['assetClass'],
-    quantity:         Number(el.getAttribute('position') ?? 0),
-    costBasisPrice:   Number(el.getAttribute('costBasisPrice') ?? 0),
-    costBasisMoney:   Number(el.getAttribute('costBasisMoney') ?? 0),
-    markPrice:        Number(el.getAttribute('markPrice') ?? 0),
-    positionValue:    Number(el.getAttribute('positionValue') ?? 0),
-    unrealizedPnL:    Number(el.getAttribute('unrealizedPnL') ?? 0),
-    putCall:          (el.getAttribute('putCall') || undefined) as RawPosition['putCall'],
-    strike:           el.getAttribute('strike') ? Number(el.getAttribute('strike')) : undefined,
-    expiry:           el.getAttribute('expiry') ?? undefined,
-    multiplier:       el.getAttribute('multiplier') ? Number(el.getAttribute('multiplier')) : undefined,
-    underlyingSymbol: el.getAttribute('underlyingSymbol') ?? undefined,
-    currency:         el.getAttribute('currency') ?? 'USD',
-  }))
+  const positions = Array.from(doc.querySelectorAll('OpenPosition')).map(el => {
+    // IBKR Flex XML uses assetCategory in most reports, assetClass in some
+    const ac = attr(el, 'assetCategory', 'assetClass') ?? ''
+    const pc = attr(el, 'putCall')
+    return {
+      accountId:        el.getAttribute('accountId') ?? '',
+      symbol:           el.getAttribute('symbol') ?? '',
+      description:      el.getAttribute('description') ?? '',
+      assetClass:       ac as RawPosition['assetClass'],
+      quantity:         numAttr(el, 'position', 'quantity'),
+      costBasisPrice:   numAttr(el, 'costBasisPrice'),
+      costBasisMoney:   numAttr(el, 'costBasisMoney'),
+      markPrice:        numAttr(el, 'markPrice'),
+      positionValue:    numAttr(el, 'positionValue'),
+      unrealizedPnL:    numAttr(el, 'fifoPnlUnrealized', 'unrealizedPnL'),
+      putCall:          (pc === 'P' || pc === 'C' ? pc : undefined) as RawPosition['putCall'],
+      strike:           attr(el, 'strike') ? Number(attr(el, 'strike')) : undefined,
+      expiry:           attr(el, 'expiry') ?? undefined,
+      multiplier:       attr(el, 'multiplier') ? Number(attr(el, 'multiplier')) : undefined,
+      underlyingSymbol: attr(el, 'underlyingSymbol') ?? undefined,
+      currency:         el.getAttribute('currency') ?? 'USD',
+    }
+  })
+
+  // Debug: log first few positions so we can verify parsing
+  if (positions.length > 0) {
+    console.log('[IBKR] Parsed positions:', positions.length)
+    console.log('[IBKR] Sample:', positions.slice(0, 3).map(p => ({
+      sym: p.symbol, ac: p.assetClass, pc: p.putCall,
+      strike: p.strike, expiry: p.expiry, under: p.underlyingSymbol,
+      qty: p.quantity, val: p.positionValue, pnl: p.unrealizedPnL,
+    })))
+    const opts = positions.filter(p => p.assetClass === 'OPT')
+    const stks = positions.filter(p => p.assetClass === 'STK')
+    console.log(`[IBKR] ${stks.length} STK, ${opts.length} OPT, ${positions.length - stks.length - opts.length} other`)
+  }
+
+  return positions
 }
 
 function parseCash(doc: Document): number {
@@ -73,12 +109,28 @@ function parseCash(doc: Document): number {
   return rows.reduce((sum, el) => sum + Number(el.getAttribute('endingCash') ?? 0), 0)
 }
 
+function parseNetLiq(doc: Document): number | undefined {
+  // IBKR Flex reports include EquitySummaryInBase with exact netLiquidation
+  const eqBase = doc.querySelector('EquitySummaryInBase')
+  if (eqBase) {
+    const nl = eqBase.getAttribute('netLiquidation')
+    if (nl) return Number(nl)
+  }
+  // Also try EquitySummaryByReportDateInBase
+  const eqDate = doc.querySelector('EquitySummaryByReportDateInBase')
+  if (eqDate) {
+    const nl = eqDate.getAttribute('netLiquidation')
+    if (nl) return Number(nl)
+  }
+  return undefined
+}
+
 function parseTrades(doc: Document): RawTrade[] {
   return Array.from(doc.querySelectorAll('Trade')).map(el => ({
     tradeDate:        el.getAttribute('tradeDate') ?? '',
     symbol:           el.getAttribute('symbol') ?? '',
     underlyingSymbol: el.getAttribute('underlyingSymbol') ?? undefined,
-    assetClass:       (el.getAttribute('assetClass') ?? 'STK') as RawTrade['assetClass'],
+    assetClass:       (attr(el, 'assetCategory', 'assetClass') ?? 'STK') as RawTrade['assetClass'],
     putCall:          (el.getAttribute('putCall') || undefined) as RawTrade['putCall'],
     strike:           el.getAttribute('strike') ? Number(el.getAttribute('strike')) : undefined,
     expiry:           el.getAttribute('expiry') ?? undefined,

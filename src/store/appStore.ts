@@ -15,12 +15,13 @@ const INITIAL: AppState = {
 export function useAppStore() {
   const [state, setState] = useState<AppState>(INITIAL)
 
-  const applyData = useCallback((positions: RawPosition[], trades: RawTrade[], cashBalance: number) => {
+  const applyData = useCallback((positions: RawPosition[], trades: RawTrade[], cashBalance: number, netLiquidation?: number) => {
     const strategies = classifyPositions(positions)
     const actions    = generateActions(strategies, positions)
+    console.log(`[Store] ${positions.length} positions → ${strategies.length} strategies, ${actions.length} actions`)
     setState(s => ({
       ...s,
-      sync: { ...s.sync, status: 'success', lastSync: Date.now(), positions, trades, cashBalance },
+      sync: { ...s.sync, status: 'success', lastSync: Date.now(), positions, trades, cashBalance, netLiquidation },
       strategies,
       actions,
     }))
@@ -29,8 +30,8 @@ export function useAppStore() {
   const uploadXML = useCallback(async (file: File) => {
     setState(s => ({ ...s, sync: { ...s.sync, status: 'loading', error: undefined } }))
     try {
-      const { positions, trades, cashBalance } = await syncFromXML(file)
-      applyData(positions, trades, cashBalance)
+      const { positions, trades, cashBalance, netLiquidation } = await syncFromXML(file)
+      applyData(positions, trades, cashBalance, netLiquidation)
     } catch (e) {
       setState(s => ({ ...s, sync: { ...s.sync, status: 'error', error: String(e) } }))
     }
@@ -39,8 +40,8 @@ export function useAppStore() {
   const syncFlex = useCallback(async (token: string, queryId: string) => {
     setState(s => ({ ...s, sync: { ...s.sync, status: 'loading', error: undefined } }))
     try {
-      const { positions, trades, cashBalance } = await syncFromFlexAPI(token, queryId)
-      applyData(positions, trades, cashBalance)
+      const { positions, trades, cashBalance, netLiquidation } = await syncFromFlexAPI(token, queryId)
+      applyData(positions, trades, cashBalance, netLiquidation)
     } catch (e) {
       setState(s => ({ ...s, sync: { ...s.sync, status: 'error', error: String(e) } }))
     }

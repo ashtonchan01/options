@@ -1,5 +1,4 @@
 import type { AppState, Strategy, StrategyType, OptionLeg } from '../../types'
-import EmptyState from '../shared/EmptyState'
 
 interface Props { state: AppState }
 
@@ -215,9 +214,6 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
 
 export default function StrategiesView({ state }: Props) {
   const { strategies } = state
-
-  const hasPositions = state.sync.positions.length > 0
-  const hasOptions   = state.sync.positions.some(p => p.assetClass === 'OPT')
 
   if (!strategies.length) {
     return (

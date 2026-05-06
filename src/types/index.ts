@@ -167,6 +167,7 @@ export interface SyncState {
   positions: RawPosition[]
   trades: RawTrade[]
   cashBalance: number
+  netLiquidation?: number  // direct from IBKR EquitySummary
 }
 
 // ─── App State ────────────────────────────────────────────────────────────────
