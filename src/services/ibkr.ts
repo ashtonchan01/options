@@ -22,7 +22,10 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<{
   const text = await res.text()
   if (!res.ok) {
     let msg = `HTTP ${res.status}`
-    try { const b = JSON.parse(text) as { error?: string }; if (b.error) msg = b.error } catch { msg = text.slice(0, 200) }
+    try {
+      const b = JSON.parse(text) as { error?: string; raw?: string }
+      if (b.error) msg = b.raw ? `${b.error} | raw: ${b.raw.slice(0, 120)}` : b.error
+    } catch { msg = text.slice(0, 200) }
     throw new Error(msg)
   }
 

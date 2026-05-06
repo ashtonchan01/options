@@ -21,7 +21,9 @@ export default async function handler(req, res) {
     const body = await r.text()
     const ref  = body.match(/ReferenceCode="([^"]+)"/)?.[1]
     if (!ref) {
-      const msg = body.match(/ErrorMessage="([^"]+)"/)?.[1] ?? 'No ReferenceCode'
+      const msg = body.match(/ErrorMessage="([^"]+)"/)?.[1]
+        ?? body.match(/ErrorCode="([^"]+)"/)?.[1]
+        ?? body.slice(0, 120)
       return res.status(502).json({ error: `IBKR: ${msg}`, raw: body })
     }
     referenceCode = ref
