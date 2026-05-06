@@ -49,7 +49,7 @@ function parsePositions(doc: Document): RawPosition[] {
     accountId:        el.getAttribute('accountId') ?? '',
     symbol:           el.getAttribute('symbol') ?? '',
     description:      el.getAttribute('description') ?? '',
-    assetClass:       (el.getAttribute('assetClass') ?? 'STK') as RawPosition['assetClass'],
+    assetClass:       (el.getAttribute('assetClass') ?? '') as RawPosition['assetClass'],
     quantity:         Number(el.getAttribute('position') ?? 0),
     costBasisPrice:   Number(el.getAttribute('costBasisPrice') ?? 0),
     costBasisMoney:   Number(el.getAttribute('costBasisMoney') ?? 0),
