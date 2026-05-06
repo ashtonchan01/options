@@ -8,17 +8,17 @@ interface EmptyStateProps {
 
 export default function EmptyState({ title, message, showUpload }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-4" style={{ color: '#6b6490' }}>
+    <div className="flex flex-col items-center justify-center h-full gap-4" style={{ color: '#555' }}>
       {showUpload && (
         <div
           className="rounded-xl p-5"
-          style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.15)' }}
+          style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)' }}
         >
-          <Upload size={28} style={{ color: '#7c3aed' }} />
+          <Upload size={28} style={{ color: '#3b82f6' }} />
         </div>
       )}
       <div className="text-center">
-        <p style={{ fontSize: 15, fontWeight: 600, color: '#9d96c0', margin: '0 0 4px' }}>{title}</p>
+        <p style={{ fontSize: 15, fontWeight: 600, color: '#aaa', margin: '0 0 4px' }}>{title}</p>
         <p style={{ fontSize: 13, margin: 0 }}>{message}</p>
       </div>
     </div>

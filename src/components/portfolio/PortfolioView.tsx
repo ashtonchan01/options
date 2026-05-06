@@ -4,7 +4,7 @@ import EmptyState from '../shared/EmptyState'
 const STRAT_COLOR: Record<StrategyType, string> = {
   csp:          '#f43f5e',
   covered_call: '#818cf8',
-  pmcc:         '#a78bfa',
+  pmcc:         '#3b82f6',
   risk_reversal:'#38bdf8',
   put_spread:   '#fbbf24',
   call_spread:  '#fb923c',
