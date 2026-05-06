@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import Sidebar, { type TabId } from './components/layout/Sidebar'
 import Header from './components/layout/Header'
+import FlexSettingsPanel from './components/shared/FlexSettingsPanel'
 import { useAppStore } from './store/appStore'
+import { useSettingsStore } from './store/settingsStore'
 import PortfolioView from './components/portfolio/PortfolioView'
 import CalendarView from './components/calendar/CalendarView'
 import StrategiesView from './components/strategies/StrategiesView'
@@ -22,13 +24,16 @@ const VIEWS: Record<TabId, ViewComponent> = {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabId>('portfolio')
-  const { state, uploadXML, syncFlex } = useAppStore()
+  const [activeTab, setActiveTab]       = useState<TabId>('portfolio')
+  const [showSettings, setShowSettings] = useState(false)
+  const { state, uploadXML, syncFlex }  = useAppStore()
+  const { settings, update }            = useSettingsStore()
 
+  const hasCredentials = !!(settings.token && settings.queryId)
   const View = VIEWS[activeTab]
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#0e0d14' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#0a0a0f' }}>
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -36,20 +41,29 @@ export default function App() {
         syncStatus={state.sync.status}
       />
 
-      <div className="flex flex-col flex-1 min-w-0">
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
         <Header
           activeTab={activeTab}
           syncStatus={state.sync.status}
-          syncMode={state.sync.mode}
           lastSync={state.sync.lastSync}
-          onSyncClick={syncFlex}
+          hasCredentials={hasCredentials}
+          onSyncClick={() => syncFlex(settings.token, settings.queryId)}
           onXmlUpload={uploadXML}
+          onOpenSettings={() => setShowSettings(true)}
         />
 
-        <main className="flex-1 overflow-auto" style={{ background: '#0e0d14' }}>
+        <main style={{ flex: 1, overflow: 'auto', background: '#0a0a0f' }}>
           <View state={state} />
         </main>
       </div>
+
+      {showSettings && (
+        <FlexSettingsPanel
+          settings={settings}
+          onSave={s => { update(s); setShowSettings(false) }}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
     </div>
   )
 }

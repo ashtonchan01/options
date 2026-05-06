@@ -3,13 +3,13 @@ import EmptyState from '../shared/EmptyState'
 
 const STRAT_COLOR: Record<StrategyType, string> = {
   csp:          '#f43f5e',
-  covered_call: '#7c3aed',
-  pmcc:         '#c026d3',
-  risk_reversal:'#06b6d4',
-  put_spread:   '#f59e0b',
-  call_spread:  '#ff6b35',
+  covered_call: '#818cf8',
+  pmcc:         '#a78bfa',
+  risk_reversal:'#38bdf8',
+  put_spread:   '#fbbf24',
+  call_spread:  '#fb923c',
   leap:         '#10b981',
-  other:        '#6b6490',
+  other:        '#555',
 }
 
 const STRAT_LABEL: Record<StrategyType, string> = {

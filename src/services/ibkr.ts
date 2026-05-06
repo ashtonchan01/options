@@ -1,49 +1,39 @@
 import type { RawPosition, RawTrade } from '../types'
 
-// Use local proxy in dev (avoids IBKR blocking Cloudflare IPs), worker in prod
-const FLEX_PROXY = import.meta.env.DEV
-  ? 'http://localhost:3457'
-  : 'https://wheel-proxy.ashtonchan.workers.dev'
+const FLEX_PROXY = 'https://wheel-proxy.ashtonchan.workers.dev'
 
 // ─── XML Upload ───────────────────────────────────────────────────────────────
 
 export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[] }> {
   const text = await file.text()
   const doc = new DOMParser().parseFromString(text, 'application/xml')
-  return {
-    positions: parsePositions(doc),
-    trades: parseTrades(doc),
-  }
+  return { positions: parsePositions(doc), trades: parseTrades(doc) }
 }
 
 // ─── Flex API ─────────────────────────────────────────────────────────────────
-// Token lives in the Worker as a secret — never exposed to the browser.
 
-export async function syncFromFlexAPI(): Promise<{ positions: RawPosition[]; trades: RawTrade[] }> {
-  const res = await fetch(`${FLEX_PROXY}/flex/sync`)
+export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[] }> {
+  if (!token || !queryId) throw new Error('Token and Query ID are required')
+
+  const url = `${FLEX_PROXY}/flex/sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
+  const res = await fetch(url)
 
   if (!res.ok) {
     let msg = `HTTP ${res.status}`
-    try {
-      const body = await res.json() as { error?: string }
-      if (body.error) msg = body.error
-    } catch { /* ignore */ }
+    try { const b = await res.json() as { error?: string }; if (b.error) msg = b.error } catch { /* ignore */ }
     throw new Error(msg)
   }
 
   const xml = await res.text()
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
-  return {
-    positions: parsePositions(doc),
-    trades: parseTrades(doc),
-  }
+  return { positions: parsePositions(doc), trades: parseTrades(doc) }
 }
 
 // ─── Ping ─────────────────────────────────────────────────────────────────────
 
-export async function pingWorker(): Promise<{ ok: boolean; configured: boolean; hasToken: boolean; hasQueryId: boolean }> {
+export async function pingWorker(): Promise<{ ok: boolean }> {
   const res = await fetch(`${FLEX_PROXY}/ping`)
-  if (!res.ok) throw new Error(`Worker unreachable (${res.status})`)
+  if (!res.ok) throw new Error(`Worker unreachable`)
   return res.json()
 }
 

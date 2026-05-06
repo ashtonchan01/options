@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { AppState, RawPosition, RawTrade, SyncMode } from '../types'
+import type { AppState, RawPosition, RawTrade } from '../types'
 import { syncFromXML, syncFromFlexAPI } from '../services/ibkr'
 import { classifyPositions } from '../engine/classifier'
 
@@ -13,10 +13,6 @@ const INITIAL: AppState = {
 
 export function useAppStore() {
   const [state, setState] = useState<AppState>(INITIAL)
-
-  const setSyncMode = useCallback((mode: SyncMode) => {
-    setState(s => ({ ...s, sync: { ...s.sync, mode } }))
-  }, [])
 
   const applyData = useCallback((positions: RawPosition[], trades: RawTrade[]) => {
     const strategies = classifyPositions(positions)
@@ -37,15 +33,15 @@ export function useAppStore() {
     }
   }, [applyData])
 
-  const syncFlex = useCallback(async () => {
+  const syncFlex = useCallback(async (token: string, queryId: string) => {
     setState(s => ({ ...s, sync: { ...s.sync, status: 'loading', error: undefined } }))
     try {
-      const { positions, trades } = await syncFromFlexAPI()
+      const { positions, trades } = await syncFromFlexAPI(token, queryId)
       applyData(positions, trades)
     } catch (e) {
       setState(s => ({ ...s, sync: { ...s.sync, status: 'error', error: String(e) } }))
     }
   }, [applyData])
 
-  return { state, setSyncMode, uploadXML, syncFlex }
+  return { state, uploadXML, syncFlex }
 }

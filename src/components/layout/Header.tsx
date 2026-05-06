@@ -1,7 +1,6 @@
-import { useRef, useState, useEffect } from 'react'
-import { RefreshCw, Upload, Wifi, WifiOff, AlertTriangle } from 'lucide-react'
+import { useRef } from 'react'
+import { RefreshCw, Upload, Settings } from 'lucide-react'
 import type { SyncStatus } from '../../types'
-import { pingWorker } from '../../services/ibkr'
 import type { TabId } from './Sidebar'
 
 const TAB_LABELS: Record<TabId, string> = {
@@ -20,35 +19,27 @@ function relativeTime(ms: number): string {
   return `${Math.floor(diff / 3_600_000)}h ago`
 }
 
-type PingState = 'unknown' | 'ok' | 'misconfigured' | 'unreachable'
-
 interface HeaderProps {
   activeTab: TabId
   syncStatus: SyncStatus
-  syncMode?: string
   lastSync?: number
+  hasCredentials: boolean
   onSyncClick: () => void
   onXmlUpload: (file: File) => void
+  onOpenSettings: () => void
 }
 
-export default function Header({ activeTab, syncStatus, lastSync, onSyncClick, onXmlUpload }: HeaderProps) {
+const btn: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  padding: '7px 14px', fontSize: 12,
+  border: '1px solid #222', background: '#111',
+  color: '#888', cursor: 'pointer', fontFamily: 'inherit',
+  transition: 'all 0.15s',
+}
+
+export default function Header({ activeTab, syncStatus, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings }: HeaderProps) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [ping, setPing] = useState<PingState>('unknown')
-  const [pinging, setPinging] = useState(false)
-
-  const checkWorker = async () => {
-    setPinging(true)
-    try {
-      const result = await pingWorker()
-      setPing(result.configured ? 'ok' : 'misconfigured')
-    } catch {
-      setPing('unreachable')
-    } finally {
-      setPinging(false)
-    }
-  }
-
-  useEffect(() => { checkWorker() }, [])
+  const isLoading = syncStatus === 'loading'
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -56,100 +47,81 @@ export default function Header({ activeTab, syncStatus, lastSync, onSyncClick, o
     e.target.value = ''
   }
 
-  const isLoading = syncStatus === 'loading'
-
-  const PingIcon = ping === 'ok' ? Wifi : ping === 'unreachable' ? WifiOff : AlertTriangle
-  const pingColor = ping === 'ok' ? '#10b981' : ping === 'misconfigured' ? '#f59e0b' : ping === 'unreachable' ? '#f43f5e' : '#6b6490'
-  const pingLabel = ping === 'ok' ? 'Live' : ping === 'misconfigured' ? 'No secrets' : ping === 'unreachable' ? 'Offline' : '…'
-  const pingTip   = ping === 'ok' ? 'Worker connected & configured'
-    : ping === 'misconfigured' ? 'Worker reachable but secrets not set'
-    : ping === 'unreachable' ? 'Worker unreachable — check deployment'
-    : 'Checking worker…'
-
   return (
-    <header
-      className="flex items-center justify-between shrink-0"
-      style={{
-        height: 58,
-        padding: '0 24px',
-        background: 'rgba(13,12,20,0.95)',
-        borderBottom: '1px solid rgba(124,58,237,0.15)',
-      }}
-    >
-      <div className="flex items-center gap-3">
-        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#edeaf5' }}>
+    <header style={{
+      height: 54,
+      padding: '0 24px',
+      background: '#0d0d0d',
+      borderBottom: '1px solid #1a1a1a',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <h1 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#e8e8e8' }}>
           {TAB_LABELS[activeTab]}
         </h1>
         {lastSync && (
-          <span className="mono" style={{ fontSize: 11, color: '#6b6490' }}>
+          <span style={{ fontSize: 11, color: '#444', fontFamily: 'IBM Plex Mono, monospace' }}>
             {relativeTime(lastSync)}
+          </span>
+        )}
+        {syncStatus === 'error' && (
+          <span style={{ fontSize: 11, color: '#f43f5e', fontFamily: 'IBM Plex Mono, monospace' }}>
+            sync failed
           </span>
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-
-        {/* Worker ping indicator */}
-        <button
-          onClick={checkWorker}
-          disabled={pinging}
-          title={pingTip}
-          className="flex items-center gap-1.5 btn"
-          style={{
-            color: pingColor,
-            borderColor: `${pingColor}40`,
-            background: `${pingColor}0d`,
-            opacity: pinging ? 0.6 : 1,
-            fontSize: 12,
-          }}
-        >
-          <PingIcon size={13} style={{ animation: pinging ? 'spin 1s linear infinite' : 'none' }} />
-          {pingLabel}
-        </button>
-
-        <div style={{ width: 1, height: 18, background: 'rgba(124,58,237,0.2)' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 
         {/* XML upload */}
-        <label className="btn btn-violet flex items-center gap-1.5 cursor-pointer" style={{ fontSize: 12 }}>
+        <label style={{ ...btn, cursor: 'pointer' }}>
           <Upload size={13} />
           Upload XML
-          <input ref={fileRef} type="file" accept=".xml" className="hidden" onChange={handleFile} />
+          <input ref={fileRef} type="file" accept=".xml" style={{ display: 'none' }} onChange={handleFile} />
         </label>
 
         {/* Flex sync */}
         <button
           onClick={onSyncClick}
-          disabled={isLoading || ping !== 'ok'}
-          className="btn btn-violet flex items-center gap-1.5"
+          disabled={isLoading || !hasCredentials}
+          title={!hasCredentials ? 'Configure IBKR credentials first (⚙)' : 'Sync from IBKR Flex'}
           style={{
-            fontSize: 12,
-            opacity: (isLoading || ping !== 'ok') ? 0.4 : 1,
-            cursor: (isLoading || ping !== 'ok') ? 'not-allowed' : 'pointer',
+            ...btn,
+            color: hasCredentials ? '#ccc' : '#444',
+            opacity: (isLoading || !hasCredentials) ? 0.5 : 1,
+            cursor: (isLoading || !hasCredentials) ? 'not-allowed' : 'pointer',
           }}
-          title={ping !== 'ok' ? 'Worker must be connected first' : 'Sync from IBKR Flex'}
         >
           <RefreshCw size={13} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
           Flex Sync
         </button>
 
-        {/* Sync status dot */}
-        <span
-          className={isLoading ? 'pulsing' : ''}
-          style={{
-            width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
-            background: syncStatus === 'success' ? '#10b981'
-              : syncStatus === 'error'   ? '#f43f5e'
-              : syncStatus === 'loading' ? '#f59e0b'
-              : 'rgba(124,58,237,0.2)',
-          }}
-        />
+        {/* Sync dot */}
+        <span style={{
+          width: 7, height: 7, borderRadius: '50%', display: 'inline-block',
+          animation: isLoading ? 'pulse 1s ease-in-out infinite' : 'none',
+          background: syncStatus === 'success' ? '#10b981'
+            : syncStatus === 'error'   ? '#f43f5e'
+            : syncStatus === 'loading' ? '#f59e0b'
+            : '#222',
+        }} />
 
-        {syncStatus === 'error' && (
-          <span className="mono" style={{ fontSize: 11, color: '#f43f5e' }}>Sync failed</span>
-        )}
+        <div style={{ width: 1, height: 18, background: '#1a1a1a', margin: '0 2px' }} />
+
+        {/* Settings */}
+        <button
+          onClick={onOpenSettings}
+          title="IBKR Flex credentials"
+          style={{ ...btn, padding: '7px 10px', color: hasCredentials ? '#10b981' : '#666' }}
+        >
+          <Settings size={14} />
+        </button>
       </div>
 
-      <style>{`@keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+      `}</style>
     </header>
   )
 }
