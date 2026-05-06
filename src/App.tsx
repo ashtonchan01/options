@@ -54,7 +54,9 @@ export default function App() {
         />
 
         <main style={{ flex: 1, overflow: 'auto', background: '#0a0a0f' }}>
-          <View state={state} />
+          <div style={{ maxWidth: 1200, margin: '0 auto', height: '100%' }}>
+            <View state={state} />
+          </div>
         </main>
       </div>
 
