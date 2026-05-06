@@ -15,7 +15,7 @@ const STRATEGY_LABEL: Record<ScanResult['strategyType'], string> = {
 
 const STRATEGY_COLOR: Record<ScanResult['strategyType'], string> = {
   csp: '#f43f5e',
-  covered_call: '#a78bfa',
+  covered_call: '#3b82f6',
 }
 
 function fmtExpiry(s: string): string {
@@ -125,7 +125,7 @@ export default function OpportunitiesView({ state }: Props) {
             <span key={sym} style={{
               padding: '3px 8px', fontSize: 11, fontWeight: 600,
               background: '#0d0d0d', border: '1px solid #1a1a1a',
-              color: stocksHeld[sym] ? '#a78bfa' : '#444',
+              color: stocksHeld[sym] ? '#3b82f6' : '#444',
               fontFamily: 'IBM Plex Mono, monospace',
             }}>
               {sym}{stocksHeld[sym] ? ` ×${stocksHeld[sym]}` : ''}
