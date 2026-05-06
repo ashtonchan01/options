@@ -65,9 +65,11 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
   const totalStockPnL   = stocks.reduce((s, p) => s + p.unrealizedPnL, 0)
   const totalOptionPnL  = strategies.reduce((s, st) => s + st.unrealizedPnL, 0)
   const totalPremium    = strategies.reduce((s, st) => s + st.netPremiumReceived, 0)
-  const optionValue     = strategies.reduce((s, st) => s + st.legs.reduce((a, l) => a + l.markPrice * Math.abs(l.quantity) * 100 * Math.sign(l.quantity), 0), 0)
-  const netLiq          = totalStockValue + optionValue + cashBalance
-  const totalPnL        = totalStockPnL + totalOptionPnL
+  // Use raw positionValue for all positions so short option values (negative) correctly
+  // offset the cash collateral that IBKR includes in endingCash
+  const allPositionsValue = positions.reduce((s, p) => s + p.positionValue, 0)
+  const netLiq            = allPositionsValue + cashBalance
+  const totalPnL          = totalStockPnL + totalOptionPnL
 
   // Group strategies by type
   const byType = strategies.reduce<Record<string, Strategy[]>>((acc, s) => {
