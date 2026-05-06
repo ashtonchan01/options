@@ -1,7 +1,7 @@
 import type { RawPosition, RawTrade } from '../types'
 
 // Vercel serverless function uses AWS IPs — not blocked by IBKR like Cloudflare
-const FLEX_PROXY = 'https://options-ashtonchan.vercel.app'
+const FLEX_PROXY = 'https://options-jade.vercel.app'
 
 // ─── XML Upload ───────────────────────────────────────────────────────────────
 
