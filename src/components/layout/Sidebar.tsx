@@ -43,7 +43,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
       }}>
         {!collapsed && (
           <span style={{
-            fontFamily: 'Chakra Petch, sans-serif', fontWeight: 700,
+            fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700,
             fontSize: 13, letterSpacing: 4, color: '#e8e8e8',
           }}>
             OPTIONS

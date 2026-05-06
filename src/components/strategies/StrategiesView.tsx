@@ -120,7 +120,7 @@ function StrategyCard({ s }: { s: Strategy }) {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid #111' }}>
-        <span style={{ fontSize: 17, fontWeight: 700, color: '#e8e8e8', fontFamily: 'IBM Plex Mono, monospace', minWidth: 56 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#e8e8e8', fontFamily: 'IBM Plex Mono, monospace', minWidth: 56 }}>
           {s.underlying}
         </span>
         <span style={{ padding: '2px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color, background: `${color}14`, border: `1px solid ${color}33` }}>
@@ -141,7 +141,7 @@ function StrategyCard({ s }: { s: Strategy }) {
         )}
         <div style={{ textAlign: 'right', minWidth: 80 }}>
           <div style={{ fontSize: 10, color: '#2a2a2a', letterSpacing: '0.06em' }}>UNREAL P&L</div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, fontWeight: 600, color: pnlColor(s.unrealizedPnL) }}>
+          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: pnlColor(s.unrealizedPnL) }}>
             {fmt$(s.unrealizedPnL)}
           </div>
         </div>
@@ -216,10 +216,23 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
 export default function StrategiesView({ state }: Props) {
   const { strategies } = state
 
+  const hasPositions = state.sync.positions.length > 0
+  const hasOptions   = state.sync.positions.some(p => p.assetClass === 'OPT')
+
   if (!strategies.length) {
     return (
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <EmptyState title="No strategies" message="Sync your IBKR portfolio to classify positions." showUpload />
+        {!hasPositions
+          ? <EmptyState title="No strategies" message="Sync your IBKR portfolio to classify positions." showUpload />
+          : !hasOptions
+          ? <div style={{ textAlign: 'center', color: '#444', fontSize: 12, maxWidth: 400, lineHeight: 1.8 }}>
+              <div style={{ color: '#888', fontWeight: 600, marginBottom: 8 }}>No option positions found</div>
+              Your Flex query returned {state.sync.positions.length} position(s) but no options.<br />
+              In IBKR → Reports → Flex Queries → edit your query → <strong style={{ color: '#666' }}>Open Positions</strong> section:<br />
+              enable <strong style={{ color: '#666' }}>Put/Call, Strike, Expiry, Underlying Symbol, Asset Class</strong>.
+            </div>
+          : <EmptyState title="No strategies classified" message="Positions found but could not be classified. Check that option fields are included in your Flex query." showUpload />
+        }
       </div>
     )
   }

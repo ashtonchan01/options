@@ -143,7 +143,7 @@ function WheelTracker({ state }: { state: AppState }) {
 
           return (
             <div key={sym} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#0d0d0d', border: '1px solid #111' }}>
-              <span style={{ fontWeight: 700, color: '#ccc', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, minWidth: 60 }}>
+              <span style={{ fontWeight: 700, color: '#ccc', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, minWidth: 60 }}>
                 {sym}
               </span>
               <span style={{

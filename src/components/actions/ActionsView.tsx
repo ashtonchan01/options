@@ -68,7 +68,7 @@ function ActionCard({ a }: { a: Action }) {
     }}>
       {/* Left: ticker + badges */}
       <div style={{ flexShrink: 0, minWidth: 110 }}>
-        <div style={{ fontSize: 17, fontWeight: 700, color: '#e8e8e8', fontFamily: 'IBM Plex Mono, monospace', marginBottom: 6 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#e8e8e8', fontFamily: 'IBM Plex Mono, monospace', marginBottom: 6 }}>
           {a.underlying}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

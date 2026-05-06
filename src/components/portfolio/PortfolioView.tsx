@@ -99,7 +99,7 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
         <section>
           <div className="label" style={{ marginBottom: 10 }}>EQUITY POSITIONS</div>
           <div className="panel" style={{ overflow: 'hidden' }}>
-            <table className="trade-table" style={{ fontSize: 14 }}>
+            <table className="trade-table" style={{ fontSize: 12 }}>
               <thead>
                 <tr>
                   {['SYMBOL', 'QTY', 'AVG COST', 'MARK', 'VALUE', 'UNREAL P&L', 'RETURN'].map(h => (
@@ -112,7 +112,7 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
                   const ret = p.costBasisPrice > 0 ? (p.markPrice - p.costBasisPrice) / p.costBasisPrice * 100 : 0
                   return (
                     <tr key={p.symbol}>
-                      <td style={{ padding: '13px 16px', fontFamily: 'Chakra Petch, sans-serif', fontSize: 15, fontWeight: 600, color: '#EEEEEE' }}>{p.symbol}</td>
+                      <td style={{ padding: '13px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: '#EEEEEE' }}>{p.symbol}</td>
                       <td style={{ padding: '13px 16px' }} className="mono">{p.quantity.toLocaleString()}</td>
                       <td style={{ padding: '13px 16px' }} className="mono">{fmt$(p.costBasisPrice, 2)}</td>
                       <td style={{ padding: '13px 16px' }} className="mono">{fmt$(p.markPrice, 2)}</td>
@@ -145,7 +145,7 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
         <section>
           <div className="label" style={{ marginBottom: 10 }}>RECENT TRADES</div>
           <div className="panel" style={{ overflow: 'hidden' }}>
-            <table className="trade-table" style={{ fontSize: 14 }}>
+            <table className="trade-table" style={{ fontSize: 12 }}>
               <thead>
                 <tr>
                   {['DATE', 'SYMBOL', 'TYPE', 'QTY', 'PRICE', 'PROCEEDS', 'NET CASH'].map(h => (
@@ -157,7 +157,7 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
                 {trades.slice(0, 20).map((t, i) => (
                   <tr key={i}>
                     <td style={{ padding: '12px 16px' }} className="mono" >{t.tradeDate}</td>
-                    <td style={{ padding: '12px 16px', fontFamily: 'Chakra Petch, sans-serif', fontSize: 14, color: '#EEEEEE' }}>{t.underlyingSymbol ?? t.symbol}</td>
+                    <td style={{ padding: '12px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, color: '#EEEEEE' }}>{t.underlyingSymbol ?? t.symbol}</td>
                     <td style={{ padding: '12px 16px' }}>
                       <span style={{ fontSize: 10, letterSpacing: 1, padding: '2px 7px', border: '1px solid #2E2E2E', color: '#909090' }}>
                         {t.assetClass === 'OPT' ? `${t.putCall} ${t.strike}` : t.assetClass}
@@ -218,7 +218,7 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
                 {i === 0 && (
                   <td
                     rowSpan={s.legs.length}
-                    style={{ padding: '12px 16px', fontFamily: 'Chakra Petch, sans-serif', fontSize: 16, fontWeight: 700, color: '#EEEEEE', verticalAlign: 'middle' }}
+                    style={{ padding: '12px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 700, color: '#EEEEEE', verticalAlign: 'middle' }}
                   >
                     {s.underlying}
                   </td>
@@ -234,7 +234,7 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
                     {leg.quantity > 0 ? 'LONG' : 'SHORT'} {leg.putCall === 'C' ? 'CALL' : 'PUT'}
                   </span>
                 </td>
-                <td style={{ padding: '12px 16px', fontFamily: 'Chakra Petch, sans-serif', fontSize: 15 }} className="mono">{fmt$(leg.strike, 0)}</td>
+                <td style={{ padding: '12px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }} className="mono">{fmt$(leg.strike, 0)}</td>
                 <td style={{ padding: '12px 16px' }} className="mono">{fmtExpiry(leg.expiry)}</td>
                 <td style={{ padding: '12px 16px' }}>
                   <span style={{

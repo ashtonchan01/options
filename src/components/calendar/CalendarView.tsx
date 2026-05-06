@@ -332,7 +332,7 @@ export default function CalendarView({ state }: Props) {
           <button onClick={prevMonth} style={{ background: 'none', border: '1px solid #1a1a1a', color: '#555', cursor: 'pointer', padding: '4px 8px', display: 'flex' }}>
             <ChevronLeft size={14} />
           </button>
-          <span style={{ fontSize: 15, fontWeight: 600, color: '#e8e8e8', minWidth: 160, textAlign: 'center' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', minWidth: 160, textAlign: 'center' }}>
             {MONTHS[month]} {year}
           </span>
           <button onClick={nextMonth} style={{ background: 'none', border: '1px solid #1a1a1a', color: '#555', cursor: 'pointer', padding: '4px 8px', display: 'flex' }}>
