@@ -1,4 +1,4 @@
-import type { RawPosition, RawTrade, SyncState } from '../types'
+import type { RawPosition, RawTrade } from '../types'
 
 const FLEX_PROXY = 'https://wheel-proxy.ashtonchan.workers.dev'
 const FLEX_TOKEN = import.meta.env.VITE_FLEX_TOKEN ?? ''

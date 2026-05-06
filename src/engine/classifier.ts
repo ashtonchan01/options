@@ -101,8 +101,8 @@ export function classifyPositions(positions: RawPosition[]): Strategy[] {
         legs: [leg],
         shares,
         netPremiumReceived: netPremium([leg]),
-        maxProfit: (sc.strike! - stock.avgCost) * stock.quantity + leg.costBasis * -1,
-        maxLoss: stock.avgCost * stock.quantity,
+        maxProfit: (sc.strike! - stock.costBasisPrice) * stock.quantity + leg.costBasis * -1,
+        maxLoss: stock.costBasisPrice * stock.quantity,
         unrealizedPnL: strategyPnL([leg], shares),
       })
     }

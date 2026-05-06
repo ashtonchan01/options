@@ -22,13 +22,13 @@ function relativeTime(ms: number): string {
 interface HeaderProps {
   activeTab: TabId
   syncStatus: SyncStatus
-  syncMode: SyncMode
+  syncMode?: SyncMode
   lastSync?: number
   onSyncClick: () => void
   onXmlUpload: (file: File) => void
 }
 
-export default function Header({ activeTab, syncStatus, syncMode, lastSync, onSyncClick, onXmlUpload }: HeaderProps) {
+export default function Header({ activeTab, syncStatus, lastSync, onSyncClick, onXmlUpload }: HeaderProps) {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
