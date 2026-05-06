@@ -1,6 +1,9 @@
 import type { RawPosition, RawTrade } from '../types'
 
-const FLEX_PROXY = 'https://wheel-proxy.ashtonchan.workers.dev'
+// Use local proxy in dev (avoids IBKR blocking Cloudflare IPs), worker in prod
+const FLEX_PROXY = import.meta.env.DEV
+  ? 'http://localhost:3457'
+  : 'https://wheel-proxy.ashtonchan.workers.dev'
 
 // ─── XML Upload ───────────────────────────────────────────────────────────────
 
