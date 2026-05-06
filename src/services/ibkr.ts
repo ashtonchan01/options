@@ -5,15 +5,15 @@ const FLEX_PROXY = 'https://options-jade.vercel.app'
 
 // ─── XML Upload ───────────────────────────────────────────────────────────────
 
-export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[] }> {
+export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number }> {
   const text = await file.text()
   const doc = new DOMParser().parseFromString(text, 'application/xml')
-  return { positions: parsePositions(doc), trades: parseTrades(doc) }
+  return { positions: parsePositions(doc), trades: parseTrades(doc), cashBalance: parseCash(doc) }
 }
 
 // ─── Flex API ─────────────────────────────────────────────────────────────────
 
-export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[] }> {
+export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number }> {
   if (!token || !queryId) throw new Error('Token and Query ID are required')
 
   const url = `${FLEX_PROXY}/api/flex-sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
@@ -31,7 +31,7 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<{
 
   const xml = text
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
-  return { positions: parsePositions(doc), trades: parseTrades(doc) }
+  return { positions: parsePositions(doc), trades: parseTrades(doc), cashBalance: parseCash(doc) }
 }
 
 // ─── Ping ─────────────────────────────────────────────────────────────────────
@@ -63,6 +63,14 @@ function parsePositions(doc: Document): RawPosition[] {
     underlyingSymbol: el.getAttribute('underlyingSymbol') ?? undefined,
     currency:         el.getAttribute('currency') ?? 'USD',
   }))
+}
+
+function parseCash(doc: Document): number {
+  // Prefer BASE_SUMMARY row; fall back to summing all currency rows
+  const rows = Array.from(doc.querySelectorAll('CashReportCurrency'))
+  const base = rows.find(el => el.getAttribute('currency') === 'BASE_SUMMARY')
+  if (base) return Number(base.getAttribute('endingCash') ?? 0)
+  return rows.reduce((sum, el) => sum + Number(el.getAttribute('endingCash') ?? 0), 0)
 }
 
 function parseTrades(doc: Document): RawTrade[] {

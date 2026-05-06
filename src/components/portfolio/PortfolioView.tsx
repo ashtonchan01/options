@@ -43,7 +43,7 @@ function fmtExpiry(raw: string): string {
 interface PortfolioViewProps { state: AppState }
 
 export default function PortfolioView({ state }: PortfolioViewProps) {
-  const { positions, trades } = state.sync
+  const { positions, trades, cashBalance } = state.sync
   const { strategies } = state
 
   const hasData = positions.length > 0 || strategies.length > 0
@@ -65,7 +65,8 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
   const totalStockPnL   = stocks.reduce((s, p) => s + p.unrealizedPnL, 0)
   const totalOptionPnL  = strategies.reduce((s, st) => s + st.unrealizedPnL, 0)
   const totalPremium    = strategies.reduce((s, st) => s + st.netPremiumReceived, 0)
-  const netLiq          = totalStockValue + strategies.reduce((s, st) => s + st.legs.reduce((a, l) => a + l.markPrice * Math.abs(l.quantity) * 100 * Math.sign(l.quantity), 0), 0)
+  const optionValue     = strategies.reduce((s, st) => s + st.legs.reduce((a, l) => a + l.markPrice * Math.abs(l.quantity) * 100 * Math.sign(l.quantity), 0), 0)
+  const netLiq          = totalStockValue + optionValue + cashBalance
   const totalPnL        = totalStockPnL + totalOptionPnL
 
   // Group strategies by type
@@ -81,10 +82,10 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
         {[
           { label: 'NET LIQUIDATION', value: fmt$(netLiq), color: '#EEEEEE' },
+          { label: 'CASH', value: fmt$(cashBalance), color: '#EEEEEE' },
           { label: 'UNREALIZED P&L', value: fmt$(totalPnL), color: totalPnL >= 0 ? '#00D084' : '#FF4757' },
           { label: 'STOCK VALUE', value: fmt$(totalStockValue), color: '#EEEEEE' },
           { label: 'PREMIUM COLLECTED', value: fmt$(totalPremium), color: totalPremium >= 0 ? '#00D084' : '#FF4757' },
-          { label: 'POSITIONS', value: String(strategies.length + stocks.length), color: '#00E5FF' },
         ].map(({ label, value, color }) => (
           <div key={label} className="stat-card">
             <div className="stat-label">{label}</div>

@@ -166,6 +166,7 @@ export interface SyncState {
   error?: string
   positions: RawPosition[]
   trades: RawTrade[]
+  cashBalance: number
 }
 
 // ─── App State ────────────────────────────────────────────────────────────────
