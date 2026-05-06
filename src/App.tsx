@@ -45,6 +45,7 @@ export default function App() {
         <Header
           activeTab={activeTab}
           syncStatus={state.sync.status}
+          syncError={state.sync.error}
           lastSync={state.sync.lastSync}
           hasCredentials={hasCredentials}
           onSyncClick={() => syncFlex(settings.token, settings.queryId)}

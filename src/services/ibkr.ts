@@ -19,13 +19,14 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<{
   const url = `${FLEX_PROXY}/api/flex-sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
   const res = await fetch(url)
 
+  const text = await res.text()
   if (!res.ok) {
     let msg = `HTTP ${res.status}`
-    try { const b = await res.json() as { error?: string }; if (b.error) msg = b.error } catch { /* ignore */ }
+    try { const b = JSON.parse(text) as { error?: string }; if (b.error) msg = b.error } catch { msg = text.slice(0, 200) }
     throw new Error(msg)
   }
 
-  const xml = await res.text()
+  const xml = text
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
   return { positions: parsePositions(doc), trades: parseTrades(doc) }
 }

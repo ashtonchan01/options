@@ -22,6 +22,7 @@ function relativeTime(ms: number): string {
 interface HeaderProps {
   activeTab: TabId
   syncStatus: SyncStatus
+  syncError?: string
   lastSync?: number
   hasCredentials: boolean
   onSyncClick: () => void
@@ -37,7 +38,7 @@ const btn: React.CSSProperties = {
   transition: 'all 0.15s',
 }
 
-export default function Header({ activeTab, syncStatus, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings }: HeaderProps) {
+export default function Header({ activeTab, syncStatus, syncError, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings }: HeaderProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const isLoading = syncStatus === 'loading'
 
@@ -65,8 +66,8 @@ export default function Header({ activeTab, syncStatus, lastSync, hasCredentials
           </span>
         )}
         {syncStatus === 'error' && (
-          <span style={{ fontSize: 11, color: '#f43f5e', fontFamily: 'IBM Plex Mono, monospace' }}>
-            sync failed
+          <span title={syncError} style={{ fontSize: 11, color: '#f43f5e', fontFamily: 'IBM Plex Mono, monospace', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
+            {syncError ?? 'sync failed'}
           </span>
         )}
       </div>
