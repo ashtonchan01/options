@@ -221,18 +221,37 @@ export default function StrategiesView({ state }: Props) {
 
   if (!strategies.length) {
     return (
-      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {!hasPositions
-          ? <EmptyState title="No strategies" message="Sync your IBKR portfolio to classify positions." showUpload />
-          : !hasOptions
-          ? <div style={{ textAlign: 'center', color: '#444', fontSize: 12, maxWidth: 400, lineHeight: 1.8 }}>
-              <div style={{ color: '#888', fontWeight: 600, marginBottom: 8 }}>No option positions found</div>
-              Your Flex query returned {state.sync.positions.length} position(s) but no options.<br />
-              In IBKR → Reports → Flex Queries → edit your query → <strong style={{ color: '#666' }}>Open Positions</strong> section:<br />
-              enable <strong style={{ color: '#666' }}>Put/Call, Strike, Expiry, Underlying Symbol, Asset Class</strong>.
-            </div>
-          : <EmptyState title="No strategies classified" message="Positions found but could not be classified. Check that option fields are included in your Flex query." showUpload />
-        }
+      <div style={{ padding: '20px 24px' }}>
+        <div style={{ color: '#f59e0b', fontWeight: 600, marginBottom: 16, fontSize: 12 }}>
+          No strategies classified — showing raw position data for debugging:
+        </div>
+        <div style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #1a1a1a' }}>
+                {['symbol','assetClass','putCall','strike','expiry','underlyingSymbol','quantity'].map(h => (
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#333', fontWeight: 700, letterSpacing: '0.06em', fontSize: 10 }}>{h.toUpperCase()}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {state.sync.positions.map((p, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #111', background: i % 2 ? '#0a0a0a' : 'transparent' }}>
+                  <td style={{ padding: '7px 12px', color: '#ccc' }}>{p.symbol}</td>
+                  <td style={{ padding: '7px 12px', color: p.assetClass === 'OPT' ? '#10b981' : '#888' }}>{p.assetClass}</td>
+                  <td style={{ padding: '7px 12px', color: p.putCall ? '#10b981' : '#f43f5e' }}>{p.putCall ?? '—'}</td>
+                  <td style={{ padding: '7px 12px', color: p.strike ? '#10b981' : '#f43f5e' }}>{p.strike ?? '—'}</td>
+                  <td style={{ padding: '7px 12px', color: p.expiry ? '#10b981' : '#f43f5e' }}>{p.expiry ?? '—'}</td>
+                  <td style={{ padding: '7px 12px', color: '#888' }}>{p.underlyingSymbol ?? '—'}</td>
+                  <td style={{ padding: '7px 12px', color: '#888' }}>{p.quantity}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {state.sync.positions.length === 0 && (
+            <div style={{ padding: 24, color: '#333', textAlign: 'center' }}>No positions returned from sync.</div>
+          )}
+        </div>
       </div>
     )
   }
