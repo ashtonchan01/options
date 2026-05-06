@@ -82,10 +82,10 @@ function BarChart({ months }: { months: MonthData[] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#2a2a2a', letterSpacing: '0.08em' }}>MONTHLY NET P&L</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#666', letterSpacing: '0.08em' }}>MONTHLY NET P&L</div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 120, paddingBottom: 24, position: 'relative' }}>
         {/* Zero line */}
-        <div style={{ position: 'absolute', bottom: 24, left: 0, right: 0, height: 1, background: '#1a1a1a' }} />
+        <div style={{ position: 'absolute', bottom: 24, left: 0, right: 0, height: 1, background: '#222228' }} />
 
         {months.map(m => {
           const pct = Math.abs(m.total) / maxAbs
@@ -103,7 +103,7 @@ function BarChart({ months }: { months: MonthData[] }) {
                   <div style={{ width: '100%', height: barH, background: '#f43f5e', borderRadius: '1px 1px 0 0', opacity: 0.85, alignSelf: 'flex-start', marginTop: 'auto' }} />
                 )}
               </div>
-              <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 9, color: '#2a2a2a', fontFamily: 'IBM Plex Mono, monospace', whiteSpace: 'nowrap' }}>
+              <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 9, color: '#666', fontFamily: 'IBM Plex Mono, monospace', whiteSpace: 'nowrap' }}>
                 {m.label}
               </div>
             </div>
@@ -131,7 +131,7 @@ function WheelTracker({ state }: { state: AppState }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#2a2a2a', letterSpacing: '0.08em' }}>WHEEL PHASE</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#666', letterSpacing: '0.08em' }}>WHEEL PHASE</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {underlyings.map(sym => {
           const phase = derivePhase(sym, state.strategies, state.sync.positions)
@@ -142,7 +142,7 @@ function WheelTracker({ state }: { state: AppState }) {
           const active = cc ?? csp
 
           return (
-            <div key={sym} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#0d0d0d', border: '1px solid #111' }}>
+            <div key={sym} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#0d0d0d', border: '1px solid #222228' }}>
               <span style={{ fontWeight: 700, color: '#ccc', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, minWidth: 60 }}>
                 {sym}
               </span>
@@ -217,28 +217,28 @@ export default function GrowthView({ state }: Props) {
 
       {/* ── Monthly chart ─────────────────────────────────────────────────── */}
       {months.length > 0 && (
-        <div style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', padding: '16px 20px' }}>
+        <div style={{ background: '#111116', border: '1px solid #222228', padding: '16px 20px' }}>
           <BarChart months={months} />
         </div>
       )}
 
       {/* ── Monthly breakdown table ───────────────────────────────────────── */}
       {months.length > 0 && (
-        <div style={{ background: '#0d0d0d', border: '1px solid #1a1a1a' }}>
-          <div style={{ padding: '10px 16px', borderBottom: '1px solid #111', fontSize: 11, fontWeight: 700, color: '#2a2a2a', letterSpacing: '0.08em' }}>
+        <div style={{ background: '#111116', border: '1px solid #222228' }}>
+          <div style={{ padding: '10px 16px', borderBottom: '1px solid #222228', fontSize: 11, fontWeight: 700, color: '#666', letterSpacing: '0.08em' }}>
             MONTHLY BREAKDOWN
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #111' }}>
+              <tr style={{ borderBottom: '1px solid #222228' }}>
                 {['MONTH', 'OPTION P&L', 'STOCK P&L', 'NET', 'TRADES'].map(h => (
-                  <th key={h} style={{ padding: '8px 16px', fontSize: 10, fontWeight: 700, color: '#2a2a2a', letterSpacing: '0.06em', textAlign: h === 'MONTH' ? 'left' : 'right' }}>{h}</th>
+                  <th key={h} style={{ padding: '8px 16px', fontSize: 10, fontWeight: 700, color: '#666', letterSpacing: '0.06em', textAlign: h === 'MONTH' ? 'left' : 'right' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {[...months].reverse().map((m, i) => (
-                <tr key={m.key} style={{ borderBottom: '1px solid #0f0f0f', background: i % 2 ? '#0a0a0a' : 'transparent' }}>
+                <tr key={m.key} style={{ borderBottom: '1px solid #1e1e24', background: i % 2 ? '#0a0a0a' : 'transparent' }}>
                   <td style={{ padding: '9px 16px', fontFamily: 'IBM Plex Mono, monospace', color: '#666' }}>{m.label}</td>
                   <td style={{ padding: '9px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: m.optionPnL >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.optionPnL)}</td>
                   <td style={{ padding: '9px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: m.stockPnL >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.stockPnL)}</td>
@@ -248,7 +248,7 @@ export default function GrowthView({ state }: Props) {
               ))}
             </tbody>
             <tfoot>
-              <tr style={{ borderTop: '1px solid #1a1a1a' }}>
+              <tr style={{ borderTop: '1px solid #222228' }}>
                 <td style={{ padding: '10px 16px', fontFamily: 'IBM Plex Mono, monospace', color: '#444', fontWeight: 700 }}>TOTAL</td>
                 <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: months.reduce((s,m)=>s+m.optionPnL,0) >= 0 ? '#10b981' : '#f43f5e' }}>
                   {fmt$(months.reduce((s,m)=>s+m.optionPnL,0))}

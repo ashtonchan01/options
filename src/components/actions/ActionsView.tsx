@@ -59,8 +59,8 @@ function ActionCard({ a }: { a: Action }) {
 
   return (
     <div style={{
-      background: '#0d0d0d',
-      border: '1px solid #1a1a1a',
+      background: '#111116',
+      border: '1px solid #222228',
       borderLeft: `3px solid ${urgency.color}`,
       padding: '14px 16px',
       display: 'flex',
@@ -94,7 +94,7 @@ function ActionCard({ a }: { a: Action }) {
         <div style={{ fontSize: 13, fontWeight: 600, color: '#ccc', marginBottom: 4, lineHeight: 1.4 }}>
           {a.reason}
         </div>
-        <div style={{ fontSize: 12, color: '#444', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
           {a.details}
         </div>
         {(a.suggestedStrike || a.suggestedExpiry || a.estimatedCredit) && (
@@ -145,7 +145,7 @@ function UrgencyGroup({ urgency, actions }: { urgency: UrgencyLevel; actions: Ac
         }}>
           {actions.length}
         </span>
-        <div style={{ flex: 1, height: 1, background: '#111' }} />
+        <div style={{ flex: 1, height: 1, background: '#2a2a30' }} />
       </div>
       {actions.map(a => <ActionCard key={a.id} a={a} />)}
     </div>
@@ -195,7 +195,7 @@ export default function ActionsView({ state }: Props) {
 
       {/* ── No actions ───────────────────────────────────────────────────── */}
       {actions.length === 0 && (
-        <div style={{ color: '#2a2a2a', fontSize: 13, paddingTop: 40, textAlign: 'center' }}>
+        <div style={{ color: '#666', fontSize: 13, paddingTop: 40, textAlign: 'center' }}>
           All positions are within normal parameters. Nothing to action right now.
         </div>
       )}
