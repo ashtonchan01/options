@@ -39,7 +39,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
     <aside
       className="flex flex-col h-screen shrink-0"
       style={{
-        width: collapsed ? 52 : 200,
+        width: collapsed ? 60 : 230,
         transition: 'width 0.2s ease',
         background: '#1A1A1A',
         borderRight: '1px solid #2E2E2E',
@@ -48,12 +48,12 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
       {/* Logo + toggle */}
       <div
         className="flex items-center justify-between px-3"
-        style={{ height: 48, borderBottom: '1px solid #2E2E2E' }}
+        style={{ height: 58, borderBottom: '1px solid #2E2E2E' }}
       >
         {!collapsed && (
           <span
             className="display font-bold tracking-widest text-xs select-none"
-            style={{ color: '#00E5FF', letterSpacing: 4 }}
+            style={{ color: '#00E5FF', letterSpacing: 4, fontSize: 13 }}
           >
             OPTIONS
           </span>
@@ -83,7 +83,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
             <button
               key={id}
               onClick={() => onTabChange(id)}
-              className={clsx('flex items-center w-full relative', collapsed ? 'justify-center py-3 px-0' : 'gap-3 px-4 py-2.5')}
+              className={clsx('flex items-center w-full relative', collapsed ? 'justify-center py-3.5 px-0' : 'gap-3 px-5 py-3')}
               style={{
                 background: active ? 'rgba(0,229,255,0.06)' : 'transparent',
                 border: 'none',
@@ -91,7 +91,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
                 color: active ? '#00E5FF' : '#606060',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
-                fontSize: 10,
+                fontSize: 11,
                 letterSpacing: 2,
                 fontWeight: 600,
                 transition: 'all 0.15s',
@@ -100,7 +100,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
               onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#606060' }}
             >
               <div className="relative shrink-0">
-                <Icon size={15} />
+                <Icon size={18} />
                 {id === 'actions' && actionCount > 0 && (
                   <span
                     className="absolute -top-1.5 -right-1.5 flex items-center justify-center"

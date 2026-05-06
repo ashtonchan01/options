@@ -8,14 +8,17 @@ import StrategiesView from './components/strategies/StrategiesView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import ActionsView from './components/actions/ActionsView'
 import GrowthView from './components/growth/GrowthView'
+import type { AppState } from './types'
 
-const VIEWS: Record<TabId, React.FC> = {
+type ViewComponent = React.FC<{ state: AppState }>
+
+const VIEWS: Record<TabId, ViewComponent> = {
   portfolio:     PortfolioView,
-  calendar:      CalendarView,
-  strategies:    StrategiesView,
-  opportunities: OpportunitiesView,
-  actions:       ActionsView,
-  growth:        GrowthView,
+  calendar:      CalendarView as ViewComponent,
+  strategies:    StrategiesView as ViewComponent,
+  opportunities: OpportunitiesView as ViewComponent,
+  actions:       ActionsView as ViewComponent,
+  growth:        GrowthView as ViewComponent,
 }
 
 export default function App() {
@@ -44,7 +47,7 @@ export default function App() {
         />
 
         <main className="flex-1 overflow-auto" style={{ background: '#121212' }}>
-          <View />
+          <View state={state} />
         </main>
       </div>
     </div>

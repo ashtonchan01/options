@@ -52,7 +52,7 @@ body {
   background: #121212;
   color: #C0C0C0;
   font-family: 'Inter', -apple-system, sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
@@ -72,18 +72,18 @@ body {
 .stat-card {
   background: #202020;
   border: 1px solid #2E2E2E;
-  padding: 14px 18px;
+  padding: 18px 22px;
 }
 .stat-label {
-  font-size: 10px;
+  font-size: 11px;
   color: #606060;
   letter-spacing: 2px;
   text-transform: uppercase;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .stat-value {
   font-family: 'Chakra Petch', sans-serif;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 700;
   color: #EEEEEE;
 }
@@ -124,7 +124,7 @@ body {
 
 /* Labels */
 .label {
-  font-size: 10px;
+  font-size: 11px;
   color: #606060;
   letter-spacing: 2px;
   text-transform: uppercase;

@@ -43,8 +43,8 @@ export default function Header({ activeTab, syncStatus, lastSync, onSyncClick, o
     <header
       className="flex items-center justify-between shrink-0"
       style={{
-        height: 48,
-        padding: '0 20px',
+        height: 58,
+        padding: '0 24px',
         background: '#1A1A1A',
         borderBottom: '1px solid #2E2E2E',
       }}
@@ -52,7 +52,7 @@ export default function Header({ activeTab, syncStatus, lastSync, onSyncClick, o
       <div className="flex items-center gap-3">
         <span
           className="display font-bold tracking-widest"
-          style={{ fontSize: 12, color: '#00E5FF', letterSpacing: 3 }}
+          style={{ fontSize: 14, color: '#00E5FF', letterSpacing: 3 }}
         >
           {TAB_LABELS[activeTab]}
         </span>
@@ -67,9 +67,9 @@ export default function Header({ activeTab, syncStatus, lastSync, onSyncClick, o
         {/* XML upload */}
         <label
           className="btn btn-cyan flex items-center gap-1.5 cursor-pointer"
-          style={{ fontSize: 9, letterSpacing: 1 }}
+          style={{ fontSize: 11, letterSpacing: 1, padding: '8px 16px' }}
         >
-          <Upload size={11} />
+          <Upload size={14} />
           UPLOAD XML
           <input ref={fileRef} type="file" accept=".xml" className="hidden" onChange={handleFile} />
         </label>
@@ -80,13 +80,13 @@ export default function Header({ activeTab, syncStatus, lastSync, onSyncClick, o
           disabled={isLoading}
           className="btn btn-cyan flex items-center gap-1.5"
           style={{
-            fontSize: 9, letterSpacing: 1,
+            fontSize: 11, letterSpacing: 1, padding: '8px 16px',
             opacity: isLoading ? 0.5 : 1,
             cursor: isLoading ? 'not-allowed' : 'pointer',
           }}
         >
           <RefreshCw
-            size={11}
+            size={14}
             style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }}
           />
           FLEX SYNC
