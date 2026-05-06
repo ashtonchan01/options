@@ -19,10 +19,10 @@ export default async function handler(req, res) {
   try {
     const r    = await fetch(`${IBKR_SEND}?t=${token}&q=${query}&v=3`)
     const body = await r.text()
-    const ref  = body.match(/ReferenceCode="([^"]+)"/)?.[1]
+    const ref  = body.match(/ReferenceCode=["']([^"']+)["']/)?.[1]
     if (!ref) {
-      const msg = body.match(/ErrorMessage="([^"]+)"/)?.[1]
-        ?? body.match(/ErrorCode="([^"]+)"/)?.[1]
+      const msg = body.match(/ErrorMessage=["']([^"']+)["']/)?.[1]
+        ?? body.match(/ErrorCode=["']([^"']+)["']/)?.[1]
         ?? body.slice(0, 120)
       return res.status(502).json({ error: `IBKR: ${msg}`, raw: body })
     }
@@ -37,15 +37,15 @@ export default async function handler(req, res) {
     try {
       const r      = await fetch(`${IBKR_GET}?t=${token}&q=${referenceCode}&v=3`)
       const body   = await r.text()
-      const status = body.match(/Status="([^"]+)"/)?.[1]
-      const code   = body.match(/ErrorCode="([^"]+)"/)?.[1]
+      const status = body.match(/Status=["']([^"']+)["']/)?.[1]
+      const code   = body.match(/ErrorCode=["']([^"']+)["']/)?.[1]
 
       if (status === 'Success') {
         res.setHeader('Content-Type', 'application/xml')
         return res.status(200).send(body)
       }
       if (code !== '1019' && code !== '1021') {
-        const msg = body.match(/ErrorMessage="([^"]+)"/)?.[1] ?? `Error ${code}`
+        const msg = body.match(/ErrorMessage=["']([^"']+)["']/)?.[1] ?? `Error ${code}`
         return res.status(502).json({ error: `IBKR ${code}: ${msg}` })
       }
     } catch (e) {
