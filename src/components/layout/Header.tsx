@@ -5,19 +5,19 @@ import { pingWorker } from '../../services/ibkr'
 import type { TabId } from './Sidebar'
 
 const TAB_LABELS: Record<TabId, string> = {
-  portfolio: 'PORTFOLIO',
-  calendar: 'CALENDAR',
-  strategies: 'STRATEGIES',
-  opportunities: 'OPPORTUNITIES',
-  actions: 'ACTIONS',
-  growth: 'GROWTH',
+  portfolio:     'Portfolio',
+  calendar:      'Calendar',
+  strategies:    'Strategies',
+  opportunities: 'Opportunities',
+  actions:       'Actions',
+  growth:        'Growth',
 }
 
 function relativeTime(ms: number): string {
   const diff = Date.now() - ms
-  if (diff < 60_000) return 'JUST NOW'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}M AGO`
-  return `${Math.floor(diff / 3_600_000)}H AGO`
+  if (diff < 60_000) return 'just now'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
+  return `${Math.floor(diff / 3_600_000)}h ago`
 }
 
 type PingState = 'unknown' | 'ok' | 'misconfigured' | 'unreachable'
@@ -48,7 +48,6 @@ export default function Header({ activeTab, syncStatus, lastSync, onSyncClick, o
     }
   }
 
-  // Auto-ping on mount
   useEffect(() => { checkWorker() }, [])
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,60 +59,60 @@ export default function Header({ activeTab, syncStatus, lastSync, onSyncClick, o
   const isLoading = syncStatus === 'loading'
 
   const PingIcon = ping === 'ok' ? Wifi : ping === 'unreachable' ? WifiOff : AlertTriangle
-  const pingColor = ping === 'ok' ? '#00D084' : ping === 'misconfigured' ? '#F0B429' : ping === 'unreachable' ? '#FF4757' : '#606060'
-  const pingTip = ping === 'ok' ? 'Worker connected & configured'
+  const pingColor = ping === 'ok' ? '#10b981' : ping === 'misconfigured' ? '#f59e0b' : ping === 'unreachable' ? '#f43f5e' : '#6b6490'
+  const pingLabel = ping === 'ok' ? 'Live' : ping === 'misconfigured' ? 'No secrets' : ping === 'unreachable' ? 'Offline' : '…'
+  const pingTip   = ping === 'ok' ? 'Worker connected & configured'
     : ping === 'misconfigured' ? 'Worker reachable but secrets not set'
-    : ping === 'unreachable' ? 'Worker unreachable'
+    : ping === 'unreachable' ? 'Worker unreachable — check deployment'
     : 'Checking worker…'
 
   return (
     <header
       className="flex items-center justify-between shrink-0"
-      style={{ height: 58, padding: '0 24px', background: '#1A1A1A', borderBottom: '1px solid #2E2E2E' }}
+      style={{
+        height: 58,
+        padding: '0 24px',
+        background: 'rgba(13,12,20,0.95)',
+        borderBottom: '1px solid rgba(124,58,237,0.15)',
+      }}
     >
       <div className="flex items-center gap-3">
-        <span className="display font-bold tracking-widest" style={{ fontSize: 14, color: '#00E5FF', letterSpacing: 3 }}>
+        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#edeaf5' }}>
           {TAB_LABELS[activeTab]}
-        </span>
+        </h1>
         {lastSync && (
-          <span className="mono" style={{ fontSize: 10, color: '#606060', letterSpacing: 1 }}>
+          <span className="mono" style={{ fontSize: 11, color: '#6b6490' }}>
             {relativeTime(lastSync)}
           </span>
         )}
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
 
-        {/* Worker connection indicator */}
+        {/* Worker ping indicator */}
         <button
           onClick={checkWorker}
           disabled={pinging}
           title={pingTip}
-          className="flex items-center gap-1.5"
+          className="flex items-center gap-1.5 btn"
           style={{
-            background: 'transparent', border: '1px solid #2E2E2E',
-            padding: '6px 10px', cursor: 'pointer', color: pingColor,
-            opacity: pinging ? 0.5 : 1,
+            color: pingColor,
+            borderColor: `${pingColor}40`,
+            background: `${pingColor}0d`,
+            opacity: pinging ? 0.6 : 1,
+            fontSize: 12,
           }}
         >
-          <PingIcon
-            size={13}
-            style={{ animation: pinging ? 'spin 1s linear infinite' : 'none' }}
-          />
-          <span style={{ fontSize: 10, letterSpacing: 1, fontFamily: 'IBM Plex Mono, monospace' }}>
-            {ping === 'ok' ? 'WORKER OK' : ping === 'misconfigured' ? 'NO SECRETS' : ping === 'unreachable' ? 'OFFLINE' : 'CHECKING'}
-          </span>
+          <PingIcon size={13} style={{ animation: pinging ? 'spin 1s linear infinite' : 'none' }} />
+          {pingLabel}
         </button>
 
-        <div style={{ width: 1, height: 20, background: '#2E2E2E' }} />
+        <div style={{ width: 1, height: 18, background: 'rgba(124,58,237,0.2)' }} />
 
         {/* XML upload */}
-        <label
-          className="btn btn-cyan flex items-center gap-1.5 cursor-pointer"
-          style={{ fontSize: 11, letterSpacing: 1, padding: '8px 16px' }}
-        >
-          <Upload size={14} />
-          UPLOAD XML
+        <label className="btn btn-violet flex items-center gap-1.5 cursor-pointer" style={{ fontSize: 12 }}>
+          <Upload size={13} />
+          Upload XML
           <input ref={fileRef} type="file" accept=".xml" className="hidden" onChange={handleFile} />
         </label>
 
@@ -121,38 +120,32 @@ export default function Header({ activeTab, syncStatus, lastSync, onSyncClick, o
         <button
           onClick={onSyncClick}
           disabled={isLoading || ping !== 'ok'}
-          className="btn btn-cyan flex items-center gap-1.5"
+          className="btn btn-violet flex items-center gap-1.5"
           style={{
-            fontSize: 11, letterSpacing: 1, padding: '8px 16px',
+            fontSize: 12,
             opacity: (isLoading || ping !== 'ok') ? 0.4 : 1,
             cursor: (isLoading || ping !== 'ok') ? 'not-allowed' : 'pointer',
           }}
-          title={ping !== 'ok' ? 'Worker must be connected first' : 'Sync positions from IBKR Flex'}
+          title={ping !== 'ok' ? 'Worker must be connected first' : 'Sync from IBKR Flex'}
         >
-          <RefreshCw
-            size={14}
-            style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }}
-          />
-          FLEX SYNC
+          <RefreshCw size={13} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
+          Flex Sync
         </button>
 
-        {/* Sync dot */}
+        {/* Sync status dot */}
         <span
           className={isLoading ? 'pulsing' : ''}
           style={{
             width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
-            background: syncStatus === 'success' ? '#00D084'
-              : syncStatus === 'error' ? '#FF4757'
-              : syncStatus === 'loading' ? '#F0B429'
-              : '#2E2E2E',
+            background: syncStatus === 'success' ? '#10b981'
+              : syncStatus === 'error'   ? '#f43f5e'
+              : syncStatus === 'loading' ? '#f59e0b'
+              : 'rgba(124,58,237,0.2)',
           }}
         />
 
-        {/* Last sync error hint */}
         {syncStatus === 'error' && (
-          <span style={{ fontSize: 10, color: '#FF4757', fontFamily: 'IBM Plex Mono, monospace' }}>
-            SYNC FAILED
-          </span>
+          <span className="mono" style={{ fontSize: 11, color: '#f43f5e' }}>Sync failed</span>
         )}
       </div>
 

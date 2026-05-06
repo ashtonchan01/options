@@ -2,14 +2,14 @@ import type { AppState, Strategy, StrategyType } from '../../types'
 import EmptyState from '../shared/EmptyState'
 
 const STRAT_COLOR: Record<StrategyType, string> = {
-  csp:         '#FF4757',
-  covered_call:'#3B9EFF',
-  pmcc:        '#A855F7',
-  risk_reversal:'#00E5FF',
-  put_spread:  '#F0B429',
-  call_spread: '#FF6B35',
-  leap:        '#00D084',
-  other:       '#606060',
+  csp:          '#f43f5e',
+  covered_call: '#7c3aed',
+  pmcc:         '#c026d3',
+  risk_reversal:'#06b6d4',
+  put_spread:   '#f59e0b',
+  call_spread:  '#ff6b35',
+  leap:         '#10b981',
+  other:        '#6b6490',
 }
 
 const STRAT_LABEL: Record<StrategyType, string> = {
