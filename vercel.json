@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "api/flex-sync.js": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 90
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" }
+  ]
+}

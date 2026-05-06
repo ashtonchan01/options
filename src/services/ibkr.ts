@@ -1,6 +1,7 @@
 import type { RawPosition, RawTrade } from '../types'
 
-const FLEX_PROXY = 'https://wheel-proxy.ashtonchan.workers.dev'
+// Vercel serverless function uses AWS IPs — not blocked by IBKR like Cloudflare
+const FLEX_PROXY = 'https://options-ashtonchan.vercel.app'
 
 // ─── XML Upload ───────────────────────────────────────────────────────────────
 
@@ -15,7 +16,7 @@ export async function syncFromXML(file: File): Promise<{ positions: RawPosition[
 export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[] }> {
   if (!token || !queryId) throw new Error('Token and Query ID are required')
 
-  const url = `${FLEX_PROXY}/flex/sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
+  const url = `${FLEX_PROXY}/api/flex-sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
   const res = await fetch(url)
 
   if (!res.ok) {
@@ -31,10 +32,10 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<{
 
 // ─── Ping ─────────────────────────────────────────────────────────────────────
 
-export async function pingWorker(): Promise<{ ok: boolean }> {
-  const res = await fetch(`${FLEX_PROXY}/ping`)
-  if (!res.ok) throw new Error(`Worker unreachable`)
-  return res.json()
+export async function pingProxy(): Promise<{ ok: boolean }> {
+  const res = await fetch(`${FLEX_PROXY}/api/flex-sync?token=ping&query=ping`)
+  // 400 = reachable (missing real params), anything else = down
+  return { ok: res.status === 400 || res.status === 200 }
 }
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
