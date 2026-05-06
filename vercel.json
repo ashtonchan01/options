@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/flex-sync.cjs": {
+    "api/flex-sync.js": {
       "maxDuration": 90
     }
   }

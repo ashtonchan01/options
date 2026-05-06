@@ -16,7 +16,7 @@ export async function syncFromXML(file: File): Promise<{ positions: RawPosition[
 export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[] }> {
   if (!token || !queryId) throw new Error('Token and Query ID are required')
 
-  const url = `${FLEX_PROXY}/api/flex-sync.cjs?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
+  const url = `${FLEX_PROXY}/api/flex-sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
   const res = await fetch(url)
 
   if (!res.ok) {
@@ -33,7 +33,7 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<{
 // ─── Ping ─────────────────────────────────────────────────────────────────────
 
 export async function pingProxy(): Promise<{ ok: boolean }> {
-  const res = await fetch(`${FLEX_PROXY}/api/flex-sync.cjs?token=ping&query=ping`)
+  const res = await fetch(`${FLEX_PROXY}/api/flex-sync?token=ping&query=ping`)
   // 400 = reachable (missing real params), anything else = down
   return { ok: res.status === 400 || res.status === 200 }
 }

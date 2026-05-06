@@ -1,27 +1,14 @@
-const https = require('https')
-
 const IBKR_SEND = 'https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest'
 const IBKR_GET  = 'https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement'
 const MAX_POLLS  = 6
 const POLL_DELAY = 8000
 
-function get(url) {
-  return new Promise((resolve, reject) => {
-    https.get(url, res => {
-      let body = ''
-      res.on('data', c => body += c)
-      res.on('end', () => resolve({ status: res.statusCode, body }))
-    }).on('error', reject)
-  })
-}
+const sleep = ms => new Promise(r => setTimeout(r, ms))
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
-
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-
   if (req.method === 'OPTIONS') return res.status(204).end()
 
   const { token, query } = req.query
@@ -30,8 +17,9 @@ module.exports = async function handler(req, res) {
   // Step 1: SendRequest
   let referenceCode
   try {
-    const { body } = await get(`${IBKR_SEND}?t=${token}&q=${query}&v=3`)
-    const ref = body.match(/ReferenceCode="([^"]+)"/)?.[1]
+    const r    = await fetch(`${IBKR_SEND}?t=${token}&q=${query}&v=3`)
+    const body = await r.text()
+    const ref  = body.match(/ReferenceCode="([^"]+)"/)?.[1]
     if (!ref) {
       const msg = body.match(/ErrorMessage="([^"]+)"/)?.[1] ?? 'No ReferenceCode'
       return res.status(502).json({ error: `IBKR: ${msg}`, raw: body })
@@ -45,7 +33,8 @@ module.exports = async function handler(req, res) {
   for (let i = 0; i < MAX_POLLS; i++) {
     if (i > 0) await sleep(POLL_DELAY)
     try {
-      const { body } = await get(`${IBKR_GET}?t=${token}&q=${referenceCode}&v=3`)
+      const r      = await fetch(`${IBKR_GET}?t=${token}&q=${referenceCode}&v=3`)
+      const body   = await r.text()
       const status = body.match(/Status="([^"]+)"/)?.[1]
       const code   = body.match(/ErrorCode="([^"]+)"/)?.[1]
 
