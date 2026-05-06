@@ -1,8 +1,6 @@
 import type { RawPosition, RawTrade } from '../types'
 
 const FLEX_PROXY = 'https://wheel-proxy.ashtonchan.workers.dev'
-const FLEX_TOKEN = import.meta.env.VITE_FLEX_TOKEN ?? ''
-const QUERY_ID   = import.meta.env.VITE_FLEX_QUERY_ID ?? ''
 
 // ─── XML Upload ───────────────────────────────────────────────────────────────
 
@@ -15,40 +13,35 @@ export async function syncFromXML(file: File): Promise<{ positions: RawPosition[
   }
 }
 
-// ─── Flex API (two-step) ──────────────────────────────────────────────────────
-
-const MAX_ATTEMPTS = 5
-const RETRY_DELAY  = 8_000
+// ─── Flex API ─────────────────────────────────────────────────────────────────
+// Token lives in the Worker as a secret — never exposed to the browser.
 
 export async function syncFromFlexAPI(): Promise<{ positions: RawPosition[]; trades: RawTrade[] }> {
-  if (!FLEX_TOKEN || !QUERY_ID) throw new Error('VITE_FLEX_TOKEN / VITE_FLEX_QUERY_ID not configured')
+  const res = await fetch(`${FLEX_PROXY}/flex/sync`)
 
-  // Step 1: request
-  const sendUrl = `${FLEX_PROXY}/flex/send?token=${FLEX_TOKEN}&query=${QUERY_ID}&v=3`
-  const sendRes = await fetch(sendUrl)
-  const sendXml = await sendRes.text()
-  const sendDoc = new DOMParser().parseFromString(sendXml, 'application/xml')
-  const referenceCode = sendDoc.querySelector('FlexStatementResponse')?.getAttribute('ReferenceCode')
-  if (!referenceCode) throw new Error('No reference code from IBKR')
-
-  // Step 2: poll for result
-  for (let i = 0; i < MAX_ATTEMPTS; i++) {
-    if (i > 0) await delay(RETRY_DELAY)
-    const getUrl = `${FLEX_PROXY}/flex/get?token=${FLEX_TOKEN}&query=${referenceCode}&v=3`
-    const getRes = await fetch(getUrl)
-    const getXml = await getRes.text()
-    const getDoc = new DOMParser().parseFromString(getXml, 'application/xml')
-
-    const status = getDoc.querySelector('FlexStatementResponse')?.getAttribute('Status')
-    if (status === 'Success') {
-      return { positions: parsePositions(getDoc), trades: parseTrades(getDoc) }
-    }
-    const errCode = getDoc.querySelector('FlexStatementResponse')?.getAttribute('ErrorCode')
-    if (errCode !== '1019' && errCode !== '1021') {
-      throw new Error(`IBKR error ${errCode}: ${getDoc.querySelector('FlexStatementResponse')?.getAttribute('ErrorMessage')}`)
-    }
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`
+    try {
+      const body = await res.json() as { error?: string }
+      if (body.error) msg = body.error
+    } catch { /* ignore */ }
+    throw new Error(msg)
   }
-  throw new Error('IBKR Flex API timed out after retries')
+
+  const xml = await res.text()
+  const doc = new DOMParser().parseFromString(xml, 'application/xml')
+  return {
+    positions: parsePositions(doc),
+    trades: parseTrades(doc),
+  }
+}
+
+// ─── Ping ─────────────────────────────────────────────────────────────────────
+
+export async function pingWorker(): Promise<{ ok: boolean; configured: boolean; hasToken: boolean; hasQueryId: boolean }> {
+  const res = await fetch(`${FLEX_PROXY}/ping`)
+  if (!res.ok) throw new Error(`Worker unreachable (${res.status})`)
+  return res.json()
 }
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
@@ -91,5 +84,3 @@ function parseTrades(doc: Document): RawTrade[] {
     openClose:        (el.getAttribute('openCloseIndicator') || undefined) as RawTrade['openClose'],
   }))
 }
-
-function delay(ms: number) { return new Promise(r => setTimeout(r, ms)) }
