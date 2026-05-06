@@ -39,10 +39,6 @@ function fmtExpiry(raw: string): string {
   const d = new Date(normalizeDate(raw))
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
 }
-function dte(raw: string): number {
-  const exp = new Date(normalizeDate(raw) + 'T23:59:59')
-  return Math.max(0, Math.ceil((exp.getTime() - Date.now()) / 86_400_000))
-}
 
 interface PortfolioViewProps { state: AppState }
 
