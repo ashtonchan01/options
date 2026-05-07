@@ -14,26 +14,26 @@ body {
 }
 
 /* Stat card */
-.stat-card { background: #111; border: 1px solid #1e1e1e; padding: 16px 20px; }
-.stat-label { font-size: 10px; color: #3a3a3a; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; font-weight: 600; }
+.stat-card { background: #151518; border: 1px solid #2a2a30; padding: 16px 20px; border-radius: 2px; }
+.stat-label { font-size: 10px; color: #777; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; font-weight: 600; }
 .stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; color: #e8e8e8; }
 
 /* Panel */
-.panel     { background: #0f0f0f; border: 1px solid #1a1a1a; }
-.panel-alt { background: #111;    border: 1px solid #1a1a1a; }
+.panel     { background: #111116; border: 1px solid #2a2a30; }
+.panel-alt { background: #151518; border: 1px solid #2a2a30; }
 
 /* Tables */
 .trade-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .trade-table th {
-  font-size: 10px; color: #333; letter-spacing: 1.5px; text-transform: uppercase;
+  font-size: 10px; color: #888; letter-spacing: 1.5px; text-transform: uppercase;
   text-align: left; padding: 9px 14px;
-  border-bottom: 1px solid #1a1a1a; background: #0d0d0d;
+  border-bottom: 1px solid #2a2a30; background: #111116;
 }
-.trade-table td { padding: 10px 14px; border-bottom: 1px solid #111; color: #888; }
-.trade-table tr:hover td { background: #0f0f0f; }
+.trade-table td { padding: 10px 14px; border-bottom: 1px solid #1e1e24; color: #aaa; }
+.trade-table tr:hover td { background: #18181e; }
 
 /* Labels */
-.label { font-size: 10px; color: #3a3a3a; letter-spacing: 2px; text-transform: uppercase; }
+.label { font-size: 10px; color: #777; letter-spacing: 2px; text-transform: uppercase; }
 
 /* P&L */
 .pos { color: #10b981; }

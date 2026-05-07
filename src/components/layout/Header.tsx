@@ -33,8 +33,8 @@ interface HeaderProps {
 const btn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   padding: '7px 14px', fontSize: 12,
-  border: '1px solid #222', background: '#111',
-  color: '#888', cursor: 'pointer', fontFamily: 'inherit',
+  border: '1px solid #2a2a30', background: '#151518',
+  color: '#aaa', cursor: 'pointer', fontFamily: 'inherit',
   transition: 'all 0.15s',
 }
 
@@ -52,8 +52,8 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
     <header style={{
       height: 54,
       padding: '0 24px',
-      background: '#0d0d0d',
-      borderBottom: '1px solid #1a1a1a',
+      background: '#0e0e12',
+      borderBottom: '1px solid #2a2a30',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -61,7 +61,7 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
           {TAB_LABELS[activeTab]}
         </h1>
         {lastSync && (
-          <span style={{ fontSize: 11, color: '#444', fontFamily: 'IBM Plex Mono, monospace' }}>
+          <span style={{ fontSize: 11, color: '#777', fontFamily: 'IBM Plex Mono, monospace' }}>
             {relativeTime(lastSync)}
           </span>
         )}
@@ -107,7 +107,7 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
             : '#222',
         }} />
 
-        <div style={{ width: 1, height: 18, background: '#1a1a1a', margin: '0 2px' }} />
+        <div style={{ width: 1, height: 18, background: '#2a2a30', margin: '0 2px' }} />
 
         {/* Settings */}
         <button
