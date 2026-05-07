@@ -1,6 +1,6 @@
 {
-  "buildCommand": "",
-  "outputDirectory": ".",
+  "buildCommand": "echo 'API only - no frontend build'",
+  "outputDirectory": "public",
   "framework": null,
   "functions": {
     "api/flex-sync.js": {
