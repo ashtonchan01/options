@@ -1,7 +1,7 @@
 {
-  "buildCommand": "echo 'API only - no frontend build'",
-  "outputDirectory": "public",
   "framework": null,
+  "buildCommand": null,
+  "outputDirectory": null,
   "functions": {
     "api/flex-sync.js": {
       "maxDuration": 90
