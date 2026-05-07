@@ -76,7 +76,7 @@ function LegRow({ leg }: { leg: OptionLeg }) {
       gridTemplateColumns: '130px 1fr 80px 110px 50px 55px 75px',
       alignItems: 'center',
       padding: '9px 16px',
-      borderBottom: '1px solid #1e1e24',
+      borderBottom: '1px solid #2A2A2A',
       fontSize: 12,
     }}>
       <span style={{
@@ -115,10 +115,10 @@ function StrategyCard({ s }: { s: Strategy }) {
   const minDte = Math.min(...s.legs.map(l => l.dte))
 
   return (
-    <div style={{ background: '#111116', border: '1px solid #222228', borderLeft: `3px solid ${color}` }}>
+    <div style={{ background: '#1A1A1A', border: '1px solid #2E2E2E', borderLeft: `3px solid ${color}` }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid #222228' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid #2E2E2E' }}>
         <span style={{ fontSize: 14, fontWeight: 700, color: '#e8e8e8', fontFamily: 'IBM Plex Mono, monospace', minWidth: 56 }}>
           {s.underlying}
         </span>
@@ -134,12 +134,12 @@ function StrategyCard({ s }: { s: Strategy }) {
         <div style={{ flex: 1 }} />
         {s.netPremiumReceived > 0 && (
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.06em' }}>PREMIUM</div>
-            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, color: '#666' }}>{fmt$(s.netPremiumReceived)}</div>
+            <div style={{ fontSize: 10, color: '#808080', letterSpacing: '0.06em' }}>PREMIUM</div>
+            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, color: '#808080' }}>{fmt$(s.netPremiumReceived)}</div>
           </div>
         )}
         <div style={{ textAlign: 'right', minWidth: 80 }}>
-          <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.06em' }}>UNREAL P&L</div>
+          <div style={{ fontSize: 10, color: '#808080', letterSpacing: '0.06em' }}>UNREAL P&L</div>
           <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: pnlColor(s.unrealizedPnL) }}>
             {fmt$(s.unrealizedPnL)}
           </div>
@@ -148,17 +148,17 @@ function StrategyCard({ s }: { s: Strategy }) {
 
       {/* Shares row (covered call) */}
       {s.shares && (
-        <div style={{ display: 'flex', gap: 24, padding: '9px 16px', borderBottom: '1px solid #1e1e24', fontSize: 12 }}>
+        <div style={{ display: 'flex', gap: 24, padding: '9px 16px', borderBottom: '1px solid #2A2A2A', fontSize: 12 }}>
           <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: '#333', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', alignSelf: 'center' }}>STOCK</span>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: '#888' }}>{s.shares.quantity} shares</span>
-          <span style={{ color: '#444' }}>avg <span style={{ color: '#666', fontFamily: 'IBM Plex Mono, monospace' }}>{fmt$(s.shares.avgCost, 2)}</span></span>
-          <span style={{ color: '#444' }}>mark <span style={{ color: '#666', fontFamily: 'IBM Plex Mono, monospace' }}>{fmt$(s.shares.markPrice, 2)}</span></span>
+          <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: '#999' }}>{s.shares.quantity} shares</span>
+          <span style={{ color: '#444' }}>avg <span style={{ color: '#808080', fontFamily: 'IBM Plex Mono, monospace' }}>{fmt$(s.shares.avgCost, 2)}</span></span>
+          <span style={{ color: '#444' }}>mark <span style={{ color: '#808080', fontFamily: 'IBM Plex Mono, monospace' }}>{fmt$(s.shares.markPrice, 2)}</span></span>
           <span style={{ marginLeft: 'auto', fontFamily: 'IBM Plex Mono, monospace', color: pnlColor(s.shares.unrealizedPnL) }}>{fmt$(s.shares.unrealizedPnL)}</span>
         </div>
       )}
 
       {/* Column headers */}
-      <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 80px 110px 50px 55px 75px', padding: '6px 16px', fontSize: 10, fontWeight: 600, color: '#666', letterSpacing: '0.06em' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 80px 110px 50px 55px 75px', padding: '6px 16px', fontSize: 10, fontWeight: 600, color: '#808080', letterSpacing: '0.06em' }}>
         <span>LEG</span><span /><span style={{ textAlign: 'right' }}>STRIKE</span>
         <span style={{ textAlign: 'right' }}>EXPIRY</span><span style={{ textAlign: 'right' }}>DTE</span>
         <span style={{ textAlign: 'right' }}>QTY</span><span style={{ textAlign: 'right' }}>P&L</span>
@@ -167,9 +167,9 @@ function StrategyCard({ s }: { s: Strategy }) {
 
       {/* Progress bar */}
       {pct !== null && (
-        <div style={{ padding: '10px 16px', borderTop: '1px solid #1e1e24', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 10, color: '#666', letterSpacing: '0.06em', minWidth: 100 }}>PROFIT PROGRESS</span>
-          <div style={{ flex: 1, height: 3, background: '#2a2a30', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ padding: '10px 16px', borderTop: '1px solid #2A2A2A', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 10, color: '#808080', letterSpacing: '0.06em', minWidth: 100 }}>PROFIT PROGRESS</span>
+          <div style={{ flex: 1, height: 3, background: '#2E2E2E', borderRadius: 2, overflow: 'hidden' }}>
             <div style={{
               height: '100%', width: `${Math.abs(pct) * 100}%`,
               background: pct >= 0 ? (pct >= 0.5 ? '#10b981' : '#3b82f6') : '#f43f5e',
@@ -196,8 +196,8 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '0.1em' }}>{STRAT_LABEL[type].toUpperCase()}</span>
-        <span style={{ fontSize: 11, color: '#666' }}>{strategies.length}</span>
-        <div style={{ flex: 1, height: 1, background: '#2a2a30' }} />
+        <span style={{ fontSize: 11, color: '#808080' }}>{strategies.length}</span>
+        <div style={{ flex: 1, height: 1, background: '#2E2E2E' }} />
         {totalPremium > 0 && (
           <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#333' }}>premium {fmt$(totalPremium)}</span>
         )}
@@ -221,32 +221,32 @@ export default function StrategiesView({ state }: Props) {
         <div style={{ color: '#f59e0b', fontWeight: 600, marginBottom: 16, fontSize: 12 }}>
           No strategies classified — showing raw position data for debugging:
         </div>
-        <div style={{ background: '#111116', border: '1px solid #222228', overflow: 'auto' }}>
+        <div style={{ background: '#1A1A1A', border: '1px solid #2E2E2E', overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #222228' }}>
+              <tr style={{ borderBottom: '1px solid #2E2E2E' }}>
                 {['symbol','assetClass','putCall','strike','expiry','underlyingSymbol','qty','positionValue'].map(h => (
-                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#888', fontWeight: 700, letterSpacing: '0.06em', fontSize: 10 }}>{h.toUpperCase()}</th>
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#999', fontWeight: 700, letterSpacing: '0.06em', fontSize: 10 }}>{h.toUpperCase()}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {state.sync.positions.map((p, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #1e1e24', background: i % 2 ? '#0e0e12' : 'transparent' }}>
+                <tr key={i} style={{ borderBottom: '1px solid #2A2A2A', background: i % 2 ? '#161616' : 'transparent' }}>
                   <td style={{ padding: '7px 12px', color: '#ccc' }}>{p.symbol}</td>
                   <td style={{ padding: '7px 12px', color: p.assetClass === 'OPT' ? '#10b981' : p.assetClass === 'STK' ? '#3b82f6' : '#f59e0b' }}>{p.assetClass}</td>
                   <td style={{ padding: '7px 12px', color: p.putCall ? '#10b981' : '#f43f5e' }}>{p.putCall ?? '—'}</td>
                   <td style={{ padding: '7px 12px', color: p.strike ? '#10b981' : '#f43f5e' }}>{p.strike ?? '—'}</td>
                   <td style={{ padding: '7px 12px', color: p.expiry ? '#10b981' : '#f43f5e' }}>{p.expiry ?? '—'}</td>
-                  <td style={{ padding: '7px 12px', color: '#888' }}>{p.underlyingSymbol ?? '—'}</td>
-                  <td style={{ padding: '7px 12px', color: '#888' }}>{p.quantity}</td>
+                  <td style={{ padding: '7px 12px', color: '#999' }}>{p.underlyingSymbol ?? '—'}</td>
+                  <td style={{ padding: '7px 12px', color: '#999' }}>{p.quantity}</td>
                   <td style={{ padding: '7px 12px', color: p.positionValue > 0 ? '#10b981' : p.positionValue < 0 ? '#f43f5e' : '#555' }}>{p.positionValue.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           {state.sync.positions.length === 0 && (
-            <div style={{ padding: 24, color: '#666', textAlign: 'center' }}>No positions returned from sync.</div>
+            <div style={{ padding: 24, color: '#808080', textAlign: 'center' }}>No positions returned from sync.</div>
           )}
         </div>
       </div>

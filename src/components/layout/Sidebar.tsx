@@ -32,14 +32,14 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
     <aside style={{
       width: collapsed ? 54 : 220,
       transition: 'width 0.2s ease',
-      background: '#0e0e12',
-      borderRight: '1px solid #2a2a30',
+      background: '#161616',
+      borderRight: '1px solid #2E2E2E',
       display: 'flex', flexDirection: 'column', height: '100vh', flexShrink: 0,
     }}>
       {/* Logo + toggle */}
       <div style={{
         height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 14px', borderBottom: '1px solid #2a2a30', flexShrink: 0,
+        padding: '0 14px', borderBottom: '1px solid #2E2E2E', flexShrink: 0,
       }}>
         {!collapsed && (
           <span style={{
@@ -51,7 +51,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
         )}
         <button onClick={() => setCollapsed(c => !c)} style={{
           marginLeft: collapsed ? 'auto' : 0,
-          background: 'none', border: '1px solid #2a2a30', color: '#666',
+          background: 'none', border: '1px solid #2E2E2E', color: '#808080',
           cursor: 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center',
         }}>
           {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
@@ -103,14 +103,14 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
       </nav>
 
       {/* Sync dot */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid #2a2a30', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ padding: '12px 16px', borderTop: '1px solid #2E2E2E', display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{
           width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
           background: SYNC_COLOR[syncStatus],
           animation: syncStatus === 'loading' ? 'pulse 1s ease-in-out infinite' : 'none',
         }} />
         {!collapsed && (
-          <span style={{ fontSize: 10, color: '#777', letterSpacing: 1 }}>
+          <span style={{ fontSize: 10, color: '#909090', letterSpacing: 1 }}>
             {syncStatus === 'success' ? 'Synced' : syncStatus === 'loading' ? 'Syncing…' : syncStatus === 'error' ? 'Error' : 'No data'}
           </span>
         )}

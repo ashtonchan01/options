@@ -33,7 +33,7 @@ function deltaColor(d: number): string {
 
 const colHdr: React.CSSProperties = {
   padding: '10px 14px', fontSize: 11, fontWeight: 600,
-  color: '#888', textAlign: 'right', cursor: 'pointer',
+  color: '#999', textAlign: 'right', cursor: 'pointer',
   userSelect: 'none', whiteSpace: 'nowrap', letterSpacing: '0.06em',
 }
 
@@ -124,7 +124,7 @@ export default function OpportunitiesView({ state }: Props) {
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 7,
             padding: '8px 18px', fontSize: 13, fontWeight: 600,
-            background: '#151518', border: '1px solid #2a2a30',
+            background: '#1E1E1E', border: '1px solid #2E2E2E',
             color: scanning ? '#666' : '#e8e8e8',
             cursor: scanning ? 'not-allowed' : 'pointer',
             fontFamily: 'inherit', flexShrink: 0,
@@ -138,7 +138,7 @@ export default function OpportunitiesView({ state }: Props) {
           {tickers.map(sym => (
             <span key={sym} style={{
               padding: '3px 8px', fontSize: 11, fontWeight: 600,
-              background: '#151518', border: '1px solid #2a2a30',
+              background: '#1E1E1E', border: '1px solid #2E2E2E',
               color: stocksHeld[sym] ? '#3b82f6' : '#888',
               fontFamily: 'IBM Plex Mono, monospace',
             }}>
@@ -152,8 +152,8 @@ export default function OpportunitiesView({ state }: Props) {
             {(['all', 'csp', 'covered_call'] as FilterType[]).map(f => (
               <button key={f} onClick={() => setFilter(f)} style={{
                 padding: '5px 12px', fontSize: 11, fontWeight: 600,
-                background: filter === f ? '#1a1a24' : 'transparent',
-                border: `1px solid ${filter === f ? '#3a3a44' : '#2a2a30'}`,
+                background: filter === f ? '#222222' : 'transparent',
+                border: `1px solid ${filter === f ? '#3a3a44' : '#2E2E2E'}`,
                 color: filter === f ? '#e8e8e8' : '#888',
                 cursor: 'pointer', fontFamily: 'inherit',
               }}>
@@ -173,34 +173,34 @@ export default function OpportunitiesView({ state }: Props) {
 
       {/* ── Loading ─────────────────────────────────────────────────────────── */}
       {scanning && (
-        <div style={{ color: '#888', fontSize: 13, paddingTop: 40, textAlign: 'center' }}>
+        <div style={{ color: '#999', fontSize: 13, paddingTop: 40, textAlign: 'center' }}>
           Scanning {tickers.length} tickers for options with annualized yield...
         </div>
       )}
 
       {/* ── Empty ───────────────────────────────────────────────────────────── */}
       {!scanning && !scanned && !error && (
-        <div style={{ color: '#888', fontSize: 13, paddingTop: 60, textAlign: 'center' }}>
+        <div style={{ color: '#999', fontSize: 13, paddingTop: 60, textAlign: 'center' }}>
           Press <span style={{ color: '#ccc' }}>Scan Now</span> to fetch live option chains across your watchlist.
           <br />
-          <span style={{ fontSize: 11, color: '#666', marginTop: 6, display: 'block' }}>
+          <span style={{ fontSize: 11, color: '#808080', marginTop: 6, display: 'block' }}>
             Blue tickers = shares held (eligible for covered calls)
           </span>
         </div>
       )}
 
       {scanned && filtered.length === 0 && !scanning && (
-        <div style={{ color: '#888', fontSize: 13, paddingTop: 40, textAlign: 'center' }}>
+        <div style={{ color: '#999', fontSize: 13, paddingTop: 40, textAlign: 'center' }}>
           No opportunities matched current filters (delta 0.12–0.45, DTE 14–60).
         </div>
       )}
 
       {/* ── Table ───────────────────────────────────────────────────────────── */}
       {filtered.length > 0 && (
-        <div style={{ background: '#111116', border: '1px solid #2a2a30', overflow: 'auto' }}>
+        <div style={{ background: '#1A1A1A', border: '1px solid #2E2E2E', overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #2a2a30' }}>
+              <tr style={{ borderBottom: '1px solid #2E2E2E' }}>
                 <th style={{ ...colHdr, textAlign: 'left', paddingLeft: 16 }}>TICKER</th>
                 <th style={{ ...colHdr, textAlign: 'left' }}>TYPE</th>
                 <th style={{ ...colHdr }}>STRIKE</th>
@@ -220,7 +220,7 @@ export default function OpportunitiesView({ state }: Props) {
             </thead>
             <tbody>
               {filtered.map((r, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #1e1e24', background: i % 2 ? '#0e0e12' : 'transparent' }}>
+                <tr key={i} style={{ borderBottom: '1px solid #2A2A2A', background: i % 2 ? '#161616' : 'transparent' }}>
                   <td style={{ padding: '10px 14px 10px 16px', fontWeight: 700, color: '#e8e8e8', fontFamily: 'IBM Plex Mono, monospace', fontSize: 12 }}>
                     {r.underlying}
                   </td>
@@ -261,7 +261,7 @@ export default function OpportunitiesView({ state }: Props) {
                   </td>
                   <td style={{ padding: '10px 14px', textAlign: 'right' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
-                      <div style={{ width: 40, height: 3, background: '#2a2a30', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ width: 40, height: 3, background: '#2E2E2E', borderRadius: 2, overflow: 'hidden' }}>
                         <div style={{
                           height: '100%', width: `${Math.min(r.score * 100, 100)}%`,
                           background: r.score > 0.6 ? '#10b981' : r.score > 0.3 ? '#f59e0b' : '#555',
@@ -278,7 +278,7 @@ export default function OpportunitiesView({ state }: Props) {
             </tbody>
           </table>
 
-          <div style={{ padding: '8px 16px', color: '#666', fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', borderTop: '1px solid #2a2a30' }}>
+          <div style={{ padding: '8px 16px', color: '#808080', fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', borderTop: '1px solid #2E2E2E' }}>
             {filtered.length} results · sorted by annual yield · delta 0.12–0.45 · DTE 14–60
           </div>
         </div>
