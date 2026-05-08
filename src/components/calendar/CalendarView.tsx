@@ -15,7 +15,7 @@ const STRAT_COLOR: Record<StrategyType, string> = {
   put_spread:    '#fbbf24',
   call_spread:   '#fb923c',
   leap:          '#10b981',
-  other:         '#444',
+  other:         '#3B4263',
 }
 
 const STRAT_LABEL: Record<StrategyType, string> = {
@@ -115,7 +115,7 @@ function EventPill({ ev }: { ev: ExpiryEvent }) {
       <span style={{ fontWeight: 700, color, fontFamily: 'IBM Plex Mono, monospace', flexShrink: 0 }}>
         {ev.underlying}
       </span>
-      <span style={{ color: '#999', flexShrink: 0 }}>{STRAT_LABEL[ev.strategyType]}</span>
+      <span style={{ color: '#9198AE', flexShrink: 0 }}>{STRAT_LABEL[ev.strategyType]}</span>
       <span style={{ marginLeft: 'auto', fontFamily: 'IBM Plex Mono, monospace', color: ev.unrealizedPnL >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0 }}>
         {ev.unrealizedPnL >= 0 ? '+' : ''}{Math.round(ev.unrealizedPnL)}
       </span>
@@ -134,7 +134,7 @@ function DayCell({
   isSelected: boolean
   onClick: () => void
 }) {
-  if (!date) return <div style={{ background: '#161616', border: '1px solid #1a1a1a' }} />
+  if (!date) return <div style={{ background: '#0F1220', border: '1px solid #1E2540' }} />
 
   const dayNum = parseInt(date.split('-')[2])
   const hasEvents = events.length > 0
@@ -144,8 +144,8 @@ function DayCell({
     <div
       onClick={onClick}
       style={{
-        background: isSelected ? '#0d1a2e' : hasEvents ? '#1E1E1E' : '#181818',
-        border: `1px solid ${isSelected ? '#1d3a6e' : isToday ? '#3b82f6' : '#2A2A2A'}`,
+        background: isSelected ? '#1A1F35' : hasEvents ? '#171C30' : '#111628',
+        border: `1px solid ${isSelected ? '#312e81' : isToday ? '#3b82f6' : '#1A1F35'}`,
         padding: '6px 8px',
         cursor: hasEvents ? 'pointer' : 'default',
         minHeight: 80,
@@ -156,7 +156,7 @@ function DayCell({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <span style={{
           fontSize: 12, fontWeight: isToday ? 700 : 400,
-          color: isToday ? '#3b82f6' : '#888',
+          color: isToday ? '#3b82f6' : '#5D6580',
           fontFamily: 'IBM Plex Mono, monospace',
           background: isToday ? '#3b82f614' : 'transparent',
           borderRadius: 2, padding: isToday ? '0 4px' : 0,
@@ -174,7 +174,7 @@ function DayCell({
       </div>
       {events.slice(0, 3).map((ev, i) => <EventPill key={i} ev={ev} />)}
       {events.length > 3 && (
-        <div style={{ fontSize: 9, color: '#909090', fontFamily: 'IBM Plex Mono, monospace', paddingLeft: 2 }}>
+        <div style={{ fontSize: 9, color: '#9198AE', fontFamily: 'IBM Plex Mono, monospace', paddingLeft: 2 }}>
           +{events.length - 3} more
         </div>
       )}
@@ -206,12 +206,12 @@ function ExpiryList({ events, selectedDate }: { events: ExpiryEvent[]; selectedD
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, overflow: 'auto', flex: 1 }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #2A2A2A', fontSize: 11, fontWeight: 700, color: '#999', letterSpacing: '0.08em' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid #1A1F35', fontSize: 11, fontWeight: 700, color: '#9198AE', letterSpacing: '0.08em' }}>
         {title.toUpperCase()}
       </div>
 
       {displayEvents.length === 0 && (
-        <div style={{ padding: 24, color: '#808080', fontSize: 12, textAlign: 'center' }}>
+        <div style={{ padding: 24, color: '#5D6580', fontSize: 12, textAlign: 'center' }}>
           {selectedDate ? 'No expirations on this date' : 'No upcoming expirations'}
         </div>
       )}
@@ -223,11 +223,11 @@ function ExpiryList({ events, selectedDate }: { events: ExpiryEvent[]; selectedD
         const daysAway = Math.round((d.getTime() - Date.now()) / 86_400_000)
 
         return (
-          <div key={date} style={{ borderBottom: '1px solid #2A2A2A' }}>
+          <div key={date} style={{ borderBottom: '1px solid #1A1F35' }}>
             {/* Date header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: '#1E1E1E' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#aaa', fontFamily: 'IBM Plex Mono, monospace' }}>{label}</span>
-              <span style={{ fontSize: 10, color: '#808080' }}>{daysAway}d away</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: '#171C30' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#9198AE', fontFamily: 'IBM Plex Mono, monospace' }}>{label}</span>
+              <span style={{ fontSize: 10, color: '#5D6580' }}>{daysAway}d away</span>
               <div style={{ flex: 1 }} />
               <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: datePnL >= 0 ? '#10b981' : '#f43f5e' }}>
                 {fmt$(datePnL)}
@@ -241,23 +241,23 @@ function ExpiryList({ events, selectedDate }: { events: ExpiryEvent[]; selectedD
               return (
                 <div key={i} style={{
                   display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '8px 16px', borderTop: '1px solid #2A2A2A',
+                  padding: '8px 16px', borderTop: '1px solid #1A1F35',
                   fontSize: 12,
                 }}>
                   <div style={{ width: 3, height: 32, background: color, flexShrink: 0, borderRadius: 1 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                      <span style={{ fontWeight: 700, color: '#ccc', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }}>
+                      <span style={{ fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }}>
                         {ev.underlying}
                       </span>
                       <span style={{ padding: '1px 5px', fontSize: 9, fontWeight: 700, color, background: `${color}14`, border: `1px solid ${color}30` }}>
                         {STRAT_LABEL[ev.strategyType]}
                       </span>
-                      <span style={{ fontSize: 10, color: '#999', fontFamily: 'IBM Plex Mono, monospace' }}>
+                      <span style={{ fontSize: 10, color: '#9198AE', fontFamily: 'IBM Plex Mono, monospace' }}>
                         {isShort ? 'SHORT' : 'LONG'} {ev.putCall === 'C' ? 'CALL' : 'PUT'}
                       </span>
                     </div>
-                    <div style={{ fontSize: 11, color: '#909090', fontFamily: 'IBM Plex Mono, monospace' }}>
+                    <div style={{ fontSize: 11, color: '#9198AE', fontFamily: 'IBM Plex Mono, monospace' }}>
                       ${ev.strike.toLocaleString()} · {ev.dte}d · {ev.quantity} contracts
                     </div>
                   </div>
@@ -266,7 +266,7 @@ function ExpiryList({ events, selectedDate }: { events: ExpiryEvent[]; selectedD
                       {fmt$(ev.unrealizedPnL)}
                     </div>
                     {ev.netPremium > 0 && (
-                      <div style={{ fontSize: 10, color: '#808080', fontFamily: 'IBM Plex Mono, monospace' }}>
+                      <div style={{ fontSize: 10, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace' }}>
                         {fmt$(ev.netPremium)} prem
                       </div>
                     )}
@@ -329,22 +329,22 @@ export default function CalendarView({ state }: Props) {
 
         {/* Month nav */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, paddingRight: 24 }}>
-          <button onClick={prevMonth} style={{ background: 'none', border: '1px solid #1a1a1a', color: '#555', cursor: 'pointer', padding: '4px 8px', display: 'flex' }}>
+          <button onClick={prevMonth} style={{ background: 'none', border: '1px solid #1E2540', color: '#5D6580', cursor: 'pointer', padding: '4px 8px', display: 'flex' }}>
             <ChevronLeft size={14} />
           </button>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', minWidth: 160, textAlign: 'center' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#EAEDF3', minWidth: 160, textAlign: 'center' }}>
             {MONTHS[month]} {year}
           </span>
-          <button onClick={nextMonth} style={{ background: 'none', border: '1px solid #1a1a1a', color: '#555', cursor: 'pointer', padding: '4px 8px', display: 'flex' }}>
+          <button onClick={nextMonth} style={{ background: 'none', border: '1px solid #1E2540', color: '#5D6580', cursor: 'pointer', padding: '4px 8px', display: 'flex' }}>
             <ChevronRight size={14} />
           </button>
           <div style={{ flex: 1 }} />
-          <span style={{ fontSize: 11, color: '#909090', fontFamily: 'IBM Plex Mono, monospace' }}>month P&L</span>
+          <span style={{ fontSize: 11, color: '#9198AE', fontFamily: 'IBM Plex Mono, monospace' }}>month P&L</span>
           <span style={{ fontSize: 14, fontWeight: 600, fontFamily: 'IBM Plex Mono, monospace', color: monthPnL >= 0 ? '#10b981' : '#f43f5e' }}>
             {monthPnL >= 0 ? '+' : ''}{Math.round(monthPnL).toLocaleString()}
           </span>
           {selected && (
-            <button onClick={() => setSelected(null)} style={{ background: 'none', border: '1px solid #1a1a1a', color: '#444', cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontFamily: 'inherit' }}>
+            <button onClick={() => setSelected(null)} style={{ background: 'none', border: '1px solid #1E2540', color: '#3B4263', cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontFamily: 'inherit' }}>
               Clear
             </button>
           )}
@@ -353,7 +353,7 @@ export default function CalendarView({ state }: Props) {
         {/* Day headers */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, marginBottom: 1, paddingRight: 24 }}>
           {DAYS.map(d => (
-            <div key={d} style={{ padding: '6px 8px', fontSize: 10, fontWeight: 700, color: '#808080', letterSpacing: '0.08em', textAlign: 'center' }}>
+            <div key={d} style={{ padding: '6px 8px', fontSize: 10, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em', textAlign: 'center' }}>
               {d}
             </div>
           ))}
@@ -375,7 +375,7 @@ export default function CalendarView({ state }: Props) {
       </div>
 
       {/* ── Expiry sidebar ────────────────────────────────────────────────── */}
-      <div style={{ width: 300, borderLeft: '1px solid #111', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ width: 300, borderLeft: '1px solid #1E2540', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <ExpiryList events={events} selectedDate={selected} />
       </div>
     </div>

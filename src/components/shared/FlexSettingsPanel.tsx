@@ -10,14 +10,14 @@ interface FlexSettingsPanelProps {
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: '#0a0a0f',
-  border: '1px solid #222',
-  color: '#e8e8e8',
+  background: '#0B0E18',
+  border: '1px solid #1E2540',
+  color: '#EAEDF3',
   padding: '10px 14px',
   fontSize: 13,
   fontFamily: 'IBM Plex Mono, monospace',
   outline: 'none',
-  borderRadius: 0,
+  borderRadius: 6,
 }
 
 export default function FlexSettingsPanel({ settings, onSave, onClose }: FlexSettingsPanelProps) {
@@ -41,19 +41,20 @@ export default function FlexSettingsPanel({ settings, onSave, onClose }: FlexSet
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div style={{
-        background: '#0f0f0f', border: '1px solid #222',
+        background: '#131726', border: '1px solid #1E2540',
+        borderRadius: 10,
         width: 480, padding: 28,
         display: 'flex', flexDirection: 'column', gap: 20,
       }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#e8e8e8' }}>IBKR Flex Credentials</h2>
-          <p style={{ margin: '6px 0 0', fontSize: 12, color: '#444' }}>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#EAEDF3' }}>IBKR Flex Credentials</h2>
+          <p style={{ margin: '6px 0 0', fontSize: 12, color: '#5D6580' }}>
             Stored in your browser only · never sent to any server
           </p>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ fontSize: 10, color: '#555', letterSpacing: 2, textTransform: 'uppercase' }}>Flex Token</label>
+          <label style={{ fontSize: 10, color: '#5D6580', letterSpacing: 2, textTransform: 'uppercase' }}>Flex Token</label>
           <input
             type="text"
             value={token}
@@ -65,7 +66,7 @@ export default function FlexSettingsPanel({ settings, onSave, onClose }: FlexSet
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ fontSize: 10, color: '#555', letterSpacing: 2, textTransform: 'uppercase' }}>Query ID</label>
+          <label style={{ fontSize: 10, color: '#5D6580', letterSpacing: 2, textTransform: 'uppercase' }}>Query ID</label>
           <input
             type="text"
             value={queryId}
@@ -74,7 +75,7 @@ export default function FlexSettingsPanel({ settings, onSave, onClose }: FlexSet
             style={inputStyle}
             spellCheck={false}
           />
-          <span style={{ fontSize: 11, color: '#333' }}>
+          <span style={{ fontSize: 11, color: '#2A3250' }}>
             IBKR Client Portal → Reports → Flex Queries → your query number
           </span>
         </div>
@@ -82,7 +83,7 @@ export default function FlexSettingsPanel({ settings, onSave, onClose }: FlexSet
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: '1px solid #222', color: '#555', padding: '8px 18px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ background: 'none', border: '1px solid #1E2540', borderRadius: 6, color: '#5D6580', padding: '8px 18px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Cancel
           </button>
@@ -90,8 +91,8 @@ export default function FlexSettingsPanel({ settings, onSave, onClose }: FlexSet
             onClick={handleSave}
             disabled={!token || !queryId}
             style={{
-              background: saved ? '#10b981' : '#e8e8e8',
-              border: 'none', color: '#000',
+              background: saved ? '#10b981' : '#6366F1',
+              border: 'none', borderRadius: 6, color: '#fff',
               padding: '8px 22px', fontSize: 12, fontWeight: 600,
               cursor: (!token || !queryId) ? 'not-allowed' : 'pointer',
               opacity: (!token || !queryId) ? 0.4 : 1,

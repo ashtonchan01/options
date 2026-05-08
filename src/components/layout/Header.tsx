@@ -33,8 +33,8 @@ interface HeaderProps {
 const btn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   padding: '7px 14px', fontSize: 12,
-  border: '1px solid #2E2E2E', background: '#1E1E1E',
-  color: '#aaa', cursor: 'pointer', fontFamily: 'inherit',
+  border: '1px solid #1E2540', background: '#131726',
+  color: '#9198AE', cursor: 'pointer', fontFamily: 'inherit',
   transition: 'all 0.15s',
 }
 
@@ -52,16 +52,16 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
     <header style={{
       height: 54,
       padding: '0 24px',
-      background: '#161616',
-      borderBottom: '1px solid #2E2E2E',
+      background: '#0F1220',
+      borderBottom: '1px solid #1E2540',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <h1 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#e8e8e8' }}>
+        <h1 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#EAEDF3' }}>
           {TAB_LABELS[activeTab]}
         </h1>
         {lastSync && (
-          <span style={{ fontSize: 11, color: '#909090', fontFamily: 'IBM Plex Mono, monospace' }}>
+          <span style={{ fontSize: 11, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace' }}>
             {relativeTime(lastSync)}
           </span>
         )}
@@ -104,10 +104,10 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
           background: syncStatus === 'success' ? '#10b981'
             : syncStatus === 'error'   ? '#f43f5e'
             : syncStatus === 'loading' ? '#f59e0b'
-            : '#222',
+            : '#1E2540',
         }} />
 
-        <div style={{ width: 1, height: 18, background: '#2E2E2E', margin: '0 2px' }} />
+        <div style={{ width: 1, height: 18, background: '#1E2540', margin: '0 2px' }} />
 
         {/* Settings */}
         <button

@@ -83,11 +83,11 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
       {/* ── Summary stats ─────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
         {[
-          { label: 'NET LIQUIDATION', value: fmt$(netLiq), color: '#EEEEEE' },
-          { label: 'CASH', value: fmt$(cashBalance), color: '#EEEEEE' },
-          { label: 'UNREALIZED P&L', value: fmt$(totalPnL), color: totalPnL >= 0 ? '#00D084' : '#FF4757' },
-          { label: 'STOCK VALUE', value: fmt$(totalStockValue), color: '#EEEEEE' },
-          { label: 'PREMIUM COLLECTED', value: fmt$(totalPremium), color: totalPremium >= 0 ? '#00D084' : '#FF4757' },
+          { label: 'NET LIQUIDATION', value: fmt$(netLiq), color: '#EAEDF3' },
+          { label: 'CASH', value: fmt$(cashBalance), color: '#EAEDF3' },
+          { label: 'UNREALIZED P&L', value: fmt$(totalPnL), color: totalPnL >= 0 ? '#10b981' : '#f43f5e' },
+          { label: 'STOCK VALUE', value: fmt$(totalStockValue), color: '#EAEDF3' },
+          { label: 'PREMIUM COLLECTED', value: fmt$(totalPremium), color: totalPremium >= 0 ? '#10b981' : '#f43f5e' },
         ].map(({ label, value, color }) => (
           <div key={label} className="stat-card">
             <div className="stat-label">{label}</div>
@@ -114,7 +114,7 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
                   const ret = p.costBasisPrice > 0 ? (p.markPrice - p.costBasisPrice) / p.costBasisPrice * 100 : 0
                   return (
                     <tr key={p.symbol}>
-                      <td style={{ padding: '13px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: '#EEEEEE' }}>{p.symbol}</td>
+                      <td style={{ padding: '13px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: '#EAEDF3' }}>{p.symbol}</td>
                       <td style={{ padding: '13px 16px' }} className="mono">{p.quantity.toLocaleString()}</td>
                       <td style={{ padding: '13px 16px' }} className="mono">{fmt$(p.costBasisPrice, 2)}</td>
                       <td style={{ padding: '13px 16px' }} className="mono">{fmt$(p.markPrice, 2)}</td>
@@ -159,9 +159,9 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
                 {trades.slice(0, 20).map((t, i) => (
                   <tr key={i}>
                     <td style={{ padding: '12px 16px' }} className="mono" >{t.tradeDate}</td>
-                    <td style={{ padding: '12px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, color: '#EEEEEE' }}>{t.underlyingSymbol ?? t.symbol}</td>
+                    <td style={{ padding: '12px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, color: '#EAEDF3' }}>{t.underlyingSymbol ?? t.symbol}</td>
                     <td style={{ padding: '12px 16px' }}>
-                      <span style={{ fontSize: 10, letterSpacing: 1, padding: '2px 7px', border: '1px solid #2E2E2E', color: '#909090' }}>
+                      <span style={{ fontSize: 10, letterSpacing: 1, padding: '2px 7px', border: '1px solid #1E2540', borderRadius: 4, color: '#9198AE' }}>
                         {t.assetClass === 'OPT' ? `${t.putCall} ${t.strike}` : t.assetClass}
                       </span>
                     </td>
@@ -189,18 +189,18 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
   const totalPremium = strategies.reduce((s, st) => s + st.netPremiumReceived, 0)
 
   return (
-    <div style={{ border: `1px solid #2E2E2E`, background: '#1A1A1A', borderLeft: `3px solid ${color}` }}>
+    <div style={{ border: `1px solid #1E2540`, background: '#131726', borderRadius: 10, borderLeft: `3px solid ${color}`, overflow: 'hidden' }}>
       {/* Group header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12,
-        padding: '12px 18px', borderBottom: '1px solid #2E2E2E',
-        background: '#202020',
+        padding: '12px 18px', borderBottom: '1px solid #1E2540',
+        background: '#171C30',
       }}>
         <span className="display" style={{ color, fontSize: 13, fontWeight: 700, letterSpacing: 2 }}>{label}</span>
-        <span style={{ fontSize: 11, color: '#606060' }}>{strategies.length} position{strategies.length !== 1 ? 's' : ''}</span>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#606060' }}>Premium</span>
+        <span style={{ fontSize: 11, color: '#5D6580' }}>{strategies.length} position{strategies.length !== 1 ? 's' : ''}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#5D6580' }}>Premium</span>
         <span className={`mono ${totalPremium >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 14, minWidth: 90, textAlign: 'right' }}>{fmt$(totalPremium)}</span>
-        <span style={{ fontSize: 12, color: '#606060', marginLeft: 16 }}>Unreal P&L</span>
+        <span style={{ fontSize: 12, color: '#5D6580', marginLeft: 16 }}>Unreal P&L</span>
         <span className={`mono ${totalPnL >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 14, minWidth: 90, textAlign: 'right' }}>{fmt$(totalPnL)}</span>
       </div>
 
@@ -220,7 +220,7 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
                 {i === 0 && (
                   <td
                     rowSpan={s.legs.length}
-                    style={{ padding: '12px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 700, color: '#EEEEEE', verticalAlign: 'middle' }}
+                    style={{ padding: '12px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 700, color: '#EAEDF3', verticalAlign: 'middle' }}
                   >
                     {s.underlying}
                   </td>
@@ -229,9 +229,9 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
                   <span style={{
                     display: 'inline-block', fontSize: 11, letterSpacing: 1,
                     padding: '2px 8px', fontWeight: 600,
-                    color: leg.putCall === 'C' ? '#3B9EFF' : '#FF4757',
-                    border: `1px solid ${leg.putCall === 'C' ? '#0F3060' : '#6B0F1E'}`,
-                    background: leg.putCall === 'C' ? 'rgba(59,158,255,0.08)' : 'rgba(255,71,87,0.08)',
+                    color: leg.putCall === 'C' ? '#818cf8' : '#f43f5e',
+                    border: `1px solid ${leg.putCall === 'C' ? '#312e81' : '#5b1a28'}`,
+                    background: leg.putCall === 'C' ? 'rgba(129,140,248,0.08)' : 'rgba(244,63,94,0.08)',
                   }}>
                     {leg.quantity > 0 ? 'LONG' : 'SHORT'} {leg.putCall === 'C' ? 'CALL' : 'PUT'}
                   </span>
@@ -241,7 +241,7 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
                 <td style={{ padding: '12px 16px' }}>
                   <span style={{
                     fontSize: 12, fontWeight: 600,
-                    color: leg.dte <= 7 ? '#FF4757' : leg.dte <= 21 ? '#F0B429' : '#C0C0C0',
+                    color: leg.dte <= 7 ? '#f43f5e' : leg.dte <= 21 ? '#f59e0b' : '#9198AE',
                   }}>
                     {leg.dte}d
                   </span>

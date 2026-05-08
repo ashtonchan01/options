@@ -30,7 +30,7 @@ const PHASE_CONFIG: Record<WheelPhase, { label: string; color: string; desc: str
   assigned:     { label: 'Assigned',        color: '#f59e0b', desc: 'Put exercised — shares acquired at strike, ready for CC' },
   covered_call: { label: 'Selling CC',      color: '#3b82f6', desc: 'Covered call — collecting premium while holding shares' },
   called_away:  { label: 'Called Away',     color: '#10b981', desc: 'Shares called away — back to cash, ready to restart' },
-  idle:         { label: 'Idle',            color: '#333',    desc: 'No active position' },
+  idle:         { label: 'Idle',            color: '#2A3250',    desc: 'No active position' },
 }
 
 function derivePhase(underlying: string, strategies: AppState['strategies'], positions: AppState['sync']['positions']): WheelPhase {
@@ -82,10 +82,10 @@ function BarChart({ months }: { months: MonthData[] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#808080', letterSpacing: '0.08em' }}>MONTHLY NET P&L</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em' }}>MONTHLY NET P&L</div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 120, paddingBottom: 24, position: 'relative' }}>
         {/* Zero line */}
-        <div style={{ position: 'absolute', bottom: 24, left: 0, right: 0, height: 1, background: '#2E2E2E' }} />
+        <div style={{ position: 'absolute', bottom: 24, left: 0, right: 0, height: 1, background: '#1E2540' }} />
 
         {months.map(m => {
           const pct = Math.abs(m.total) / maxAbs
@@ -103,7 +103,7 @@ function BarChart({ months }: { months: MonthData[] }) {
                   <div style={{ width: '100%', height: barH, background: '#f43f5e', borderRadius: '1px 1px 0 0', opacity: 0.85, alignSelf: 'flex-start', marginTop: 'auto' }} />
                 )}
               </div>
-              <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 9, color: '#808080', fontFamily: 'IBM Plex Mono, monospace', whiteSpace: 'nowrap' }}>
+              <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 9, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace', whiteSpace: 'nowrap' }}>
                 {m.label}
               </div>
             </div>
@@ -131,7 +131,7 @@ function WheelTracker({ state }: { state: AppState }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#808080', letterSpacing: '0.08em' }}>WHEEL PHASE</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em' }}>WHEEL PHASE</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {underlyings.map(sym => {
           const phase = derivePhase(sym, state.strategies, state.sync.positions)
@@ -142,8 +142,8 @@ function WheelTracker({ state }: { state: AppState }) {
           const active = cc ?? csp
 
           return (
-            <div key={sym} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#1A1A1A', border: '1px solid #2E2E2E' }}>
-              <span style={{ fontWeight: 700, color: '#ccc', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, minWidth: 60 }}>
+            <div key={sym} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#131726', border: '1px solid #1E2540', borderRadius: 10 }}>
+              <span style={{ fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, minWidth: 60 }}>
                 {sym}
               </span>
               <span style={{
@@ -153,10 +153,10 @@ function WheelTracker({ state }: { state: AppState }) {
               }}>
                 {cfg.label}
               </span>
-              <span style={{ fontSize: 11, color: '#333', flex: 1 }}>{cfg.desc}</span>
+              <span style={{ fontSize: 11, color: '#2A3250', flex: 1 }}>{cfg.desc}</span>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 {stk && (
-                  <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#555' }}>
+                  <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>
                     {stk.quantity} shares
                   </div>
                 )}
@@ -217,39 +217,39 @@ export default function GrowthView({ state }: Props) {
 
       {/* ── Monthly chart ─────────────────────────────────────────────────── */}
       {months.length > 0 && (
-        <div style={{ background: '#1A1A1A', border: '1px solid #2E2E2E', padding: '16px 20px' }}>
+        <div style={{ background: '#131726', border: '1px solid #1E2540', borderRadius: 10, padding: '16px 20px' }}>
           <BarChart months={months} />
         </div>
       )}
 
       {/* ── Monthly breakdown table ───────────────────────────────────────── */}
       {months.length > 0 && (
-        <div style={{ background: '#1A1A1A', border: '1px solid #2E2E2E' }}>
-          <div style={{ padding: '10px 16px', borderBottom: '1px solid #2E2E2E', fontSize: 11, fontWeight: 700, color: '#808080', letterSpacing: '0.08em' }}>
+        <div style={{ background: '#131726', border: '1px solid #1E2540', borderRadius: 10 }}>
+          <div style={{ padding: '10px 16px', borderBottom: '1px solid #1E2540', fontSize: 11, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em' }}>
             MONTHLY BREAKDOWN
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #2E2E2E' }}>
+              <tr style={{ borderBottom: '1px solid #1E2540' }}>
                 {['MONTH', 'OPTION P&L', 'STOCK P&L', 'NET', 'TRADES'].map(h => (
-                  <th key={h} style={{ padding: '8px 16px', fontSize: 10, fontWeight: 700, color: '#808080', letterSpacing: '0.06em', textAlign: h === 'MONTH' ? 'left' : 'right' }}>{h}</th>
+                  <th key={h} style={{ padding: '8px 16px', fontSize: 10, fontWeight: 700, color: '#5D6580', letterSpacing: '0.06em', textAlign: h === 'MONTH' ? 'left' : 'right' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {[...months].reverse().map((m, i) => (
-                <tr key={m.key} style={{ borderBottom: '1px solid #2A2A2A', background: i % 2 ? '#0a0a0a' : 'transparent' }}>
-                  <td style={{ padding: '9px 16px', fontFamily: 'IBM Plex Mono, monospace', color: '#808080' }}>{m.label}</td>
+                <tr key={m.key} style={{ borderBottom: '1px solid #1A1F35', background: i % 2 ? '#0B0E18' : 'transparent' }}>
+                  <td style={{ padding: '9px 16px', fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>{m.label}</td>
                   <td style={{ padding: '9px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: m.optionPnL >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.optionPnL)}</td>
                   <td style={{ padding: '9px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: m.stockPnL >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.stockPnL)}</td>
                   <td style={{ padding: '9px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: m.total >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.total)}</td>
-                  <td style={{ padding: '9px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#333' }}>{m.tradeCount}</td>
+                  <td style={{ padding: '9px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#2A3250' }}>{m.tradeCount}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
-              <tr style={{ borderTop: '1px solid #2E2E2E' }}>
-                <td style={{ padding: '10px 16px', fontFamily: 'IBM Plex Mono, monospace', color: '#444', fontWeight: 700 }}>TOTAL</td>
+              <tr style={{ borderTop: '1px solid #1E2540' }}>
+                <td style={{ padding: '10px 16px', fontFamily: 'IBM Plex Mono, monospace', color: '#3B4263', fontWeight: 700 }}>TOTAL</td>
                 <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: months.reduce((s,m)=>s+m.optionPnL,0) >= 0 ? '#10b981' : '#f43f5e' }}>
                   {fmt$(months.reduce((s,m)=>s+m.optionPnL,0))}
                 </td>
@@ -259,7 +259,7 @@ export default function GrowthView({ state }: Props) {
                 <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, color: totalRealizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
                   {fmt$(totalRealizedPnL)}
                 </td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#444' }}>
+                <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#3B4263' }}>
                   {months.reduce((s,m)=>s+m.tradeCount,0)}
                 </td>
               </tr>

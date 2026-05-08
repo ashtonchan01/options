@@ -33,7 +33,7 @@ export default function App() {
   const View = VIEWS[activeTab]
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#0a0a0f' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#0B0E18' }}>
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -53,7 +53,7 @@ export default function App() {
           onOpenSettings={() => setShowSettings(true)}
         />
 
-        <main style={{ flex: 1, overflow: 'auto', background: '#0a0a0f' }}>
+        <main style={{ flex: 1, overflow: 'auto', background: '#0B0E18' }}>
           <div style={{ maxWidth: 1200, margin: '0 auto', height: '100%' }}>
             <View state={state} />
           </div>

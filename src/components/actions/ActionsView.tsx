@@ -9,7 +9,7 @@ const URGENCY_CONFIG: Record<UrgencyLevel, { label: string; color: string; bg: s
   urgent:      { label: 'URGENT',      color: '#f43f5e', bg: '#f43f5e14' },
   manage:      { label: 'MANAGE',      color: '#f59e0b', bg: '#f59e0b14' },
   opportunity: { label: 'OPPORTUNITY', color: '#10b981', bg: '#10b98114' },
-  watch:       { label: 'WATCH',       color: '#555',    bg: '#55555514' },
+  watch:       { label: 'WATCH',       color: '#5D6580',    bg: '#5D658014' },
 }
 
 const ACTION_LABEL: Record<Action['actionType'], string> = {
@@ -45,7 +45,7 @@ const STRAT_COLOR: Record<StrategyType, string> = {
   put_spread:    '#fbbf24',
   call_spread:   '#fb923c',
   leap:          '#10b981',
-  other:         '#444',
+  other:         '#3B4263',
 }
 
 const URGENCY_ORDER: UrgencyLevel[] = ['urgent', 'manage', 'opportunity', 'watch']
@@ -59,8 +59,8 @@ function ActionCard({ a }: { a: Action }) {
 
   return (
     <div style={{
-      background: '#1A1A1A',
-      border: '1px solid #2E2E2E',
+      background: '#131726',
+      border: '1px solid #1E2540',
       borderLeft: `3px solid ${urgency.color}`,
       padding: '14px 16px',
       display: 'flex',
@@ -68,7 +68,7 @@ function ActionCard({ a }: { a: Action }) {
     }}>
       {/* Left: ticker + badges */}
       <div style={{ flexShrink: 0, minWidth: 110 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: '#e8e8e8', fontFamily: 'IBM Plex Mono, monospace', marginBottom: 6 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace', marginBottom: 6 }}>
           {a.underlying}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -91,27 +91,27 @@ function ActionCard({ a }: { a: Action }) {
 
       {/* Right: reason + details */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#ccc', marginBottom: 4, lineHeight: 1.4 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#EAEDF3', marginBottom: 4, lineHeight: 1.4 }}>
           {a.reason}
         </div>
-        <div style={{ fontSize: 12, color: '#999', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: '#9198AE', lineHeight: 1.5 }}>
           {a.details}
         </div>
         {(a.suggestedStrike || a.suggestedExpiry || a.estimatedCredit) && (
           <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
             {a.suggestedStrike && (
-              <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#555' }}>
-                strike <span style={{ color: '#999' }}>${a.suggestedStrike}</span>
+              <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>
+                strike <span style={{ color: '#9198AE' }}>${a.suggestedStrike}</span>
               </span>
             )}
             {a.suggestedDelta && (
-              <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#555' }}>
-                delta <span style={{ color: '#999' }}>{a.suggestedDelta.toFixed(2)}</span>
+              <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>
+                delta <span style={{ color: '#9198AE' }}>{a.suggestedDelta.toFixed(2)}</span>
               </span>
             )}
             {a.suggestedExpiry && (
-              <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#555' }}>
-                expiry <span style={{ color: '#999' }}>{a.suggestedExpiry}</span>
+              <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>
+                expiry <span style={{ color: '#9198AE' }}>{a.suggestedExpiry}</span>
               </span>
             )}
             {a.estimatedCredit && (
@@ -145,7 +145,7 @@ function UrgencyGroup({ urgency, actions }: { urgency: UrgencyLevel; actions: Ac
         }}>
           {actions.length}
         </span>
-        <div style={{ flex: 1, height: 1, background: '#2E2E2E' }} />
+        <div style={{ flex: 1, height: 1, background: '#1E2540' }} />
       </div>
       {actions.map(a => <ActionCard key={a.id} a={a} />)}
     </div>
@@ -181,10 +181,10 @@ export default function ActionsView({ state }: Props) {
       {/* ── Summary ──────────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         {[
-          { label: 'URGENT',      value: urgent,      color: urgent > 0      ? '#f43f5e' : '#333' },
-          { label: 'MANAGE',      value: manage,      color: manage > 0      ? '#f59e0b' : '#333' },
-          { label: 'OPPORTUNITY', value: opportunity, color: opportunity > 0 ? '#10b981' : '#333' },
-          { label: 'WATCH',       value: watch,       color: watch > 0       ? '#555'    : '#222' },
+          { label: 'URGENT',      value: urgent,      color: urgent > 0      ? '#f43f5e' : '#2A3250' },
+          { label: 'MANAGE',      value: manage,      color: manage > 0      ? '#f59e0b' : '#2A3250' },
+          { label: 'OPPORTUNITY', value: opportunity, color: opportunity > 0 ? '#10b981' : '#2A3250' },
+          { label: 'WATCH',       value: watch,       color: watch > 0       ? '#5D6580'    : '#1E2540' },
         ].map(({ label, value, color }) => (
           <div key={label} className="stat-card">
             <div className="stat-label">{label}</div>
@@ -195,7 +195,7 @@ export default function ActionsView({ state }: Props) {
 
       {/* ── No actions ───────────────────────────────────────────────────── */}
       {actions.length === 0 && (
-        <div style={{ color: '#808080', fontSize: 13, paddingTop: 40, textAlign: 'center' }}>
+        <div style={{ color: '#5D6580', fontSize: 13, paddingTop: 40, textAlign: 'center' }}>
           All positions are within normal parameters. Nothing to action right now.
         </div>
       )}
