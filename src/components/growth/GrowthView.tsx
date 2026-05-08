@@ -27,8 +27,8 @@ const tile: React.CSSProperties = {
   overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0,
 }
 const tileHdr: React.CSSProperties = {
-  padding: '10px 16px', borderBottom: '1px solid #1E2540',
-  fontSize: 11, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em', flexShrink: 0,
+  padding: '12px 20px', borderBottom: '1px solid #1E2540',
+  fontSize: 13, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em', flexShrink: 0,
 }
 
 // ─── Wheel phase ─────────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ function BarChart({ months }: { months: MonthData[] }) {
                 <div style={{ width: '100%', height: barH, background: '#f43f5e', borderRadius: '1px 1px 0 0', opacity: 0.85, alignSelf: 'flex-start', marginTop: 'auto' }} />
               )}
             </div>
-            <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 9, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace', whiteSpace: 'nowrap' }}>
+            <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 11, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace', whiteSpace: 'nowrap' }}>
               {m.label}
             </div>
           </div>
@@ -147,26 +147,26 @@ function WheelTracker({ state }: { state: AppState }) {
         const active = cc ?? csp
 
         return (
-          <div key={sym} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#171C30', borderRadius: 8 }}>
-            <span style={{ fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, minWidth: 50 }}>
+          <div key={sym} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#171C30', borderRadius: 8 }}>
+            <span style={{ fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, minWidth: 50 }}>
               {sym}
             </span>
             <span style={{
-              padding: '2px 7px', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+              padding: '2px 7px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
               color: cfg.color, background: `${cfg.color}14`, border: `1px solid ${cfg.color}30`,
               flexShrink: 0,
             }}>
               {cfg.label}
             </span>
-            <span style={{ fontSize: 10, color: '#5D6580', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cfg.desc}</span>
+            <span style={{ fontSize: 12, color: '#5D6580', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cfg.desc}</span>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               {stk && (
-                <div style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>
+                <div style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>
                   {stk.quantity} sh
                 </div>
               )}
               {active && (
-                <div style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: active.unrealizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
+                <div style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: active.unrealizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
                   {active.unrealizedPnL >= 0 ? '+' : ''}{fmt$(active.unrealizedPnL)}
                 </div>
               )}
@@ -201,7 +201,7 @@ export default function GrowthView({ state }: Props) {
   const bestMonth             = months.reduce((best, m) => m.total > best.total ? m : best, months[0] ?? { total: 0, label: '—' })
 
   return (
-    <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
+    <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
 
       {/* ── Stats row ──────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, flexShrink: 0 }}>
@@ -214,7 +214,7 @@ export default function GrowthView({ state }: Props) {
         ].map(({ label, value, color }) => (
           <div key={label} className="stat-card">
             <div className="stat-label">{label}</div>
-            <div className="stat-value" style={{ color, fontSize: 22 }}>{value}</div>
+            <div className="stat-value" style={{ color, fontSize: 28 }}>{value}</div>
           </div>
         ))}
       </div>
@@ -244,38 +244,38 @@ export default function GrowthView({ state }: Props) {
         <div style={{ ...tile, maxHeight: 220, flexShrink: 0 }}>
           <div style={tileHdr}>MONTHLY BREAKDOWN</div>
           <div style={{ overflow: 'auto', flex: 1 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #1E2540' }}>
                   {['MONTH', 'OPTION P&L', 'STOCK P&L', 'NET', 'TRADES'].map(h => (
-                    <th key={h} style={{ padding: '8px 14px', fontSize: 10, fontWeight: 700, color: '#5D6580', letterSpacing: '0.06em', textAlign: h === 'MONTH' ? 'left' : 'right' }}>{h}</th>
+                    <th key={h} style={{ padding: '10px 16px', fontSize: 12, fontWeight: 700, color: '#5D6580', letterSpacing: '0.06em', textAlign: h === 'MONTH' ? 'left' : 'right' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {[...months].reverse().map((m, i) => (
                   <tr key={m.key} style={{ borderBottom: '1px solid #1A1F35', background: i % 2 ? '#0B0E18' : 'transparent' }}>
-                    <td style={{ padding: '8px 14px', fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>{m.label}</td>
-                    <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: m.optionPnL >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.optionPnL)}</td>
-                    <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: m.stockPnL >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.stockPnL)}</td>
-                    <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: m.total >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.total)}</td>
-                    <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#2A3250' }}>{m.tradeCount}</td>
+                    <td style={{ padding: '10px 16px', fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>{m.label}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: m.optionPnL >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.optionPnL)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: m.stockPnL >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.stockPnL)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: m.total >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.total)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#2A3250' }}>{m.tradeCount}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr style={{ borderTop: '1px solid #1E2540' }}>
-                  <td style={{ padding: '8px 14px', fontFamily: 'IBM Plex Mono, monospace', color: '#3B4263', fontWeight: 700 }}>TOTAL</td>
-                  <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: months.reduce((s,m)=>s+m.optionPnL,0) >= 0 ? '#10b981' : '#f43f5e' }}>
+                  <td style={{ padding: '10px 16px', fontFamily: 'IBM Plex Mono, monospace', color: '#3B4263', fontWeight: 700 }}>TOTAL</td>
+                  <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: months.reduce((s,m)=>s+m.optionPnL,0) >= 0 ? '#10b981' : '#f43f5e' }}>
                     {fmt$(months.reduce((s,m)=>s+m.optionPnL,0))}
                   </td>
-                  <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: months.reduce((s,m)=>s+m.stockPnL,0) >= 0 ? '#10b981' : '#f43f5e' }}>
+                  <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: months.reduce((s,m)=>s+m.stockPnL,0) >= 0 ? '#10b981' : '#f43f5e' }}>
                     {fmt$(months.reduce((s,m)=>s+m.stockPnL,0))}
                   </td>
-                  <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, color: totalRealizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
+                  <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, color: totalRealizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
                     {fmt$(totalRealizedPnL)}
                   </td>
-                  <td style={{ padding: '8px 14px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#3B4263' }}>
+                  <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#3B4263' }}>
                     {months.reduce((s,m)=>s+m.tradeCount,0)}
                   </td>
                 </tr>

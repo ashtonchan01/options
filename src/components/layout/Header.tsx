@@ -34,7 +34,7 @@ interface HeaderProps {
 
 const btn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
-  padding: '7px 14px', fontSize: 12,
+  padding: '7px 14px', fontSize: 14,
   border: '1px solid #1E2540', background: '#131726',
   color: '#9198AE', cursor: 'pointer', fontFamily: 'inherit',
   transition: 'all 0.15s',
@@ -52,23 +52,23 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
 
   return (
     <header style={{
-      height: 54,
-      padding: '0 24px',
+      height: 58,
+      padding: '0 28px',
       background: '#0F1220',
       borderBottom: '1px solid #1E2540',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <h1 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#EAEDF3' }}>
+        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#EAEDF3' }}>
           {TAB_LABELS[activeTab]}
         </h1>
         {lastSync && (
-          <span style={{ fontSize: 11, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace' }}>
+          <span style={{ fontSize: 13, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace' }}>
             {relativeTime(lastSync)}
           </span>
         )}
         {syncStatus === 'error' && (
-          <span title={syncError} style={{ fontSize: 11, color: '#f43f5e', fontFamily: 'IBM Plex Mono, monospace', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
+          <span title={syncError} style={{ fontSize: 13, color: '#f43f5e', fontFamily: 'IBM Plex Mono, monospace', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
             {syncError ?? 'sync failed'}
           </span>
         )}

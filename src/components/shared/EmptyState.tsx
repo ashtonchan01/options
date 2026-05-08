@@ -18,8 +18,8 @@ export default function EmptyState({ title, message, showUpload }: EmptyStatePro
         </div>
       )}
       <div className="text-center">
-        <p style={{ fontSize: 15, fontWeight: 600, color: '#9198AE', margin: '0 0 4px' }}>{title}</p>
-        <p style={{ fontSize: 13, margin: 0 }}>{message}</p>
+        <p style={{ fontSize: 17, fontWeight: 600, color: '#9198AE', margin: '0 0 4px' }}>{title}</p>
+        <p style={{ fontSize: 15, margin: 0 }}>{message}</p>
       </div>
     </div>
   )

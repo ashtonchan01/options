@@ -47,8 +47,8 @@ const tile: React.CSSProperties = {
   overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0,
 }
 const tileHdr: React.CSSProperties = {
-  padding: '10px 16px', borderBottom: '1px solid #1E2540',
-  fontSize: 11, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em', flexShrink: 0,
+  padding: '12px 20px', borderBottom: '1px solid #1E2540',
+  fontSize: 13, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em', flexShrink: 0,
 }
 
 interface PortfolioViewProps { state: AppState }
@@ -92,7 +92,7 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
   const gridCols = hasStocks && hasStrats ? '2fr 3fr' : '1fr'
 
   return (
-    <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
+    <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
 
       {/* ── Stats row ──────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, flexShrink: 0 }}>
@@ -105,7 +105,7 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
         ].map(({ label, value, color }) => (
           <div key={label} className="stat-card">
             <div className="stat-label">{label}</div>
-            <div className="stat-value" style={{ color, fontSize: 22 }}>{value}</div>
+            <div className="stat-value" style={{ color, fontSize: 28 }}>{value}</div>
           </div>
         ))}
       </div>
@@ -117,11 +117,11 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
           <div style={tile}>
             <div style={tileHdr}>EQUITY POSITIONS</div>
             <div style={{ overflow: 'auto', flex: 1 }}>
-              <table className="trade-table" style={{ fontSize: 12 }}>
+              <table className="trade-table" style={{ fontSize: 14 }}>
                 <thead>
                   <tr>
                     {['SYMBOL', 'QTY', 'AVG COST', 'MARK', 'VALUE', 'P&L', 'RETURN'].map(h => (
-                      <th key={h} style={{ fontSize: 10, padding: '10px 14px' }}>{h}</th>
+                      <th key={h} style={{ fontSize: 12, padding: '12px 16px' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -130,13 +130,13 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
                     const ret = p.costBasisPrice > 0 ? (p.markPrice - p.costBasisPrice) / p.costBasisPrice * 100 : 0
                     return (
                       <tr key={p.symbol}>
-                        <td style={{ padding: '10px 14px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, fontWeight: 600, color: '#EAEDF3' }}>{p.symbol}</td>
-                        <td style={{ padding: '10px 14px' }} className="mono">{p.quantity.toLocaleString()}</td>
-                        <td style={{ padding: '10px 14px' }} className="mono">{fmt$(p.costBasisPrice, 2)}</td>
-                        <td style={{ padding: '10px 14px' }} className="mono">{fmt$(p.markPrice, 2)}</td>
-                        <td style={{ padding: '10px 14px' }} className="mono">{fmt$(p.positionValue)}</td>
-                        <td style={{ padding: '10px 14px' }} className={`mono ${pnlClass(p.unrealizedPnL)}`}>{fmt$(p.unrealizedPnL)}</td>
-                        <td style={{ padding: '10px 14px' }} className={`mono ${pnlClass(ret)}`}>{fmtPct(ret)}</td>
+                        <td style={{ padding: '12px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, fontWeight: 600, color: '#EAEDF3' }}>{p.symbol}</td>
+                        <td style={{ padding: '12px 16px' }} className="mono">{p.quantity.toLocaleString()}</td>
+                        <td style={{ padding: '12px 16px' }} className="mono">{fmt$(p.costBasisPrice, 2)}</td>
+                        <td style={{ padding: '12px 16px' }} className="mono">{fmt$(p.markPrice, 2)}</td>
+                        <td style={{ padding: '12px 16px' }} className="mono">{fmt$(p.positionValue)}</td>
+                        <td style={{ padding: '12px 16px' }} className={`mono ${pnlClass(p.unrealizedPnL)}`}>{fmt$(p.unrealizedPnL)}</td>
+                        <td style={{ padding: '12px 16px' }} className={`mono ${pnlClass(ret)}`}>{fmtPct(ret)}</td>
                       </tr>
                     )
                   })}
@@ -163,28 +163,28 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
         <div style={{ ...tile, maxHeight: 220, flexShrink: 0 }}>
           <div style={tileHdr}>RECENT TRADES</div>
           <div style={{ overflow: 'auto', flex: 1 }}>
-            <table className="trade-table" style={{ fontSize: 12 }}>
+            <table className="trade-table" style={{ fontSize: 14 }}>
               <thead>
                 <tr>
                   {['DATE', 'SYMBOL', 'TYPE', 'QTY', 'PRICE', 'PROCEEDS', 'NET'].map(h => (
-                    <th key={h} style={{ fontSize: 10, padding: '10px 14px' }}>{h}</th>
+                    <th key={h} style={{ fontSize: 12, padding: '12px 16px' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {trades.slice(0, 20).map((t, i) => (
                   <tr key={i}>
-                    <td style={{ padding: '9px 14px' }} className="mono">{t.tradeDate}</td>
-                    <td style={{ padding: '9px 14px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, color: '#EAEDF3' }}>{t.underlyingSymbol ?? t.symbol}</td>
-                    <td style={{ padding: '9px 14px' }}>
-                      <span style={{ fontSize: 9, letterSpacing: 1, padding: '2px 6px', border: '1px solid #1E2540', borderRadius: 4, color: '#9198AE' }}>
+                    <td style={{ padding: '10px 16px' }} className="mono">{t.tradeDate}</td>
+                    <td style={{ padding: '10px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, color: '#EAEDF3' }}>{t.underlyingSymbol ?? t.symbol}</td>
+                    <td style={{ padding: '10px 16px' }}>
+                      <span style={{ fontSize: 11, letterSpacing: 1, padding: '2px 6px', border: '1px solid #1E2540', borderRadius: 4, color: '#9198AE' }}>
                         {t.assetClass === 'OPT' ? `${t.putCall} ${t.strike}` : t.assetClass}
                       </span>
                     </td>
-                    <td style={{ padding: '9px 14px' }} className={`mono ${t.quantity > 0 ? 'pos' : 'neg'}`}>{t.quantity > 0 ? '+' : ''}{t.quantity}</td>
-                    <td style={{ padding: '9px 14px' }} className="mono">{fmt$(t.tradePrice, 2)}</td>
-                    <td style={{ padding: '9px 14px' }} className={`mono ${pnlClass(t.proceeds)}`}>{fmt$(t.proceeds)}</td>
-                    <td style={{ padding: '9px 14px' }} className={`mono ${pnlClass(t.netCash)}`}>{fmt$(t.netCash)}</td>
+                    <td style={{ padding: '10px 16px' }} className={`mono ${t.quantity > 0 ? 'pos' : 'neg'}`}>{t.quantity > 0 ? '+' : ''}{t.quantity}</td>
+                    <td style={{ padding: '10px 16px' }} className="mono">{fmt$(t.tradePrice, 2)}</td>
+                    <td style={{ padding: '10px 16px' }} className={`mono ${pnlClass(t.proceeds)}`}>{fmt$(t.proceeds)}</td>
+                    <td style={{ padding: '10px 16px' }} className={`mono ${pnlClass(t.netCash)}`}>{fmt$(t.netCash)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -209,23 +209,23 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
       {/* Group header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12,
-        padding: '10px 14px', borderBottom: '1px solid #1E2540',
+        padding: '12px 16px', borderBottom: '1px solid #1E2540',
         background: '#171C30',
       }}>
-        <span className="display" style={{ color, fontSize: 12, fontWeight: 700, letterSpacing: 2 }}>{label}</span>
-        <span style={{ fontSize: 10, color: '#5D6580' }}>{strategies.length}</span>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#5D6580' }}>Prem</span>
-        <span className={`mono ${totalPremium >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 12, minWidth: 70, textAlign: 'right' }}>{fmt$(totalPremium)}</span>
-        <span style={{ fontSize: 11, color: '#5D6580', marginLeft: 8 }}>P&L</span>
-        <span className={`mono ${totalPnL >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 12, minWidth: 70, textAlign: 'right' }}>{fmt$(totalPnL)}</span>
+        <span className="display" style={{ color, fontSize: 14, fontWeight: 700, letterSpacing: 2 }}>{label}</span>
+        <span style={{ fontSize: 12, color: '#5D6580' }}>{strategies.length}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 13, color: '#5D6580' }}>Prem</span>
+        <span className={`mono ${totalPremium >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 14, minWidth: 70, textAlign: 'right' }}>{fmt$(totalPremium)}</span>
+        <span style={{ fontSize: 13, color: '#5D6580', marginLeft: 8 }}>P&L</span>
+        <span className={`mono ${totalPnL >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 14, minWidth: 70, textAlign: 'right' }}>{fmt$(totalPnL)}</span>
       </div>
 
       {/* Legs table */}
-      <table className="trade-table" style={{ fontSize: 12 }}>
+      <table className="trade-table" style={{ fontSize: 14 }}>
         <thead>
           <tr>
             {['UNDERLYING', 'LEG', 'STRIKE', 'EXPIRY', 'DTE', 'QTY', 'MARK', 'COST', 'P&L'].map(h => (
-              <th key={h} style={{ fontSize: 9, padding: '8px 12px' }}>{h}</th>
+              <th key={h} style={{ fontSize: 11, padding: '8px 12px' }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -236,14 +236,14 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
                 {i === 0 && (
                   <td
                     rowSpan={s.legs.length}
-                    style={{ padding: '10px 12px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, fontWeight: 700, color: '#EAEDF3', verticalAlign: 'middle' }}
+                    style={{ padding: '12px 14px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, fontWeight: 700, color: '#EAEDF3', verticalAlign: 'middle' }}
                   >
                     {s.underlying}
                   </td>
                 )}
-                <td style={{ padding: '10px 12px' }}>
+                <td style={{ padding: '12px 14px' }}>
                   <span style={{
-                    display: 'inline-block', fontSize: 10, letterSpacing: 1,
+                    display: 'inline-block', fontSize: 12, letterSpacing: 1,
                     padding: '2px 6px', fontWeight: 600,
                     color: leg.putCall === 'C' ? '#818cf8' : '#f43f5e',
                     border: `1px solid ${leg.putCall === 'C' ? '#312e81' : '#5b1a28'}`,
@@ -252,20 +252,20 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
                     {leg.quantity > 0 ? 'LONG' : 'SHORT'} {leg.putCall === 'C' ? 'CALL' : 'PUT'}
                   </span>
                 </td>
-                <td style={{ padding: '10px 12px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 12 }} className="mono">{fmt$(leg.strike, 0)}</td>
-                <td style={{ padding: '10px 12px' }} className="mono">{fmtExpiry(leg.expiry)}</td>
-                <td style={{ padding: '10px 12px' }}>
+                <td style={{ padding: '12px 14px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14 }} className="mono">{fmt$(leg.strike, 0)}</td>
+                <td style={{ padding: '12px 14px' }} className="mono">{fmtExpiry(leg.expiry)}</td>
+                <td style={{ padding: '12px 14px' }}>
                   <span style={{
-                    fontSize: 11, fontWeight: 600,
+                    fontSize: 13, fontWeight: 600,
                     color: leg.dte <= 7 ? '#f43f5e' : leg.dte <= 21 ? '#f59e0b' : '#9198AE',
                   }}>
                     {leg.dte}d
                   </span>
                 </td>
-                <td style={{ padding: '10px 12px' }} className={`mono ${leg.quantity > 0 ? 'pos' : 'neg'}`}>{leg.quantity > 0 ? '+' : ''}{leg.quantity}</td>
-                <td style={{ padding: '10px 12px' }} className="mono">{fmt$(leg.markPrice, 2)}</td>
-                <td style={{ padding: '10px 12px' }} className="mono">{fmt$(leg.costBasis)}</td>
-                <td style={{ padding: '10px 12px' }} className={`mono ${pnlClass(leg.unrealizedPnL)}`}>{fmt$(leg.unrealizedPnL)}</td>
+                <td style={{ padding: '12px 14px' }} className={`mono ${leg.quantity > 0 ? 'pos' : 'neg'}`}>{leg.quantity > 0 ? '+' : ''}{leg.quantity}</td>
+                <td style={{ padding: '12px 14px' }} className="mono">{fmt$(leg.markPrice, 2)}</td>
+                <td style={{ padding: '12px 14px' }} className="mono">{fmt$(leg.costBasis)}</td>
+                <td style={{ padding: '12px 14px' }} className={`mono ${pnlClass(leg.unrealizedPnL)}`}>{fmt$(leg.unrealizedPnL)}</td>
               </tr>
             ))
           )}

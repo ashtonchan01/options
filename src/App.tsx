@@ -37,7 +37,7 @@ export default function App() {
   const View = VIEWS[activeTab]
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#0B0E18' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#0B0E18', maxWidth: 1920, margin: '0 auto' }}>
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}

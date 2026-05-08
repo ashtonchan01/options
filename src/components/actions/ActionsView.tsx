@@ -69,25 +69,25 @@ function ActionCard({ a }: { a: Action }) {
       background: '#171C30',
       border: '1px solid #1E2540',
       borderLeft: `3px solid ${urgency.color}`,
-      padding: '10px 12px',
+      padding: '12px 14px',
       display: 'flex',
       gap: 10,
     }}>
       {/* Left: ticker + badges */}
       <div style={{ flexShrink: 0, minWidth: 80 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace', marginBottom: 4 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace', marginBottom: 4 }}>
           {a.underlying}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <span style={{
-            padding: '2px 6px', fontSize: 8, fontWeight: 700, letterSpacing: '0.08em',
+            padding: '2px 6px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
             color: sColor, background: `${sColor}14`, border: `1px solid ${sColor}30`,
             width: 'fit-content',
           }}>
             {STRAT_LABEL[a.strategyType]}
           </span>
           <span style={{
-            padding: '2px 6px', fontSize: 8, fontWeight: 700, letterSpacing: '0.08em',
+            padding: '2px 6px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
             color: aColor, background: `${aColor}14`, border: `1px solid ${aColor}30`,
             width: 'fit-content',
           }}>
@@ -98,31 +98,31 @@ function ActionCard({ a }: { a: Action }) {
 
       {/* Right: reason + details */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#EAEDF3', marginBottom: 2, lineHeight: 1.4 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#EAEDF3', marginBottom: 2, lineHeight: 1.4 }}>
           {a.reason}
         </div>
-        <div style={{ fontSize: 11, color: '#9198AE', lineHeight: 1.4 }}>
+        <div style={{ fontSize: 13, color: '#9198AE', lineHeight: 1.4 }}>
           {a.details}
         </div>
         {(a.suggestedStrike || a.suggestedExpiry || a.estimatedCredit) && (
           <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
             {a.suggestedStrike && (
-              <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>
+              <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>
                 strike <span style={{ color: '#9198AE' }}>${a.suggestedStrike}</span>
               </span>
             )}
             {a.suggestedDelta && (
-              <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>
+              <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>
                 delta <span style={{ color: '#9198AE' }}>{a.suggestedDelta.toFixed(2)}</span>
               </span>
             )}
             {a.suggestedExpiry && (
-              <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>
+              <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: '#5D6580' }}>
                 exp <span style={{ color: '#9198AE' }}>{a.suggestedExpiry}</span>
               </span>
             )}
             {a.estimatedCredit && (
-              <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: '#10b981' }}>
+              <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: '#10b981' }}>
                 est. ${a.estimatedCredit.toFixed(2)}
               </span>
             )}
@@ -157,7 +157,7 @@ export default function ActionsView({ state }: Props) {
   const watch       = byUrgency.watch.length
 
   return (
-    <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
+    <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
 
       {/* ── Stats row ──────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, flexShrink: 0 }}>
@@ -169,14 +169,14 @@ export default function ActionsView({ state }: Props) {
         ].map(({ label, value, color }) => (
           <div key={label} className="stat-card">
             <div className="stat-label">{label}</div>
-            <div className="stat-value" style={{ color, fontSize: 28 }}>{value}</div>
+            <div className="stat-value" style={{ color, fontSize: 34 }}>{value}</div>
           </div>
         ))}
       </div>
 
       {/* ── No actions ─────────────────────────────────────────────────── */}
       {actions.length === 0 && (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5D6580', fontSize: 13 }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5D6580', fontSize: 15 }}>
           All positions are within normal parameters. Nothing to action right now.
         </div>
       )}
@@ -190,13 +190,13 @@ export default function ActionsView({ state }: Props) {
             return (
               <div key={u} style={{ ...tile, borderTop: `2px solid ${items.length > 0 ? cfg.color : '#1E2540'}`, opacity: items.length > 0 ? 1 : 0.5 }}>
                 <div style={{
-                  padding: '8px 14px', borderBottom: '1px solid #1E2540',
-                  fontSize: 11, fontWeight: 700, color: cfg.color, letterSpacing: '0.08em',
+                  padding: '10px 16px', borderBottom: '1px solid #1E2540',
+                  fontSize: 13, fontWeight: 700, color: cfg.color, letterSpacing: '0.08em',
                   display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
                 }}>
                   {cfg.label}
                   <span style={{
-                    fontSize: 10, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace',
+                    fontSize: 12, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace',
                     color: cfg.color, background: cfg.bg,
                     border: `1px solid ${cfg.color}33`,
                     padding: '1px 6px',
@@ -206,7 +206,7 @@ export default function ActionsView({ state }: Props) {
                 </div>
                 <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 4, padding: items.length > 0 ? 6 : 0 }}>
                   {items.length === 0 && (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2A3250', fontSize: 11 }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2A3250', fontSize: 13 }}>
                       None
                     </div>
                   )}

@@ -32,7 +32,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
 
   return (
     <aside style={{
-      width: collapsed ? 54 : 220,
+      width: collapsed ? 58 : 240,
       transition: 'width 0.2s ease',
       background: '#0F1220',
       borderRight: '1px solid #1E2540',
@@ -40,13 +40,13 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
     }}>
       {/* Logo + toggle */}
       <div style={{
-        height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 14px', borderBottom: '1px solid #1E2540', flexShrink: 0,
+        height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 16px', borderBottom: '1px solid #1E2540', flexShrink: 0,
       }}>
         {!collapsed && (
           <span style={{
             fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700,
-            fontSize: 13, letterSpacing: 4, color: '#EAEDF3',
+            fontSize: 15, letterSpacing: 4, color: '#EAEDF3',
           }}>
             OPTIONS
           </span>
@@ -77,7 +77,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
                 border: 'none',
                 borderLeft: active ? '2px solid #6366F1' : '2px solid transparent',
                 color: active ? '#EAEDF3' : '#5D6580',
-                cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
+                cursor: 'pointer', fontFamily: 'inherit', fontSize: 15,
                 width: '100%', textAlign: 'left',
                 transition: 'color 0.15s, background 0.15s',
               }}
@@ -85,12 +85,12 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
               onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = '#5D6580' }}
             >
               <div style={{ position: 'relative', flexShrink: 0 }}>
-                <Icon size={17} />
+                <Icon size={19} />
                 {id === 'actions' && actionCount > 0 && (
                   <span style={{
                     position: 'absolute', top: -5, right: -5,
                     background: '#f43f5e', color: '#fff',
-                    fontSize: 8, fontWeight: 700,
+                    fontSize: 10, fontWeight: 700,
                     minWidth: 13, height: 13, borderRadius: '50%',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px',
                   }}>
@@ -112,7 +112,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
           animation: syncStatus === 'loading' ? 'pulse 1s ease-in-out infinite' : 'none',
         }} />
         {!collapsed && (
-          <span style={{ fontSize: 10, color: '#5D6580', letterSpacing: 1 }}>
+          <span style={{ fontSize: 12, color: '#5D6580', letterSpacing: 1 }}>
             {syncStatus === 'success' ? 'Synced' : syncStatus === 'loading' ? 'Syncing…' : syncStatus === 'error' ? 'Error' : 'No data'}
           </span>
         )}

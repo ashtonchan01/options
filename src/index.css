@@ -8,32 +8,32 @@ body {
   background: #0B0E18;
   color: #9198AE;
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: 13px;
+  font-size: 15px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 /* Stat card */
-.stat-card { background: #131726; border: 1px solid #1E2540; padding: 16px 20px; border-radius: 10px; }
-.stat-label { font-size: 10px; color: #5D6580; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; font-weight: 600; }
-.stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; color: #EAEDF3; }
+.stat-card { background: #131726; border: 1px solid #1E2540; padding: 18px 24px; border-radius: 10px; }
+.stat-label { font-size: 12px; color: #5D6580; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
+.stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 28px; font-weight: 600; color: #EAEDF3; }
 
 /* Panel */
 .panel     { background: #131726; border: 1px solid #1E2540; border-radius: 10px; }
 .panel-alt { background: #171C30; border: 1px solid #1E2540; border-radius: 10px; }
 
 /* Tables */
-.trade-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.trade-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .trade-table th {
-  font-size: 10px; color: #5D6580; letter-spacing: 1.5px; text-transform: uppercase;
-  text-align: left; padding: 9px 14px;
+  font-size: 12px; color: #5D6580; letter-spacing: 1.5px; text-transform: uppercase;
+  text-align: left; padding: 11px 16px;
   border-bottom: 1px solid #1E2540; background: #131726;
 }
-.trade-table td { padding: 10px 14px; border-bottom: 1px solid #1A1F35; color: #9198AE; }
+.trade-table td { padding: 12px 16px; border-bottom: 1px solid #1A1F35; color: #9198AE; }
 .trade-table tr:hover td { background: #171C30; }
 
 /* Labels */
-.label { font-size: 10px; color: #5D6580; letter-spacing: 2px; text-transform: uppercase; }
+.label { font-size: 12px; color: #5D6580; letter-spacing: 2px; text-transform: uppercase; }
 
 /* P&L */
 .pos { color: #10b981; }
