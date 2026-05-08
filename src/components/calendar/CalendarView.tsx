@@ -325,7 +325,7 @@ export default function CalendarView({ state }: Props) {
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
       {/* ── Calendar ──────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '20px 0 20px 24px' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px 0 16px 16px' }}>
 
         {/* Month nav */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, paddingRight: 24 }}>

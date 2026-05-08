@@ -52,6 +52,17 @@ function monthLabel(key: string): string {
   return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
 }
 
+// ── Tile styles ──────────────────────────────────────────────────────────────
+
+const tile: React.CSSProperties = {
+  background: '#131726', border: '1px solid #1E2540', borderRadius: 10,
+  overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0,
+}
+const tileHdr: React.CSSProperties = {
+  padding: '10px 16px', borderBottom: '1px solid #1E2540',
+  fontSize: 11, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em', flexShrink: 0,
+}
+
 // ── Projection engine ────────────────────────────────────────────────────────
 
 interface ProjectionPoint { month: number; capital: number; phase: number; income: number }
@@ -85,72 +96,60 @@ function buildMonthlyIncome(trades: RawTrade[]): MonthIncome[] {
   return [...map.values()].sort((a, b) => a.key.localeCompare(b.key))
 }
 
-// ── Phase progress bar component ─────────────────────────────────────────────
+// ── Phase progress bar ──────────────────────────────────────────────────────
 
 function PhaseProgressBar({ capital }: { capital: number }) {
   const maxTarget = PHASES[3].target
-  const overallPct = Math.min((capital / maxTarget) * 100, 100)
 
   return (
-    <div>
-      {/* Phase segments */}
-      <div style={{ display: 'flex', gap: 2, marginBottom: 6 }}>
-        {PHASES.map(p => {
-          const segStart = p.floor
-          const segEnd = p.target
-          const segWidth = ((segEnd - segStart) / maxTarget) * 100
-          const fillPct = capital >= segEnd ? 100 : capital <= segStart ? 0 : ((capital - segStart) / (segEnd - segStart)) * 100
+    <div style={{ display: 'flex', gap: 2 }}>
+      {PHASES.map(p => {
+        const segStart = p.floor
+        const segEnd = p.target
+        const segWidth = ((segEnd - segStart) / maxTarget) * 100
+        const fillPct = capital >= segEnd ? 100 : capital <= segStart ? 0 : ((capital - segStart) / (segEnd - segStart)) * 100
 
-          return (
-            <div key={p.id} style={{ flex: segWidth, display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <div style={{ fontSize: 9, color: capital >= segStart ? p.color : '#2A3250', letterSpacing: 1, fontWeight: 600 }}>
-                {p.label}
-              </div>
-              <div style={{ height: 8, background: '#1E2540', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%', width: `${fillPct}%`,
-                  background: `linear-gradient(90deg, ${p.color}80, ${p.color})`,
-                  borderRadius: 4, transition: 'width 0.5s',
-                }} />
-              </div>
-              <div style={{ fontSize: 8, color: '#5D6580' }}>{fmtK(segEnd)}</div>
+        return (
+          <div key={p.id} style={{ flex: segWidth, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ fontSize: 8, color: capital >= segStart ? p.color : '#2A3250', letterSpacing: 1, fontWeight: 600 }}>
+              {p.label}
             </div>
-          )
-        })}
-      </div>
-      <div style={{ fontSize: 10, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace' }}>
-        Overall: {overallPct.toFixed(1)}% to ${(maxTarget / 1000).toFixed(0)}k target
-      </div>
+            <div style={{ height: 6, background: '#1E2540', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', width: `${fillPct}%`,
+                background: `linear-gradient(90deg, ${p.color}80, ${p.color})`,
+                borderRadius: 3, transition: 'width 0.5s',
+              }} />
+            </div>
+            <div style={{ fontSize: 8, color: '#5D6580' }}>{fmtK(segEnd)}</div>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-// ── Projection chart (simple bar chart) ──────────────────────────────────────
+// ── Projection mini-chart ───────────────────────────────────────────────────
 
 function ProjectionChart({ data }: { data: ProjectionPoint[] }) {
   const maxCap = Math.max(...data.map(d => d.capital))
   const sampled = data.filter((_, i) => i % 3 === 0 || i === data.length - 1)
 
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 140, padding: '0 4px' }}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: '100%', minHeight: 60, padding: '0 2px' }}>
       {sampled.map((d, i) => {
         const pct = (d.capital / maxCap) * 100
         const phase = getPhase(d.capital)
         const isCurrent = i === 0
         return (
           <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}
-            title={`Month ${d.month}: ${fmtK(d.capital)} (${phase.label})`}>
+            title={`Month ${d.month}: ${fmtK(d.capital)}`}>
             <div style={{
               width: '100%', height: `${pct}%`, minHeight: 2,
               background: isCurrent ? '#6366F1' : phase.color,
               opacity: isCurrent ? 1 : 0.7,
               borderRadius: '2px 2px 0 0',
             }} />
-            {i % 2 === 0 && (
-              <div style={{ fontSize: 8, color: '#5D6580', marginTop: 3, fontFamily: 'IBM Plex Mono, monospace' }}>
-                {d.month === 0 ? 'Now' : `${d.month}m`}
-              </div>
-            )}
           </div>
         )
       })}
@@ -175,12 +174,10 @@ export default function PhasesView({ state }: Props) {
   const totalOptionIncome = monthlyIncome.reduce((s, m) => s + m.optionIncome, 0)
   const monthlyReturnPct = capital > 0 ? (avgMonthly / capital) * 100 : 2.5
 
-  // Projections at different return rates
   const projConservative = useMemo(() => projectGrowth(capital, 1.5, 60), [capital])
   const projModerate = useMemo(() => projectGrowth(capital, monthlyReturnPct || 2.5, 60), [capital, monthlyReturnPct])
   const projAggressive = useMemo(() => projectGrowth(capital, 4, 60), [capital])
 
-  // Strategy income breakdown
   const stratByType = useMemo(() => {
     const map: Record<string, { count: number; pnl: number; premium: number }> = {}
     for (const s of strategies) {
@@ -199,173 +196,181 @@ export default function PhasesView({ state }: Props) {
   }
 
   return (
-    <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
 
-      {/* ── Phase header ────────────────────────────────────────────── */}
-      <div style={{ background: '#131726', border: `1px solid ${phase.color}40`, borderTop: `3px solid ${phase.color}`, borderRadius: 10, padding: '20px 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 10, color: phase.color, letterSpacing: 3, fontWeight: 700, marginBottom: 4 }}>
-              {phase.label}: {phase.sublabel.toUpperCase()}
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace' }}>
-              {fmt$(capital)}
-            </div>
-            <div style={{ fontSize: 12, color: '#5D6580', marginTop: 4 }}>{phase.range}</div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: '#5D6580', letterSpacing: 2, marginBottom: 4 }}>TO NEXT PHASE</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: phase.color, fontFamily: 'IBM Plex Mono, monospace' }}>
-              {fmtK(Math.max(toNext, 0))}
-            </div>
-            <div style={{ fontSize: 11, color: '#5D6580', marginTop: 2 }}>{phasePct.toFixed(0)}% through phase</div>
-          </div>
-        </div>
+      {/* ── Row 1: Phase banner (left) + Stats (right) ──────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, flexShrink: 0 }}>
 
-        {/* Phase progress bar */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ height: 8, background: '#1E2540', borderRadius: 4, overflow: 'hidden' }}>
+        {/* Phase banner */}
+        <div style={{ background: '#131726', border: `1px solid ${phase.color}40`, borderTop: `3px solid ${phase.color}`, borderRadius: 10, padding: '14px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 9, color: phase.color, letterSpacing: 3, fontWeight: 700, marginBottom: 2 }}>
+                {phase.label}: {phase.sublabel.toUpperCase()}
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace' }}>
+                {fmt$(capital)}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 9, color: '#5D6580', letterSpacing: 2, marginBottom: 2 }}>TO NEXT</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: phase.color, fontFamily: 'IBM Plex Mono, monospace' }}>
+                {fmtK(Math.max(toNext, 0))}
+              </div>
+              <div style={{ fontSize: 10, color: '#5D6580' }}>{phasePct.toFixed(0)}%</div>
+            </div>
+          </div>
+          <div style={{ height: 6, background: '#1E2540', borderRadius: 3, overflow: 'hidden', marginBottom: 10 }}>
             <div style={{
               height: '100%', width: `${phasePct}%`,
               background: `linear-gradient(90deg, ${phase.color}80, ${phase.color})`,
-              borderRadius: 4, transition: 'width 0.5s',
+              borderRadius: 3, transition: 'width 0.5s',
             }} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 10 }}>
+            <div><span style={{ color: '#5D6580' }}>Sizing: </span><span style={{ color: phase.color }}>{phase.contractRule}</span></div>
+            <div><span style={{ color: '#5D6580' }}>Weekly: </span><span style={{ color: phase.color }}>{fmtK(phase.weeklyTarget)}</span></div>
+            <div><span style={{ color: '#5D6580' }}>ROI: </span><span style={{ color: phase.color }}>{phase.annualROI}</span></div>
+            <div><span style={{ color: '#5D6580' }}>Mix: </span><span style={{ color: phase.color }}>{phase.strategyMix}</span></div>
           </div>
         </div>
 
-        {/* Phase rules */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        {/* Stats grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: '1fr 1fr', gap: 8 }}>
           {[
-            { label: 'SIZING', value: phase.contractRule },
-            { label: 'WEEKLY TARGET', value: fmtK(phase.weeklyTarget) },
-            { label: 'TARGET ROI', value: phase.annualROI + ' annual' },
-            { label: 'STRATEGY MIX', value: phase.strategyMix },
-          ].map(r => (
-            <div key={r.label}>
-              <div style={{ fontSize: 9, color: '#5D6580', letterSpacing: 2, marginBottom: 4 }}>{r.label}</div>
-              <div style={{ fontSize: 11, color: phase.color, fontWeight: 600 }}>{r.value}</div>
+            { label: 'STRATEGIES', value: String(strategies.length), color: '#EAEDF3' },
+            { label: 'OPTION INCOME', value: fmt$(totalOptionIncome), color: '#10b981' },
+            { label: 'AVG MONTHLY', value: fmt$(avgMonthly), color: avgMonthly > 0 ? '#10b981' : '#5D6580' },
+            { label: 'MO. RETURN', value: monthlyReturnPct > 0 ? monthlyReturnPct.toFixed(1) + '%' : '--', color: '#3b82f6' },
+            { label: 'UNDERLYINGS', value: String(new Set(strategies.map(s => s.underlying)).size), color: '#EAEDF3' },
+            { label: 'PHASE', value: String(phase.id) + '/4', color: phase.color },
+          ].map(s => (
+            <div key={s.label} className="stat-card">
+              <div className="stat-label">{s.label}</div>
+              <div className="stat-value" style={{ color: s.color, fontSize: 18 }}>{s.value}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── Stats row ───────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
-        {[
-          { label: 'ACTIVE STRATEGIES', value: String(strategies.length), color: '#EAEDF3' },
-          { label: 'OPTION INCOME', value: fmt$(totalOptionIncome), color: '#10b981' },
-          { label: 'AVG MONTHLY', value: fmt$(avgMonthly), color: avgMonthly > 0 ? '#10b981' : '#5D6580' },
-          { label: 'MONTHLY RETURN', value: monthlyReturnPct > 0 ? monthlyReturnPct.toFixed(1) + '%' : '--', color: '#3b82f6' },
-          { label: 'UNDERLYINGS', value: String(new Set(strategies.map(s => s.underlying)).size), color: '#EAEDF3' },
-        ].map(s => (
-          <div key={s.label} className="stat-card">
-            <div className="stat-label">{s.label}</div>
-            <div className="stat-value" style={{ color: s.color, fontSize: 22 }}>{s.value}</div>
-          </div>
-        ))}
-      </div>
+      {/* ── Row 2: Roadmap + Phase cards + Projections ──────────────────── */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minHeight: 0 }}>
 
-      {/* ── Full phase progression ──────────────────────────────────── */}
-      <div style={{ background: '#131726', border: '1px solid #1E2540', borderRadius: 10, padding: '20px 24px' }}>
-        <div style={{ fontSize: 10, color: '#5D6580', letterSpacing: 2, marginBottom: 14, fontWeight: 700 }}>GROWTH ROADMAP</div>
-        <PhaseProgressBar capital={capital} />
-      </div>
-
-      {/* ── Phase cards ─────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-        {PHASES.map(p => {
-          const isCurrent = p.id === phase.id
-          const isCompleted = capital >= p.target
-          return (
-            <div key={p.id} style={{
-              background: isCurrent ? '#171C30' : '#131726',
-              border: `1px solid ${isCurrent ? p.color + '60' : '#1E2540'}`,
-              borderTop: `3px solid ${isCompleted ? p.color : isCurrent ? p.color : '#1E2540'}`,
-              borderRadius: 10, padding: '16px',
-              opacity: isCompleted || isCurrent ? 1 : 0.5,
-            }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: p.color, letterSpacing: 2, marginBottom: 4 }}>
-                {p.label} {isCompleted ? '  ' : isCurrent ? '  ' : ''}
-              </div>
-              <div style={{ fontSize: 13, color: '#EAEDF3', fontWeight: 600, marginBottom: 2 }}>{p.sublabel}</div>
-              <div style={{ fontSize: 11, color: '#5D6580', marginBottom: 10 }}>{p.range}</div>
-              <div style={{ fontSize: 10, color: '#9198AE', lineHeight: 1.6 }}>
-                {p.contractRule}<br />
-                Target: {fmtK(p.weeklyTarget)}/wk · {p.annualROI} ROI
-              </div>
+        {/* Left: Roadmap + Phase cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
+          {/* Growth roadmap */}
+          <div style={{ ...tile, flexShrink: 0 }}>
+            <div style={tileHdr}>GROWTH ROADMAP</div>
+            <div style={{ padding: '10px 16px' }}>
+              <PhaseProgressBar capital={capital} />
             </div>
-          )
-        })}
-      </div>
-
-      {/* ── Projections ─────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-        {[
-          { label: 'CONSERVATIVE (1.5%/mo)', data: projConservative, color: '#5D6580' },
-          { label: `CURRENT PACE (${(monthlyReturnPct || 2.5).toFixed(1)}%/mo)`, data: projModerate, color: '#6366F1' },
-          { label: 'AGGRESSIVE (4%/mo)', data: projAggressive, color: '#f59e0b' },
-        ].map(p => {
-          const final = p.data[p.data.length - 1]
-          return (
-            <div key={p.label} style={{ background: '#131726', border: '1px solid #1E2540', borderRadius: 10, padding: '16px 20px' }}>
-              <div style={{ fontSize: 9, color: '#5D6580', letterSpacing: 2, marginBottom: 8 }}>{p.label}</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: p.color, fontFamily: 'IBM Plex Mono, monospace', marginBottom: 4 }}>
-                {fmtK(final.capital)}
-              </div>
-              <div style={{ fontSize: 10, color: '#5D6580', marginBottom: 10 }}>in 5 years ({final.phase === 4 ? 'Phase 4' : `Phase ${final.phase}`})</div>
-              <ProjectionChart data={p.data} />
-            </div>
-          )
-        })}
-      </div>
-
-      {/* ── Strategy income breakdown ───────────────────────────────── */}
-      {Object.keys(stratByType).length > 0 && (
-        <div style={{ background: '#131726', border: '1px solid #1E2540', borderRadius: 10, padding: '16px 20px' }}>
-          <div style={{ fontSize: 10, color: '#5D6580', letterSpacing: 2, marginBottom: 12, fontWeight: 700 }}>INCOME BY STRATEGY TYPE</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {Object.entries(stratByType).sort((a, b) => b[1].premium - a[1].premium).map(([type, data]) => (
-              <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: '#171C30', borderRadius: 6 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#EAEDF3', minWidth: 130 }}>{STRAT_LABELS[type] ?? type}</span>
-                <span style={{ fontSize: 11, color: '#5D6580' }}>{data.count} pos</span>
-                <div style={{ flex: 1 }} />
-                <span style={{ fontSize: 10, color: '#5D6580' }}>Premium</span>
-                <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: data.premium >= 0 ? '#10b981' : '#f43f5e', minWidth: 70, textAlign: 'right' }}>
-                  {fmt$(data.premium)}
-                </span>
-                <span style={{ fontSize: 10, color: '#5D6580', marginLeft: 8 }}>P&L</span>
-                <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: data.pnl >= 0 ? '#10b981' : '#f43f5e', minWidth: 70, textAlign: 'right' }}>
-                  {fmt$(data.pnl)}
-                </span>
-              </div>
-            ))}
           </div>
-        </div>
-      )}
 
-      {/* ── Monthly income bars ─────────────────────────────────────── */}
-      {monthlyIncome.length > 0 && (
-        <div style={{ background: '#131726', border: '1px solid #1E2540', borderRadius: 10, padding: '16px 20px' }}>
-          <div style={{ fontSize: 10, color: '#5D6580', letterSpacing: 2, marginBottom: 12, fontWeight: 700 }}>MONTHLY OPTION INCOME</div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 120 }}>
-            {monthlyIncome.map(m => {
-              const maxInc = Math.max(...monthlyIncome.map(x => Math.abs(x.optionIncome)), 1)
-              const pct = Math.abs(m.optionIncome) / maxInc
+          {/* Phase cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, flex: 1, minHeight: 0 }}>
+            {PHASES.map(p => {
+              const isCurrent = p.id === phase.id
+              const isCompleted = capital >= p.target
               return (
-                <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}
-                  title={`${m.label}: ${fmt$(m.optionIncome)} from ${m.trades} trades`}>
-                  <div style={{
-                    width: '100%', height: `${Math.max(pct * 100, 2)}%`, minHeight: 2,
-                    background: m.optionIncome >= 0 ? '#10b981' : '#f43f5e',
-                    borderRadius: '2px 2px 0 0', opacity: 0.8,
-                  }} />
-                  <div style={{ fontSize: 8, color: '#5D6580', marginTop: 3, fontFamily: 'IBM Plex Mono, monospace' }}>{m.label}</div>
+                <div key={p.id} style={{
+                  background: isCurrent ? '#171C30' : '#131726',
+                  border: `1px solid ${isCurrent ? p.color + '60' : '#1E2540'}`,
+                  borderTop: `3px solid ${isCompleted ? p.color : isCurrent ? p.color : '#1E2540'}`,
+                  borderRadius: 10, padding: 12,
+                  opacity: isCompleted || isCurrent ? 1 : 0.5,
+                  overflow: 'hidden',
+                }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: p.color, letterSpacing: 2, marginBottom: 3 }}>
+                    {p.label} {isCompleted ? '  ' : isCurrent ? '  ' : ''}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#EAEDF3', fontWeight: 600, marginBottom: 1 }}>{p.sublabel}</div>
+                  <div style={{ fontSize: 10, color: '#5D6580', marginBottom: 6 }}>{p.range}</div>
+                  <div style={{ fontSize: 9, color: '#9198AE', lineHeight: 1.5 }}>
+                    {p.contractRule}<br />
+                    Target: {fmtK(p.weeklyTarget)}/wk
+                  </div>
                 </div>
               )
             })}
           </div>
         </div>
-      )}
+
+        {/* Right: Projections + Income */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
+
+          {/* Projections */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, flexShrink: 0 }}>
+            {[
+              { label: 'CONSERVATIVE', rate: '1.5%/mo', data: projConservative, color: '#5D6580' },
+              { label: 'CURRENT', rate: `${(monthlyReturnPct || 2.5).toFixed(1)}%/mo`, data: projModerate, color: '#6366F1' },
+              { label: 'AGGRESSIVE', rate: '4%/mo', data: projAggressive, color: '#f59e0b' },
+            ].map(p => {
+              const final = p.data[p.data.length - 1]
+              return (
+                <div key={p.label} style={{ ...tile, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 8, color: '#5D6580', letterSpacing: 2, marginBottom: 4 }}>{p.label} ({p.rate})</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: p.color, fontFamily: 'IBM Plex Mono, monospace', marginBottom: 2 }}>
+                    {fmtK(final.capital)}
+                  </div>
+                  <div style={{ fontSize: 9, color: '#5D6580', marginBottom: 8 }}>5yr · Phase {final.phase}</div>
+                  <div style={{ height: 60 }}>
+                    <ProjectionChart data={p.data} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Strategy income breakdown */}
+          {Object.keys(stratByType).length > 0 && (
+            <div style={{ ...tile, flex: 1 }}>
+              <div style={tileHdr}>INCOME BY STRATEGY</div>
+              <div style={{ flex: 1, overflow: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {Object.entries(stratByType).sort((a, b) => b[1].premium - a[1].premium).map(([type, data]) => (
+                  <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', background: '#171C30', borderRadius: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#EAEDF3', minWidth: 110 }}>{STRAT_LABELS[type] ?? type}</span>
+                    <span style={{ fontSize: 10, color: '#5D6580' }}>{data.count}</span>
+                    <div style={{ flex: 1 }} />
+                    <span style={{ fontSize: 9, color: '#5D6580' }}>Prem</span>
+                    <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: data.premium >= 0 ? '#10b981' : '#f43f5e', minWidth: 60, textAlign: 'right' }}>
+                      {fmt$(data.premium)}
+                    </span>
+                    <span style={{ fontSize: 9, color: '#5D6580' }}>P&L</span>
+                    <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: data.pnl >= 0 ? '#10b981' : '#f43f5e', minWidth: 60, textAlign: 'right' }}>
+                      {fmt$(data.pnl)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Monthly income bars */}
+          {monthlyIncome.length > 0 && !Object.keys(stratByType).length && (
+            <div style={{ ...tile, flex: 1 }}>
+              <div style={tileHdr}>MONTHLY OPTION INCOME</div>
+              <div style={{ flex: 1, padding: '10px 16px', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: '100%' }}>
+                  {monthlyIncome.map(m => {
+                    const maxInc = Math.max(...monthlyIncome.map(x => Math.abs(x.optionIncome)), 1)
+                    const pct = Math.abs(m.optionIncome) / maxInc
+                    return (
+                      <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}
+                        title={`${m.label}: ${fmt$(m.optionIncome)}`}>
+                        <div style={{
+                          width: '100%', height: `${Math.max(pct * 100, 2)}%`, minHeight: 2,
+                          background: m.optionIncome >= 0 ? '#10b981' : '#f43f5e',
+                          borderRadius: '2px 2px 0 0', opacity: 0.8,
+                        }} />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

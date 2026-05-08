@@ -57,10 +57,8 @@ export default function App() {
           onOpenSettings={() => setShowSettings(true)}
         />
 
-        <main style={{ flex: 1, overflow: 'auto', background: '#0B0E18' }}>
-          <div style={{ maxWidth: 1200, margin: '0 auto', height: '100%' }}>
-            <View state={state} />
-          </div>
+        <main style={{ flex: 1, overflow: 'hidden', background: '#0B0E18' }}>
+          <View state={state} />
         </main>
       </div>
 

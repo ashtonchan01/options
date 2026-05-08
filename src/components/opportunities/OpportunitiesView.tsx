@@ -113,7 +113,7 @@ export default function OpportunitiesView({ state }: Props) {
   const sortIndicator = (key: SortKey) => sortKey === key ? (sortAsc ? ' ↑' : ' ↓') : ''
 
   return (
-    <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
 
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -197,7 +197,7 @@ export default function OpportunitiesView({ state }: Props) {
 
       {/* ── Table ───────────────────────────────────────────────────────────── */}
       {filtered.length > 0 && (
-        <div style={{ background: '#131726', border: '1px solid #1E2540', borderRadius: 10, overflow: 'auto' }}>
+        <div style={{ background: '#131726', border: '1px solid #1E2540', borderRadius: 10, overflow: 'auto', flex: 1, minHeight: 0 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #1E2540' }}>
