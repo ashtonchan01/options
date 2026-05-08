@@ -10,6 +10,8 @@ import StrategiesView from './components/strategies/StrategiesView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import ActionsView from './components/actions/ActionsView'
 import GrowthView from './components/growth/GrowthView'
+import BacktestView from './components/backtest/BacktestView'
+import PhasesView from './components/phases/PhasesView'
 import type { AppState } from './types'
 
 type ViewComponent = React.FC<{ state: AppState }>
@@ -21,6 +23,8 @@ const VIEWS: Record<TabId, ViewComponent> = {
   opportunities: OpportunitiesView as ViewComponent,
   actions:       ActionsView as ViewComponent,
   growth:        GrowthView as ViewComponent,
+  backtest:      BacktestView as ViewComponent,
+  phases:        PhasesView as ViewComponent,
 }
 
 export default function App() {
