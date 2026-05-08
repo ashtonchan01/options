@@ -189,9 +189,18 @@ const tileHdr: React.CSSProperties = {
 
 // ── Main view ────────────────────────────────────────────────────────────────
 
-const DEFAULT_TICKERS = ['NVDA', 'TSLA', 'MSTR', 'PLTR', 'ALAB']
-const DEFAULT_PRICES: Record<string, number> = { NVDA: 120, TSLA: 280, MSTR: 400, PLTR: 120, ALAB: 90 }
-const DEFAULT_IVS: Record<string, number> = { NVDA: 0.45, TSLA: 0.55, MSTR: 0.80, PLTR: 0.50, ALAB: 0.60 }
+// IA13 watchlist
+const DEFAULT_TICKERS = ['ALAB','AMD','ARM','ASML','AVGO','GOOG','MRVL','MU','NVDA','PLTR','TSLA','TSM','MSTR']
+const DEFAULT_PRICES: Record<string, number> = {
+  ALAB: 90, AMD: 160, ARM: 170, ASML: 700, AVGO: 200,
+  GOOG: 170, MRVL: 80, MU: 100, NVDA: 120, PLTR: 120,
+  TSLA: 280, TSM: 190, MSTR: 400,
+}
+const DEFAULT_IVS: Record<string, number> = {
+  ALAB: 0.60, AMD: 0.40, ARM: 0.55, ASML: 0.35, AVGO: 0.40,
+  GOOG: 0.30, MRVL: 0.50, MU: 0.45, NVDA: 0.45, PLTR: 0.50,
+  TSLA: 0.55, TSM: 0.35, MSTR: 0.80,
+}
 
 export default function BacktestView({ state }: Props) {
   const [ticker, setTicker] = useState('NVDA')

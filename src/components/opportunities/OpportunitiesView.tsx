@@ -54,13 +54,17 @@ export default function OpportunitiesView({ state }: Props) {
     return map
   }, [state.sync.positions])
 
+  // IA13 watchlist — always scan these
+  const IA13 = ['ALAB','AMD','ARM','ASML','AVGO','GOOG','MRVL','MU','NVDA','PLTR','TSLA','TSM','MSTR']
+
   const tickers = useMemo(() => {
-    const set = new Set<string>()
+    const set = new Set<string>(IA13)
+    // Also add any portfolio positions not already in the list (but skip indices like SPX)
+    const SKIP = new Set(['SPX','SPY','QQQ','IWM','DIA','VIX'])
     for (const p of state.sync.positions) {
       const sym = p.underlyingSymbol ?? (p.assetClass === 'STK' ? p.symbol : null)
-      if (sym) set.add(sym)
+      if (sym && !SKIP.has(sym)) set.add(sym)
     }
-    if (set.size === 0) ['MSTR', 'NVDA', 'TSLA', 'PLTR', 'ALAB'].forEach(s => set.add(s))
     return [...set].sort()
   }, [state.sync.positions])
 
