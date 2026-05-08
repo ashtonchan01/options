@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import type { AppState, Strategy, StrategyType } from '../../types'
+import type { AppState, Strategy, StrategyType, RawTrade } from '../../types'
 import EmptyState from '../shared/EmptyState'
 
 interface Props { state: AppState }
@@ -35,7 +35,7 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface ExpiryEvent {
-  date: string        // YYYY-MM-DD
+  date: string
   strategyId: string
   strategyType: StrategyType
   underlying: string
@@ -47,23 +47,35 @@ interface ExpiryEvent {
   netPremium: number
 }
 
+interface DailyTradeData {
+  date: string
+  netCash: number
+  tradeCount: number
+  optionPnL: number
+  stockPnL: number
+  trades: RawTrade[]
+}
+
+interface DayData {
+  events: ExpiryEvent[]
+  trades: DailyTradeData | null
+  totalPnL: number
+  hasActivity: boolean
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmt$(n: number, d = 0) {
   return (n < 0 ? '-$' : '+$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
 }
 
-function normalizeExpiry(s: string): string {
+function normalizeDate(s: string): string {
   const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
   return m ? `${m[1]}-${m[2]}-${m[3]}` : s
 }
 
-function toYMD(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
-
 function todayYMD(): string {
-  return toYMD(new Date())
+  return new Date().toISOString().slice(0, 10)
 }
 
 // ─── Derive events from strategies ───────────────────────────────────────────
@@ -73,7 +85,7 @@ function deriveEvents(strategies: Strategy[]): ExpiryEvent[] {
     s.legs
       .filter(l => l.expiry)
       .map(l => ({
-        date:         normalizeExpiry(l.expiry),
+        date:         normalizeDate(l.expiry),
         strategyId:   s.id,
         strategyType: s.type,
         underlying:   s.underlying,
@@ -85,6 +97,23 @@ function deriveEvents(strategies: Strategy[]): ExpiryEvent[] {
         netPremium:   s.netPremiumReceived,
       }))
   )
+}
+
+// ─── Build daily trade P&L ───────────────────────────────────────────────────
+
+function buildDailyTrades(trades: RawTrade[]): Record<string, DailyTradeData> {
+  const map: Record<string, DailyTradeData> = {}
+  for (const t of trades) {
+    if (!t.tradeDate) continue
+    const date = normalizeDate(t.tradeDate)
+    if (!map[date]) map[date] = { date, netCash: 0, tradeCount: 0, optionPnL: 0, stockPnL: 0, trades: [] }
+    map[date].netCash += t.netCash
+    if (t.assetClass === 'OPT') map[date].optionPnL += t.netCash
+    else map[date].stockPnL += t.netCash
+    map[date].tradeCount++
+    map[date].trades.push(t)
+  }
+  return map
 }
 
 // ─── Calendar grid logic ──────────────────────────────────────────────────────
@@ -101,182 +130,214 @@ function calendarDays(year: number, month: number): (string | null)[] {
   return cells
 }
 
-// ─── Event pill ──────────────────────────────────────────────────────────────
-
-function EventPill({ ev }: { ev: ExpiryEvent }) {
-  const color = STRAT_COLOR[ev.strategyType]
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 4,
-      padding: '2px 5px', marginBottom: 2,
-      background: `${color}14`, border: `1px solid ${color}30`,
-      fontSize: 10, lineHeight: 1.4,
-    }}>
-      <span style={{ fontWeight: 700, color, fontFamily: 'IBM Plex Mono, monospace', flexShrink: 0 }}>
-        {ev.underlying}
-      </span>
-      <span style={{ color: '#9198AE', flexShrink: 0 }}>{STRAT_LABEL[ev.strategyType]}</span>
-      <span style={{ marginLeft: 'auto', fontFamily: 'IBM Plex Mono, monospace', color: ev.unrealizedPnL >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0 }}>
-        {ev.unrealizedPnL >= 0 ? '+' : ''}{Math.round(ev.unrealizedPnL)}
-      </span>
-    </div>
-  )
-}
-
 // ─── Day cell ────────────────────────────────────────────────────────────────
 
 function DayCell({
-  date, events, isToday, isSelected, onClick,
+  date, data, isToday, isSelected, onClick,
 }: {
   date: string | null
-  events: ExpiryEvent[]
+  data: DayData
   isToday: boolean
   isSelected: boolean
   onClick: () => void
 }) {
-  if (!date) return <div style={{ background: '#0F1220', border: '1px solid #1E2540' }} />
+  if (!date) return <div style={{ background: '#0F1220', borderRadius: 4 }} />
 
   const dayNum = parseInt(date.split('-')[2])
-  const hasEvents = events.length > 0
-  const totalPnL = events.reduce((s, e) => s + e.unrealizedPnL, 0)
+  const { events, trades, hasActivity } = data
+  const hasPnL = trades && trades.netCash !== 0
 
   return (
     <div
       onClick={onClick}
       style={{
-        background: isSelected ? '#1A1F35' : hasEvents ? '#171C30' : '#111628',
+        background: isSelected ? '#1A1F35' : hasActivity ? '#131726' : '#0F1220',
         border: `1px solid ${isSelected ? '#312e81' : isToday ? '#3b82f6' : '#1A1F35'}`,
-        padding: '6px 8px',
-        cursor: hasEvents ? 'pointer' : 'default',
-        minHeight: 80,
-        position: 'relative',
+        borderRadius: 4,
+        padding: '4px 6px',
+        cursor: hasActivity ? 'pointer' : 'default',
+        overflow: 'hidden',
         transition: 'background 0.1s',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+      {/* Day number + daily P&L */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
         <span style={{
-          fontSize: 12, fontWeight: isToday ? 700 : 400,
-          color: isToday ? '#3b82f6' : '#5D6580',
+          fontSize: 11, fontWeight: isToday ? 700 : 400,
+          color: isToday ? '#3b82f6' : hasActivity ? '#EAEDF3' : '#5D6580',
           fontFamily: 'IBM Plex Mono, monospace',
           background: isToday ? '#3b82f614' : 'transparent',
-          borderRadius: 2, padding: isToday ? '0 4px' : 0,
+          borderRadius: 2, padding: isToday ? '0 3px' : 0,
         }}>
           {dayNum}
         </span>
-        {hasEvents && (
+        {hasPnL && (
           <span style={{
-            fontSize: 9, fontFamily: 'IBM Plex Mono, monospace',
-            color: totalPnL >= 0 ? '#10b981' : '#f43f5e',
+            fontSize: 9, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600,
+            color: trades.netCash >= 0 ? '#10b981' : '#f43f5e',
           }}>
-            {totalPnL >= 0 ? '+' : ''}{Math.round(totalPnL)}
+            {trades.netCash >= 0 ? '+' : ''}{Math.round(trades.netCash)}
           </span>
         )}
       </div>
-      {events.slice(0, 3).map((ev, i) => <EventPill key={i} ev={ev} />)}
-      {events.length > 3 && (
-        <div style={{ fontSize: 9, color: '#9198AE', fontFamily: 'IBM Plex Mono, monospace', paddingLeft: 2 }}>
-          +{events.length - 3} more
+
+      {/* Trade count badge */}
+      {trades && trades.tradeCount > 0 && (
+        <div style={{
+          fontSize: 8, fontFamily: 'IBM Plex Mono, monospace',
+          color: trades.netCash >= 0 ? '#10b981' : '#f43f5e',
+          background: trades.netCash >= 0 ? '#10b98110' : '#f43f5e10',
+          padding: '1px 4px', borderRadius: 3, marginBottom: 2,
+          textAlign: 'center',
+        }}>
+          {trades.tradeCount} trade{trades.tradeCount !== 1 ? 's' : ''}
+        </div>
+      )}
+
+      {/* Expiry pills */}
+      {events.slice(0, 2).map((ev, i) => {
+        const color = STRAT_COLOR[ev.strategyType]
+        return (
+          <div key={i} style={{
+            display: 'flex', alignItems: 'center', gap: 3,
+            padding: '1px 4px', marginBottom: 1,
+            background: `${color}14`, border: `1px solid ${color}30`,
+            fontSize: 9, lineHeight: 1.3, borderRadius: 3,
+          }}>
+            <span style={{ fontWeight: 700, color, fontFamily: 'IBM Plex Mono, monospace', flexShrink: 0 }}>
+              {ev.underlying}
+            </span>
+            <span style={{ color: '#9198AE', flexShrink: 0 }}>{STRAT_LABEL[ev.strategyType]}</span>
+          </div>
+        )
+      })}
+      {events.length > 2 && (
+        <div style={{ fontSize: 8, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace' }}>
+          +{events.length - 2}
         </div>
       )}
     </div>
   )
 }
 
-// ─── Expiry list (sidebar) ────────────────────────────────────────────────────
+// ─── Sidebar ─────────────────────────────────────────────────────────────────
 
-function ExpiryList({ events, selectedDate }: { events: ExpiryEvent[]; selectedDate: string | null }) {
-  const today = todayYMD()
-  const upcoming = [...events]
-    .filter(e => e.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date))
+function ActivitySidebar({
+  events, dailyTrades, selectedDate,
+}: {
+  events: ExpiryEvent[]
+  dailyTrades: Record<string, DailyTradeData>
+  selectedDate: string | null
+}) {
+  // Build all activity dates
+  const allDates = useMemo(() => {
+    const dateSet = new Set<string>()
+    for (const e of events) dateSet.add(e.date)
+    for (const d of Object.keys(dailyTrades)) dateSet.add(d)
+    return [...dateSet].sort().reverse() // newest first
+  }, [events, dailyTrades])
 
-  const displayEvents = selectedDate
-    ? events.filter(e => e.date === selectedDate)
-    : upcoming
+  const displayDates = selectedDate ? [selectedDate] : allDates
 
   const title = selectedDate
     ? new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-    : 'Upcoming Expirations'
-
-  // Group by date for upcoming view
-  const grouped = displayEvents.reduce<Record<string, ExpiryEvent[]>>((acc, e) => {
-    acc[e.date] = [...(acc[e.date] ?? []), e]
-    return acc
-  }, {})
+    : 'All Activity'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, overflow: 'auto', flex: 1 }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #1A1F35', fontSize: 11, fontWeight: 700, color: '#9198AE', letterSpacing: '0.08em' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid #1E2540', fontSize: 11, fontWeight: 700, color: '#9198AE', letterSpacing: '0.08em', flexShrink: 0 }}>
         {title.toUpperCase()}
       </div>
 
-      {displayEvents.length === 0 && (
-        <div style={{ padding: 24, color: '#5D6580', fontSize: 12, textAlign: 'center' }}>
-          {selectedDate ? 'No expirations on this date' : 'No upcoming expirations'}
-        </div>
-      )}
-
-      {Object.entries(grouped).map(([date, evs]) => {
-        const d = new Date(date + 'T12:00:00')
-        const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-        const datePnL = evs.reduce((s, e) => s + e.unrealizedPnL, 0)
-        const daysAway = Math.round((d.getTime() - Date.now()) / 86_400_000)
-
-        return (
-          <div key={date} style={{ borderBottom: '1px solid #1A1F35' }}>
-            {/* Date header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: '#171C30' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#9198AE', fontFamily: 'IBM Plex Mono, monospace' }}>{label}</span>
-              <span style={{ fontSize: 10, color: '#5D6580' }}>{daysAway}d away</span>
-              <div style={{ flex: 1 }} />
-              <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: datePnL >= 0 ? '#10b981' : '#f43f5e' }}>
-                {fmt$(datePnL)}
-              </span>
-            </div>
-
-            {/* Events */}
-            {evs.map((ev, i) => {
-              const color = STRAT_COLOR[ev.strategyType]
-              const isShort = ev.quantity < 0
-              return (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '8px 16px', borderTop: '1px solid #1A1F35',
-                  fontSize: 12,
-                }}>
-                  <div style={{ width: 3, height: 32, background: color, flexShrink: 0, borderRadius: 1 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                      <span style={{ fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }}>
-                        {ev.underlying}
-                      </span>
-                      <span style={{ padding: '1px 5px', fontSize: 9, fontWeight: 700, color, background: `${color}14`, border: `1px solid ${color}30` }}>
-                        {STRAT_LABEL[ev.strategyType]}
-                      </span>
-                      <span style={{ fontSize: 10, color: '#9198AE', fontFamily: 'IBM Plex Mono, monospace' }}>
-                        {isShort ? 'SHORT' : 'LONG'} {ev.putCall === 'C' ? 'CALL' : 'PUT'}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 11, color: '#9198AE', fontFamily: 'IBM Plex Mono, monospace' }}>
-                      ${ev.strike.toLocaleString()} · {ev.dte}d · {ev.quantity} contracts
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: ev.unrealizedPnL >= 0 ? '#10b981' : '#f43f5e', fontWeight: 600 }}>
-                      {fmt$(ev.unrealizedPnL)}
-                    </div>
-                    {ev.netPremium > 0 && (
-                      <div style={{ fontSize: 10, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace' }}>
-                        {fmt$(ev.netPremium)} prem
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {displayDates.length === 0 && (
+          <div style={{ padding: 24, color: '#5D6580', fontSize: 12, textAlign: 'center' }}>
+            No activity
           </div>
-        )
-      })}
+        )}
+
+        {displayDates.map(date => {
+          const dayEvents = events.filter(e => e.date === date)
+          const dayTrades = dailyTrades[date]
+          if (!dayEvents.length && !dayTrades) return null
+
+          const d = new Date(date + 'T12:00:00')
+          const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+          const dayPnL = (dayTrades?.netCash ?? 0)
+
+          return (
+            <div key={date} style={{ borderBottom: '1px solid #1A1F35' }}>
+              {/* Date header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: '#171C30' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#9198AE', fontFamily: 'IBM Plex Mono, monospace' }}>{label}</span>
+                <div style={{ flex: 1 }} />
+                {dayPnL !== 0 && (
+                  <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: dayPnL >= 0 ? '#10b981' : '#f43f5e' }}>
+                    {fmt$(dayPnL)}
+                  </span>
+                )}
+              </div>
+
+              {/* Trades */}
+              {dayTrades && dayTrades.trades.map((t, i) => (
+                <div key={`t-${i}`} style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '5px 14px', borderTop: '1px solid #1A1F35',
+                  fontSize: 11,
+                }}>
+                  <div style={{ width: 3, height: 24, background: t.netCash >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0, borderRadius: 1 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace', fontSize: 11 }}>
+                        {t.underlyingSymbol ?? t.symbol}
+                      </span>
+                      <span style={{ fontSize: 8, padding: '1px 4px', border: '1px solid #1E2540', color: '#5D6580', borderRadius: 3 }}>
+                        {t.assetClass === 'OPT' ? `${t.putCall} ${t.strike}` : t.assetClass}
+                      </span>
+                      <span style={{ fontSize: 9, color: t.quantity > 0 ? '#10b981' : '#f43f5e', fontFamily: 'IBM Plex Mono, monospace' }}>
+                        {t.quantity > 0 ? '+' : ''}{t.quantity}
+                      </span>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: t.netCash >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0 }}>
+                    {fmt$(t.netCash)}
+                  </span>
+                </div>
+              ))}
+
+              {/* Expiration events */}
+              {dayEvents.map((ev, i) => {
+                const color = STRAT_COLOR[ev.strategyType]
+                return (
+                  <div key={`e-${i}`} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '5px 14px', borderTop: '1px solid #1A1F35',
+                    fontSize: 11,
+                  }}>
+                    <div style={{ width: 3, height: 24, background: color, flexShrink: 0, borderRadius: 1 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace', fontSize: 11 }}>
+                          {ev.underlying}
+                        </span>
+                        <span style={{ padding: '1px 4px', fontSize: 8, fontWeight: 700, color, background: `${color}14`, border: `1px solid ${color}30`, borderRadius: 3 }}>
+                          {STRAT_LABEL[ev.strategyType]}
+                        </span>
+                        <span style={{ fontSize: 8, color: '#5D6580' }}>EXP</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: ev.unrealizedPnL >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0 }}>
+                      {fmt$(ev.unrealizedPnL)}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -290,8 +351,9 @@ export default function CalendarView({ state }: Props) {
   const [selected, setSelected] = useState<string | null>(null)
 
   const events = useMemo(() => deriveEvents(state.strategies), [state.strategies])
+  const dailyTrades = useMemo(() => buildDailyTrades(state.sync.trades), [state.sync.trades])
 
-  const byDate = useMemo(() => {
+  const eventsByDate = useMemo(() => {
     const map: Record<string, ExpiryEvent[]> = {}
     for (const e of events) map[e.date] = [...(map[e.date] ?? []), e]
     return map
@@ -299,6 +361,7 @@ export default function CalendarView({ state }: Props) {
 
   const cells = useMemo(() => calendarDays(year, month), [year, month])
   const todayStr = todayYMD()
+  const numRows = Math.ceil(cells.length / 7)
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11) }
@@ -309,74 +372,103 @@ export default function CalendarView({ state }: Props) {
     else setMonth(m => m + 1)
   }
 
-  const monthPnL = Object.entries(byDate)
-    .filter(([d]) => d.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`))
-    .reduce((s, [, evs]) => s + evs.reduce((a, e) => a + e.unrealizedPnL, 0), 0)
+  // Month P&L from trades
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`
+  const monthTradePnL = Object.entries(dailyTrades)
+    .filter(([d]) => d.startsWith(monthPrefix))
+    .reduce((s, [, dt]) => s + dt.netCash, 0)
+  const monthTradeCount = Object.entries(dailyTrades)
+    .filter(([d]) => d.startsWith(monthPrefix))
+    .reduce((s, [, dt]) => s + dt.tradeCount, 0)
 
-  if (!state.strategies.length) {
+  const hasAnyData = state.strategies.length > 0 || state.sync.trades.length > 0
+
+  if (!hasAnyData) {
     return (
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <EmptyState title="No expirations" message="Sync your IBKR portfolio to see expirations on the calendar." showUpload />
+        <EmptyState title="No data" message="Sync your IBKR portfolio to see trades and expirations on the calendar." showUpload />
       </div>
     )
+  }
+
+  // Build day data for each cell
+  function getDayData(date: string | null): DayData {
+    if (!date) return { events: [], trades: null, totalPnL: 0, hasActivity: false }
+    const evs = eventsByDate[date] ?? []
+    const tr = dailyTrades[date] ?? null
+    const totalPnL = (tr?.netCash ?? 0) + evs.reduce((s, e) => s + e.unrealizedPnL, 0)
+    return { events: evs, trades: tr, totalPnL, hasActivity: evs.length > 0 || (tr !== null && tr.tradeCount > 0) }
   }
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
       {/* ── Calendar ──────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px 0 16px 16px' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 16 }}>
 
         {/* Month nav */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, paddingRight: 24 }}>
-          <button onClick={prevMonth} style={{ background: 'none', border: '1px solid #1E2540', color: '#5D6580', cursor: 'pointer', padding: '4px 8px', display: 'flex' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexShrink: 0 }}>
+          <button onClick={prevMonth} style={{ background: 'none', border: '1px solid #1E2540', color: '#5D6580', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
             <ChevronLeft size={14} />
           </button>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#EAEDF3', minWidth: 160, textAlign: 'center' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#EAEDF3', minWidth: 150, textAlign: 'center' }}>
             {MONTHS[month]} {year}
           </span>
-          <button onClick={nextMonth} style={{ background: 'none', border: '1px solid #1E2540', color: '#5D6580', cursor: 'pointer', padding: '4px 8px', display: 'flex' }}>
+          <button onClick={nextMonth} style={{ background: 'none', border: '1px solid #1E2540', color: '#5D6580', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
             <ChevronRight size={14} />
           </button>
           <div style={{ flex: 1 }} />
-          <span style={{ fontSize: 11, color: '#9198AE', fontFamily: 'IBM Plex Mono, monospace' }}>month P&L</span>
-          <span style={{ fontSize: 14, fontWeight: 600, fontFamily: 'IBM Plex Mono, monospace', color: monthPnL >= 0 ? '#10b981' : '#f43f5e' }}>
-            {monthPnL >= 0 ? '+' : ''}{Math.round(monthPnL).toLocaleString()}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 10, color: '#5D6580' }}>{monthTradeCount} trades</span>
+            <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'IBM Plex Mono, monospace', color: monthTradePnL >= 0 ? '#10b981' : '#f43f5e' }}>
+              {monthTradePnL >= 0 ? '+' : ''}{Math.round(monthTradePnL).toLocaleString()}
+            </span>
+          </div>
           {selected && (
-            <button onClick={() => setSelected(null)} style={{ background: 'none', border: '1px solid #1E2540', color: '#3B4263', cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontFamily: 'inherit' }}>
+            <button onClick={() => setSelected(null)} style={{ background: 'none', border: '1px solid #1E2540', color: '#5D6580', cursor: 'pointer', padding: '3px 8px', fontSize: 10, fontFamily: 'inherit', borderRadius: 4 }}>
               Clear
             </button>
           )}
         </div>
 
         {/* Day headers */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, marginBottom: 1, paddingRight: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginBottom: 3, flexShrink: 0 }}>
           {DAYS.map(d => (
-            <div key={d} style={{ padding: '6px 8px', fontSize: 10, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em', textAlign: 'center' }}>
+            <div key={d} style={{ padding: '4px', fontSize: 9, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em', textAlign: 'center' }}>
               {d}
             </div>
           ))}
         </div>
 
-        {/* Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, flex: 1, overflow: 'auto', paddingRight: 24 }}>
-          {cells.map((date, i) => (
-            <DayCell
-              key={i}
-              date={date}
-              events={date ? (byDate[date] ?? []) : []}
-              isToday={date === todayStr}
-              isSelected={date === selected}
-              onClick={() => date && (byDate[date]?.length ?? 0) > 0 && setSelected(date === selected ? null : date)}
-            />
-          ))}
+        {/* Grid — fixed row height so cells stay compact */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, 1fr)',
+          gridTemplateRows: `repeat(${numRows}, minmax(0, 1fr))`,
+          gap: 3,
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
+        }}>
+          {cells.map((date, i) => {
+            const data = getDayData(date)
+            return (
+              <DayCell
+                key={i}
+                date={date}
+                data={data}
+                isToday={date === todayStr}
+                isSelected={date === selected}
+                onClick={() => date && data.hasActivity && setSelected(date === selected ? null : date)}
+              />
+            )
+          })}
         </div>
       </div>
 
-      {/* ── Expiry sidebar ────────────────────────────────────────────────── */}
-      <div style={{ width: 300, borderLeft: '1px solid #1E2540', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <ExpiryList events={events} selectedDate={selected} />
+      {/* ── Activity sidebar ──────────────────────────────────────────────── */}
+      <div style={{ width: 280, borderLeft: '1px solid #1E2540', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <ActivitySidebar events={events} dailyTrades={dailyTrades} selectedDate={selected} />
       </div>
     </div>
   )

@@ -43,11 +43,26 @@ function bsDelta(S: number, K: number, dteYears: number, iv: number, isPut: bool
 
 // ─── Fetch helpers ────────────────────────────────────────────────────────────
 
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 async function fetchChain(symbol: string, date?: number): Promise<YahooResult | null> {
   const params = new URLSearchParams({ symbol })
   if (date) params.set('date', String(date))
   try {
     const res = await fetch(`${PROXY}/api/yahoo?${params}`)
+
+    if (res.status === 429) {
+      // Rate limited — wait and retry once
+      const retryAfter = 5000
+      await sleep(retryAfter)
+      const retry = await fetch(`${PROXY}/api/yahoo?${params}`)
+      if (!retry.ok) return null
+      const json = await retry.json() as { optionChain?: { result?: YahooResult[] } }
+      return json.optionChain?.result?.[0] ?? null
+    }
+
     if (!res.ok) return null
     const json = await res.json() as { optionChain?: { result?: YahooResult[] } }
     return json.optionChain?.result?.[0] ?? null
@@ -65,8 +80,8 @@ const MAX_DELTA = 0.45
 const MIN_BID = 0.05
 
 function score(annualizedYield: number, delta: number): number {
-  const yieldScore  = Math.min(annualizedYield, 2.0) / 2.0     // cap at 200% APY
-  const deltaScore  = 1 - Math.abs(Math.abs(delta) - 0.25) * 4  // peak at delta 0.25
+  const yieldScore  = Math.min(annualizedYield, 2.0) / 2.0
+  const deltaScore  = 1 - Math.abs(Math.abs(delta) - 0.25) * 4
   return Math.max(0, yieldScore * 0.6 + deltaScore * 0.4)
 }
 
@@ -93,7 +108,6 @@ function processOptions(
 
     if (absDelta < MIN_DELTA || absDelta > MAX_DELTA) continue
 
-    // Yield basis: strike for CSP (cash-secured), stock price for CC (vs cost of shares)
     const yieldBase = isPut ? o.strike : stockPrice
     const annualizedYield = (mid / yieldBase) * (365 / dte)
 
@@ -131,16 +145,14 @@ export async function scanTicker(
   const now = Date.now() / 1000
   const hasSufficientShares = sharesHeld >= 100
 
-  // Pick up to 2 expirations in the target DTE window
+  // Pick only 1 expiration in the target DTE window to reduce API calls
   const targetDates = chain.expirationDates
     .filter(ts => {
       const dte = (ts - now) / 86400
       return dte >= MIN_DTE && dte <= MAX_DTE
     })
-    .slice(0, 2)
+    .slice(0, 1) // Only 1 extra fetch max
 
-  // If the first call already covers the first date, use it directly
-  const firstOptions = chain.options[0]
   const allResults: ScanResult[] = []
 
   const processDate = (opts: YahooResult['options'][0]) => {
@@ -152,21 +164,53 @@ export async function scanTicker(
     }
   }
 
+  // Process the first options that came with the initial fetch
+  const firstOptions = chain.options[0]
   if (firstOptions) {
     const firstDte = (firstOptions.expirationDate - now) / 86400
     if (firstDte >= MIN_DTE && firstDte <= MAX_DTE) {
       processDate(firstOptions)
-      // Remove this date from targetDates to avoid double-fetch
       const idx = targetDates.indexOf(firstOptions.expirationDate)
       if (idx > -1) targetDates.splice(idx, 1)
     }
   }
 
-  // Fetch remaining target dates
+  // Fetch remaining target dates (at most 1) with delay
   for (const ts of targetDates) {
+    await sleep(800) // rate limit protection
     const dated = await fetchChain(symbol, ts)
     if (dated?.options[0]) processDate(dated.options[0])
   }
 
   return allResults
+}
+
+/**
+ * Scan multiple tickers with delays between each to avoid rate limiting.
+ * Use this instead of calling scanTicker in a tight loop.
+ */
+export async function scanAllTickers(
+  tickers: string[],
+  stocksHeld: Record<string, number>,
+  onProgress?: (ticker: string, i: number, total: number) => void,
+): Promise<ScanResult[]> {
+  const all: ScanResult[] = []
+
+  for (let i = 0; i < tickers.length; i++) {
+    const sym = tickers[i]
+    onProgress?.(sym, i, tickers.length)
+    try {
+      const res = await scanTicker(sym, stocksHeld[sym] ?? 0)
+      all.push(...res)
+    } catch (e) {
+      console.warn(`[Scan] ${sym} failed:`, e)
+    }
+
+    // Delay between tickers to avoid Yahoo rate limiting
+    if (i < tickers.length - 1) {
+      await sleep(1500)
+    }
+  }
+
+  return all
 }

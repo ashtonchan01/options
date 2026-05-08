@@ -1,16 +1,25 @@
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
 
 // Global in-memory cache for crumb/cookies across warm invocations
 let cachedCrumb = null
 let cachedCookies = null
 let cacheTime = 0
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+const CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+
+// Response cache to avoid hitting Yahoo for identical requests
+const responseCache = new Map()
+const RESPONSE_TTL = 3 * 60 * 1000 // 3 minutes
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
 
 async function getCrumb() {
   if (cachedCrumb && Date.now() - cacheTime < CACHE_TTL) {
     return { crumb: cachedCrumb, cookies: cachedCookies }
   }
 
+  // Step 1: Get cookies from consent endpoint
   const fcRes = await fetch('https://fc.yahoo.com', {
     headers: { 'User-Agent': UA },
     redirect: 'follow',
@@ -32,6 +41,7 @@ async function getCrumb() {
 
   if (!cookieStr) throw new Error('No cookies from fc.yahoo.com')
 
+  // Step 2: Get crumb using cookies
   const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
     headers: { 'User-Agent': UA, 'Cookie': cookieStr },
   })
@@ -58,9 +68,22 @@ export default async function handler(req, res) {
   if (!symbol) return res.status(400).json({ error: 'Missing symbol' })
   if (!/^[A-Za-z0-9.\-]+$/.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' })
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // Check response cache
+  const cacheKey = `${symbol}:${date || 'default'}`
+  const cached = responseCache.get(cacheKey)
+  if (cached && Date.now() - cached.time < RESPONSE_TTL) {
+    res.setHeader('Content-Type', 'application/json')
+    res.setHeader('X-Cache', 'HIT')
+    res.setHeader('Cache-Control', 's-maxage=180, stale-while-revalidate=600')
+    return res.status(200).send(cached.data)
+  }
+
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      if (attempt === 1) cachedCrumb = null
+      if (attempt > 0) {
+        cachedCrumb = null
+        await sleep(attempt * 1500) // 1.5s, 3s backoff
+      }
 
       const { crumb, cookies } = await getCrumb()
       let url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}?crumb=${encodeURIComponent(crumb)}`
@@ -70,10 +93,19 @@ export default async function handler(req, res) {
         headers: { 'User-Agent': UA, 'Cookie': cookies },
       })
 
+      // Rate limited — retry with backoff
+      if (yahooRes.status === 429) {
+        if (attempt < 2) {
+          await sleep(2000 * (attempt + 1))
+          continue
+        }
+        return res.status(429).json({ error: 'Yahoo rate limited. Try again in 30s.', retryAfter: 30 })
+      }
+
       if (yahooRes.status === 401 || yahooRes.status === 403) {
         cachedCrumb = null
-        if (attempt === 0) continue
-        return res.status(502).json({ error: 'Yahoo auth failed after refresh' })
+        if (attempt < 2) continue
+        return res.status(502).json({ error: 'Yahoo auth failed after retries' })
       }
 
       if (!yahooRes.ok) {
@@ -82,11 +114,21 @@ export default async function handler(req, res) {
       }
 
       const data = await yahooRes.text()
+
+      // Cache the response
+      responseCache.set(cacheKey, { data, time: Date.now() })
+
+      // Evict old cache entries
+      for (const [k, v] of responseCache) {
+        if (Date.now() - v.time > RESPONSE_TTL * 2) responseCache.delete(k)
+      }
+
       res.setHeader('Content-Type', 'application/json')
-      res.setHeader('Cache-Control', 's-maxage=120, stale-while-revalidate=300')
+      res.setHeader('X-Cache', 'MISS')
+      res.setHeader('Cache-Control', 's-maxage=180, stale-while-revalidate=600')
       return res.status(200).send(data)
     } catch (error) {
-      if (attempt === 1) return res.status(502).json({ error: error.message })
+      if (attempt === 2) return res.status(502).json({ error: error.message })
       cachedCrumb = null
     }
   }

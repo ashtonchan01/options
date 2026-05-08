@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { Scan, AlertCircle } from 'lucide-react'
 import type { AppState, ScanResult } from '../../types'
-import { scanTicker } from '../../services/yahoo'
+import { scanAllTickers } from '../../services/yahoo'
 
 interface Props { state: AppState }
 
@@ -64,22 +64,19 @@ export default function OpportunitiesView({ state }: Props) {
     return [...set].sort()
   }, [state.sync.positions])
 
+  const [scanProgress, setScanProgress] = useState('')
+
   async function handleScan() {
     setScanning(true)
     setError(null)
     setResults([])
+    setScanProgress('')
     try {
-      const all: ScanResult[] = []
-      for (const sym of tickers) {
-        try {
-          const res = await scanTicker(sym, stocksHeld[sym] ?? 0)
-          all.push(...res)
-        } catch (e) {
-          console.warn(`[Scan] ${sym} failed:`, e)
-        }
-      }
+      const all = await scanAllTickers(tickers, stocksHeld, (sym, i, total) => {
+        setScanProgress(`${sym} (${i + 1}/${total})`)
+      })
       if (all.length === 0 && tickers.length > 0) {
-        setError('No results — Yahoo API may be rate-limiting. Try again in a moment.')
+        setError('No results — Yahoo may be rate-limiting. Wait 30s and try again.')
       }
       setResults(all)
       setScanned(true)
@@ -87,15 +84,12 @@ export default function OpportunitiesView({ state }: Props) {
       setError(String(e))
     } finally {
       setScanning(false)
+      setScanProgress('')
     }
   }
 
-  // Auto-scan on mount
-  useEffect(() => {
-    if (!scanned && !scanning && tickers.length > 0) {
-      handleScan()
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // No auto-scan — user clicks Scan Now (avoids burning rate limit on every tab switch)
+  void 0 // eslint-disable-line
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(a => !a)
@@ -174,7 +168,11 @@ export default function OpportunitiesView({ state }: Props) {
       {/* ── Loading ─────────────────────────────────────────────────────────── */}
       {scanning && (
         <div style={{ color: '#9198AE', fontSize: 13, paddingTop: 40, textAlign: 'center' }}>
-          Scanning {tickers.length} tickers for options with annualized yield...
+          Scanning {tickers.length} tickers{scanProgress ? ` — ${scanProgress}` : '...'}
+          <br />
+          <span style={{ fontSize: 11, color: '#5D6580', marginTop: 6, display: 'block' }}>
+            Pacing requests to avoid Yahoo rate limits (~2s per ticker)
+          </span>
         </div>
       )}
 
