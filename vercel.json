@@ -1,7 +1,6 @@
 {
-  "framework": null,
-  "buildCommand": null,
-  "outputDirectory": null,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "functions": {
     "api/flex-sync.js": {
       "maxDuration": 90
