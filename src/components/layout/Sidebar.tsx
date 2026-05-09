@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { LayoutDashboard, CalendarDays, Layers, Telescope, Zap, TrendingUp, FlaskConical, Milestone, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Layers, Telescope, Zap, TrendingUp, FlaskConical, Milestone, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { SyncStatus } from '../../types'
-import { useThemeStore } from '../../store/themeStore'
 
 export const TAB_IDS = ['portfolio', 'calendar', 'strategies', 'opportunities', 'actions', 'growth', 'backtest', 'phases'] as const
 export type TabId = typeof TAB_IDS[number]
@@ -30,7 +29,6 @@ interface SidebarProps {
 
 export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatus }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
-  const { theme, toggle } = useThemeStore()
 
   return (
     <aside style={{
@@ -106,41 +104,18 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
         })}
       </nav>
 
-      {/* Theme toggle + Sync status */}
-      <div style={{ borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 0 }}>
-
-        {/* Theme toggle */}
-        <button
-          onClick={toggle}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: collapsed ? '10px 0' : '10px 16px',
-            justifyContent: collapsed ? 'center' : 'flex-start',
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--text-3)', width: '100%', fontFamily: 'inherit', fontSize: 12,
-            transition: 'color 0.15s',
-          }}
-          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-2)'}
-          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-3)'}
-          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-          {!collapsed && (theme === 'dark' ? 'Light Mode' : 'Dark Mode')}
-        </button>
-
-        {/* Sync dot */}
-        <div style={{ padding: collapsed ? '10px 0' : '10px 16px', display: 'flex', alignItems: 'center', gap: 8, justifyContent: collapsed ? 'center' : 'flex-start' }}>
-          <span style={{
-            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-            background: SYNC_COLOR[syncStatus],
-            animation: syncStatus === 'loading' ? 'pulse 1s ease-in-out infinite' : 'none',
-          }} />
-          {!collapsed && (
-            <span style={{ fontSize: 12, color: 'var(--text-3)', letterSpacing: 1 }}>
-              {syncStatus === 'success' ? 'Synced' : syncStatus === 'loading' ? 'Syncing…' : syncStatus === 'error' ? 'Error' : 'No data'}
-            </span>
-          )}
-        </div>
+      {/* Sync dot */}
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{
+          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+          background: SYNC_COLOR[syncStatus],
+          animation: syncStatus === 'loading' ? 'pulse 1s ease-in-out infinite' : 'none',
+        }} />
+        {!collapsed && (
+          <span style={{ fontSize: 12, color: 'var(--text-3)', letterSpacing: 1 }}>
+            {syncStatus === 'success' ? 'Synced' : syncStatus === 'loading' ? 'Syncing…' : syncStatus === 'error' ? 'Error' : 'No data'}
+          </span>
+        )}
       </div>
     </aside>
   )

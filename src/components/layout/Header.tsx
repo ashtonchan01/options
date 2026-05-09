@@ -1,7 +1,8 @@
 import { useRef } from 'react'
-import { RefreshCw, Upload, Settings } from 'lucide-react'
+import { RefreshCw, Upload, Settings, Sun, Moon } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import type { TabId } from './Sidebar'
+import { useThemeStore } from '../../store/themeStore'
 
 const TAB_LABELS: Record<TabId, string> = {
   portfolio:     'Portfolio',
@@ -43,6 +44,7 @@ const btn: React.CSSProperties = {
 export default function Header({ activeTab, syncStatus, syncError, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings }: HeaderProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const isLoading = syncStatus === 'loading'
+  const { theme, toggle } = useThemeStore()
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -118,6 +120,38 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
           style={{ ...btn, padding: '7px 10px', color: hasCredentials ? '#10b981' : 'var(--text-3)' }}
         >
           <Settings size={14} />
+        </button>
+
+        <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
+
+        {/* Theme toggle switch */}
+        <button
+          onClick={toggle}
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: 0, background: 'none', border: 'none',
+            cursor: 'pointer', position: 'relative',
+          }}
+        >
+          <Sun size={13} style={{ color: theme === 'light' ? '#f59e0b' : 'var(--text-4)', transition: 'color 0.2s' }} />
+          {/* Track */}
+          <div style={{
+            width: 36, height: 20, borderRadius: 10,
+            background: theme === 'dark' ? '#6366F1' : '#818cf8',
+            position: 'relative', transition: 'background 0.2s',
+          }}>
+            {/* Knob */}
+            <div style={{
+              width: 16, height: 16, borderRadius: '50%',
+              background: '#fff',
+              position: 'absolute', top: 2,
+              left: theme === 'dark' ? 2 : 18,
+              transition: 'left 0.2s ease',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+            }} />
+          </div>
+          <Moon size={13} style={{ color: theme === 'dark' ? '#818cf8' : 'var(--text-4)', transition: 'color 0.2s' }} />
         </button>
       </div>
 
