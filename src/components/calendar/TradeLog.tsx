@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import type { RawTrade } from '../../types'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -375,21 +375,6 @@ function renderCell(col: typeof COLS[number], e: TradeLogEntry): React.ReactNode
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-const hdr: React.CSSProperties = {
-  padding: '6px 10px', fontSize: 10, fontWeight: 700,
-  color: 'var(--text-3)', letterSpacing: '0.06em',
-  whiteSpace: 'nowrap', userSelect: 'none', cursor: 'pointer',
-  borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)',
-  position: 'sticky', top: 0, zIndex: 2,
-}
-
-const sectionHdr: React.CSSProperties = {
-  padding: '5px 10px', fontSize: 10, fontWeight: 700,
-  letterSpacing: '0.1em', textAlign: 'center',
-  borderBottom: '1px solid var(--border)', background: 'var(--bg-card)',
-  position: 'sticky', top: 0, zIndex: 3,
-}
-
 // Numeric columns default to descending (biggest first), strings to ascending
 const DESC_DEFAULT = new Set<SortKey>([
   'week', 'dateOpen', 'contracts', 'strike', 'initialDTE', 'premium',
@@ -397,18 +382,22 @@ const DESC_DEFAULT = new Set<SortKey>([
   'closingPrice', 'closingFees', 'daysHeld', 'closingAmount', 'profitLoss',
 ])
 
+const SECTION_LAST_KEYS = new Set([
+  COLS.filter(c => c.section === 'open').at(-1)!.key,
+  COLS.filter(c => c.section === 'current').at(-1)!.key,
+])
+
 export default function TradeLog({ trades }: { trades: RawTrade[] }) {
   const entries = useMemo(() => buildTradeLog(trades), [trades])
   const [sortKey, setSortKey] = useState<SortKey>('dateOpen')
   const [sortAsc, setSortAsc] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const sorted = useMemo(() => {
-    // When sorting by 'week', use yearWeek (year*100+week) for cross-year correctness
-    const effectiveKey: keyof TradeLogEntry = sortKey === 'week' ? 'yearWeek' : sortKey
+    const ek: keyof TradeLogEntry = sortKey === 'week' ? 'yearWeek' : sortKey
 
     return [...entries].sort((a, b) => {
-      const av = a[effectiveKey], bv = b[effectiveKey]
-      // Nulls always sink to the bottom regardless of direction
+      const av = a[ek], bv = b[ek]
       if (av == null && bv == null) return 0
       if (av == null) return 1
       if (bv == null) return -1
@@ -417,14 +406,11 @@ export default function TradeLog({ trades }: { trades: RawTrade[] }) {
       if (typeof av === 'number' && typeof bv === 'number') {
         diff = av - bv
       } else {
-        // Plain < > comparison — consistent across locales, correct for
-        // YYYY-MM-DD dates and any other string field
         const sa = String(av), sb = String(bv)
         diff = sa < sb ? -1 : sa > sb ? 1 : 0
       }
 
-      // Tiebreaker: dateOpen keeps rows stable
-      if (diff === 0 && effectiveKey !== 'dateOpen') {
+      if (diff === 0 && ek !== 'dateOpen') {
         diff = a.dateOpen < b.dateOpen ? -1 : a.dateOpen > b.dateOpen ? 1 : 0
       }
 
@@ -432,12 +418,15 @@ export default function TradeLog({ trades }: { trades: RawTrade[] }) {
     })
   }, [entries, sortKey, sortAsc])
 
+  // Scroll to top when sort changes
+  useEffect(() => {
+    scrollRef.current?.scrollTo(0, 0)
+  }, [sortKey, sortAsc])
+
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(a => !a)
-    else { setSortKey(key); setSortAsc(DESC_DEFAULT.has(key) ? false : true) }
+    else { setSortKey(key); setSortAsc(!DESC_DEFAULT.has(key)) }
   }
-
-  const indicator = (key: SortKey) => sortKey === key ? (sortAsc ? ' ↑' : ' ↓') : ''
 
   // Summary stats
   const closed   = entries.filter(e => e.status !== 'Open')
@@ -478,74 +467,85 @@ export default function TradeLog({ trades }: { trades: RawTrade[] }) {
         </span>
       </div>
 
-      {/* Table */}
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 1400 }}>
+      {/* Table — border-separate for Safari sticky support */}
+      <div ref={scrollRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13, minWidth: 1400 }}>
 
           <thead>
             {/* Section headers */}
             <tr>
-              <th colSpan={OPEN_SPAN} style={{ ...sectionHdr, color: '#3b82f6', borderRight: '1px solid var(--border)' }}>OPENING PARAMETERS</th>
-              <th colSpan={CUR_SPAN} style={{ ...sectionHdr, color: '#f59e0b', borderRight: '1px solid var(--border)' }}>CURRENT</th>
-              <th colSpan={CLOSE_SPAN} style={{ ...sectionHdr, color: '#10b981' }}>CLOSING PARAMETERS</th>
+              <th colSpan={OPEN_SPAN} style={{
+                padding: '5px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+                textAlign: 'center', color: '#3b82f6',
+                borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)',
+                background: 'var(--bg-card)', position: 'sticky', top: 0, zIndex: 3,
+                pointerEvents: 'none',
+              }}>OPENING PARAMETERS</th>
+              <th colSpan={CUR_SPAN} style={{
+                padding: '5px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+                textAlign: 'center', color: '#f59e0b',
+                borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)',
+                background: 'var(--bg-card)', position: 'sticky', top: 0, zIndex: 3,
+                pointerEvents: 'none',
+              }}>CURRENT</th>
+              <th colSpan={CLOSE_SPAN} style={{
+                padding: '5px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+                textAlign: 'center', color: '#10b981',
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--bg-card)', position: 'sticky', top: 0, zIndex: 3,
+                pointerEvents: 'none',
+              }}>CLOSING PARAMETERS</th>
             </tr>
             {/* Column headers */}
             <tr>
-              {COLS.map((col) => {
-                const isLast = (section: string) => {
-                  const sectionCols = COLS.filter(c => c.section === section)
-                  return sectionCols[sectionCols.length - 1] === col
-                }
-                return (
-                  <th
-                    key={col.key}
-                    onClick={() => toggleSort(col.key)}
-                    style={{
-                      ...hdr,
-                      top: 27, // below section header
-                      textAlign: col.align,
-                      width: col.w,
-                      minWidth: col.w,
-                      borderRight: (isLast('open') || isLast('current')) ? '1px solid var(--border)' : undefined,
-                      color: sortKey === col.key ? 'var(--text-1)' : 'var(--text-3)',
-                    }}
-                  >
-                    {col.label}{indicator(col.key)}
-                  </th>
-                )
-              })}
+              {COLS.map((col) => (
+                <th
+                  key={col.key}
+                  onClick={() => toggleSort(col.key)}
+                  style={{
+                    padding: '6px 10px', fontSize: 10, fontWeight: 700,
+                    letterSpacing: '0.06em', whiteSpace: 'nowrap',
+                    userSelect: 'none', cursor: 'pointer',
+                    borderBottom: '1px solid var(--border)',
+                    borderRight: SECTION_LAST_KEYS.has(col.key) ? '1px solid var(--border)' : undefined,
+                    background: 'var(--bg-elevated)',
+                    position: 'sticky', top: 25, zIndex: 4,
+                    textAlign: col.align, width: col.w, minWidth: col.w,
+                    color: sortKey === col.key ? 'var(--text-1)' : 'var(--text-3)',
+                  }}
+                >
+                  {col.label}
+                  {sortKey === col.key && (
+                    <span style={{ marginLeft: 3, color: '#6366F1', fontWeight: 700 }}>
+                      {sortAsc ? '▲' : '▼'}
+                    </span>
+                  )}
+                </th>
+              ))}
             </tr>
           </thead>
 
           <tbody>
             {sorted.map((e, idx) => (
               <tr
-                key={e.id}
+                key={`${e.id}_${idx}`}
                 style={{
                   background: idx % 2 ? 'var(--bg-surface)' : 'transparent',
-                  borderBottom: '1px solid var(--border-light)',
                 }}
               >
-                {COLS.map(col => {
-                  const isLast = (section: string) => {
-                    const sectionCols = COLS.filter(c => c.section === section)
-                    return sectionCols[sectionCols.length - 1] === col
-                  }
-                  return (
-                    <td
-                      key={col.key}
-                      style={{
-                        padding: '7px 10px',
-                        textAlign: col.align,
-                        width: col.w,
-                        minWidth: col.w,
-                        borderRight: (isLast('open') || isLast('current')) ? '1px solid var(--border-light)' : undefined,
-                      }}
-                    >
-                      {renderCell(col, e)}
-                    </td>
-                  )
-                })}
+                {COLS.map(col => (
+                  <td
+                    key={col.key}
+                    style={{
+                      padding: '7px 10px',
+                      textAlign: col.align, width: col.w, minWidth: col.w,
+                      borderBottom: '1px solid var(--border-light)',
+                      borderRight: SECTION_LAST_KEYS.has(col.key) ? '1px solid var(--border-light)' : undefined,
+                    }}
+                  >
+                    {renderCell(col, e)}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
