@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { AppState, Strategy, StrategyType, RawTrade } from '../../types'
 import EmptyState from '../shared/EmptyState'
+import TradeLog from './TradeLog'
 
 interface Props { state: AppState }
 
@@ -231,12 +232,11 @@ function ActivitySidebar({
   dailyTrades: Record<string, DailyTradeData>
   selectedDate: string | null
 }) {
-  // Build all activity dates
   const allDates = useMemo(() => {
     const dateSet = new Set<string>()
     for (const e of events) dateSet.add(e.date)
     for (const d of Object.keys(dailyTrades)) dateSet.add(d)
-    return [...dateSet].sort().reverse() // newest first
+    return [...dateSet].sort().reverse()
   }, [events, dailyTrades])
 
   const displayDates = selectedDate ? [selectedDate] : allDates
@@ -269,7 +269,6 @@ function ActivitySidebar({
 
           return (
             <div key={date} style={{ borderBottom: '1px solid var(--border-light)' }}>
-              {/* Date header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'var(--bg-elevated)' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', fontFamily: 'IBM Plex Mono, monospace' }}>{label}</span>
                 <div style={{ flex: 1 }} />
@@ -280,7 +279,6 @@ function ActivitySidebar({
                 )}
               </div>
 
-              {/* Trades */}
               {dayTrades && dayTrades.trades.map((t, i) => (
                 <div key={`t-${i}`} style={{
                   display: 'flex', alignItems: 'center', gap: 6,
@@ -307,7 +305,6 @@ function ActivitySidebar({
                 </div>
               ))}
 
-              {/* Expiration events */}
               {dayEvents.map((ev, i) => {
                 const color = STRAT_COLOR[ev.strategyType]
                 return (
@@ -372,7 +369,6 @@ export default function CalendarView({ state }: Props) {
     else setMonth(m => m + 1)
   }
 
-  // Month P&L from trades
   const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`
   const monthTradePnL = Object.entries(dailyTrades)
     .filter(([d]) => d.startsWith(monthPrefix))
@@ -391,7 +387,6 @@ export default function CalendarView({ state }: Props) {
     )
   }
 
-  // Build day data for each cell
   function getDayData(date: string | null): DayData {
     if (!date) return { events: [], trades: null, totalPnL: 0, hasActivity: false }
     const evs = eventsByDate[date] ?? []
@@ -401,74 +396,89 @@ export default function CalendarView({ state }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-      {/* ── Calendar ──────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 20 }}>
+      {/* ── Top: Calendar + Sidebar ──────────────────────────────────────── */}
+      <div style={{ flex: '1 1 50%', display: 'flex', minHeight: 0, overflow: 'hidden' }}>
 
-        {/* Month nav */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexShrink: 0 }}>
-          <button onClick={prevMonth} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
-            <ChevronLeft size={14} />
-          </button>
-          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-1)', minWidth: 150, textAlign: 'center' }}>
-            {MONTHS[month]} {year}
-          </span>
-          <button onClick={nextMonth} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
-            <ChevronRight size={14} />
-          </button>
-          <div style={{ flex: 1 }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{monthTradeCount} trades</span>
-            <span style={{ fontSize: 15, fontWeight: 600, fontFamily: 'IBM Plex Mono, monospace', color: monthTradePnL >= 0 ? '#10b981' : '#f43f5e' }}>
-              {monthTradePnL >= 0 ? '+' : ''}{Math.round(monthTradePnL).toLocaleString()}
-            </span>
-          </div>
-          {selected && (
-            <button onClick={() => setSelected(null)} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '3px 8px', fontSize: 12, fontFamily: 'inherit', borderRadius: 4 }}>
-              Clear
+        {/* Calendar grid */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px 20px' }}>
+
+          {/* Month nav */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexShrink: 0 }}>
+            <button onClick={prevMonth} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
+              <ChevronLeft size={14} />
             </button>
-          )}
-        </div>
-
-        {/* Day headers */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginBottom: 3, flexShrink: 0 }}>
-          {DAYS.map(d => (
-            <div key={d} style={{ padding: '4px', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', textAlign: 'center' }}>
-              {d}
+            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-1)', minWidth: 150, textAlign: 'center' }}>
+              {MONTHS[month]} {year}
+            </span>
+            <button onClick={nextMonth} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
+              <ChevronRight size={14} />
+            </button>
+            <div style={{ flex: 1 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{monthTradeCount} trades</span>
+              <span style={{ fontSize: 15, fontWeight: 600, fontFamily: 'IBM Plex Mono, monospace', color: monthTradePnL >= 0 ? '#10b981' : '#f43f5e' }}>
+                {monthTradePnL >= 0 ? '+' : ''}{Math.round(monthTradePnL).toLocaleString()}
+              </span>
             </div>
-          ))}
+            {selected && (
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '3px 8px', fontSize: 12, fontFamily: 'inherit', borderRadius: 4 }}>
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Day headers */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginBottom: 3, flexShrink: 0 }}>
+            {DAYS.map(d => (
+              <div key={d} style={{ padding: '4px', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', textAlign: 'center' }}>
+                {d}
+              </div>
+            ))}
+          </div>
+
+          {/* Grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            gridTemplateRows: `repeat(${numRows}, minmax(0, 1fr))`,
+            gap: 3,
+            flex: 1,
+            minHeight: 0,
+            overflow: 'hidden',
+          }}>
+            {cells.map((date, i) => {
+              const data = getDayData(date)
+              return (
+                <DayCell
+                  key={i}
+                  date={date}
+                  data={data}
+                  isToday={date === todayStr}
+                  isSelected={date === selected}
+                  onClick={() => date && data.hasActivity && setSelected(date === selected ? null : date)}
+                />
+              )
+            })}
+          </div>
         </div>
 
-        {/* Grid — fixed row height so cells stay compact */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(7, 1fr)',
-          gridTemplateRows: `repeat(${numRows}, minmax(0, 1fr))`,
-          gap: 3,
-          flex: 1,
-          minHeight: 0,
-          overflow: 'hidden',
-        }}>
-          {cells.map((date, i) => {
-            const data = getDayData(date)
-            return (
-              <DayCell
-                key={i}
-                date={date}
-                data={data}
-                isToday={date === todayStr}
-                isSelected={date === selected}
-                onClick={() => date && data.hasActivity && setSelected(date === selected ? null : date)}
-              />
-            )
-          })}
+        {/* Activity sidebar */}
+        <div style={{ width: 300, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <ActivitySidebar events={events} dailyTrades={dailyTrades} selectedDate={selected} />
         </div>
       </div>
 
-      {/* ── Activity sidebar ──────────────────────────────────────────────── */}
-      <div style={{ width: 320, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <ActivitySidebar events={events} dailyTrades={dailyTrades} selectedDate={selected} />
+      {/* ── Bottom: Trade Log ────────────────────────────────────────────── */}
+      <div style={{
+        flex: '1 1 50%',
+        minHeight: 0,
+        overflow: 'hidden',
+        borderTop: '2px solid var(--border)',
+        background: 'var(--bg-card)',
+      }}>
+        <TradeLog trades={state.sync.trades} />
       </div>
     </div>
   )
