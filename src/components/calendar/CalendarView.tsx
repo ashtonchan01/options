@@ -317,20 +317,23 @@ function WeekPnLCell({
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 function ActivitySidebar({
-  events, dailyTrades, selectedDate,
+  events, dailyTrades, selectedDate, year, month,
 }: {
   events: ExpiryEvent[]
   dailyTrades: Record<string, DailyTradeData>
   selectedDate: string | null
+  year: number
+  month: number // 0-indexed
 }) {
-  const allDates = useMemo(() => {
+  const monthDates = useMemo(() => {
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
     const dateSet = new Set<string>()
-    for (const e of events) dateSet.add(e.date)
-    for (const d of Object.keys(dailyTrades)) dateSet.add(d)
+    for (const e of events) if (e.date.startsWith(prefix)) dateSet.add(e.date)
+    for (const d of Object.keys(dailyTrades)) if (d.startsWith(prefix)) dateSet.add(d)
     return [...dateSet].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
-  }, [events, dailyTrades])
+  }, [events, dailyTrades, year, month])
 
-  const displayDates = selectedDate ? [selectedDate] : allDates
+  const displayDates = selectedDate ? [selectedDate] : monthDates
 
   const title = selectedDate
     ? new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
@@ -557,7 +560,7 @@ export default function CalendarView({ state }: Props) {
 
         {/* Activity sidebar */}
         <div style={{ width: 300, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <ActivitySidebar events={events} dailyTrades={dailyTrades} selectedDate={selected} />
+          <ActivitySidebar events={events} dailyTrades={dailyTrades} selectedDate={selected} year={year} month={month} />
         </div>
       </div>
 
