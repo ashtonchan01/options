@@ -327,7 +327,7 @@ function ActivitySidebar({
     const dateSet = new Set<string>()
     for (const e of events) dateSet.add(e.date)
     for (const d of Object.keys(dailyTrades)) dateSet.add(d)
-    return [...dateSet].sort().reverse()
+    return [...dateSet].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
   }, [events, dailyTrades])
 
   const displayDates = selectedDate ? [selectedDate] : allDates
@@ -370,7 +370,7 @@ function ActivitySidebar({
                 )}
               </div>
 
-              {dayTrades && dayTrades.trades.map((t, i) => (
+              {dayTrades && [...dayTrades.trades].sort((a, b) => Math.abs(b.netCash) - Math.abs(a.netCash)).map((t, i) => (
                 <div key={`t-${i}`} style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '5px 14px', borderTop: '1px solid var(--border-light)',
