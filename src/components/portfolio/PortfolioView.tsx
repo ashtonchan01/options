@@ -1,276 +1,414 @@
-import type { AppState, Strategy, StrategyType } from '../../types'
-import EmptyState from '../shared/EmptyState'
+import { useMemo } from 'react'
+import type { AppState, RawPosition } from '../../types'
+import { PORTFOLIO_TARGETS, CASH_TARGET, CASH_TARGET_1M, ALLOCATION_TARGETS, PRE_IPO_WATCHLIST } from './portfolioTargets'
 
-const STRAT_COLOR: Record<StrategyType, string> = {
-  csp:          '#f43f5e',
-  covered_call: '#818cf8',
-  pmcc:         '#3b82f6',
-  risk_reversal:'#38bdf8',
-  put_spread:   '#fbbf24',
-  call_spread:  '#fb923c',
-  leap:         '#10b981',
-  other:        '#64748b',
+function fmt$(n: number, d = 0) {
+  const prefix = n < 0 ? '-$' : '$'
+  return prefix + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
 }
 
-const STRAT_LABEL: Record<StrategyType, string> = {
-  csp:          'CSP',
-  covered_call: 'CC',
-  pmcc:         'PMCC',
-  risk_reversal:'RISK REV',
-  put_spread:   'PUT SPD',
-  call_spread:  'CALL SPD',
-  leap:         'LEAP',
-  other:        'OTHER',
-}
-
-function fmt$(n: number, digits = 0) {
-  return (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
-}
 function fmtPct(n: number) {
-  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'
-}
-function pnlClass(n: number) {
-  return n > 0 ? 'pos' : n < 0 ? 'neg' : 'neu'
-}
-function normalizeDate(raw: string): string {
-  return raw.length === 8 ? `${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}` : raw
-}
-function fmtExpiry(raw: string): string {
-  const d = new Date(normalizeDate(raw))
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+  return (n >= 0 ? '' : '') + (n * 100).toFixed(2) + '%'
 }
 
-// ── Tile styles for bento grid ──────────────────────────────────────────────────
+// ─── Pie chart (SVG) ────────────────────────────────────────────────────────
 
-const tile: React.CSSProperties = {
-  background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
-  overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0,
-}
-const tileHdr: React.CSSProperties = {
-  padding: '12px 20px', borderBottom: '1px solid var(--border)',
-  fontSize: 13, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', flexShrink: 0,
-}
+const CHART_COLORS = [
+  '#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#6366F1',
+  '#ec4899', '#14b8a6', '#fb923c', '#8b5cf6', '#ef4444',
+  '#06b6d4', '#84cc16', '#a855f7', '#22d3ee', '#f97316',
+  '#64748b',
+]
 
-interface PortfolioViewProps { state: AppState }
+function PieChart({ slices, title, size = 200 }: {
+  slices: { label: string; value: number; color?: string }[]
+  title: string
+  size?: number
+}) {
+  const total = slices.reduce((s, sl) => s + sl.value, 0)
+  if (total <= 0) return null
 
-export default function PortfolioView({ state }: PortfolioViewProps) {
-  const { positions, trades, cashBalance, netLiquidation: ibkrNetLiq } = state.sync
-  const { strategies } = state
+  const r = size / 2 - 4
+  const cx = size / 2
+  const cy = size / 2
 
-  const hasData = positions.length > 0 || strategies.length > 0
+  let cumAngle = -Math.PI / 2
+  const arcs = slices
+    .filter(sl => sl.value > 0)
+    .map((sl, i) => {
+      const pct = sl.value / total
+      const angle = pct * 2 * Math.PI
+      const startAngle = cumAngle
+      const endAngle = cumAngle + angle
+      cumAngle = endAngle
 
-  if (!hasData) {
-    return (
-      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <EmptyState
-          title="No portfolio data"
-          message="Upload an IBKR Flex XML or connect via Flex API to load your positions."
-          showUpload
-        />
-      </div>
-    )
-  }
+      const x1 = cx + r * Math.cos(startAngle)
+      const y1 = cy + r * Math.sin(startAngle)
+      const x2 = cx + r * Math.cos(endAngle)
+      const y2 = cy + r * Math.sin(endAngle)
+      const largeArc = angle > Math.PI ? 1 : 0
+      const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`
 
-  const stocks = positions.filter(p => p.assetClass === 'STK')
-  const totalStockValue = stocks.reduce((s, p) => s + p.positionValue, 0)
-  const totalStockPnL   = stocks.reduce((s, p) => s + p.unrealizedPnL, 0)
-  const totalOptionPnL  = strategies.reduce((s, st) => s + st.unrealizedPnL, 0)
-  const totalPremium    = strategies.reduce((s, st) => s + st.netPremiumReceived, 0)
-  const allPositionsValue = positions.reduce((s, p) => s + p.positionValue, 0)
-  const computedNetLiq    = allPositionsValue + cashBalance
-  const netLiq            = ibkrNetLiq ?? computedNetLiq
-  const totalPnL          = totalStockPnL + totalOptionPnL
+      const midAngle = startAngle + angle / 2
+      const labelR = r * 0.65
+      const lx = cx + labelR * Math.cos(midAngle)
+      const ly = cy + labelR * Math.sin(midAngle)
 
-  const byType = strategies.reduce<Record<string, Strategy[]>>((acc, s) => {
-    acc[s.type] = [...(acc[s.type] ?? []), s]
-    return acc
-  }, {})
-
-  const hasStocks = stocks.length > 0
-  const hasStrats = strategies.length > 0
-  const hasTrades = trades.length > 0
-  const gridCols = hasStocks && hasStrats ? '2fr 3fr' : '1fr'
+      return { ...sl, d, pct, lx, ly, color: sl.color ?? CHART_COLORS[i % CHART_COLORS.length] }
+    })
 
   return (
-    <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
-
-      {/* ── Stats row ──────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, flexShrink: 0 }}>
-        {[
-          { label: 'NET LIQUIDATION', value: fmt$(netLiq), color: 'var(--text-1)' },
-          { label: 'CASH', value: fmt$(cashBalance), color: 'var(--text-1)' },
-          { label: 'UNREALIZED P&L', value: fmt$(totalPnL), color: totalPnL >= 0 ? '#10b981' : '#f43f5e' },
-          { label: 'STOCK VALUE', value: fmt$(totalStockValue), color: 'var(--text-1)' },
-          { label: 'PREMIUM', value: fmt$(totalPremium), color: totalPremium >= 0 ? '#10b981' : '#f43f5e' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="stat-card">
-            <div className="stat-label">{label}</div>
-            <div className="stat-value" style={{ color, fontSize: 28 }}>{value}</div>
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em' }}>{title}</span>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {arcs.map((a, i) => (
+          <path key={i} d={a.d} fill={a.color} stroke="var(--bg-card)" strokeWidth={1.5} />
         ))}
-      </div>
-
-      {/* ── Main tiles (equity left, strategies right) ─────────────────── */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: gridCols, gap: 12, minHeight: 0 }}>
-
-        {hasStocks && (
-          <div style={tile}>
-            <div style={tileHdr}>EQUITY POSITIONS</div>
-            <div style={{ overflow: 'auto', flex: 1 }}>
-              <table className="trade-table" style={{ fontSize: 14 }}>
-                <thead>
-                  <tr>
-                    {['SYMBOL', 'QTY', 'AVG COST', 'MARK', 'VALUE', 'P&L', 'RETURN'].map(h => (
-                      <th key={h} style={{ fontSize: 12, padding: '12px 16px' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {stocks.map(p => {
-                    const ret = p.costBasisPrice > 0 ? (p.markPrice - p.costBasisPrice) / p.costBasisPrice * 100 : 0
-                    return (
-                      <tr key={p.symbol}>
-                        <td style={{ padding: '12px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, fontWeight: 600, color: 'var(--text-1)' }}>{p.symbol}</td>
-                        <td style={{ padding: '12px 16px' }} className="mono">{p.quantity.toLocaleString()}</td>
-                        <td style={{ padding: '12px 16px' }} className="mono">{fmt$(p.costBasisPrice, 2)}</td>
-                        <td style={{ padding: '12px 16px' }} className="mono">{fmt$(p.markPrice, 2)}</td>
-                        <td style={{ padding: '12px 16px' }} className="mono">{fmt$(p.positionValue)}</td>
-                        <td style={{ padding: '12px 16px' }} className={`mono ${pnlClass(p.unrealizedPnL)}`}>{fmt$(p.unrealizedPnL)}</td>
-                        <td style={{ padding: '12px 16px' }} className={`mono ${pnlClass(ret)}`}>{fmtPct(ret)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {hasStrats && (
-          <div style={tile}>
-            <div style={tileHdr}>OPTIONS STRATEGIES</div>
-            <div style={{ overflow: 'auto', flex: 1, padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(Object.entries(byType) as [StrategyType, Strategy[]][]).map(([type, strats]) => (
-                <StrategyGroup key={type} type={type} strategies={strats} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Recent trades tile (bottom) ────────────────────────────────── */}
-      {hasTrades && (
-        <div style={{ ...tile, maxHeight: 220, flexShrink: 0 }}>
-          <div style={tileHdr}>RECENT TRADES</div>
-          <div style={{ overflow: 'auto', flex: 1 }}>
-            <table className="trade-table" style={{ fontSize: 14 }}>
-              <thead>
-                <tr>
-                  {['DATE', 'SYMBOL', 'TYPE', 'QTY', 'PRICE', 'PROCEEDS', 'NET'].map(h => (
-                    <th key={h} style={{ fontSize: 12, padding: '12px 16px' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {trades.slice(0, 20).map((t, i) => (
-                  <tr key={i}>
-                    <td style={{ padding: '10px 16px' }} className="mono">{t.tradeDate}</td>
-                    <td style={{ padding: '10px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, color: 'var(--text-1)' }}>{t.underlyingSymbol ?? t.symbol}</td>
-                    <td style={{ padding: '10px 16px' }}>
-                      <span style={{ fontSize: 11, letterSpacing: 1, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-2)' }}>
-                        {t.assetClass === 'OPT' ? `${t.putCall} ${t.strike}` : t.assetClass}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 16px' }} className={`mono ${t.quantity > 0 ? 'pos' : 'neg'}`}>{t.quantity > 0 ? '+' : ''}{t.quantity}</td>
-                    <td style={{ padding: '10px 16px' }} className="mono">{fmt$(t.tradePrice, 2)}</td>
-                    <td style={{ padding: '10px 16px' }} className={`mono ${pnlClass(t.proceeds)}`}>{fmt$(t.proceeds)}</td>
-                    <td style={{ padding: '10px 16px' }} className={`mono ${pnlClass(t.netCash)}`}>{fmt$(t.netCash)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+        {arcs.filter(a => a.pct >= 0.04).map((a, i) => (
+          <text key={`l-${i}`} x={a.lx} y={a.ly} textAnchor="middle" dominantBaseline="middle"
+            fill="#fff" fontSize={9} fontWeight={700} fontFamily="IBM Plex Mono, monospace">
+            {a.label}
+          </text>
+        ))}
+        {arcs.filter(a => a.pct >= 0.04).map((a, i) => (
+          <text key={`p-${i}`} x={a.lx} y={a.ly + 11} textAnchor="middle" dominantBaseline="middle"
+            fill="rgba(255,255,255,0.7)" fontSize={8} fontFamily="IBM Plex Mono, monospace">
+            {(a.pct * 100).toFixed(1)}%
+          </text>
+        ))}
+      </svg>
     </div>
   )
 }
 
-// ── Strategy group card ────────────────────────────────────────────────────────
+// ─── Row data builder ───────────────────────────────────────────────────────
 
-function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: Strategy[] }) {
-  const color = STRAT_COLOR[type]
-  const label = STRAT_LABEL[type]
-  const totalPnL = strategies.reduce((s, st) => s + st.unrealizedPnL, 0)
-  const totalPremium = strategies.reduce((s, st) => s + st.netPremiumReceived, 0)
+interface PortfolioRow {
+  ticker: string
+  marketPrice: number
+  ath: number
+  athPct: number
+  priceTarget2026: number
+  targetPct: number
+  atr1: number
+  atr2: number
+  cagr: number
+  price2026: number
+  price2027: number
+  price2028: number
+  targetShares: number
+  targetAmount: number
+  targetReqShares: number
+  targetReqAmount: number
+  sharesOwned: number
+  costPrice: number
+  currentValue: number
+  category: 'stock' | 'crypto' | 'cash'
+}
+
+function buildRows(positions: RawPosition[]): PortfolioRow[] {
+  const posMap = new Map<string, RawPosition>()
+  for (const p of positions) {
+    if (p.assetClass === 'STK') posMap.set(p.symbol, p)
+  }
+
+  return PORTFOLIO_TARGETS.map(t => {
+    const pos = posMap.get(t.ticker)
+    const marketPrice = pos?.markPrice ?? 0
+    const athPct = t.ath > 0 ? (t.ath - marketPrice) / t.ath : 0
+    const targetPct = marketPrice > 0 ? (t.priceTarget2026 - marketPrice) / marketPrice : 0
+    const price2026 = t.priceTarget2026
+    const price2027 = price2026 * (1 + t.cagr)
+    const price2028 = price2027 * (1 + t.cagr)
+
+    return {
+      ticker: t.ticker,
+      marketPrice,
+      ath: t.ath,
+      athPct,
+      priceTarget2026: t.priceTarget2026,
+      targetPct,
+      atr1: t.atr1,
+      atr2: t.atr2,
+      cagr: t.cagr,
+      price2026,
+      price2027,
+      price2028,
+      targetShares: t.targetShares,
+      targetAmount: t.targetShares * marketPrice,
+      targetReqShares: t.targetReqShares,
+      targetReqAmount: t.targetReqShares * marketPrice,
+      sharesOwned: pos?.quantity ?? 0,
+      costPrice: pos?.costBasisPrice ?? 0,
+      currentValue: pos?.positionValue ?? 0,
+      category: t.category,
+    }
+  })
+}
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
+const thStyle: React.CSSProperties = {
+  padding: '6px 10px', fontSize: 10, fontWeight: 700,
+  color: 'var(--text-3)', letterSpacing: '0.06em',
+  whiteSpace: 'nowrap', textAlign: 'right',
+  borderBottom: '1px solid var(--border)',
+  background: 'var(--bg-elevated)',
+  position: 'sticky', top: 23, zIndex: 4,
+}
+
+const sectionTh: React.CSSProperties = {
+  padding: '4px 10px', fontSize: 10, fontWeight: 700,
+  letterSpacing: '0.1em', textAlign: 'center',
+  borderBottom: '1px solid var(--border)',
+  background: 'var(--bg-card)',
+  position: 'sticky', top: 0, zIndex: 5,
+  pointerEvents: 'none',
+}
+
+const tdStyle: React.CSSProperties = {
+  padding: '5px 10px', fontSize: 12,
+  fontFamily: 'IBM Plex Mono, monospace',
+  textAlign: 'right', whiteSpace: 'nowrap',
+  borderBottom: '1px solid var(--border-light)',
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
+
+export default function PortfolioView({ state }: { state: AppState }) {
+  const { positions, cashBalance, netLiquidation: ibkrNetLiq } = state.sync
+
+  const rows = useMemo(() => buildRows(positions), [positions])
+
+  const totalTargetAmt = rows.reduce((s, r) => s + r.targetAmount, 0) + CASH_TARGET
+  const totalReqAmt = rows.reduce((s, r) => s + r.targetReqAmount, 0) + CASH_TARGET_1M
+  const totalCurrentVal = rows.reduce((s, r) => s + r.currentValue, 0) + cashBalance
+  const netLiq = ibkrNetLiq ?? totalCurrentVal
+
+  // Pie chart data
+  const targetSlices = rows.filter(r => r.targetAmount > 0).map(r => ({ label: r.ticker, value: r.targetAmount }))
+  targetSlices.push({ label: 'CASH', value: CASH_TARGET })
+
+  const reqSlices = rows.filter(r => r.targetReqAmount > 0).map(r => ({ label: r.ticker, value: r.targetReqAmount }))
+  reqSlices.push({ label: 'CASH', value: CASH_TARGET_1M })
+
+  const currentSlices = rows.filter(r => r.currentValue > 0).map(r => ({ label: r.ticker, value: r.currentValue }))
+  if (cashBalance > 0) currentSlices.push({ label: 'CASH', value: cashBalance })
 
   return (
-    <div style={{ border: `1px solid #1E2540`, background: 'var(--bg-card)', borderRadius: 10, borderLeft: `3px solid ${color}`, overflow: 'hidden' }}>
-      {/* Group header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '12px 16px', borderBottom: '1px solid var(--border)',
-        background: 'var(--bg-elevated)',
-      }}>
-        <span className="display" style={{ color, fontSize: 14, fontWeight: 700, letterSpacing: 2 }}>{label}</span>
-        <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{strategies.length}</span>
-        <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text-3)' }}>Prem</span>
-        <span className={`mono ${totalPremium >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 14, minWidth: 70, textAlign: 'right' }}>{fmt$(totalPremium)}</span>
-        <span style={{ fontSize: 13, color: 'var(--text-3)', marginLeft: 8 }}>P&L</span>
-        <span className={`mono ${totalPnL >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 14, minWidth: 70, textAlign: 'right' }}>{fmt$(totalPnL)}</span>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+      {/* ── Stats row ────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 8, padding: '12px 16px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+        {[
+          { label: 'NET LIQUIDATION', value: fmt$(netLiq), color: 'var(--text-1)' },
+          { label: 'TARGET PORTFOLIO', value: fmt$(totalTargetAmt), color: 'var(--text-2)' },
+          { label: '$1M TARGET', value: fmt$(totalReqAmt), color: 'var(--text-2)' },
+          { label: 'CURRENT VALUE', value: fmt$(totalCurrentVal), color: totalCurrentVal > 0 ? '#10b981' : 'var(--text-2)' },
+          { label: 'CASH', value: fmt$(cashBalance), color: 'var(--text-1)' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{
+            flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '10px 16px',
+          }}>
+            <div style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace', color }}>{value}</div>
+          </div>
+        ))}
       </div>
 
-      {/* Legs table */}
-      <table className="trade-table" style={{ fontSize: 14 }}>
-        <thead>
-          <tr>
-            {['UNDERLYING', 'LEG', 'STRIKE', 'EXPIRY', 'DTE', 'QTY', 'MARK', 'COST', 'P&L'].map(h => (
-              <th key={h} style={{ fontSize: 11, padding: '8px 12px' }}>{h}</th>
+      {/* ── Main content ─────────────────────────────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+
+        {/* Left sidebar: Pre-IPO + Allocation */}
+        <div style={{
+          width: 160, flexShrink: 0, borderRight: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column', overflow: 'auto',
+        }}>
+          {/* Allocation targets */}
+          <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', marginBottom: 10 }}>
+              TARGET ALLOCATION
+            </div>
+            {ALLOCATION_TARGETS.map(a => (
+              <div key={a.label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 2, background: a.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', flex: 1 }}>{a.label}</span>
+                <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-1)', fontWeight: 700 }}>{a.pct}%</span>
+              </div>
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {strategies.flatMap(s =>
-            s.legs.map((leg, i) => (
-              <tr key={`${s.id}-${i}`}>
-                {i === 0 && (
-                  <td
-                    rowSpan={s.legs.length}
-                    style={{ padding: '12px 14px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, fontWeight: 700, color: 'var(--text-1)', verticalAlign: 'middle' }}
-                  >
-                    {s.underlying}
+          </div>
+
+          {/* Pre-IPO watchlist */}
+          <div style={{ padding: '12px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', marginBottom: 10 }}>
+              PRE-IPO WATCHLIST
+            </div>
+            {PRE_IPO_WATCHLIST.map(name => (
+              <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-4)', flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: 'var(--text-2)', fontWeight: 500 }}>{name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Center: Table + Charts */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+
+          {/* Table */}
+          <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 12, minWidth: 1600 }}>
+              <thead>
+                {/* Section headers */}
+                <tr>
+                  <th style={{ ...sectionTh, borderRight: '1px solid var(--border)', color: '#3b82f6', textAlign: 'left', width: 60 }}>&nbsp;</th>
+                  <th colSpan={12} style={{ ...sectionTh, color: '#3b82f6', borderRight: '2px solid var(--border)' }}>END PORTFOLIO GOAL</th>
+                  <th colSpan={2} style={{ ...sectionTh, color: '#f59e0b', borderRight: '2px solid var(--border)' }}>$1M TARGET</th>
+                  <th colSpan={3} style={{ ...sectionTh, color: '#10b981' }}>CURRENT PORTFOLIO</th>
+                </tr>
+                {/* Column headers */}
+                <tr>
+                  <th style={{ ...thStyle, textAlign: 'left', position: 'sticky', left: 0, zIndex: 6, background: 'var(--bg-elevated)', borderRight: '1px solid var(--border)' }}>TICKER</th>
+                  <th style={thStyle}>MKT PRICE</th>
+                  <th style={thStyle}>ATH</th>
+                  <th style={thStyle}>%</th>
+                  <th style={thStyle}>TARGET 2026</th>
+                  <th style={thStyle}>%</th>
+                  <th style={thStyle}>ATR 1</th>
+                  <th style={thStyle}>ATR 2</th>
+                  <th style={thStyle}>CAGR</th>
+                  <th style={thStyle}>2026</th>
+                  <th style={thStyle}>2027</th>
+                  <th style={thStyle}>2028</th>
+                  <th style={thStyle}>SHARES</th>
+                  <th style={{ ...thStyle, borderRight: '2px solid var(--border)' }}>TARGET AMT</th>
+                  <th style={thStyle}>SHARES</th>
+                  <th style={{ ...thStyle, borderRight: '2px solid var(--border)' }}>AMOUNT</th>
+                  <th style={thStyle}>OWNED</th>
+                  <th style={thStyle}>COST</th>
+                  <th style={thStyle}>VALUE</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, idx) => {
+                  const isCrypto = r.category === 'crypto'
+                  const pctColor = (v: number) => v > 0 ? '#10b981' : v < 0 ? '#f43f5e' : 'var(--text-2)'
+                  const athColor = r.athPct > 0.2 ? '#f43f5e' : r.athPct > 0.1 ? '#f59e0b' : '#10b981'
+
+                  return (
+                    <tr key={r.ticker} style={{ background: idx % 2 ? 'var(--bg-surface)' : 'transparent' }}>
+                      <td style={{
+                        ...tdStyle, textAlign: 'left', fontWeight: 700, fontSize: 13,
+                        color: isCrypto ? '#f59e0b' : 'var(--text-1)',
+                        position: 'sticky', left: 0, zIndex: 3,
+                        background: idx % 2 ? 'var(--bg-surface)' : 'var(--bg-card)',
+                        borderRight: '1px solid var(--border)',
+                      }}>
+                        {r.ticker}
+                      </td>
+                      <td style={{ ...tdStyle, color: r.marketPrice > 0 ? 'var(--text-1)' : 'var(--text-4)' }}>
+                        {r.marketPrice > 0 ? fmt$(r.marketPrice, 2) : '—'}
+                      </td>
+                      <td style={{ ...tdStyle, color: 'var(--text-2)' }}>{fmt$(r.ath, 2)}</td>
+                      <td style={{ ...tdStyle, color: athColor }}>{fmtPct(r.athPct)}</td>
+                      <td style={{ ...tdStyle, color: 'var(--text-1)' }}>{fmt$(r.priceTarget2026, 2)}</td>
+                      <td style={{ ...tdStyle, color: pctColor(r.targetPct) }}>{fmtPct(r.targetPct)}</td>
+                      <td style={{ ...tdStyle, color: r.marketPrice > 0 && r.marketPrice <= r.atr1 ? '#10b981' : 'var(--text-3)' }}>
+                        {fmt$(r.atr1, 2)}
+                      </td>
+                      <td style={{ ...tdStyle, color: r.marketPrice > 0 && r.marketPrice <= r.atr2 ? '#10b981' : 'var(--text-3)' }}>
+                        {fmt$(r.atr2, 2)}
+                      </td>
+                      <td style={{ ...tdStyle, color: r.cagr >= 0 ? '#10b981' : '#f43f5e', fontWeight: 600 }}>
+                        {(r.cagr * 100).toFixed(2)}%
+                      </td>
+                      <td style={{ ...tdStyle, color: 'var(--text-2)' }}>{fmt$(r.price2026, 2)}</td>
+                      <td style={{ ...tdStyle, color: 'var(--text-2)' }}>{fmt$(r.price2027, 2)}</td>
+                      <td style={{ ...tdStyle, color: 'var(--text-2)' }}>{fmt$(r.price2028, 2)}</td>
+                      <td style={{ ...tdStyle, color: 'var(--text-1)' }}>{r.targetShares.toLocaleString()}</td>
+                      <td style={{ ...tdStyle, color: 'var(--text-1)', borderRight: '2px solid var(--border)' }}>
+                        {r.targetAmount > 0 ? fmt$(r.targetAmount) : '—'}
+                      </td>
+                      <td style={{ ...tdStyle, color: 'var(--text-1)' }}>
+                        {typeof r.targetReqShares === 'number' && r.targetReqShares % 1 !== 0
+                          ? r.targetReqShares.toFixed(1)
+                          : r.targetReqShares.toLocaleString()}
+                      </td>
+                      <td style={{ ...tdStyle, color: 'var(--text-1)', borderRight: '2px solid var(--border)' }}>
+                        {r.targetReqAmount > 0 ? fmt$(r.targetReqAmount) : '—'}
+                      </td>
+                      <td style={{ ...tdStyle, color: r.sharesOwned > 0 ? 'var(--text-1)' : 'var(--text-4)' }}>
+                        {r.sharesOwned > 0 ? r.sharesOwned.toLocaleString() : '—'}
+                      </td>
+                      <td style={{ ...tdStyle, color: r.costPrice > 0 ? 'var(--text-2)' : 'var(--text-4)' }}>
+                        {r.costPrice > 0 ? fmt$(r.costPrice, 2) : '—'}
+                      </td>
+                      <td style={{ ...tdStyle, color: r.currentValue > 0 ? '#10b981' : 'var(--text-4)', fontWeight: r.currentValue > 0 ? 600 : 400 }}>
+                        {r.currentValue > 0 ? fmt$(r.currentValue) : '$0.00'}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {/* Cash row */}
+                <tr style={{ background: rows.length % 2 ? 'var(--bg-surface)' : 'transparent' }}>
+                  <td style={{
+                    ...tdStyle, textAlign: 'left', fontWeight: 700, fontSize: 13, color: '#10b981',
+                    position: 'sticky', left: 0, zIndex: 3,
+                    background: rows.length % 2 ? 'var(--bg-surface)' : 'var(--bg-card)',
+                    borderRight: '1px solid var(--border)',
+                  }}>CASH</td>
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <td key={i} style={{ ...tdStyle, color: 'var(--text-4)' }}>&nbsp;</td>
+                  ))}
+                  <td style={{ ...tdStyle, color: 'var(--text-1)', borderRight: '2px solid var(--border)' }}>{fmt$(CASH_TARGET)}</td>
+                  <td style={{ ...tdStyle, color: 'var(--text-4)' }}>&nbsp;</td>
+                  <td style={{ ...tdStyle, color: 'var(--text-1)', borderRight: '2px solid var(--border)' }}>{fmt$(CASH_TARGET_1M)}</td>
+                  <td style={{ ...tdStyle, color: 'var(--text-4)' }}>&nbsp;</td>
+                  <td style={{ ...tdStyle, color: 'var(--text-4)' }}>&nbsp;</td>
+                  <td style={{ ...tdStyle, color: cashBalance > 0 ? '#10b981' : 'var(--text-4)', fontWeight: cashBalance > 0 ? 600 : 400 }}>
+                    {fmt$(cashBalance, 2)}
                   </td>
-                )}
-                <td style={{ padding: '12px 14px' }}>
-                  <span style={{
-                    display: 'inline-block', fontSize: 12, letterSpacing: 1,
-                    padding: '2px 6px', fontWeight: 600,
-                    color: leg.putCall === 'C' ? '#818cf8' : '#f43f5e',
-                    border: `1px solid ${leg.putCall === 'C' ? '#312e81' : '#5b1a28'}`,
-                    background: leg.putCall === 'C' ? 'rgba(129,140,248,0.08)' : 'rgba(244,63,94,0.08)',
-                  }}>
-                    {leg.quantity > 0 ? 'LONG' : 'SHORT'} {leg.putCall === 'C' ? 'CALL' : 'PUT'}
-                  </span>
-                </td>
-                <td style={{ padding: '12px 14px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14 }} className="mono">{fmt$(leg.strike, 0)}</td>
-                <td style={{ padding: '12px 14px' }} className="mono">{fmtExpiry(leg.expiry)}</td>
-                <td style={{ padding: '12px 14px' }}>
-                  <span style={{
-                    fontSize: 13, fontWeight: 600,
-                    color: leg.dte <= 7 ? '#f43f5e' : leg.dte <= 21 ? '#f59e0b' : 'var(--text-2)',
-                  }}>
-                    {leg.dte}d
-                  </span>
-                </td>
-                <td style={{ padding: '12px 14px' }} className={`mono ${leg.quantity > 0 ? 'pos' : 'neg'}`}>{leg.quantity > 0 ? '+' : ''}{leg.quantity}</td>
-                <td style={{ padding: '12px 14px' }} className="mono">{fmt$(leg.markPrice, 2)}</td>
-                <td style={{ padding: '12px 14px' }} className="mono">{fmt$(leg.costBasis)}</td>
-                <td style={{ padding: '12px 14px' }} className={`mono ${pnlClass(leg.unrealizedPnL)}`}>{fmt$(leg.unrealizedPnL)}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+                </tr>
+                {/* Totals row */}
+                <tr style={{ background: 'var(--bg-elevated)' }}>
+                  <td style={{
+                    ...tdStyle, textAlign: 'left', fontWeight: 700, fontSize: 13, color: 'var(--text-1)',
+                    position: 'sticky', left: 0, zIndex: 3, background: 'var(--bg-elevated)',
+                    borderRight: '1px solid var(--border)', borderBottom: '2px solid var(--border)',
+                  }}>TOTAL</td>
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <td key={i} style={{ ...tdStyle, borderBottom: '2px solid var(--border)' }}>&nbsp;</td>
+                  ))}
+                  <td style={{ ...tdStyle, fontWeight: 700, color: 'var(--text-1)', borderRight: '2px solid var(--border)', borderBottom: '2px solid var(--border)' }}>
+                    {fmt$(totalTargetAmt)}
+                  </td>
+                  <td style={{ ...tdStyle, borderBottom: '2px solid var(--border)' }}>&nbsp;</td>
+                  <td style={{ ...tdStyle, fontWeight: 700, color: 'var(--text-1)', borderRight: '2px solid var(--border)', borderBottom: '2px solid var(--border)' }}>
+                    {fmt$(totalReqAmt)}
+                  </td>
+                  <td style={{ ...tdStyle, borderBottom: '2px solid var(--border)' }}>&nbsp;</td>
+                  <td style={{ ...tdStyle, borderBottom: '2px solid var(--border)' }}>&nbsp;</td>
+                  <td style={{ ...tdStyle, fontWeight: 700, color: '#10b981', borderBottom: '2px solid var(--border)' }}>
+                    {fmt$(totalCurrentVal)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pie charts row */}
+          <div style={{
+            flexShrink: 0, borderTop: '1px solid var(--border)',
+            display: 'flex', justifyContent: 'space-around', alignItems: 'center',
+            padding: '16px 20px', background: 'var(--bg-card)', gap: 16,
+          }}>
+            <PieChart slices={targetSlices} title="TARGET PORTFOLIO" size={220} />
+            <PieChart slices={reqSlices} title="$1M TARGET" size={220} />
+            <PieChart slices={currentSlices} title="CURRENT PORTFOLIO" size={220} />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
