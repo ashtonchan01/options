@@ -384,25 +384,45 @@ const sectionHdr: React.CSSProperties = {
   position: 'sticky', top: 0, zIndex: 3,
 }
 
+// Numeric columns default to descending (biggest first), strings to ascending
+const DESC_DEFAULT = new Set<SortKey>([
+  'week', 'dateOpen', 'contracts', 'strike', 'initialDTE', 'premium',
+  'openFees', 'netPremium', 'bep', 'currentDTE', 'dateClosed',
+  'closingPrice', 'closingFees', 'daysHeld', 'closingAmount', 'profitLoss',
+])
+
 export default function TradeLog({ trades }: { trades: RawTrade[] }) {
   const entries = useMemo(() => buildTradeLog(trades), [trades])
   const [sortKey, setSortKey] = useState<SortKey>('dateOpen')
-  const [sortAsc, setSortAsc] = useState(true)
+  const [sortAsc, setSortAsc] = useState(false)
 
   const sorted = useMemo(() => {
     return [...entries].sort((a, b) => {
       const av = a[sortKey], bv = b[sortKey]
+      // Nulls always sink to the bottom regardless of direction
       if (av == null && bv == null) return 0
       if (av == null) return 1
       if (bv == null) return -1
-      const diff = typeof av === 'string' ? av.localeCompare(bv as string) : (av as number) - (bv as number)
+
+      let diff: number
+      if (typeof av === 'number' && typeof bv === 'number') {
+        diff = av - bv
+      } else {
+        diff = String(av).localeCompare(String(bv))
+      }
+
+      // Tiebreaker: dateOpen keeps rows stable
+      if (diff === 0 && sortKey !== 'dateOpen') {
+        diff = a.dateOpen.localeCompare(b.dateOpen)
+      }
+
       return sortAsc ? diff : -diff
     })
   }, [entries, sortKey, sortAsc])
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(a => !a)
-    else { setSortKey(key); setSortAsc(true) }
+    else { setSortKey(key); setSortAsc(DESC_DEFAULT.has(key) ? false : true) }
   }
 
   const indicator = (key: SortKey) => sortKey === key ? (sortAsc ? ' ↑' : ' ↓') : ''

@@ -30,7 +30,7 @@ const STRAT_LABEL: Record<StrategyType, string> = {
   other:         'OTH',
 }
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -64,6 +64,11 @@ interface DayData {
   hasActivity: boolean
 }
 
+interface CalendarWeek {
+  dates: (string | null)[] // exactly 5 elements (Mon–Fri)
+  weekNum: number
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmt$(n: number, d = 0) {
@@ -77,6 +82,14 @@ function normalizeDate(s: string): string {
 
 function todayYMD(): string {
   return new Date().toISOString().slice(0, 10)
+}
+
+function isoWeek(d: Date): number {
+  const dt = new Date(d.getTime())
+  dt.setHours(0, 0, 0, 0)
+  dt.setDate(dt.getDate() + 4 - (dt.getDay() || 7))
+  const y1 = new Date(dt.getFullYear(), 0, 1)
+  return Math.ceil((((dt.getTime() - y1.getTime()) / 86400000) + 1) / 7)
 }
 
 // ─── Derive events from strategies ───────────────────────────────────────────
@@ -117,18 +130,48 @@ function buildDailyTrades(trades: RawTrade[]): Record<string, DailyTradeData> {
   return map
 }
 
-// ─── Calendar grid logic ──────────────────────────────────────────────────────
+// ─── Calendar weeks (Mon–Fri only) ──────────────────────────────────────────
 
-function calendarDays(year: number, month: number): (string | null)[] {
-  const firstDay = new Date(year, month, 1).getDay()
+function calendarWeeks(year: number, month: number): CalendarWeek[] {
   const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const cells: (string | null)[] = []
-  for (let i = 0; i < firstDay; i++) cells.push(null)
+  const weeks: CalendarWeek[] = []
+  let curWeek: (string | null)[] = []
+
   for (let d = 1; d <= daysInMonth; d++) {
-    cells.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`)
+    const date = new Date(year, month, d)
+    const dow = date.getDay() // 0=Sun … 6=Sat
+    if (dow === 0 || dow === 6) continue // skip weekends
+
+    const wdIdx = dow - 1 // 0=Mon … 4=Fri
+
+    // Monday → flush previous week if any
+    if (wdIdx === 0 && curWeek.length > 0) {
+      while (curWeek.length < 5) curWeek.push(null)
+      weeks.push({ dates: curWeek, weekNum: 0 })
+      curWeek = []
+    }
+
+    // Pad start of first partial week
+    if (curWeek.length === 0 && wdIdx > 0) {
+      for (let i = 0; i < wdIdx; i++) curWeek.push(null)
+    }
+
+    curWeek.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`)
   }
-  while (cells.length % 7 !== 0) cells.push(null)
-  return cells
+
+  // Flush last week
+  if (curWeek.length > 0) {
+    while (curWeek.length < 5) curWeek.push(null)
+    weeks.push({ dates: curWeek, weekNum: 0 })
+  }
+
+  // Fill week numbers
+  for (const w of weeks) {
+    const first = w.dates.find(d => d !== null)
+    if (first) w.weekNum = isoWeek(new Date(first + 'T12:00:00'))
+  }
+
+  return weeks
 }
 
 // ─── Day cell ────────────────────────────────────────────────────────────────
@@ -163,7 +206,6 @@ function DayCell({
         flexDirection: 'column',
       }}
     >
-      {/* Day number + daily P&L */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
         <span style={{
           fontSize: 13, fontWeight: isToday ? 700 : 400,
@@ -184,7 +226,6 @@ function DayCell({
         )}
       </div>
 
-      {/* Trade count badge */}
       {trades && trades.tradeCount > 0 && (
         <div style={{
           fontSize: 10, fontFamily: 'IBM Plex Mono, monospace',
@@ -197,7 +238,6 @@ function DayCell({
         </div>
       )}
 
-      {/* Expiry pills */}
       {events.slice(0, 2).map((ev, i) => {
         const color = STRAT_COLOR[ev.strategyType]
         return (
@@ -218,6 +258,57 @@ function DayCell({
         <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'IBM Plex Mono, monospace' }}>
           +{events.length - 2}
         </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Weekly P&L cell ─────────────────────────────────────────────────────────
+
+function WeekPnLCell({
+  weekNum, dates, dailyTrades,
+}: {
+  weekNum: number
+  dates: (string | null)[]
+  dailyTrades: Record<string, DailyTradeData>
+}) {
+  const weekPnL = dates
+    .filter((d): d is string => d !== null)
+    .reduce((s, d) => s + (dailyTrades[d]?.netCash ?? 0), 0)
+  const tradeCount = dates
+    .filter((d): d is string => d !== null)
+    .reduce((s, d) => s + (dailyTrades[d]?.tradeCount ?? 0), 0)
+
+  return (
+    <div style={{
+      background: weekPnL !== 0 ? (weekPnL > 0 ? '#10b98108' : '#f43f5e08') : 'var(--bg-surface)',
+      border: `1px solid ${weekPnL > 0 ? '#10b98120' : weekPnL < 0 ? '#f43f5e20' : 'var(--bg-active)'}`,
+      borderRadius: 4,
+      padding: '4px 8px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 2,
+    }}>
+      <span style={{ fontSize: 10, color: 'var(--text-4)', fontWeight: 600, letterSpacing: '0.05em' }}>
+        WK {weekNum}
+      </span>
+      {weekPnL !== 0 ? (
+        <span style={{
+          fontSize: 14, fontWeight: 700,
+          fontFamily: 'IBM Plex Mono, monospace',
+          color: weekPnL >= 0 ? '#10b981' : '#f43f5e',
+        }}>
+          {weekPnL >= 0 ? '+' : ''}{Math.round(weekPnL).toLocaleString()}
+        </span>
+      ) : (
+        <span style={{ fontSize: 11, color: 'var(--text-4)' }}>—</span>
+      )}
+      {tradeCount > 0 && (
+        <span style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'IBM Plex Mono, monospace' }}>
+          {tradeCount} trade{tradeCount !== 1 ? 's' : ''}
+        </span>
       )}
     </div>
   )
@@ -356,9 +447,8 @@ export default function CalendarView({ state }: Props) {
     return map
   }, [events])
 
-  const cells = useMemo(() => calendarDays(year, month), [year, month])
+  const weeks = useMemo(() => calendarWeeks(year, month), [year, month])
   const todayStr = todayYMD()
-  const numRows = Math.ceil(cells.length / 7)
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11) }
@@ -429,38 +519,39 @@ export default function CalendarView({ state }: Props) {
             )}
           </div>
 
-          {/* Day headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginBottom: 3, flexShrink: 0 }}>
-            {DAYS.map(d => (
+          {/* Day headers: Mon–Fri + WK P&L */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) 100px', gap: 3, marginBottom: 3, flexShrink: 0 }}>
+            {WEEKDAYS.map(d => (
               <div key={d} style={{ padding: '4px', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', textAlign: 'center' }}>
                 {d}
               </div>
             ))}
+            <div style={{ padding: '4px', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', textAlign: 'center' }}>
+              WK P&L
+            </div>
           </div>
 
-          {/* Grid */}
+          {/* Grid: 5 weekday cols + 1 P&L col */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(7, 1fr)',
-            gridTemplateRows: `repeat(${numRows}, minmax(0, 1fr))`,
+            gridTemplateColumns: 'repeat(5, 1fr) 100px',
+            gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))`,
             gap: 3,
             flex: 1,
             minHeight: 0,
             overflow: 'hidden',
           }}>
-            {cells.map((date, i) => {
-              const data = getDayData(date)
-              return (
-                <DayCell
-                  key={i}
-                  date={date}
-                  data={data}
-                  isToday={date === todayStr}
-                  isSelected={date === selected}
-                  onClick={() => date && data.hasActivity && setSelected(date === selected ? null : date)}
-                />
-              )
-            })}
+            {weeks.map((week, wi) => (
+              <WeekRow
+                key={wi}
+                week={week}
+                getDayData={getDayData}
+                todayStr={todayStr}
+                selected={selected}
+                onSelect={(date) => setSelected(date === selected ? null : date)}
+                dailyTrades={dailyTrades}
+              />
+            ))}
           </div>
         </div>
 
@@ -481,5 +572,37 @@ export default function CalendarView({ state }: Props) {
         <TradeLog trades={state.sync.trades} />
       </div>
     </div>
+  )
+}
+
+// ─── Week row (renders 5 day cells + 1 P&L cell as grid children) ───────────
+
+function WeekRow({
+  week, getDayData, todayStr, selected, onSelect, dailyTrades,
+}: {
+  week: CalendarWeek
+  getDayData: (date: string | null) => DayData
+  todayStr: string
+  selected: string | null
+  onSelect: (date: string) => void
+  dailyTrades: Record<string, DailyTradeData>
+}) {
+  return (
+    <>
+      {week.dates.map((date, di) => {
+        const data = getDayData(date)
+        return (
+          <DayCell
+            key={di}
+            date={date}
+            data={data}
+            isToday={date === todayStr}
+            isSelected={date === selected}
+            onClick={() => date && data.hasActivity && onSelect(date)}
+          />
+        )
+      })}
+      <WeekPnLCell weekNum={week.weekNum} dates={week.dates} dailyTrades={dailyTrades} />
+    </>
   )
 }
