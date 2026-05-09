@@ -68,36 +68,82 @@ export function buildTradeLog(trades: RawTrade[]): TradeLogEntry[] {
   const opts = trades.filter(t => t.assetClass === 'OPT' && t.strike && t.expiry && t.putCall)
 
   // Group by contract key
-  const groups: Record<string, RawTrade[]> = {}
+  // Split into trade lifecycles: each time position goes flat→open→flat is one lifecycle.
+  // This prevents reopening the same contract from merging old + new trades.
+  // Key includes the open date cluster to separate re-trades.
+  const lifecycles: { key: string; opens: RawTrade[]; closes: RawTrade[] }[] = []
+
+  // First group by contract spec (underlying + putCall + strike + expiry)
+  const specGroups: Record<string, RawTrade[]> = {}
   for (const t of opts) {
     const under = t.underlyingSymbol || t.symbol.split(/\s/)[0]
-    const key = `${under}_${t.putCall}_${t.strike}_${t.expiry}`
-    ;(groups[key] ??= []).push(t)
+    const spec = `${under}_${t.putCall}_${t.strike}_${t.expiry}`
+    ;(specGroups[spec] ??= []).push(t)
+  }
+
+  // Within each spec group, split into lifecycles (open→close cycles)
+  for (const [spec, grp] of Object.entries(specGroups)) {
+    const sorted = [...grp].sort((a, b) => a.tradeDate.localeCompare(b.tradeDate))
+
+    // Classify each trade as open or close
+    const classified: { trade: RawTrade; oc: 'O' | 'C' }[] = []
+    const hasOC = sorted.some(t => t.openClose)
+
+    if (hasOC) {
+      // Use openClose field, treating undefined as open (fix: silent drop bug)
+      for (const t of sorted) {
+        classified.push({ trade: t, oc: t.openClose === 'C' ? 'C' : 'O' })
+      }
+    } else {
+      // Infer from position accumulation
+      let pos = 0
+      const initSign = sorted.find(t => t.quantity !== 0)?.quantity ?? 0
+      for (const t of sorted) {
+        if (t.quantity === 0) continue // skip zero-qty trades
+        if (pos === 0 || Math.sign(t.quantity) === Math.sign(initSign)) {
+          classified.push({ trade: t, oc: 'O' })
+        } else {
+          classified.push({ trade: t, oc: 'C' })
+        }
+        pos += t.quantity
+      }
+    }
+
+    // Split into lifecycles: each sequence of opens followed by closes
+    let curOpens: RawTrade[] = []
+    let curCloses: RawTrade[] = []
+    let openQty = 0
+    let closeQty = 0
+
+    for (const { trade, oc } of classified) {
+      if (oc === 'O') {
+        // If we had a completed lifecycle, flush it
+        if (curOpens.length > 0 && closeQty >= openQty && closeQty > 0) {
+          lifecycles.push({ key: `${spec}_${curOpens[0].tradeDate}`, opens: curOpens, closes: curCloses })
+          curOpens = []; curCloses = []; openQty = 0; closeQty = 0
+        }
+        curOpens.push(trade)
+        openQty += Math.abs(trade.quantity)
+      } else {
+        curCloses.push(trade)
+        closeQty += Math.abs(trade.quantity)
+        // If fully closed, flush
+        if (closeQty >= openQty && curOpens.length > 0) {
+          lifecycles.push({ key: `${spec}_${curOpens[0].tradeDate}`, opens: curOpens, closes: curCloses })
+          curOpens = []; curCloses = []; openQty = 0; closeQty = 0
+        }
+      }
+    }
+    // Remaining open or partially-closed lifecycle
+    if (curOpens.length > 0) {
+      lifecycles.push({ key: `${spec}_${curOpens[0].tradeDate}`, opens: curOpens, closes: curCloses })
+    }
   }
 
   const now = Date.now()
   const entries: TradeLogEntry[] = []
 
-  for (const [key, grp] of Object.entries(groups)) {
-    // Separate opens / closes
-    let opens: RawTrade[], closes: RawTrade[]
-    if (grp.some(t => t.openClose)) {
-      opens  = grp.filter(t => t.openClose === 'O')
-      closes = grp.filter(t => t.openClose === 'C')
-    } else {
-      // Infer from position accumulation
-      const sorted = [...grp].sort((a, b) => a.tradeDate.localeCompare(b.tradeDate))
-      opens = []; closes = []
-      let pos = 0
-      for (const t of sorted) {
-        if (pos === 0 || Math.sign(t.quantity) === Math.sign(sorted[0].quantity)) {
-          opens.push(t)
-        } else {
-          closes.push(t)
-        }
-        pos += t.quantity
-      }
-    }
+  for (const { key, opens, closes } of lifecycles) {
     if (opens.length === 0) continue
 
     const first   = opens[0]
@@ -111,6 +157,7 @@ export function buildTradeLog(trades: RawTrade[]): TradeLogEntry[] {
 
     // Aggregate opens
     const oQty   = opens.reduce((s, t) => s + Math.abs(t.quantity), 0)
+    if (oQty === 0) continue // guard against zero-qty division
     const oComm  = opens.reduce((s, t) => s + t.commissions, 0)
     const oNet   = opens.reduce((s, t) => s + t.netCash, 0)
     const avgP   = opens.reduce((s, t) => s + t.tradePrice * Math.abs(t.quantity), 0) / oQty
@@ -132,6 +179,7 @@ export function buildTradeLog(trades: RawTrade[]): TradeLogEntry[] {
     const expiryNorm = norm(first.expiry!)
     const expiryMs   = new Date(expiryNorm + 'T16:00:00').getTime()
     const openMs     = new Date(dateOpen + 'T12:00:00').getTime()
+    if (isNaN(expiryMs) || isNaN(openMs)) continue // guard against invalid dates
     const initDTE    = Math.max(0, Math.round((expiryMs - openMs) / 86400000))
     const curDTE     = Math.max(0, Math.round((expiryMs - now) / 86400000))
 
