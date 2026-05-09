@@ -6,12 +6,13 @@ import type { RawTrade } from '../../types'
 export interface TradeLogEntry {
   id: string
   week: number
+  yearWeek: number       // year*100+week for cross-year sorting (e.g. 202540, 202605)
   ticker: string
   dateOpen: string       // YYYY-MM-DD
   strategy: string       // CC, SHORT PUT, LONG CALL, LONG PUT
   contracts: number
   strike: number
-  expiry: string         // YYYYMMDD
+  expiry: string         // YYYY-MM-DD (normalised)
   initialDTE: number
   premium: number        // per-share avg price
   openFees: number       // absolute
@@ -40,12 +41,14 @@ function fmtDateShort(ymd: string): string {
   return `${d}/${m}/${y.slice(2)}`
 }
 
-function isoWeek(d: Date): number {
+function isoWeekYear(d: Date): { week: number; year: number } {
   const dt = new Date(d.getTime())
   dt.setHours(0, 0, 0, 0)
   dt.setDate(dt.getDate() + 4 - (dt.getDay() || 7))
-  const y1 = new Date(dt.getFullYear(), 0, 1)
-  return Math.ceil((((dt.getTime() - y1.getTime()) / 86400000) + 1) / 7)
+  const year = dt.getFullYear()
+  const y1 = new Date(year, 0, 1)
+  const week = Math.ceil((((dt.getTime() - y1.getTime()) / 86400000) + 1) / 7)
+  return { week, year }
 }
 
 function fmt$(n: number, digits = 2): string {
@@ -197,15 +200,18 @@ export function buildTradeLog(trades: RawTrade[]): TradeLogEntry[] {
         ? Math.round((expiryMs - openMs) / 86400000)
         : null
 
+    const { week: wk, year: wkYear } = isoWeekYear(new Date(dateOpen + 'T12:00:00'))
+
     entries.push({
       id:             key,
-      week:           isoWeek(new Date(dateOpen + 'T12:00:00')),
+      week:           wk,
+      yearWeek:       wkYear * 100 + wk,
       ticker:         under,
       dateOpen,
       strategy,
       contracts:      oQty,
       strike:         first.strike!,
-      expiry:         first.expiry!,
+      expiry:         expiryNorm,
       initialDTE:     initDTE,
       premium:        +avgP.toFixed(2),
       openFees:       +Math.abs(oComm).toFixed(2),
@@ -294,7 +300,7 @@ function renderCell(col: typeof COLS[number], e: TradeLogEntry): React.ReactNode
       return <span style={{ ...mono, color: 'var(--text-1)' }}>${e.strike.toLocaleString()}</span>
 
     case 'expiry':
-      return <span style={{ ...mono, color: 'var(--text-2)', fontSize: 12 }}>{fmtDateShort(norm(e.expiry))}</span>
+      return <span style={{ ...mono, color: 'var(--text-2)', fontSize: 12 }}>{fmtDateShort(e.expiry)}</span>
 
     case 'initialDTE':
       return <span style={{ ...mono, color: 'var(--text-2)' }}>{e.initialDTE}</span>
@@ -397,8 +403,11 @@ export default function TradeLog({ trades }: { trades: RawTrade[] }) {
   const [sortAsc, setSortAsc] = useState(false)
 
   const sorted = useMemo(() => {
+    // When sorting by 'week', use yearWeek (year*100+week) for cross-year correctness
+    const effectiveKey: keyof TradeLogEntry = sortKey === 'week' ? 'yearWeek' : sortKey
+
     return [...entries].sort((a, b) => {
-      const av = a[sortKey], bv = b[sortKey]
+      const av = a[effectiveKey], bv = b[effectiveKey]
       // Nulls always sink to the bottom regardless of direction
       if (av == null && bv == null) return 0
       if (av == null) return 1
@@ -408,12 +417,15 @@ export default function TradeLog({ trades }: { trades: RawTrade[] }) {
       if (typeof av === 'number' && typeof bv === 'number') {
         diff = av - bv
       } else {
-        diff = String(av).localeCompare(String(bv))
+        // Plain < > comparison — consistent across locales, correct for
+        // YYYY-MM-DD dates and any other string field
+        const sa = String(av), sb = String(bv)
+        diff = sa < sb ? -1 : sa > sb ? 1 : 0
       }
 
       // Tiebreaker: dateOpen keeps rows stable
-      if (diff === 0 && sortKey !== 'dateOpen') {
-        diff = a.dateOpen.localeCompare(b.dateOpen)
+      if (diff === 0 && effectiveKey !== 'dateOpen') {
+        diff = a.dateOpen < b.dateOpen ? -1 : a.dateOpen > b.dateOpen ? 1 : 0
       }
 
       return sortAsc ? diff : -diff
