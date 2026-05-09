@@ -9,7 +9,7 @@ const STRAT_COLOR: Record<StrategyType, string> = {
   put_spread:   '#fbbf24',
   call_spread:  '#fb923c',
   leap:         '#10b981',
-  other:        '#555',
+  other:        '#64748b',
 }
 
 const STRAT_LABEL: Record<StrategyType, string> = {
@@ -43,12 +43,12 @@ function fmtExpiry(raw: string): string {
 // ── Tile styles for bento grid ──────────────────────────────────────────────────
 
 const tile: React.CSSProperties = {
-  background: '#131726', border: '1px solid #1E2540', borderRadius: 10,
+  background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
   overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0,
 }
 const tileHdr: React.CSSProperties = {
-  padding: '12px 20px', borderBottom: '1px solid #1E2540',
-  fontSize: 13, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em', flexShrink: 0,
+  padding: '12px 20px', borderBottom: '1px solid var(--border)',
+  fontSize: 13, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', flexShrink: 0,
 }
 
 interface PortfolioViewProps { state: AppState }
@@ -97,10 +97,10 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
       {/* ── Stats row ──────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, flexShrink: 0 }}>
         {[
-          { label: 'NET LIQUIDATION', value: fmt$(netLiq), color: '#EAEDF3' },
-          { label: 'CASH', value: fmt$(cashBalance), color: '#EAEDF3' },
+          { label: 'NET LIQUIDATION', value: fmt$(netLiq), color: 'var(--text-1)' },
+          { label: 'CASH', value: fmt$(cashBalance), color: 'var(--text-1)' },
           { label: 'UNREALIZED P&L', value: fmt$(totalPnL), color: totalPnL >= 0 ? '#10b981' : '#f43f5e' },
-          { label: 'STOCK VALUE', value: fmt$(totalStockValue), color: '#EAEDF3' },
+          { label: 'STOCK VALUE', value: fmt$(totalStockValue), color: 'var(--text-1)' },
           { label: 'PREMIUM', value: fmt$(totalPremium), color: totalPremium >= 0 ? '#10b981' : '#f43f5e' },
         ].map(({ label, value, color }) => (
           <div key={label} className="stat-card">
@@ -130,7 +130,7 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
                     const ret = p.costBasisPrice > 0 ? (p.markPrice - p.costBasisPrice) / p.costBasisPrice * 100 : 0
                     return (
                       <tr key={p.symbol}>
-                        <td style={{ padding: '12px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, fontWeight: 600, color: '#EAEDF3' }}>{p.symbol}</td>
+                        <td style={{ padding: '12px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, fontWeight: 600, color: 'var(--text-1)' }}>{p.symbol}</td>
                         <td style={{ padding: '12px 16px' }} className="mono">{p.quantity.toLocaleString()}</td>
                         <td style={{ padding: '12px 16px' }} className="mono">{fmt$(p.costBasisPrice, 2)}</td>
                         <td style={{ padding: '12px 16px' }} className="mono">{fmt$(p.markPrice, 2)}</td>
@@ -175,9 +175,9 @@ export default function PortfolioView({ state }: PortfolioViewProps) {
                 {trades.slice(0, 20).map((t, i) => (
                   <tr key={i}>
                     <td style={{ padding: '10px 16px' }} className="mono">{t.tradeDate}</td>
-                    <td style={{ padding: '10px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, color: '#EAEDF3' }}>{t.underlyingSymbol ?? t.symbol}</td>
+                    <td style={{ padding: '10px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, color: 'var(--text-1)' }}>{t.underlyingSymbol ?? t.symbol}</td>
                     <td style={{ padding: '10px 16px' }}>
-                      <span style={{ fontSize: 11, letterSpacing: 1, padding: '2px 6px', border: '1px solid #1E2540', borderRadius: 4, color: '#9198AE' }}>
+                      <span style={{ fontSize: 11, letterSpacing: 1, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-2)' }}>
                         {t.assetClass === 'OPT' ? `${t.putCall} ${t.strike}` : t.assetClass}
                       </span>
                     </td>
@@ -205,18 +205,18 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
   const totalPremium = strategies.reduce((s, st) => s + st.netPremiumReceived, 0)
 
   return (
-    <div style={{ border: `1px solid #1E2540`, background: '#131726', borderRadius: 10, borderLeft: `3px solid ${color}`, overflow: 'hidden' }}>
+    <div style={{ border: `1px solid #1E2540`, background: 'var(--bg-card)', borderRadius: 10, borderLeft: `3px solid ${color}`, overflow: 'hidden' }}>
       {/* Group header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12,
-        padding: '12px 16px', borderBottom: '1px solid #1E2540',
-        background: '#171C30',
+        padding: '12px 16px', borderBottom: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
       }}>
         <span className="display" style={{ color, fontSize: 14, fontWeight: 700, letterSpacing: 2 }}>{label}</span>
-        <span style={{ fontSize: 12, color: '#5D6580' }}>{strategies.length}</span>
-        <span style={{ marginLeft: 'auto', fontSize: 13, color: '#5D6580' }}>Prem</span>
+        <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{strategies.length}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text-3)' }}>Prem</span>
         <span className={`mono ${totalPremium >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 14, minWidth: 70, textAlign: 'right' }}>{fmt$(totalPremium)}</span>
-        <span style={{ fontSize: 13, color: '#5D6580', marginLeft: 8 }}>P&L</span>
+        <span style={{ fontSize: 13, color: 'var(--text-3)', marginLeft: 8 }}>P&L</span>
         <span className={`mono ${totalPnL >= 0 ? 'pos' : 'neg'}`} style={{ fontSize: 14, minWidth: 70, textAlign: 'right' }}>{fmt$(totalPnL)}</span>
       </div>
 
@@ -236,7 +236,7 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
                 {i === 0 && (
                   <td
                     rowSpan={s.legs.length}
-                    style={{ padding: '12px 14px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, fontWeight: 700, color: '#EAEDF3', verticalAlign: 'middle' }}
+                    style={{ padding: '12px 14px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, fontWeight: 700, color: 'var(--text-1)', verticalAlign: 'middle' }}
                   >
                     {s.underlying}
                   </td>
@@ -257,7 +257,7 @@ function StrategyGroup({ type, strategies }: { type: StrategyType; strategies: S
                 <td style={{ padding: '12px 14px' }}>
                   <span style={{
                     fontSize: 13, fontWeight: 600,
-                    color: leg.dte <= 7 ? '#f43f5e' : leg.dte <= 21 ? '#f59e0b' : '#9198AE',
+                    color: leg.dte <= 7 ? '#f43f5e' : leg.dte <= 21 ? '#f59e0b' : 'var(--text-2)',
                   }}>
                     {leg.dte}d
                   </span>

@@ -15,7 +15,7 @@ const STRAT_COLOR: Record<StrategyType, string> = {
   put_spread:    '#fbbf24',
   call_spread:   '#fb923c',
   leap:          '#10b981',
-  other:         '#3B4263',
+  other:         '#64748b',
 }
 
 const STRAT_LABEL: Record<StrategyType, string> = {
@@ -141,7 +141,7 @@ function DayCell({
   isSelected: boolean
   onClick: () => void
 }) {
-  if (!date) return <div style={{ background: '#0F1220', borderRadius: 4 }} />
+  if (!date) return <div style={{ background: 'var(--bg-surface)', borderRadius: 4 }} />
 
   const dayNum = parseInt(date.split('-')[2])
   const { events, trades, hasActivity } = data
@@ -151,8 +151,8 @@ function DayCell({
     <div
       onClick={onClick}
       style={{
-        background: isSelected ? '#1A1F35' : hasActivity ? '#131726' : '#0F1220',
-        border: `1px solid ${isSelected ? '#312e81' : isToday ? '#3b82f6' : '#1A1F35'}`,
+        background: isSelected ? 'var(--bg-active)' : hasActivity ? 'var(--bg-card)' : 'var(--bg-surface)',
+        border: `1px solid ${isSelected ? '#312e81' : isToday ? '#3b82f6' : 'var(--bg-active)'}`,
         borderRadius: 4,
         padding: '4px 6px',
         cursor: hasActivity ? 'pointer' : 'default',
@@ -166,7 +166,7 @@ function DayCell({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
         <span style={{
           fontSize: 13, fontWeight: isToday ? 700 : 400,
-          color: isToday ? '#3b82f6' : hasActivity ? '#EAEDF3' : '#5D6580',
+          color: isToday ? '#3b82f6' : hasActivity ? 'var(--text-1)' : 'var(--text-3)',
           fontFamily: 'IBM Plex Mono, monospace',
           background: isToday ? '#3b82f614' : 'transparent',
           borderRadius: 2, padding: isToday ? '0 3px' : 0,
@@ -209,12 +209,12 @@ function DayCell({
             <span style={{ fontWeight: 700, color, fontFamily: 'IBM Plex Mono, monospace', flexShrink: 0 }}>
               {ev.underlying}
             </span>
-            <span style={{ color: '#9198AE', flexShrink: 0 }}>{STRAT_LABEL[ev.strategyType]}</span>
+            <span style={{ color: 'var(--text-2)', flexShrink: 0 }}>{STRAT_LABEL[ev.strategyType]}</span>
           </div>
         )
       })}
       {events.length > 2 && (
-        <div style={{ fontSize: 10, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace' }}>
+        <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'IBM Plex Mono, monospace' }}>
           +{events.length - 2}
         </div>
       )}
@@ -247,13 +247,13 @@ function ActivitySidebar({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
-      <div style={{ padding: '10px 14px', borderBottom: '1px solid #1E2540', fontSize: 13, fontWeight: 700, color: '#9198AE', letterSpacing: '0.08em', flexShrink: 0 }}>
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text-2)', letterSpacing: '0.08em', flexShrink: 0 }}>
         {title.toUpperCase()}
       </div>
 
       <div style={{ flex: 1, overflow: 'auto' }}>
         {displayDates.length === 0 && (
-          <div style={{ padding: 24, color: '#5D6580', fontSize: 14, textAlign: 'center' }}>
+          <div style={{ padding: 24, color: 'var(--text-3)', fontSize: 14, textAlign: 'center' }}>
             No activity
           </div>
         )}
@@ -268,10 +268,10 @@ function ActivitySidebar({
           const dayPnL = (dayTrades?.netCash ?? 0)
 
           return (
-            <div key={date} style={{ borderBottom: '1px solid #1A1F35' }}>
+            <div key={date} style={{ borderBottom: '1px solid var(--border-light)' }}>
               {/* Date header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: '#171C30' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#9198AE', fontFamily: 'IBM Plex Mono, monospace' }}>{label}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'var(--bg-elevated)' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', fontFamily: 'IBM Plex Mono, monospace' }}>{label}</span>
                 <div style={{ flex: 1 }} />
                 {dayPnL !== 0 && (
                   <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: dayPnL >= 0 ? '#10b981' : '#f43f5e' }}>
@@ -284,16 +284,16 @@ function ActivitySidebar({
               {dayTrades && dayTrades.trades.map((t, i) => (
                 <div key={`t-${i}`} style={{
                   display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '5px 14px', borderTop: '1px solid #1A1F35',
+                  padding: '5px 14px', borderTop: '1px solid var(--border-light)',
                   fontSize: 13,
                 }}>
                   <div style={{ width: 3, height: 24, background: t.netCash >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0, borderRadius: 1 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }}>
+                      <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }}>
                         {t.underlyingSymbol ?? t.symbol}
                       </span>
-                      <span style={{ fontSize: 10, padding: '1px 4px', border: '1px solid #1E2540', color: '#5D6580', borderRadius: 3 }}>
+                      <span style={{ fontSize: 10, padding: '1px 4px', border: '1px solid var(--border)', color: 'var(--text-3)', borderRadius: 3 }}>
                         {t.assetClass === 'OPT' ? `${t.putCall} ${t.strike}` : t.assetClass}
                       </span>
                       <span style={{ fontSize: 11, color: t.quantity > 0 ? '#10b981' : '#f43f5e', fontFamily: 'IBM Plex Mono, monospace' }}>
@@ -313,19 +313,19 @@ function ActivitySidebar({
                 return (
                   <div key={`e-${i}`} style={{
                     display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '5px 14px', borderTop: '1px solid #1A1F35',
+                    padding: '5px 14px', borderTop: '1px solid var(--border-light)',
                     fontSize: 13,
                   }}>
                     <div style={{ width: 3, height: 24, background: color, flexShrink: 0, borderRadius: 1 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span style={{ fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }}>
                           {ev.underlying}
                         </span>
                         <span style={{ padding: '1px 4px', fontSize: 10, fontWeight: 700, color, background: `${color}14`, border: `1px solid ${color}30`, borderRadius: 3 }}>
                           {STRAT_LABEL[ev.strategyType]}
                         </span>
-                        <span style={{ fontSize: 10, color: '#5D6580' }}>EXP</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-3)' }}>EXP</span>
                       </div>
                     </div>
                     <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: ev.unrealizedPnL >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0 }}>
@@ -408,24 +408,24 @@ export default function CalendarView({ state }: Props) {
 
         {/* Month nav */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexShrink: 0 }}>
-          <button onClick={prevMonth} style={{ background: 'none', border: '1px solid #1E2540', color: '#5D6580', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
+          <button onClick={prevMonth} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
             <ChevronLeft size={14} />
           </button>
-          <span style={{ fontSize: 15, fontWeight: 600, color: '#EAEDF3', minWidth: 150, textAlign: 'center' }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-1)', minWidth: 150, textAlign: 'center' }}>
             {MONTHS[month]} {year}
           </span>
-          <button onClick={nextMonth} style={{ background: 'none', border: '1px solid #1E2540', color: '#5D6580', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
+          <button onClick={nextMonth} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
             <ChevronRight size={14} />
           </button>
           <div style={{ flex: 1 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: '#5D6580' }}>{monthTradeCount} trades</span>
+            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{monthTradeCount} trades</span>
             <span style={{ fontSize: 15, fontWeight: 600, fontFamily: 'IBM Plex Mono, monospace', color: monthTradePnL >= 0 ? '#10b981' : '#f43f5e' }}>
               {monthTradePnL >= 0 ? '+' : ''}{Math.round(monthTradePnL).toLocaleString()}
             </span>
           </div>
           {selected && (
-            <button onClick={() => setSelected(null)} style={{ background: 'none', border: '1px solid #1E2540', color: '#5D6580', cursor: 'pointer', padding: '3px 8px', fontSize: 12, fontFamily: 'inherit', borderRadius: 4 }}>
+            <button onClick={() => setSelected(null)} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '3px 8px', fontSize: 12, fontFamily: 'inherit', borderRadius: 4 }}>
               Clear
             </button>
           )}
@@ -434,7 +434,7 @@ export default function CalendarView({ state }: Props) {
         {/* Day headers */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginBottom: 3, flexShrink: 0 }}>
           {DAYS.map(d => (
-            <div key={d} style={{ padding: '4px', fontSize: 11, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em', textAlign: 'center' }}>
+            <div key={d} style={{ padding: '4px', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', textAlign: 'center' }}>
               {d}
             </div>
           ))}
@@ -467,7 +467,7 @@ export default function CalendarView({ state }: Props) {
       </div>
 
       {/* ── Activity sidebar ──────────────────────────────────────────────── */}
-      <div style={{ width: 320, borderLeft: '1px solid #1E2540', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ width: 320, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <ActivitySidebar events={events} dailyTrades={dailyTrades} selectedDate={selected} />
       </div>
     </div>

@@ -55,12 +55,12 @@ function monthLabel(key: string): string {
 // ── Tile styles ──────────────────────────────────────────────────────────────
 
 const tile: React.CSSProperties = {
-  background: '#131726', border: '1px solid #1E2540', borderRadius: 10,
+  background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
   overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0,
 }
 const tileHdr: React.CSSProperties = {
-  padding: '12px 20px', borderBottom: '1px solid #1E2540',
-  fontSize: 13, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em', flexShrink: 0,
+  padding: '12px 20px', borderBottom: '1px solid var(--border)',
+  fontSize: 13, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', flexShrink: 0,
 }
 
 // ── Projection engine ────────────────────────────────────────────────────────
@@ -111,17 +111,17 @@ function PhaseProgressBar({ capital }: { capital: number }) {
 
         return (
           <div key={p.id} style={{ flex: segWidth, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ fontSize: 10, color: capital >= segStart ? p.color : '#2A3250', letterSpacing: 1, fontWeight: 600 }}>
+            <div style={{ fontSize: 10, color: capital >= segStart ? p.color : 'var(--text-5)', letterSpacing: 1, fontWeight: 600 }}>
               {p.label}
             </div>
-            <div style={{ height: 6, background: '#1E2540', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
               <div style={{
                 height: '100%', width: `${fillPct}%`,
                 background: `linear-gradient(90deg, ${p.color}80, ${p.color})`,
                 borderRadius: 3, transition: 'width 0.5s',
               }} />
             </div>
-            <div style={{ fontSize: 10, color: '#5D6580' }}>{fmtK(segEnd)}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-3)' }}>{fmtK(segEnd)}</div>
           </div>
         )
       })}
@@ -202,25 +202,25 @@ export default function PhasesView({ state }: Props) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, flexShrink: 0 }}>
 
         {/* Phase banner */}
-        <div style={{ background: '#131726', border: `1px solid ${phase.color}40`, borderTop: `3px solid ${phase.color}`, borderRadius: 10, padding: '14px 20px' }}>
+        <div style={{ background: 'var(--bg-card)', border: `1px solid ${phase.color}40`, borderTop: `3px solid ${phase.color}`, borderRadius: 10, padding: '14px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 11, color: phase.color, letterSpacing: 3, fontWeight: 700, marginBottom: 2 }}>
                 {phase.label}: {phase.sublabel.toUpperCase()}
               </div>
-              <div style={{ fontSize: 30, fontWeight: 700, color: '#EAEDF3', fontFamily: 'IBM Plex Mono, monospace' }}>
+              <div style={{ fontSize: 30, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace' }}>
                 {fmt$(capital)}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 11, color: '#5D6580', letterSpacing: 2, marginBottom: 2 }}>TO NEXT</div>
+              <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: 2, marginBottom: 2 }}>TO NEXT</div>
               <div style={{ fontSize: 22, fontWeight: 700, color: phase.color, fontFamily: 'IBM Plex Mono, monospace' }}>
                 {fmtK(Math.max(toNext, 0))}
               </div>
-              <div style={{ fontSize: 12, color: '#5D6580' }}>{phasePct.toFixed(0)}%</div>
+              <div style={{ fontSize: 12, color: 'var(--text-3)' }}>{phasePct.toFixed(0)}%</div>
             </div>
           </div>
-          <div style={{ height: 6, background: '#1E2540', borderRadius: 3, overflow: 'hidden', marginBottom: 10 }}>
+          <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden', marginBottom: 10 }}>
             <div style={{
               height: '100%', width: `${phasePct}%`,
               background: `linear-gradient(90deg, ${phase.color}80, ${phase.color})`,
@@ -228,21 +228,21 @@ export default function PhasesView({ state }: Props) {
             }} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
-            <div><span style={{ color: '#5D6580' }}>Sizing: </span><span style={{ color: phase.color }}>{phase.contractRule}</span></div>
-            <div><span style={{ color: '#5D6580' }}>Weekly: </span><span style={{ color: phase.color }}>{fmtK(phase.weeklyTarget)}</span></div>
-            <div><span style={{ color: '#5D6580' }}>ROI: </span><span style={{ color: phase.color }}>{phase.annualROI}</span></div>
-            <div><span style={{ color: '#5D6580' }}>Mix: </span><span style={{ color: phase.color }}>{phase.strategyMix}</span></div>
+            <div><span style={{ color: 'var(--text-3)' }}>Sizing: </span><span style={{ color: phase.color }}>{phase.contractRule}</span></div>
+            <div><span style={{ color: 'var(--text-3)' }}>Weekly: </span><span style={{ color: phase.color }}>{fmtK(phase.weeklyTarget)}</span></div>
+            <div><span style={{ color: 'var(--text-3)' }}>ROI: </span><span style={{ color: phase.color }}>{phase.annualROI}</span></div>
+            <div><span style={{ color: 'var(--text-3)' }}>Mix: </span><span style={{ color: phase.color }}>{phase.strategyMix}</span></div>
           </div>
         </div>
 
         {/* Stats grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: '1fr 1fr', gap: 8 }}>
           {[
-            { label: 'STRATEGIES', value: String(strategies.length), color: '#EAEDF3' },
+            { label: 'STRATEGIES', value: String(strategies.length), color: 'var(--text-1)' },
             { label: 'OPTION INCOME', value: fmt$(totalOptionIncome), color: '#10b981' },
-            { label: 'AVG MONTHLY', value: fmt$(avgMonthly), color: avgMonthly > 0 ? '#10b981' : '#5D6580' },
+            { label: 'AVG MONTHLY', value: fmt$(avgMonthly), color: avgMonthly > 0 ? '#10b981' : 'var(--text-3)' },
             { label: 'MO. RETURN', value: monthlyReturnPct > 0 ? monthlyReturnPct.toFixed(1) + '%' : '--', color: '#3b82f6' },
-            { label: 'UNDERLYINGS', value: String(new Set(strategies.map(s => s.underlying)).size), color: '#EAEDF3' },
+            { label: 'UNDERLYINGS', value: String(new Set(strategies.map(s => s.underlying)).size), color: 'var(--text-1)' },
             { label: 'PHASE', value: String(phase.id) + '/4', color: phase.color },
           ].map(s => (
             <div key={s.label} className="stat-card">
@@ -273,9 +273,9 @@ export default function PhasesView({ state }: Props) {
               const isCompleted = capital >= p.target
               return (
                 <div key={p.id} style={{
-                  background: isCurrent ? '#171C30' : '#131726',
-                  border: `1px solid ${isCurrent ? p.color + '60' : '#1E2540'}`,
-                  borderTop: `3px solid ${isCompleted ? p.color : isCurrent ? p.color : '#1E2540'}`,
+                  background: isCurrent ? 'var(--bg-elevated)' : 'var(--bg-card)',
+                  border: `1px solid ${isCurrent ? p.color + '60' : 'var(--border)'}`,
+                  borderTop: `3px solid ${isCompleted ? p.color : isCurrent ? p.color : 'var(--border)'}`,
                   borderRadius: 10, padding: 12,
                   opacity: isCompleted || isCurrent ? 1 : 0.5,
                   overflow: 'hidden',
@@ -283,9 +283,9 @@ export default function PhasesView({ state }: Props) {
                   <div style={{ fontSize: 11, fontWeight: 700, color: p.color, letterSpacing: 2, marginBottom: 3 }}>
                     {p.label} {isCompleted ? '  ' : isCurrent ? '  ' : ''}
                   </div>
-                  <div style={{ fontSize: 14, color: '#EAEDF3', fontWeight: 600, marginBottom: 1 }}>{p.sublabel}</div>
-                  <div style={{ fontSize: 12, color: '#5D6580', marginBottom: 6 }}>{p.range}</div>
-                  <div style={{ fontSize: 11, color: '#9198AE', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 14, color: 'var(--text-1)', fontWeight: 600, marginBottom: 1 }}>{p.sublabel}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 6 }}>{p.range}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-2)', lineHeight: 1.5 }}>
                     {p.contractRule}<br />
                     Target: {fmtK(p.weeklyTarget)}/wk
                   </div>
@@ -301,18 +301,18 @@ export default function PhasesView({ state }: Props) {
           {/* Projections */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, flexShrink: 0 }}>
             {[
-              { label: 'CONSERVATIVE', rate: '1.5%/mo', data: projConservative, color: '#5D6580' },
+              { label: 'CONSERVATIVE', rate: '1.5%/mo', data: projConservative, color: 'var(--text-3)' },
               { label: 'CURRENT', rate: `${(monthlyReturnPct || 2.5).toFixed(1)}%/mo`, data: projModerate, color: '#6366F1' },
               { label: 'AGGRESSIVE', rate: '4%/mo', data: projAggressive, color: '#f59e0b' },
             ].map(p => {
               const final = p.data[p.data.length - 1]
               return (
                 <div key={p.label} style={{ ...tile, padding: '12px 14px' }}>
-                  <div style={{ fontSize: 10, color: '#5D6580', letterSpacing: 2, marginBottom: 4 }}>{p.label} ({p.rate})</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: 2, marginBottom: 4 }}>{p.label} ({p.rate})</div>
                   <div style={{ fontSize: 18, fontWeight: 700, color: p.color, fontFamily: 'IBM Plex Mono, monospace', marginBottom: 2 }}>
                     {fmtK(final.capital)}
                   </div>
-                  <div style={{ fontSize: 11, color: '#5D6580', marginBottom: 8 }}>5yr · Phase {final.phase}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 8 }}>5yr · Phase {final.phase}</div>
                   <div style={{ height: 60 }}>
                     <ProjectionChart data={p.data} />
                   </div>
@@ -327,15 +327,15 @@ export default function PhasesView({ state }: Props) {
               <div style={tileHdr}>INCOME BY STRATEGY</div>
               <div style={{ flex: 1, overflow: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
                 {Object.entries(stratByType).sort((a, b) => b[1].premium - a[1].premium).map(([type, data]) => (
-                  <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#171C30', borderRadius: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#EAEDF3', minWidth: 110 }}>{STRAT_LABELS[type] ?? type}</span>
-                    <span style={{ fontSize: 12, color: '#5D6580' }}>{data.count}</span>
+                  <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--bg-elevated)', borderRadius: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)', minWidth: 110 }}>{STRAT_LABELS[type] ?? type}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{data.count}</span>
                     <div style={{ flex: 1 }} />
-                    <span style={{ fontSize: 11, color: '#5D6580' }}>Prem</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-3)' }}>Prem</span>
                     <span style={{ fontSize: 13, fontFamily: 'IBM Plex Mono, monospace', color: data.premium >= 0 ? '#10b981' : '#f43f5e', minWidth: 60, textAlign: 'right' }}>
                       {fmt$(data.premium)}
                     </span>
-                    <span style={{ fontSize: 11, color: '#5D6580' }}>P&L</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-3)' }}>P&L</span>
                     <span style={{ fontSize: 13, fontFamily: 'IBM Plex Mono, monospace', color: data.pnl >= 0 ? '#10b981' : '#f43f5e', minWidth: 60, textAlign: 'right' }}>
                       {fmt$(data.pnl)}
                     </span>

@@ -8,7 +8,7 @@ interface EmptyStateProps {
 
 export default function EmptyState({ title, message, showUpload }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-4" style={{ color: '#5D6580' }}>
+    <div className="flex flex-col items-center justify-center h-full gap-4" style={{ color: 'var(--text-3)' }}>
       {showUpload && (
         <div
           className="rounded-xl p-5"
@@ -18,7 +18,7 @@ export default function EmptyState({ title, message, showUpload }: EmptyStatePro
         </div>
       )}
       <div className="text-center">
-        <p style={{ fontSize: 17, fontWeight: 600, color: '#9198AE', margin: '0 0 4px' }}>{title}</p>
+        <p style={{ fontSize: 17, fontWeight: 600, color: 'var(--text-2)', margin: '0 0 4px' }}>{title}</p>
         <p style={{ fontSize: 15, margin: 0 }}>{message}</p>
       </div>
     </div>

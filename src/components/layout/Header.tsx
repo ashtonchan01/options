@@ -35,8 +35,8 @@ interface HeaderProps {
 const btn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   padding: '7px 14px', fontSize: 14,
-  border: '1px solid #1E2540', background: '#131726',
-  color: '#9198AE', cursor: 'pointer', fontFamily: 'inherit',
+  border: '1px solid var(--border)', background: 'var(--bg-card)',
+  color: 'var(--text-2)', cursor: 'pointer', fontFamily: 'inherit',
   transition: 'all 0.15s',
 }
 
@@ -54,16 +54,16 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
     <header style={{
       height: 58,
       padding: '0 28px',
-      background: '#0F1220',
-      borderBottom: '1px solid #1E2540',
+      background: 'var(--bg-surface)',
+      borderBottom: '1px solid var(--border)',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#EAEDF3' }}>
+        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--text-1)' }}>
           {TAB_LABELS[activeTab]}
         </h1>
         {lastSync && (
-          <span style={{ fontSize: 13, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace' }}>
+          <span style={{ fontSize: 13, color: 'var(--text-3)', fontFamily: 'IBM Plex Mono, monospace' }}>
             {relativeTime(lastSync)}
           </span>
         )}
@@ -90,7 +90,7 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
           title={!hasCredentials ? 'Configure IBKR credentials first (⚙)' : 'Sync from IBKR Flex'}
           style={{
             ...btn,
-            color: hasCredentials ? '#ccc' : '#444',
+            color: hasCredentials ? 'var(--text-2)' : 'var(--text-3)',
             opacity: (isLoading || !hasCredentials) ? 0.5 : 1,
             cursor: (isLoading || !hasCredentials) ? 'not-allowed' : 'pointer',
           }}
@@ -106,16 +106,16 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
           background: syncStatus === 'success' ? '#10b981'
             : syncStatus === 'error'   ? '#f43f5e'
             : syncStatus === 'loading' ? '#f59e0b'
-            : '#1E2540',
+            : 'var(--border)',
         }} />
 
-        <div style={{ width: 1, height: 18, background: '#1E2540', margin: '0 2px' }} />
+        <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
 
         {/* Settings */}
         <button
           onClick={onOpenSettings}
           title="IBKR Flex credentials"
-          style={{ ...btn, padding: '7px 10px', color: hasCredentials ? '#10b981' : '#666' }}
+          style={{ ...btn, padding: '7px 10px', color: hasCredentials ? '#10b981' : 'var(--text-3)' }}
         >
           <Settings size={14} />
         </button>

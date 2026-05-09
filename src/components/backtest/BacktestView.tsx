@@ -179,12 +179,12 @@ function fmt$(n: number, d = 0) {
 // ── Tile styles ──────────────────────────────────────────────────────────────
 
 const tile: React.CSSProperties = {
-  background: '#131726', border: '1px solid #1E2540', borderRadius: 10,
+  background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
   overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0,
 }
 const tileHdr: React.CSSProperties = {
-  padding: '12px 20px', borderBottom: '1px solid #1E2540',
-  fontSize: 13, fontWeight: 700, color: '#5D6580', letterSpacing: '0.08em', flexShrink: 0,
+  padding: '12px 20px', borderBottom: '1px solid var(--border)',
+  fontSize: 13, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', flexShrink: 0,
 }
 
 // ── Main view ────────────────────────────────────────────────────────────────
@@ -229,8 +229,8 @@ export default function BacktestView({ state }: Props) {
   }, [ticker, strategy, delta, dte, weeks, startCap])
 
   const inputStyle: React.CSSProperties = {
-    background: '#0B0E18', border: '1px solid #1E2540', borderRadius: 6,
-    color: '#EAEDF3', padding: '9px 12px', fontSize: 14,
+    background: 'var(--bg-page)', border: '1px solid var(--border)', borderRadius: 6,
+    color: 'var(--text-1)', padding: '9px 12px', fontSize: 14,
     fontFamily: 'IBM Plex Mono, monospace', outline: 'none', width: '100%',
   }
 
@@ -240,16 +240,16 @@ export default function BacktestView({ state }: Props) {
     <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
 
       {/* ── Parameters bar ──────────────────────────────────────────────── */}
-      <div style={{ background: '#131726', border: '1px solid #1E2540', borderRadius: 10, padding: '14px 20px', flexShrink: 0 }}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 20px', flexShrink: 0 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 10, alignItems: 'end' }}>
           <div>
-            <div style={{ fontSize: 11, color: '#5D6580', letterSpacing: 1, marginBottom: 3 }}>TICKER</div>
+            <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: 1, marginBottom: 3 }}>TICKER</div>
             <select value={ticker} onChange={e => setTicker(e.target.value)} style={selectStyle}>
               {tickers.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: '#5D6580', letterSpacing: 1, marginBottom: 3 }}>STRATEGY</div>
+            <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: 1, marginBottom: 3 }}>STRATEGY</div>
             <select value={strategy} onChange={e => setStrategy(e.target.value as typeof strategy)} style={selectStyle}>
               <option value="wheel">Wheel</option>
               <option value="covered_call">Covered Call</option>
@@ -257,19 +257,19 @@ export default function BacktestView({ state }: Props) {
             </select>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: '#5D6580', letterSpacing: 1, marginBottom: 3 }}>DELTA</div>
+            <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: 1, marginBottom: 3 }}>DELTA</div>
             <select value={delta} onChange={e => setDelta(Number(e.target.value))} style={selectStyle}>
               {[0.10, 0.15, 0.20, 0.25, 0.30].map(d => <option key={d} value={d}>{d.toFixed(2)}</option>)}
             </select>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: '#5D6580', letterSpacing: 1, marginBottom: 3 }}>DTE</div>
+            <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: 1, marginBottom: 3 }}>DTE</div>
             <select value={dte} onChange={e => setDte(Number(e.target.value))} style={selectStyle}>
               {[7, 14, 21, 30, 45].map(d => <option key={d} value={d}>{d}d</option>)}
             </select>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: '#5D6580', letterSpacing: 1, marginBottom: 3 }}>DURATION</div>
+            <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: 1, marginBottom: 3 }}>DURATION</div>
             <select value={weeks} onChange={e => setWeeks(Number(e.target.value))} style={selectStyle}>
               <option value={52}>1Y</option>
               <option value={104}>2Y</option>
@@ -277,7 +277,7 @@ export default function BacktestView({ state }: Props) {
             </select>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: '#5D6580', letterSpacing: 1, marginBottom: 3 }}>CAPITAL</div>
+            <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: 1, marginBottom: 3 }}>CAPITAL</div>
             <input type="number" value={startCap} onChange={e => setStartCap(Number(e.target.value))} style={inputStyle} />
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -289,8 +289,8 @@ export default function BacktestView({ state }: Props) {
               <Play size={12} /> Run
             </button>
             <button onClick={() => setResult(null)} style={{
-              padding: '8px 10px', background: '#131726', border: '1px solid #1E2540', borderRadius: 6,
-              color: '#5D6580', cursor: 'pointer', display: 'flex', alignItems: 'center',
+              padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6,
+              color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center',
             }}>
               <RotateCcw size={12} />
             </button>
@@ -304,7 +304,7 @@ export default function BacktestView({ state }: Props) {
           {/* Stats row */}
           <div style={{ display: 'grid', gridTemplateColumns: strategy === 'wheel' ? 'repeat(9, 1fr)' : 'repeat(6, 1fr)', gap: 8, flexShrink: 0 }}>
             {[
-              { label: 'FINAL', value: fmt$(result.finalCapital), color: '#EAEDF3' },
+              { label: 'FINAL', value: fmt$(result.finalCapital), color: 'var(--text-1)' },
               { label: 'ROI', value: result.roi.toFixed(1) + '%', color: result.roi >= 0 ? '#10b981' : '#f43f5e' },
               { label: 'WIN RATE', value: result.winRate.toFixed(0) + '%', color: result.winRate >= 70 ? '#10b981' : '#f59e0b' },
               { label: 'MAX DD', value: result.maxDrawdown.toFixed(1) + '%', color: result.maxDrawdown < 15 ? '#10b981' : '#f43f5e' },
@@ -348,7 +348,7 @@ export default function BacktestView({ state }: Props) {
                     )
                   })}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: '#5D6580', fontFamily: 'IBM Plex Mono, monospace', flexShrink: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--text-3)', fontFamily: 'IBM Plex Mono, monospace', flexShrink: 0 }}>
                   <span>Wk 0</span>
                   <span style={{ display: 'flex', gap: 10 }}>
                     <span><span style={{ color: '#10b981' }}>|</span> Win</span>
@@ -378,27 +378,27 @@ export default function BacktestView({ state }: Props) {
                       const oc = t.outcome === 'win' ? '#10b981' : t.outcome === 'called' ? '#3b82f6' : t.outcome === 'assigned' ? '#f59e0b' : '#f43f5e'
                       return (
                         <tr key={i}>
-                          <td className="mono" style={{ padding: '8px 12px', color: '#5D6580' }}>{t.week}</td>
+                          <td className="mono" style={{ padding: '8px 12px', color: 'var(--text-3)' }}>{t.week}</td>
                           <td style={{ padding: '8px 12px' }}>
                             <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 5px', border: `1px solid ${t.action === 'CC' ? '#3b82f620' : '#f43f5e20'}`, color: t.action === 'CC' ? '#818cf8' : '#f43f5e' }}>
                               {t.action}
                             </span>
                           </td>
-                          <td className="mono" style={{ padding: '8px 12px', color: '#EAEDF3' }}>{fmt$(t.strike)}</td>
-                          <td className="mono" style={{ padding: '8px 12px', color: '#9198AE' }}>{fmt$(t.stockPrice, 2)}</td>
+                          <td className="mono" style={{ padding: '8px 12px', color: 'var(--text-1)' }}>{fmt$(t.strike)}</td>
+                          <td className="mono" style={{ padding: '8px 12px', color: 'var(--text-2)' }}>{fmt$(t.stockPrice, 2)}</td>
                           <td className="mono" style={{ padding: '8px 12px', color: '#10b981' }}>{fmt$(t.premium)}</td>
                           <td style={{ padding: '8px 12px' }}>
                             <span style={{ fontSize: 11, fontWeight: 700, color: oc, letterSpacing: 1 }}>{t.outcome.toUpperCase()}</span>
                           </td>
                           <td className="mono" style={{ padding: '8px 12px', color: t.pnl >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(t.pnl)}</td>
-                          <td className="mono" style={{ padding: '8px 12px', color: '#EAEDF3', fontWeight: 600 }}>{fmt$(t.capital)}</td>
+                          <td className="mono" style={{ padding: '8px 12px', color: 'var(--text-1)', fontWeight: 600 }}>{fmt$(t.capital)}</td>
                         </tr>
                       )
                     })}
                   </tbody>
                 </table>
                 {result.trades.length > 50 && (
-                  <div style={{ padding: '6px 16px', color: '#5D6580', fontSize: 12, borderTop: '1px solid #1E2540' }}>
+                  <div style={{ padding: '6px 16px', color: 'var(--text-3)', fontSize: 12, borderTop: '1px solid var(--border)' }}>
                     First 50 of {result.trades.length}
                   </div>
                 )}
@@ -410,7 +410,7 @@ export default function BacktestView({ state }: Props) {
 
       {/* ── Empty state ─────────────────────────────────────────────────── */}
       {!result && (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5D6580' }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 16, marginBottom: 8 }}>Configure parameters above and press <span style={{ color: '#6366F1', fontWeight: 600 }}>Run</span></div>
             <div style={{ fontSize: 14 }}>

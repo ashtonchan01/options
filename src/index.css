@@ -1,12 +1,53 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Chakra+Petch:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap');
 
+/* ─── Theme variables ──────────────────────────────────────────────────────── */
+
+:root,
+[data-theme="dark"] {
+  --bg-page: #0B0E18;
+  --bg-surface: #0F1220;
+  --bg-card: #131726;
+  --bg-elevated: #171C30;
+  --bg-active: #1A1F35;
+  --border: #1E2540;
+  --border-light: #1A1F35;
+  --text-1: #EAEDF3;
+  --text-2: #9198AE;
+  --text-3: #5D6580;
+  --text-4: #3B4263;
+  --text-5: #2A3250;
+  --scrollbar: #1E2540;
+  --scrollbar-hover: #2A3250;
+  --overlay: rgba(0, 0, 0, 0.75);
+}
+
+[data-theme="light"] {
+  --bg-page: #F0F2F5;
+  --bg-surface: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #F7F8FA;
+  --bg-active: #EEF0F4;
+  --border: #DFE2E8;
+  --border-light: #ECEEF3;
+  --text-1: #111827;
+  --text-2: #4B5563;
+  --text-3: #6B7280;
+  --text-4: #9CA3AF;
+  --text-5: #D1D5DB;
+  --scrollbar: #CBD5E1;
+  --scrollbar-hover: #94A3B8;
+  --overlay: rgba(0, 0, 0, 0.35);
+}
+
+/* ─── Base ─────────────────────────────────────────────────────────────────── */
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body, #root { height: 100%; }
 
 body {
-  background: #0B0E18;
-  color: #9198AE;
+  background: var(--bg-page);
+  color: var(--text-2);
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 15px;
   -webkit-font-smoothing: antialiased;
@@ -14,31 +55,31 @@ body {
 }
 
 /* Stat card */
-.stat-card { background: #131726; border: 1px solid #1E2540; padding: 18px 24px; border-radius: 10px; }
-.stat-label { font-size: 12px; color: #5D6580; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
-.stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 28px; font-weight: 600; color: #EAEDF3; }
+.stat-card { background: var(--bg-card); border: 1px solid var(--border); padding: 18px 24px; border-radius: 10px; }
+.stat-label { font-size: 12px; color: var(--text-3); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
+.stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 28px; font-weight: 600; color: var(--text-1); }
 
 /* Panel */
-.panel     { background: #131726; border: 1px solid #1E2540; border-radius: 10px; }
-.panel-alt { background: #171C30; border: 1px solid #1E2540; border-radius: 10px; }
+.panel     { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; }
+.panel-alt { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; }
 
 /* Tables */
 .trade-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .trade-table th {
-  font-size: 12px; color: #5D6580; letter-spacing: 1.5px; text-transform: uppercase;
+  font-size: 12px; color: var(--text-3); letter-spacing: 1.5px; text-transform: uppercase;
   text-align: left; padding: 11px 16px;
-  border-bottom: 1px solid #1E2540; background: #131726;
+  border-bottom: 1px solid var(--border); background: var(--bg-card);
 }
-.trade-table td { padding: 12px 16px; border-bottom: 1px solid #1A1F35; color: #9198AE; }
-.trade-table tr:hover td { background: #171C30; }
+.trade-table td { padding: 12px 16px; border-bottom: 1px solid var(--border-light); color: var(--text-2); }
+.trade-table tr:hover td { background: var(--bg-elevated); }
 
 /* Labels */
-.label { font-size: 12px; color: #5D6580; letter-spacing: 2px; text-transform: uppercase; }
+.label { font-size: 12px; color: var(--text-3); letter-spacing: 2px; text-transform: uppercase; }
 
 /* P&L */
 .pos { color: #10b981; }
 .neg { color: #f43f5e; }
-.neu { color: #9198AE; }
+.neu { color: var(--text-2); }
 
 /* Fonts */
 .mono    { font-family: 'IBM Plex Mono', monospace; }
@@ -51,5 +92,5 @@ body {
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1E2540; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #2A3250; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
