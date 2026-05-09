@@ -327,11 +327,10 @@ function ActivitySidebar({
 }) {
   const monthDates = useMemo(() => {
     const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
-    const dateSet = new Set<string>()
-    for (const e of events) if (e.date.startsWith(prefix)) dateSet.add(e.date)
-    for (const d of Object.keys(dailyTrades)) if (d.startsWith(prefix)) dateSet.add(d)
-    return [...dateSet].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
-  }, [events, dailyTrades, year, month])
+    return Object.keys(dailyTrades)
+      .filter(d => d.startsWith(prefix))
+      .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+  }, [dailyTrades, year, month])
 
   const displayDates = selectedDate ? [selectedDate] : monthDates
 
