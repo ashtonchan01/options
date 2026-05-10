@@ -103,23 +103,40 @@ interface PortfolioRow {
   sharesOwned: number
   costPrice: number
   currentValue: number
+  rrCost: number
+  rrValue: number
+  rrLegs: { putCall: string; strike: number; quantity: number; markPrice: number; costBasis: number }[]
   category: 'stock' | 'crypto' | 'cash'
 }
 
 function buildRows(positions: RawPosition[]): PortfolioRow[] {
-  const posMap = new Map<string, RawPosition>()
+  const stkMap = new Map<string, RawPosition>()
+  const optMap = new Map<string, RawPosition[]>()
   for (const p of positions) {
-    if (p.assetClass === 'STK') posMap.set(p.symbol, p)
+    const under = p.underlyingSymbol ?? p.symbol
+    if (p.assetClass === 'STK') stkMap.set(p.symbol, p)
+    else if (p.assetClass === 'OPT') (optMap.get(under) ?? (optMap.set(under, []), optMap.get(under)!)).push(p)
   }
 
   return PORTFOLIO_TARGETS.map(t => {
-    const pos = posMap.get(t.ticker)
+    const pos = stkMap.get(t.ticker)
+    const opts = optMap.get(t.ticker) ?? []
     const marketPrice = pos?.markPrice ?? 0
     const athPct = t.ath > 0 ? (t.ath - marketPrice) / t.ath : 0
     const targetPct = marketPrice > 0 ? (t.priceTarget2026 - marketPrice) / marketPrice : 0
     const price2026 = t.priceTarget2026
     const price2027 = price2026 * (1 + t.cagr)
     const price2028 = price2027 * (1 + t.cagr)
+
+    const rrCost = opts.reduce((s, o) => s + o.costBasisMoney, 0)
+    const rrValue = opts.reduce((s, o) => s + o.positionValue, 0)
+    const rrLegs = opts.map(o => ({
+      putCall: o.putCall ?? '?',
+      strike: o.strike ?? 0,
+      quantity: o.quantity,
+      markPrice: o.markPrice,
+      costBasis: o.costBasisMoney,
+    }))
 
     return {
       ticker: t.ticker,
@@ -141,6 +158,9 @@ function buildRows(positions: RawPosition[]): PortfolioRow[] {
       sharesOwned: pos?.quantity ?? 0,
       costPrice: pos?.costBasisPrice ?? 0,
       currentValue: pos?.positionValue ?? 0,
+      rrCost,
+      rrValue,
+      rrLegs,
       category: t.category,
     }
   })
@@ -263,9 +283,9 @@ export default function PortfolioView({ state }: { state: AppState }) {
                 {/* Section headers */}
                 <tr>
                   <th style={{ ...sectionTh, borderRight: '1px solid var(--border)', color: '#3b82f6', textAlign: 'left', width: 60 }}>&nbsp;</th>
-                  <th colSpan={12} style={{ ...sectionTh, color: '#3b82f6', borderRight: '2px solid var(--border)' }}>END PORTFOLIO GOAL</th>
+                  <th colSpan={13} style={{ ...sectionTh, color: '#3b82f6', borderRight: '2px solid var(--border)' }}>END PORTFOLIO GOAL</th>
                   <th colSpan={2} style={{ ...sectionTh, color: '#f59e0b', borderRight: '2px solid var(--border)' }}>$1M TARGET</th>
-                  <th colSpan={3} style={{ ...sectionTh, color: '#10b981' }}>CURRENT PORTFOLIO</th>
+                  <th colSpan={5} style={{ ...sectionTh, color: '#10b981' }}>CURRENT PORTFOLIO</th>
                 </tr>
                 {/* Column headers */}
                 <tr>
@@ -288,6 +308,8 @@ export default function PortfolioView({ state }: { state: AppState }) {
                   <th style={thStyle}>OWNED</th>
                   <th style={thStyle}>COST</th>
                   <th style={thStyle}>VALUE</th>
+                  <th style={thStyle}>RR COST</th>
+                  <th style={thStyle}>RR VALUE</th>
                 </tr>
               </thead>
               <tbody>
@@ -347,6 +369,14 @@ export default function PortfolioView({ state }: { state: AppState }) {
                       <td style={{ ...tdStyle, color: r.currentValue > 0 ? '#10b981' : 'var(--text-4)', fontWeight: r.currentValue > 0 ? 600 : 400 }}>
                         {r.currentValue > 0 ? fmt$(r.currentValue) : '$0.00'}
                       </td>
+                      <td style={{ ...tdStyle, color: r.rrCost !== 0 ? 'var(--text-2)' : 'var(--text-4)' }}
+                        title={r.rrLegs.map(l => `${l.quantity > 0 ? 'Long' : 'Short'} ${l.putCall} ${l.strike}`).join('\n') || undefined}
+                      >
+                        {r.rrCost !== 0 ? fmt$(r.rrCost) : '—'}
+                      </td>
+                      <td style={{ ...tdStyle, color: r.rrValue > 0 ? '#10b981' : r.rrValue < 0 ? '#f43f5e' : 'var(--text-4)', fontWeight: r.rrValue !== 0 ? 600 : 400 }}>
+                        {r.rrValue !== 0 ? fmt$(r.rrValue) : '—'}
+                      </td>
                     </tr>
                   )
                 })}
@@ -369,30 +399,31 @@ export default function PortfolioView({ state }: { state: AppState }) {
                   <td style={{ ...tdStyle, color: cashBalance > 0 ? '#10b981' : 'var(--text-4)', fontWeight: cashBalance > 0 ? 600 : 400 }}>
                     {fmt$(cashBalance, 2)}
                   </td>
+                  <td style={{ ...tdStyle, color: 'var(--text-4)' }}>&nbsp;</td>
+                  <td style={{ ...tdStyle, color: 'var(--text-4)' }}>&nbsp;</td>
                 </tr>
                 {/* Totals row */}
-                <tr style={{ background: 'var(--bg-elevated)' }}>
-                  <td style={{
-                    ...tdStyle, textAlign: 'left', fontWeight: 700, fontSize: 13, color: 'var(--text-1)',
-                    position: 'sticky', left: 0, zIndex: 3, background: 'var(--bg-elevated)',
-                    borderRight: '1px solid var(--border)', borderBottom: '2px solid var(--border)',
-                  }}>TOTAL</td>
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <td key={i} style={{ ...tdStyle, borderBottom: '2px solid var(--border)' }}>&nbsp;</td>
-                  ))}
-                  <td style={{ ...tdStyle, fontWeight: 700, color: 'var(--text-1)', borderRight: '2px solid var(--border)', borderBottom: '2px solid var(--border)' }}>
-                    {fmt$(totalTargetAmt)}
-                  </td>
-                  <td style={{ ...tdStyle, borderBottom: '2px solid var(--border)' }}>&nbsp;</td>
-                  <td style={{ ...tdStyle, fontWeight: 700, color: 'var(--text-1)', borderRight: '2px solid var(--border)', borderBottom: '2px solid var(--border)' }}>
-                    {fmt$(totalReqAmt)}
-                  </td>
-                  <td style={{ ...tdStyle, borderBottom: '2px solid var(--border)' }}>&nbsp;</td>
-                  <td style={{ ...tdStyle, borderBottom: '2px solid var(--border)' }}>&nbsp;</td>
-                  <td style={{ ...tdStyle, fontWeight: 700, color: '#10b981', borderBottom: '2px solid var(--border)' }}>
-                    {fmt$(totalCurrentVal)}
-                  </td>
-                </tr>
+                {(() => {
+                  const totalRRCost = rows.reduce((s, r) => s + r.rrCost, 0)
+                  const totalRRValue = rows.reduce((s, r) => s + r.rrValue, 0)
+                  const bb = '2px solid var(--border)'
+                  return (
+                    <tr style={{ background: 'var(--bg-elevated)' }}>
+                      <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 700, fontSize: 13, color: 'var(--text-1)', position: 'sticky', left: 0, zIndex: 3, background: 'var(--bg-elevated)', borderRight: '1px solid var(--border)', borderBottom: bb }}>TOTAL</td>
+                      {Array.from({ length: 12 }).map((_, i) => (
+                        <td key={i} style={{ ...tdStyle, borderBottom: bb }}>&nbsp;</td>
+                      ))}
+                      <td style={{ ...tdStyle, fontWeight: 700, color: 'var(--text-1)', borderRight: bb, borderBottom: bb }}>{fmt$(totalTargetAmt)}</td>
+                      <td style={{ ...tdStyle, borderBottom: bb }}>&nbsp;</td>
+                      <td style={{ ...tdStyle, fontWeight: 700, color: 'var(--text-1)', borderRight: bb, borderBottom: bb }}>{fmt$(totalReqAmt)}</td>
+                      <td style={{ ...tdStyle, borderBottom: bb }}>&nbsp;</td>
+                      <td style={{ ...tdStyle, borderBottom: bb }}>&nbsp;</td>
+                      <td style={{ ...tdStyle, fontWeight: 700, color: '#10b981', borderBottom: bb }}>{fmt$(totalCurrentVal)}</td>
+                      <td style={{ ...tdStyle, fontWeight: 600, color: totalRRCost !== 0 ? 'var(--text-2)' : 'var(--text-4)', borderBottom: bb }}>{totalRRCost !== 0 ? fmt$(totalRRCost) : '—'}</td>
+                      <td style={{ ...tdStyle, fontWeight: 700, color: totalRRValue > 0 ? '#10b981' : totalRRValue < 0 ? '#f43f5e' : 'var(--text-4)', borderBottom: bb }}>{totalRRValue !== 0 ? fmt$(totalRRValue) : '—'}</td>
+                    </tr>
+                  )
+                })()}
               </tbody>
             </table>
           </div>
