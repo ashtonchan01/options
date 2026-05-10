@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import type { AppState, RawPosition } from '../../types'
 import { PORTFOLIO_TARGETS, CASH_TARGET, CASH_TARGET_1M, ALLOCATION_TARGETS, PRE_IPO_WATCHLIST } from './portfolioTargets'
+import { fetchQuotes } from '../../services/yahoo'
 
 function fmt$(n: number, d = 0) {
   const prefix = n < 0 ? '-$' : '$'
@@ -109,7 +110,7 @@ interface PortfolioRow {
   category: 'stock' | 'crypto' | 'cash'
 }
 
-function buildRows(positions: RawPosition[]): PortfolioRow[] {
+function buildRows(positions: RawPosition[], quotes: Record<string, number>): PortfolioRow[] {
   const stkMap = new Map<string, RawPosition>()
   const optMap = new Map<string, RawPosition[]>()
   for (const p of positions) {
@@ -121,7 +122,7 @@ function buildRows(positions: RawPosition[]): PortfolioRow[] {
   return PORTFOLIO_TARGETS.map(t => {
     const pos = stkMap.get(t.ticker)
     const opts = optMap.get(t.ticker) ?? []
-    const marketPrice = pos?.markPrice ?? 0
+    const marketPrice = pos?.markPrice ?? quotes[t.ticker] ?? 0
     const athPct = t.ath > 0 ? (t.ath - marketPrice) / t.ath : 0
     const targetPct = marketPrice > 0 ? (t.priceTarget2026 - marketPrice) / marketPrice : 0
     const price2026 = t.priceTarget2026
@@ -197,8 +198,20 @@ const tdStyle: React.CSSProperties = {
 
 export default function PortfolioView({ state }: { state: AppState }) {
   const { positions, cashBalance, netLiquidation: ibkrNetLiq } = state.sync
+  const [quotes, setQuotes] = useState<Record<string, number>>({})
 
-  const rows = useMemo(() => buildRows(positions), [positions])
+  useEffect(() => {
+    const stkSymbols = new Set(positions.filter(p => p.assetClass === 'STK').map(p => p.symbol))
+    const missing = PORTFOLIO_TARGETS
+      .filter(t => !stkSymbols.has(t.ticker) && t.category !== 'cash')
+      .map(t => t.ticker)
+    if (missing.length === 0) return
+    let cancelled = false
+    fetchQuotes(missing).then(q => { if (!cancelled) setQuotes(q) })
+    return () => { cancelled = true }
+  }, [positions])
+
+  const rows = useMemo(() => buildRows(positions, quotes), [positions, quotes])
 
   const totalTargetAmt = rows.reduce((s, r) => s + r.targetAmount, 0) + CASH_TARGET
   const totalReqAmt = rows.reduce((s, r) => s + r.targetReqAmount, 0) + CASH_TARGET_1M

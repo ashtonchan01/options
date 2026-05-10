@@ -214,3 +214,22 @@ export async function scanAllTickers(
 
   return all
 }
+
+/**
+ * Fetch current market prices for a list of tickers.
+ * Returns a map of symbol → price. Skips failures silently.
+ */
+export async function fetchQuotes(tickers: string[]): Promise<Record<string, number>> {
+  const prices: Record<string, number> = {}
+  for (let i = 0; i < tickers.length; i++) {
+    const sym = tickers[i]
+    try {
+      const chain = await fetchChain(sym)
+      if (chain?.quote?.regularMarketPrice) {
+        prices[sym] = chain.quote.regularMarketPrice
+      }
+    } catch { /* skip */ }
+    if (i < tickers.length - 1) await sleep(800)
+  }
+  return prices
+}
