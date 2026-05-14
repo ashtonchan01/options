@@ -34,10 +34,10 @@ interface HeaderProps {
 
 const btn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
-  padding: '7px 14px', fontSize: 14,
-  border: '1px solid var(--border)', background: 'var(--bg-card)',
-  color: 'var(--text-2)', cursor: 'pointer', fontFamily: 'inherit',
-  transition: 'all 0.15s',
+  padding: '6px 12px', fontSize: 11, letterSpacing: '0.5px', fontWeight: 500,
+  border: '1px solid var(--border)', background: 'transparent',
+  color: 'var(--text-3)', cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+  transition: 'all 0.15s', borderRadius: 4,
 }
 
 export default function Header({ activeTab, syncStatus, syncError, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings }: HeaderProps) {
@@ -53,34 +53,40 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
 
   return (
     <header style={{
-      height: 58,
-      padding: '0 28px',
+      height: 56,
+      padding: '0 24px',
       background: 'var(--bg-surface)',
       borderBottom: '1px solid var(--border)',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--text-1)' }}>
-          {TAB_LABELS[activeTab]}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <h1 style={{
+          margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-1)',
+          fontFamily: "'Chakra Petch', sans-serif", letterSpacing: 2,
+        }}>
+          {TAB_LABELS[activeTab].toUpperCase()}
         </h1>
         {lastSync && (
-          <span style={{ fontSize: 13, color: 'var(--text-3)', fontFamily: 'IBM Plex Mono, monospace' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-4)', fontFamily: 'IBM Plex Mono, monospace' }}>
             {relativeTime(lastSync)}
           </span>
         )}
         {syncStatus === 'error' && (
-          <span title={syncError} style={{ fontSize: 13, color: '#f43f5e', fontFamily: 'IBM Plex Mono, monospace', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
+          <span title={syncError} style={{ fontSize: 11, color: '#FF4757', fontFamily: 'IBM Plex Mono, monospace', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
             {syncError ?? 'sync failed'}
           </span>
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
 
         {/* XML upload */}
-        <label style={{ ...btn, cursor: 'pointer' }}>
-          <Upload size={13} />
-          Upload XML
+        <label style={{ ...btn, cursor: 'pointer' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-2)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-3)' }}
+        >
+          <Upload size={12} />
+          UPLOAD XML
           <input ref={fileRef} type="file" accept=".xml" style={{ display: 'none' }} onChange={handleFile} />
         </label>
 
@@ -88,40 +94,43 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
         <button
           onClick={onSyncClick}
           disabled={isLoading || !hasCredentials}
-          title={!hasCredentials ? 'Configure IBKR credentials first (⚙)' : 'Sync from IBKR Flex'}
+          title={!hasCredentials ? 'Configure IBKR credentials first' : 'Sync from IBKR Flex'}
           style={{
             ...btn,
-            color: hasCredentials ? 'var(--text-2)' : 'var(--text-3)',
-            opacity: (isLoading || !hasCredentials) ? 0.5 : 1,
+            color: hasCredentials ? 'var(--text-3)' : 'var(--text-4)',
+            opacity: (isLoading || !hasCredentials) ? 0.4 : 1,
             cursor: (isLoading || !hasCredentials) ? 'not-allowed' : 'pointer',
           }}
+          onMouseEnter={e => { if (!isLoading && hasCredentials) { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-2)' } }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.color = hasCredentials ? 'var(--text-3)' : 'var(--text-4)' }}
         >
-          <RefreshCw size={13} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
-          Flex Sync
+          <RefreshCw size={12} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
+          FLEX SYNC
         </button>
 
         {/* Sync dot */}
         <span style={{
-          width: 7, height: 7, borderRadius: '50%', display: 'inline-block',
+          width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
           animation: isLoading ? 'pulse 1s ease-in-out infinite' : 'none',
-          background: syncStatus === 'success' ? '#10b981'
-            : syncStatus === 'error'   ? '#f43f5e'
-            : syncStatus === 'loading' ? '#f59e0b'
+          background: syncStatus === 'success' ? '#00D084'
+            : syncStatus === 'error'   ? '#FF4757'
+            : syncStatus === 'loading' ? '#F0B429'
             : 'var(--border)',
+          boxShadow: syncStatus === 'success' ? '0 0 8px rgba(0,208,132,0.4)' : 'none',
         }} />
 
-        <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
+        <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
 
         {/* Settings */}
         <button
           onClick={onOpenSettings}
           title="IBKR Flex credentials"
-          style={{ ...btn, padding: '7px 10px', color: hasCredentials ? '#10b981' : 'var(--text-3)' }}
+          style={{ ...btn, padding: '6px 8px', color: hasCredentials ? '#00D084' : 'var(--text-4)' }}
         >
-          <Settings size={14} />
+          <Settings size={13} />
         </button>
 
-        <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px' }} />
+        <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
 
         {/* Theme toggle switch */}
         <button
@@ -133,16 +142,14 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
             cursor: 'pointer', position: 'relative',
           }}
         >
-          <Sun size={13} style={{ color: theme === 'light' ? '#f59e0b' : 'var(--text-4)', transition: 'color 0.2s' }} />
-          {/* Track */}
+          <Sun size={12} style={{ color: theme === 'light' ? '#F0B429' : 'var(--text-5)', transition: 'color 0.2s' }} />
           <div style={{
-            width: 36, height: 20, borderRadius: 10,
-            background: theme === 'dark' ? '#6366F1' : '#818cf8',
+            width: 34, height: 18, borderRadius: 9,
+            background: theme === 'dark' ? 'var(--accent)' : '#818cf8',
             position: 'relative', transition: 'background 0.2s',
           }}>
-            {/* Knob */}
             <div style={{
-              width: 16, height: 16, borderRadius: '50%',
+              width: 14, height: 14, borderRadius: '50%',
               background: '#fff',
               position: 'absolute', top: 2,
               left: theme === 'dark' ? 2 : 18,
@@ -150,14 +157,9 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
               boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
             }} />
           </div>
-          <Moon size={13} style={{ color: theme === 'dark' ? '#818cf8' : 'var(--text-4)', transition: 'color 0.2s' }} />
+          <Moon size={12} style={{ color: theme === 'dark' ? 'var(--accent)' : 'var(--text-5)', transition: 'color 0.2s' }} />
         </button>
       </div>
-
-      <style>{`
-        @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
-        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
-      `}</style>
     </header>
   )
 }
