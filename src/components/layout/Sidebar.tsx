@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { LayoutDashboard, CalendarDays, Layers, Telescope, Zap, TrendingUp, FlaskConical, Milestone, ChevronLeft, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Layers, Telescope, Zap, ClipboardList, FlaskConical, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 
-export const TAB_IDS = ['portfolio', 'calendar', 'strategies', 'opportunities', 'actions', 'growth', 'backtest', 'phases'] as const
+export const TAB_IDS = ['portfolio', 'calendar', 'strategies', 'opportunities', 'actions', 'plan', 'backtest'] as const
 export type TabId = typeof TAB_IDS[number]
 
 const NAV_ITEMS: { id: TabId; label: string; Icon: React.FC<{ size?: number }> }[] = [
@@ -11,9 +11,8 @@ const NAV_ITEMS: { id: TabId; label: string; Icon: React.FC<{ size?: number }> }
   { id: 'strategies',    label: 'Strategies',    Icon: Layers },
   { id: 'opportunities', label: 'Opportunities', Icon: Telescope },
   { id: 'actions',       label: 'Actions',       Icon: Zap },
-  { id: 'growth',        label: 'Growth',        Icon: TrendingUp },
+  { id: 'plan',          label: 'Plan',          Icon: ClipboardList },
   { id: 'backtest',      label: 'Backtest',      Icon: FlaskConical },
-  { id: 'phases',        label: 'Phases',        Icon: Milestone },
 ]
 
 const SYNC_COLOR: Record<SyncStatus, string> = {

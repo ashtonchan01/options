@@ -10,9 +10,8 @@ const TAB_LABELS: Record<TabId, string> = {
   strategies:    'Strategies',
   opportunities: 'Opportunities',
   actions:       'Actions',
-  growth:        'Growth',
+  plan:          'Plan',
   backtest:      'Backtest',
-  phases:        'Phases',
 }
 
 function relativeTime(ms: number): string {

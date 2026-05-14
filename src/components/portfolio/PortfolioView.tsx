@@ -3,13 +3,12 @@ import type { AppState, RawPosition } from '../../types'
 import { PORTFOLIO_TARGETS, CASH_TARGET, CASH_TARGET_1M, ALLOCATION_TARGETS, PRE_IPO_WATCHLIST } from './portfolioTargets'
 import { fetchQuotes } from '../../services/yahoo'
 
+const YAHOO_SYMBOL: Record<string, string> = { BTC: 'BTC-USD', SOL: 'SOL-USD' }
+function toYahoo(t: string) { return YAHOO_SYMBOL[t] ?? t }
+
 function fmt$(n: number, d = 0) {
   const prefix = n < 0 ? '-$' : '$'
   return prefix + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
-}
-
-function fmtPct(n: number) {
-  return (n >= 0 ? '' : '') + (n * 100).toFixed(2) + '%'
 }
 
 // ─── Pie chart (SVG) ────────────────────────────────────────────────────────
@@ -104,6 +103,7 @@ interface PortfolioRow {
   sharesOwned: number
   costPrice: number
   currentValue: number
+  rrShares: number
   rrCost: number
   rrValue: number
   rrLegs: { putCall: string; strike: number; quantity: number; markPrice: number; costBasis: number }[]
@@ -129,9 +129,13 @@ function buildRows(positions: RawPosition[], quotes: Record<string, number>): Po
     const price2027 = price2026 * (1 + t.cagr)
     const price2028 = price2027 * (1 + t.cagr)
 
-    const rrCost = opts.reduce((s, o) => s + o.costBasisMoney, 0)
-    const rrValue = opts.reduce((s, o) => s + o.positionValue, 0)
-    const rrLegs = opts.map(o => ({
+    const isRR = t.rrContracts > 0
+    const rrOpts = isRR ? opts : []
+
+    const rrShares = t.rrContracts * 100
+    const rrCost = rrOpts.reduce((s, o) => s + o.costBasisMoney, 0)
+    const rrValue = rrOpts.reduce((s, o) => s + o.positionValue, 0)
+    const rrLegs = rrOpts.map(o => ({
       putCall: o.putCall ?? '?',
       strike: o.strike ?? 0,
       quantity: o.quantity,
@@ -159,6 +163,7 @@ function buildRows(positions: RawPosition[], quotes: Record<string, number>): Po
       sharesOwned: pos?.quantity ?? 0,
       costPrice: pos?.costBasisPrice ?? 0,
       currentValue: pos?.positionValue ?? 0,
+      rrShares,
       rrCost,
       rrValue,
       rrLegs,
@@ -207,7 +212,16 @@ export default function PortfolioView({ state }: { state: AppState }) {
       .map(t => t.ticker)
     if (missing.length === 0) return
     let cancelled = false
-    fetchQuotes(missing).then(q => { if (!cancelled) setQuotes(q) })
+    const yahooSyms = missing.map(toYahoo)
+    fetchQuotes(yahooSyms).then(yq => {
+      if (cancelled) return
+      const mapped: Record<string, number> = {}
+      for (let i = 0; i < missing.length; i++) {
+        const price = yq[yahooSyms[i]]
+        if (price) mapped[missing[i]] = price
+      }
+      setQuotes(mapped)
+    })
     return () => { cancelled = true }
   }, [positions])
 
@@ -215,7 +229,7 @@ export default function PortfolioView({ state }: { state: AppState }) {
 
   const totalTargetAmt = rows.reduce((s, r) => s + r.targetAmount, 0) + CASH_TARGET
   const totalReqAmt = rows.reduce((s, r) => s + r.targetReqAmount, 0) + CASH_TARGET_1M
-  const totalCurrentVal = rows.reduce((s, r) => s + r.currentValue, 0) + cashBalance
+  const totalCurrentVal = rows.reduce((s, r) => s + r.currentValue + r.rrValue, 0) + cashBalance
   const netLiq = ibkrNetLiq ?? totalCurrentVal
 
   // Pie chart data
@@ -251,63 +265,24 @@ export default function PortfolioView({ state }: { state: AppState }) {
       </div>
 
       {/* ── Main content ─────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-
-        {/* Left sidebar: Pre-IPO + Allocation */}
-        <div style={{
-          width: 160, flexShrink: 0, borderRight: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column', overflow: 'auto',
-        }}>
-          {/* Allocation targets */}
-          <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', marginBottom: 10 }}>
-              TARGET ALLOCATION
-            </div>
-            {ALLOCATION_TARGETS.map(a => (
-              <div key={a.label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <div style={{ width: 8, height: 8, borderRadius: 2, background: a.color, flexShrink: 0 }} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', flex: 1 }}>{a.label}</span>
-                <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-1)', fontWeight: 700 }}>{a.pct}%</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Pre-IPO watchlist */}
-          <div style={{ padding: '12px 14px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', marginBottom: 10 }}>
-              PRE-IPO WATCHLIST
-            </div>
-            {PRE_IPO_WATCHLIST.map(name => (
-              <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-4)', flexShrink: 0 }} />
-                <span style={{ fontSize: 13, color: 'var(--text-2)', fontWeight: 500 }}>{name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Center: Table + Charts */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
 
           {/* Table */}
-          <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+          <div>
             <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 12, minWidth: 1600 }}>
               <thead>
                 {/* Section headers */}
                 <tr>
                   <th style={{ ...sectionTh, borderRight: '1px solid var(--border)', color: '#3b82f6', textAlign: 'left', width: 60 }}>&nbsp;</th>
-                  <th colSpan={13} style={{ ...sectionTh, color: '#3b82f6', borderRight: '2px solid var(--border)' }}>END PORTFOLIO GOAL</th>
+                  <th colSpan={10} style={{ ...sectionTh, color: '#3b82f6', borderRight: '2px solid var(--border)' }}>END PORTFOLIO GOAL</th>
                   <th colSpan={2} style={{ ...sectionTh, color: '#f59e0b', borderRight: '2px solid var(--border)' }}>$1M TARGET</th>
-                  <th colSpan={5} style={{ ...sectionTh, color: '#10b981' }}>CURRENT PORTFOLIO</th>
+                  <th colSpan={6} style={{ ...sectionTh, color: '#10b981' }}>CURRENT PORTFOLIO</th>
                 </tr>
                 {/* Column headers */}
                 <tr>
                   <th style={{ ...thStyle, textAlign: 'left', position: 'sticky', left: 0, zIndex: 6, background: 'var(--bg-elevated)', borderRight: '1px solid var(--border)' }}>TICKER</th>
                   <th style={thStyle}>MKT PRICE</th>
                   <th style={thStyle}>ATH</th>
-                  <th style={thStyle}>%</th>
-                  <th style={thStyle}>TARGET 2026</th>
-                  <th style={thStyle}>%</th>
                   <th style={thStyle}>ATR 1</th>
                   <th style={thStyle}>ATR 2</th>
                   <th style={thStyle}>CAGR</th>
@@ -321,6 +296,7 @@ export default function PortfolioView({ state }: { state: AppState }) {
                   <th style={thStyle}>OWNED</th>
                   <th style={thStyle}>COST</th>
                   <th style={thStyle}>VALUE</th>
+                  <th style={thStyle}>RR SHARES</th>
                   <th style={thStyle}>RR COST</th>
                   <th style={thStyle}>RR VALUE</th>
                 </tr>
@@ -328,8 +304,6 @@ export default function PortfolioView({ state }: { state: AppState }) {
               <tbody>
                 {rows.map((r, idx) => {
                   const isCrypto = r.category === 'crypto'
-                  const pctColor = (v: number) => v > 0 ? '#10b981' : v < 0 ? '#f43f5e' : 'var(--text-2)'
-                  const athColor = r.athPct > 0.2 ? '#f43f5e' : r.athPct > 0.1 ? '#f59e0b' : '#10b981'
 
                   return (
                     <tr key={r.ticker} style={{ background: idx % 2 ? 'var(--bg-surface)' : 'transparent' }}>
@@ -346,9 +320,6 @@ export default function PortfolioView({ state }: { state: AppState }) {
                         {r.marketPrice > 0 ? fmt$(r.marketPrice, 2) : '—'}
                       </td>
                       <td style={{ ...tdStyle, color: 'var(--text-2)' }}>{fmt$(r.ath, 2)}</td>
-                      <td style={{ ...tdStyle, color: athColor }}>{fmtPct(r.athPct)}</td>
-                      <td style={{ ...tdStyle, color: 'var(--text-1)' }}>{fmt$(r.priceTarget2026, 2)}</td>
-                      <td style={{ ...tdStyle, color: pctColor(r.targetPct) }}>{fmtPct(r.targetPct)}</td>
                       <td style={{ ...tdStyle, color: r.marketPrice > 0 && r.marketPrice <= r.atr1 ? '#10b981' : 'var(--text-3)' }}>
                         {fmt$(r.atr1, 2)}
                       </td>
@@ -382,6 +353,9 @@ export default function PortfolioView({ state }: { state: AppState }) {
                       <td style={{ ...tdStyle, color: r.currentValue > 0 ? '#10b981' : 'var(--text-4)', fontWeight: r.currentValue > 0 ? 600 : 400 }}>
                         {r.currentValue > 0 ? fmt$(r.currentValue) : '$0.00'}
                       </td>
+                      <td style={{ ...tdStyle, color: r.rrShares > 0 ? 'var(--text-1)' : 'var(--text-4)' }}>
+                        {r.rrShares > 0 ? r.rrShares.toLocaleString() : '—'}
+                      </td>
                       <td style={{ ...tdStyle, color: r.rrCost !== 0 ? 'var(--text-2)' : 'var(--text-4)' }}
                         title={r.rrLegs.map(l => `${l.quantity > 0 ? 'Long' : 'Short'} ${l.putCall} ${l.strike}`).join('\n') || undefined}
                       >
@@ -401,7 +375,7 @@ export default function PortfolioView({ state }: { state: AppState }) {
                     background: rows.length % 2 ? 'var(--bg-surface)' : 'var(--bg-card)',
                     borderRight: '1px solid var(--border)',
                   }}>CASH</td>
-                  {Array.from({ length: 12 }).map((_, i) => (
+                  {Array.from({ length: 9 }).map((_, i) => (
                     <td key={i} style={{ ...tdStyle, color: 'var(--text-4)' }}>&nbsp;</td>
                   ))}
                   <td style={{ ...tdStyle, color: 'var(--text-1)', borderRight: '2px solid var(--border)' }}>{fmt$(CASH_TARGET)}</td>
@@ -414,16 +388,18 @@ export default function PortfolioView({ state }: { state: AppState }) {
                   </td>
                   <td style={{ ...tdStyle, color: 'var(--text-4)' }}>&nbsp;</td>
                   <td style={{ ...tdStyle, color: 'var(--text-4)' }}>&nbsp;</td>
+                  <td style={{ ...tdStyle, color: 'var(--text-4)' }}>&nbsp;</td>
                 </tr>
                 {/* Totals row */}
                 {(() => {
+                  const totalRRShares = rows.reduce((s, r) => s + r.rrShares, 0)
                   const totalRRCost = rows.reduce((s, r) => s + r.rrCost, 0)
                   const totalRRValue = rows.reduce((s, r) => s + r.rrValue, 0)
                   const bb = '2px solid var(--border)'
                   return (
                     <tr style={{ background: 'var(--bg-elevated)' }}>
                       <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 700, fontSize: 13, color: 'var(--text-1)', position: 'sticky', left: 0, zIndex: 3, background: 'var(--bg-elevated)', borderRight: '1px solid var(--border)', borderBottom: bb }}>TOTAL</td>
-                      {Array.from({ length: 12 }).map((_, i) => (
+                      {Array.from({ length: 9 }).map((_, i) => (
                         <td key={i} style={{ ...tdStyle, borderBottom: bb }}>&nbsp;</td>
                       ))}
                       <td style={{ ...tdStyle, fontWeight: 700, color: 'var(--text-1)', borderRight: bb, borderBottom: bb }}>{fmt$(totalTargetAmt)}</td>
@@ -432,6 +408,7 @@ export default function PortfolioView({ state }: { state: AppState }) {
                       <td style={{ ...tdStyle, borderBottom: bb }}>&nbsp;</td>
                       <td style={{ ...tdStyle, borderBottom: bb }}>&nbsp;</td>
                       <td style={{ ...tdStyle, fontWeight: 700, color: '#10b981', borderBottom: bb }}>{fmt$(totalCurrentVal)}</td>
+                      <td style={{ ...tdStyle, fontWeight: 600, color: totalRRShares > 0 ? 'var(--text-1)' : 'var(--text-4)', borderBottom: bb }}>{totalRRShares > 0 ? totalRRShares.toLocaleString() : '—'}</td>
                       <td style={{ ...tdStyle, fontWeight: 600, color: totalRRCost !== 0 ? 'var(--text-2)' : 'var(--text-4)', borderBottom: bb }}>{totalRRCost !== 0 ? fmt$(totalRRCost) : '—'}</td>
                       <td style={{ ...tdStyle, fontWeight: 700, color: totalRRValue > 0 ? '#10b981' : totalRRValue < 0 ? '#f43f5e' : 'var(--text-4)', borderBottom: bb }}>{totalRRValue !== 0 ? fmt$(totalRRValue) : '—'}</td>
                     </tr>
@@ -441,17 +418,46 @@ export default function PortfolioView({ state }: { state: AppState }) {
             </table>
           </div>
 
+          {/* Allocation + Pre-IPO row */}
+          <div style={{
+            borderTop: '1px solid var(--border)',
+            display: 'flex', gap: 32, padding: '16px 20px', background: 'var(--bg-card)',
+          }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', marginBottom: 10 }}>
+                TARGET ALLOCATION
+              </div>
+              {ALLOCATION_TARGETS.map(a => (
+                <div key={a.label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: a.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', minWidth: 120 }}>{a.label}</span>
+                  <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-1)', fontWeight: 700 }}>{a.pct}%</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', marginBottom: 10 }}>
+                PRE-IPO WATCHLIST
+              </div>
+              {PRE_IPO_WATCHLIST.map(name => (
+                <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-4)', flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, color: 'var(--text-2)', fontWeight: 500 }}>{name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Pie charts row */}
           <div style={{
-            flexShrink: 0, borderTop: '1px solid var(--border)',
+            borderTop: '1px solid var(--border)',
             display: 'flex', justifyContent: 'space-around', alignItems: 'center',
-            padding: '16px 20px', background: 'var(--bg-card)', gap: 16,
+            padding: '20px 20px', background: 'var(--bg-card)', gap: 16,
           }}>
-            <PieChart slices={targetSlices} title="TARGET PORTFOLIO" size={220} />
-            <PieChart slices={reqSlices} title="$1M TARGET" size={220} />
-            <PieChart slices={currentSlices} title="CURRENT PORTFOLIO" size={220} />
+            <PieChart slices={targetSlices} title="TARGET PORTFOLIO" size={280} />
+            <PieChart slices={reqSlices} title="$1M TARGET" size={280} />
+            <PieChart slices={currentSlices} title="CURRENT PORTFOLIO" size={280} />
           </div>
-        </div>
       </div>
     </div>
   )

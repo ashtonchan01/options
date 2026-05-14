@@ -103,6 +103,55 @@ async function handleSync(res) {
   sendJson(res, 504, { error: 'IBKR timed out — statement not ready after retries' })
 }
 
+// ─── Yahoo quotes via v8 chart (runs from user's real IP) ─────────────────
+
+const YAHOO_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
+
+async function fetchJson(url) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': YAHOO_UA, 'Accept': 'application/json' },
+      })
+      if (res.status === 429) {
+        console.log(`[fetchJson] 429 on attempt ${attempt + 1}, waiting...`)
+        await sleep(3000 * (attempt + 1))
+        continue
+      }
+      if (res.ok) return await res.json()
+    } catch (e) {
+      console.log(`[fetchJson] attempt ${attempt + 1} error:`, e.message)
+    }
+  }
+  return null
+}
+
+async function handleQuotes(res, symbols) {
+  if (!symbols) return sendJson(res, 400, { error: 'Missing symbols' })
+  const tickers = symbols.split(',').filter(Boolean)
+  const prices = {}
+
+  for (let i = 0; i < tickers.length; i++) {
+    const sym = tickers[i]
+    try {
+      const url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d`
+      const d = await fetchJson(url)
+      const price = d?.chart?.result?.[0]?.meta?.regularMarketPrice
+      if (price) {
+        prices[sym] = price
+      } else {
+        console.warn(`[quotes] ${sym}: no price in response`, d?.chart?.error || '')
+      }
+    } catch (e) {
+      console.warn(`[quotes] ${sym} error:`, e.message)
+    }
+    if (i < tickers.length - 1) await sleep(500)
+  }
+
+  console.log(`[quotes] Fetched ${Object.keys(prices).length}/${tickers.length} prices`)
+  sendJson(res, 200, prices)
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`)
 
@@ -124,6 +173,10 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/flex/sync') {
     console.log('[flex] Sync requested')
     return await handleSync(res)
+  }
+
+  if (url.pathname === '/quotes') {
+    return await handleQuotes(res, url.searchParams.get('symbols'))
   }
 
   sendJson(res, 404, { error: 'Not found' })

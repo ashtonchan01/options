@@ -1,6 +1,7 @@
 import type { ScanResult } from '../types'
 
 const PROXY = 'https://options-jade.vercel.app'
+const LOCAL_PROXY = 'http://localhost:3457'
 
 // ─── Yahoo types ──────────────────────────────────────────────────────────────
 
@@ -217,19 +218,31 @@ export async function scanAllTickers(
 
 /**
  * Fetch current market prices for a list of tickers.
- * Returns a map of symbol → price. Skips failures silently.
+ * Tries local proxy first (user's real IP), falls back to Vercel proxy.
  */
 export async function fetchQuotes(tickers: string[]): Promise<Record<string, number>> {
-  const prices: Record<string, number> = {}
-  for (let i = 0; i < tickers.length; i++) {
-    const sym = tickers[i]
-    try {
-      const chain = await fetchChain(sym)
-      if (chain?.quote?.regularMarketPrice) {
-        prices[sym] = chain.quote.regularMarketPrice
-      }
-    } catch { /* skip */ }
-    if (i < tickers.length - 1) await sleep(800)
-  }
-  return prices
+  if (tickers.length === 0) return {}
+  const syms = tickers.join(',')
+
+  // Try local proxy first (runs from user's real IP, not blocked by Yahoo)
+  try {
+    const res = await fetch(`${LOCAL_PROXY}/quotes?symbols=${syms}`, {
+      signal: AbortSignal.timeout(15000),
+    })
+    if (res.ok) {
+      const data = await res.json() as Record<string, number>
+      if (Object.keys(data).length > 0) return data
+    }
+  } catch { /* local proxy not running, fall through */ }
+
+  // Fall back to Vercel proxy
+  try {
+    const res = await fetch(`${PROXY}/api/quotes?symbols=${syms}`)
+    if (res.ok) {
+      const data = await res.json() as Record<string, number>
+      if (Object.keys(data).length > 0) return data
+    }
+  } catch { /* fall through */ }
+
+  return {}
 }
