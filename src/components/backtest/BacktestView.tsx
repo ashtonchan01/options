@@ -131,7 +131,7 @@ function runCombo(
 
     const shortPut = bsmPut(close, shortK, T, RF, iv)
     const longPut  = bsmPut(close, longK,  T, RF, iv)
-    const rawCredit = shortPut - longPut
+    const rawCredit = Math.round((shortPut - longPut) / 0.05) * 0.05
     const netCredit = rawCredit - entrySlip
     if (netCredit <= 0) continue
 
@@ -151,7 +151,7 @@ function runCombo(
 
         const curShort = bsmPut(c2, shortK, Tj, RF, ivj)
         const curLong  = bsmPut(c2, longK,  Tj, RF, ivj)
-        const curSpread = curShort - curLong
+        const curSpread = Math.round((curShort - curLong) / 0.05) * 0.05
         const profitPct = (rawCredit - curSpread) / rawCredit  // fraction of max profit captured
 
         let shouldExit = false
