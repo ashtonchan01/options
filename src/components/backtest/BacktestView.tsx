@@ -699,10 +699,10 @@ function EquityCurve({ trades }: { trades: Trade[] }) {
         {fmt$(minY)}
       </text>
       <text x={PAD} y={H - 5} fill="var(--text-4)" fontSize="8" fontFamily="IBM Plex Mono, monospace">
-        {sorted[0]?.date.slice(5)}
+        {points[0]?.date.slice(5)}
       </text>
       <text x={W - PAD} y={H - 5} fill="var(--text-4)" fontSize="8" textAnchor="end" fontFamily="IBM Plex Mono, monospace">
-        {sorted[sorted.length - 1]?.date.slice(5)}
+        {points[points.length - 1]?.date.slice(5)}
       </text>
 
       {/* Final value */}
