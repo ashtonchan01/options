@@ -33,6 +33,7 @@ interface Trade {
   exitCost: number; contracts: number
   pnl: number; holdDays: number
   exitReason: string; won: boolean; entryVix: number
+  equityAfter: number
 }
 
 interface BacktestResult {
@@ -89,11 +90,10 @@ function fmt$(n: number, d = 0): string {
   })
 }
 function fmtPct(n: number): string { return (n >= 0 ? '+' : '') + n.toFixed(1) + '%' }
-function heatColor(pct: number): string {
-  if (pct === 0) return 'transparent'
-  const abs = Math.min(Math.abs(pct), 8)
-  const o = 0.12 + (abs / 8) * 0.55
-  return pct > 0 ? `rgba(0,208,132,${o.toFixed(2)})` : `rgba(255,71,87,${o.toFixed(2)})`
+function fmtK(n: number): string {
+  const abs = Math.abs(n)
+  if (abs >= 1000) return (n < 0 ? '-' : '') + '$' + (abs / 1000).toFixed(abs >= 10000 ? 0 : 1) + 'k'
+  return '$' + n.toFixed(0)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -174,10 +174,9 @@ function runSingle(cfg: {
       entrySpx: close, exitSpx: SPX_DAILY[exitIdx][4],
       shortK, longK, entryCredit: rawCredit, netCredit, exitCost,
       contracts, pnl, holdDays: calDays(date, SPX_DAILY[exitIdx][0]),
-      exitReason, won: pnl > 0, entryVix: vix,
+      exitReason, won: pnl > 0, entryVix: vix, equityAfter: equity,
     })
   }
-
   return computeStats(trades, cfg.startingCapital)
 }
 
@@ -206,7 +205,7 @@ function computeStats(trades: Trade[], startingCapital: number): BacktestResult 
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ENGINE: SWEEP (per-contract, standard exit rules)
+   ENGINE: SWEEP
    ═══════════════════════════════════════════════════════════════════════════ */
 
 function runCombo(entryDow: number | null, entryWeek: number | null, exitRule: ExitRule, spreadWidth: number, targetDte: number, strikeOffset: number): ComboResult {
@@ -250,7 +249,7 @@ function runCombo(entryDow: number | null, entryWeek: number | null, exitRule: E
     let pnl: number
     if (closedEarly) { pnl = (netCredit - exitCost) * MULTIPLIER - (entryComm + exitComm) }
     else { const finalS = SPX_DAILY[expiryIdx][4]; exitCost = Math.max(shortK - finalS, 0) - Math.max(longK - finalS, 0); pnl = (netCredit - exitCost) * MULTIPLIER - entryComm }
-    trades.push({ entryDate: date, exitDate: SPX_DAILY[exitIdx][0], entrySpx: close, exitSpx: SPX_DAILY[exitIdx][4], shortK, longK, entryCredit: rawCredit, netCredit, exitCost, contracts: 1, pnl, holdDays: calDays(date, SPX_DAILY[exitIdx][0]), exitReason, won: pnl > 0, entryVix: vix })
+    trades.push({ entryDate: date, exitDate: SPX_DAILY[exitIdx][0], entrySpx: close, exitSpx: SPX_DAILY[exitIdx][4], shortK, longK, entryCredit: rawCredit, netCredit, exitCost, contracts: 1, pnl, holdDays: calDays(date, SPX_DAILY[exitIdx][0]), exitReason, won: pnl > 0, entryVix: vix, equityAfter: 0 })
   }
   const n = trades.length
   if (n === 0) return { dayLabel: entryDow === null ? 'Any' : DAY_LABELS[entryDow], weekLabel: entryWeek === null ? 'Any' : WEEK_LABELS[entryWeek], exitLabel: EXIT_LABELS[exitRule], exitRule, trades: [], numTrades: 0, winRate: 0, totalPnl: 0, avgPnl: 0, avgWin: 0, avgLoss: 0, profitFactor: 0, maxDrawdown: 0, sharpe: 0, maxConsecLoss: 0, avgHoldDays: 0 }
@@ -355,6 +354,88 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
   )
 }
 
+/* ── CAPITAL GROWTH CHART ───────────────────────────────────────── */
+
+function CapitalGrowthChart({ trades, startingCapital }: { trades: Trade[]; startingCapital: number }) {
+  const points = useMemo(() => {
+    const sorted = [...trades].sort((a, b) => a.exitDate.localeCompare(b.exitDate))
+    let eq = startingCapital
+    return sorted.map(t => { eq += t.pnl; return { date: t.exitDate, eq, won: t.won } })
+  }, [trades, startingCapital])
+
+  if (points.length < 2) return <div style={{ color: 'var(--text-4)', fontSize: 12, padding: 20, textAlign: 'center' }}>Not enough trades</div>
+
+  const allEq = [startingCapital, ...points.map(p => p.eq)]
+  const minEq = Math.min(...allEq)
+  const maxEq = Math.max(...allEq)
+  const range = maxEq - minEq || 1
+
+  const W = 740, H = 260, PL = 42, PR = 14, PT = 20, PB = 22
+
+  const rawStep = range / 5
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)))
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => range / s <= 7) || mag * 10
+  const gridMin = Math.floor(minEq / step) * step
+  const gridMax = Math.ceil(maxEq / step) * step
+  const gRange = gridMax - gridMin || 1
+
+  const scaleX = (i: number) => PL + (i / (points.length - 1)) * (W - PL - PR)
+  const scaleY = (v: number) => PT + (1 - (v - gridMin) / gRange) * (H - PT - PB)
+
+  const gridLines: { y: number; label: string }[] = []
+  for (let v = gridMin; v <= gridMax + 0.1; v += step) gridLines.push({ y: scaleY(v), label: fmtK(v) })
+
+  const linePath = points.map((p, i) =>
+    `${i === 0 ? 'M' : 'L'}${scaleX(i).toFixed(1)},${scaleY(p.eq).toFixed(1)}`
+  ).join(' ')
+  const areaPath = linePath +
+    ` L${scaleX(points.length - 1).toFixed(1)},${scaleY(gridMin).toFixed(1)}` +
+    ` L${scaleX(0).toFixed(1)},${scaleY(gridMin).toFixed(1)} Z`
+
+  const capY = scaleY(startingCapital)
+  const nLabels = 8
+  const dateLabels = Array.from({ length: nLabels }, (_, i) => {
+    const idx = Math.min(Math.round((i / (nLabels - 1)) * (points.length - 1)), points.length - 1)
+    return { x: scaleX(idx), label: points[idx].date.slice(2, 7) }
+  })
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
+      <defs>
+        <linearGradient id="capGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={C.green} stopOpacity="0.15" />
+          <stop offset="100%" stopColor={C.green} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      {gridLines.map((g, i) => (
+        <g key={i}>
+          <line x1={PL} y1={g.y} x2={W - PR} y2={g.y} stroke="var(--border)" strokeWidth="0.5" />
+          <text x={PL - 4} y={g.y + 2.5} fill="var(--text-4)" fontSize="6.5" textAnchor="end" fontFamily="IBM Plex Mono, monospace">{g.label}</text>
+        </g>
+      ))}
+      <line x1={PL} y1={capY} x2={W - PR} y2={capY} stroke={C.green} strokeWidth="0.7" strokeDasharray="4 3" opacity="0.4" />
+      <path d={areaPath} fill="url(#capGrad)" />
+      <path d={linePath} fill="none" stroke={C.green} strokeWidth="1.5" strokeLinejoin="round" />
+      {points.map((p, i) => (
+        <circle key={i} cx={scaleX(i)} cy={scaleY(p.eq)} r="1.8"
+          fill={p.won ? C.green : C.red} opacity={p.won ? 0.6 : 0.8} />
+      ))}
+      {dateLabels.map((d, i) => (
+        <text key={i} x={d.x} y={H - 5} fill="var(--text-4)" fontSize="6.5" textAnchor="middle" fontFamily="IBM Plex Mono, monospace">{d.label}</text>
+      ))}
+      {/* Legend */}
+      <line x1={W - PR - 130} y1={10} x2={W - PR - 118} y2={10} stroke={C.green} strokeWidth="1.5" />
+      <text x={W - PR - 115} y={12.5} fill="var(--text-3)" fontSize="6.5" fontFamily="Inter, sans-serif">Capital</text>
+      <circle cx={W - PR - 72} cy={10} r="2.5" fill={C.green} />
+      <text x={W - PR - 67} y={12.5} fill="var(--text-3)" fontSize="6.5" fontFamily="Inter, sans-serif">Win</text>
+      <circle cx={W - PR - 38} cy={10} r="2.5" fill={C.red} />
+      <text x={W - PR - 33} y={12.5} fill="var(--text-3)" fontSize="6.5" fontFamily="Inter, sans-serif">Loss</text>
+    </svg>
+  )
+}
+
+/* ── EQUITY CURVE (sweep mode - cumulative P/L) ─────────────────── */
+
 function EquityCurve({ trades }: { trades: Trade[] }) {
   const points = useMemo(() => {
     const sorted = [...trades].sort((a, b) => a.exitDate.localeCompare(b.exitDate))
@@ -367,168 +448,137 @@ function EquityCurve({ trades }: { trades: Trade[] }) {
   const maxY = Math.max(...points.map(p => p.cum), 0)
   const minY = Math.min(...points.map(p => p.cum), 0)
   const rangeY = maxY - minY || 1
-  const W = 600, H = 200, PL = 55, PR = 55, PT = 12, PB = 25
+  const W = 500, H = 180, PL = 45, PR = 45, PT = 10, PB = 20
 
   const scaleX = (i: number) => PL + (i / (points.length - 1)) * (W - PL - PR)
   const scaleY = (v: number) => PT + (1 - (v - minY) / rangeY) * (H - PT - PB)
 
-  const linePath = points.map((p, i) =>
-    `${i === 0 ? 'M' : 'L'}${scaleX(i).toFixed(1)},${scaleY(p.cum).toFixed(1)}`
-  ).join(' ')
-  const areaPath = linePath +
-    ` L${scaleX(points.length - 1).toFixed(1)},${scaleY(0).toFixed(1)}` +
-    ` L${scaleX(0).toFixed(1)},${scaleY(0).toFixed(1)} Z`
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${scaleX(i).toFixed(1)},${scaleY(p.cum).toFixed(1)}`).join(' ')
+  const areaPath = linePath + ` L${scaleX(points.length - 1).toFixed(1)},${scaleY(0).toFixed(1)} L${scaleX(0).toFixed(1)},${scaleY(0).toFixed(1)} Z`
   const finalPnl = points[points.length - 1].cum
   const lineColor = finalPnl >= 0 ? C.green : C.red
-
-  const gridCount = 5
-  const gridLines = Array.from({ length: gridCount + 1 }, (_, i) => {
-    const v = minY + (rangeY * i) / gridCount
-    return { y: scaleY(v), label: fmt$(v) }
-  })
-  const dateLabels = [0, 0.25, 0.5, 0.75, 1].map(f => {
-    const idx = Math.min(Math.round(f * (points.length - 1)), points.length - 1)
-    return { x: scaleX(idx), label: points[idx].date.slice(2, 7) }
-  })
+  const gridCount = 4
+  const gridLines = Array.from({ length: gridCount + 1 }, (_, i) => { const v = minY + (rangeY * i) / gridCount; return { y: scaleY(v), label: fmt$(v) } })
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
       <defs>
         <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={lineColor} stopOpacity="0.18" />
+          <stop offset="0%" stopColor={lineColor} stopOpacity="0.15" />
           <stop offset="100%" stopColor={lineColor} stopOpacity="0" />
         </linearGradient>
       </defs>
       {gridLines.map((g, i) => (
         <g key={i}>
-          <line x1={PL} y1={g.y} x2={W - PR} y2={g.y} stroke="var(--border)" strokeWidth="0.5" strokeDasharray={i === 0 || i === gridCount ? 'none' : '2 4'} />
-          <text x={PL - 6} y={g.y + 3} fill="var(--text-4)" fontSize="8" textAnchor="end" fontFamily="IBM Plex Mono, monospace">{g.label}</text>
+          <line x1={PL} y1={g.y} x2={W - PR} y2={g.y} stroke="var(--border)" strokeWidth="0.5" strokeDasharray="2 4" />
+          <text x={PL - 4} y={g.y + 3} fill="var(--text-4)" fontSize="7" textAnchor="end" fontFamily="IBM Plex Mono, monospace">{g.label}</text>
         </g>
       ))}
       <line x1={PL} y1={scaleY(0)} x2={W - PR} y2={scaleY(0)} stroke="var(--border-light)" strokeWidth="1" />
       <path d={areaPath} fill="url(#eqGrad)" />
       <path d={linePath} fill="none" stroke={lineColor} strokeWidth="1.5" strokeLinejoin="round" />
-      {points.map((p, i) => !p.won && (
-        <circle key={i} cx={scaleX(i)} cy={scaleY(p.cum)} r="2" fill={C.red} opacity="0.6" />
-      ))}
-      {dateLabels.map((d, i) => (
-        <text key={i} x={d.x} y={H - 6} fill="var(--text-4)" fontSize="8" textAnchor="middle" fontFamily="IBM Plex Mono, monospace">{d.label}</text>
-      ))}
-      <text x={W - PR + 6} y={scaleY(finalPnl) + 4} fill={lineColor} fontSize="11" fontWeight="700" fontFamily="Chakra Petch, sans-serif">{fmt$(finalPnl)}</text>
+      {points.map((p, i) => !p.won && <circle key={i} cx={scaleX(i)} cy={scaleY(p.cum)} r="2" fill={C.red} opacity="0.6" />)}
+      <text x={PL} y={H - 4} fill="var(--text-4)" fontSize="7" fontFamily="IBM Plex Mono, monospace">{points[0].date.slice(2, 7)}</text>
+      <text x={W - PR} y={H - 4} fill="var(--text-4)" fontSize="7" textAnchor="end" fontFamily="IBM Plex Mono, monospace">{points[points.length - 1].date.slice(2, 7)}</text>
+      <text x={W - PR + 4} y={scaleY(finalPnl) + 3} fill={lineColor} fontSize="9" fontWeight="700" fontFamily="Chakra Petch, sans-serif">{fmt$(finalPnl)}</text>
     </svg>
   )
 }
 
-function DrawdownChart({ trades, startingCapital }: { trades: Trade[]; startingCapital: number }) {
-  const data = useMemo(() => {
-    const sorted = [...trades].sort((a, b) => a.exitDate.localeCompare(b.exitDate))
-    let eq = startingCapital, peak = startingCapital
-    return sorted.map(t => {
-      eq += t.pnl; if (eq > peak) peak = eq
-      return { date: t.exitDate, ddPct: peak > 0 ? ((peak - eq) / peak) * 100 : 0 }
-    })
-  }, [trades, startingCapital])
+/* ── MONTHLY TABLE ──────────────────────────────────────────────── */
 
-  if (data.length < 2) return <div style={{ color: 'var(--text-4)', fontSize: 12, padding: 20, textAlign: 'center' }}>Not enough data</div>
-
-  const maxDD = Math.max(...data.map(d => d.ddPct), 0.5)
-  const W = 500, H = 160, PL = 45, PR = 10, PT = 8, PB = 22
-  const scaleX = (i: number) => PL + (i / (data.length - 1)) * (W - PL - PR)
-  const scaleY = (dd: number) => PT + (dd / maxDD) * (H - PT - PB)
-
-  const linePath = data.map((d, i) =>
-    `${i === 0 ? 'M' : 'L'}${scaleX(i).toFixed(1)},${scaleY(d.ddPct).toFixed(1)}`
-  ).join(' ')
-  const areaPath = linePath +
-    ` L${scaleX(data.length - 1).toFixed(1)},${scaleY(0).toFixed(1)}` +
-    ` L${scaleX(0).toFixed(1)},${scaleY(0).toFixed(1)} Z`
-
-  const gridCount = 4
-  const gridLines = Array.from({ length: gridCount + 1 }, (_, i) => {
-    const v = (maxDD * i) / gridCount
-    return { y: scaleY(v), label: i === 0 ? '0%' : `-${v.toFixed(1)}%` }
-  })
-  const maxIdx = data.reduce((best, d, i) => d.ddPct > data[best].ddPct ? i : best, 0)
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
-      <defs>
-        <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={C.red} stopOpacity="0.35" />
-          <stop offset="100%" stopColor={C.red} stopOpacity="0.05" />
-        </linearGradient>
-      </defs>
-      {gridLines.map((g, i) => (
-        <g key={i}>
-          <line x1={PL} y1={g.y} x2={W - PR} y2={g.y} stroke="var(--border)" strokeWidth="0.5" strokeDasharray="2 4" />
-          <text x={PL - 4} y={g.y + 3} fill="var(--text-4)" fontSize="8" textAnchor="end" fontFamily="IBM Plex Mono, monospace">{g.label}</text>
-        </g>
-      ))}
-      <path d={areaPath} fill="url(#ddGrad)" />
-      <path d={linePath} fill="none" stroke={C.red} strokeWidth="1.5" strokeLinejoin="round" />
-      <circle cx={scaleX(maxIdx)} cy={scaleY(data[maxIdx].ddPct)} r="3" fill={C.red} />
-      <text x={scaleX(maxIdx) + 6} y={scaleY(data[maxIdx].ddPct) + 3} fill={C.red} fontSize="9" fontWeight="700" fontFamily="IBM Plex Mono, monospace">
-        -{data[maxIdx].ddPct.toFixed(1)}%
-      </text>
-      <text x={PL} y={H - 4} fill="var(--text-4)" fontSize="8" fontFamily="IBM Plex Mono, monospace">{data[0].date.slice(2, 7)}</text>
-      <text x={W - PR} y={H - 4} fill="var(--text-4)" fontSize="8" textAnchor="end" fontFamily="IBM Plex Mono, monospace">{data[data.length - 1].date.slice(2, 7)}</text>
-    </svg>
-  )
-}
-
-function MonthlyHeatmap({ trades, startingCapital }: { trades: Trade[]; startingCapital: number }) {
-  const { years, map } = useMemo(() => {
-    const m: Record<string, number> = {}
-    for (const t of trades) { const k = t.exitDate.slice(0, 7); m[k] = (m[k] || 0) + t.pnl }
-    const keys = Object.keys(m).sort()
-    if (keys.length === 0) return { years: [] as number[], map: m }
-    const y0 = parseInt(keys[0].slice(0, 4)), y1 = parseInt(keys[keys.length - 1].slice(0, 4))
-    return { years: Array.from({ length: y1 - y0 + 1 }, (_, i) => y0 + i), map: m }
+function MonthlyTable({ trades }: { trades: Trade[] }) {
+  const months = useMemo(() => {
+    const map: Record<string, { pnl: number; wins: number; losses: number; n: number }> = {}
+    for (const t of trades) {
+      const k = t.exitDate.slice(0, 7)
+      if (!map[k]) map[k] = { pnl: 0, wins: 0, losses: 0, n: 0 }
+      map[k].pnl += t.pnl; map[k].n++
+      if (t.won) map[k].wins++; else map[k].losses++
+    }
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([key, v]) => ({
+      label: new Date(key + '-15').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      ...v, wr: v.n > 0 ? (v.wins / v.n) * 100 : 0,
+    }))
   }, [trades])
 
-  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  if (years.length === 0) return <div style={{ color: 'var(--text-4)', padding: 20, textAlign: 'center' }}>No data</div>
-
-  const hmTh: React.CSSProperties = { padding: '5px 3px', fontSize: 9, fontWeight: 700, letterSpacing: 1, color: 'var(--text-4)', textAlign: 'center', borderBottom: '1px solid var(--border)' }
-  const hmTd: React.CSSProperties = { padding: '5px 3px', fontSize: 10, textAlign: 'center', borderBottom: '1px solid var(--border)', fontFamily: "'IBM Plex Mono', monospace" }
+  const mTh: React.CSSProperties = { ...thS, textAlign: 'center', padding: '7px 6px' }
+  const mTd: React.CSSProperties = { ...tdS, textAlign: 'center', padding: '5px 6px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }
 
   return (
-    <div style={{ overflow: 'auto' }}>
+    <div style={{ overflow: 'auto', flex: 1 }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th style={hmTh}>YEAR</th>
-            {MONTHS.map(m => <th key={m} style={hmTh}>{m.slice(0, 3).toUpperCase()}</th>)}
-            <th style={hmTh}>TOTAL</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th style={{ ...mTh, textAlign: 'left' }}>MONTH</th>
+          <th style={mTh}>P&L</th>
+          <th style={mTh}>WIN</th>
+          <th style={mTh}>LOSS</th>
+          <th style={mTh}>N</th>
+          <th style={{ ...mTh, width: 65 }}>WR%</th>
+        </tr></thead>
         <tbody>
-          {years.map(y => {
-            let yearTotal = 0
-            return (
-              <tr key={y}>
-                <td style={{ ...hmTd, fontWeight: 600, color: 'var(--text-2)' }}>{y}</td>
-                {Array.from({ length: 12 }, (_, m) => {
-                  const key = `${y}-${String(m + 1).padStart(2, '0')}`
-                  const pnl = map[key] || 0
-                  yearTotal += pnl
-                  const pct = startingCapital > 0 ? (pnl / startingCapital) * 100 : 0
-                  const has = key in map
-                  return (
-                    <td key={m} style={{
-                      ...hmTd, background: has ? heatColor(pct) : 'transparent',
-                      color: has ? (pnl >= 0 ? C.green : C.red) : 'var(--text-5)',
-                    }}>
-                      {has ? fmtPct(pct) : '–'}
-                    </td>
-                  )
-                })}
-                <td style={{ ...hmTd, fontWeight: 700, color: yearTotal >= 0 ? C.green : C.red }}>
-                  {fmt$(yearTotal)}
-                </td>
-              </tr>
-            )
-          })}
+          {months.map(m => (
+            <tr key={m.label}>
+              <td style={{ ...mTd, textAlign: 'left', color: 'var(--text-2)', fontFamily: "'Inter', sans-serif", fontWeight: 500 }}>{m.label}</td>
+              <td style={{ ...mTd, fontWeight: 600, color: m.pnl >= 0 ? C.green : C.red }}>{fmt$(m.pnl)}</td>
+              <td style={{ ...mTd, color: C.green }}>{m.wins}</td>
+              <td style={{ ...mTd, color: C.red }}>{m.losses}</td>
+              <td style={{ ...mTd, color: 'var(--text-3)' }}>{m.n}</td>
+              <td style={{ ...mTd, position: 'relative', overflow: 'hidden' }}>
+                <div style={{
+                  position: 'absolute', left: 0, top: 0, bottom: 0,
+                  width: `${Math.min(m.wr, 100)}%`,
+                  background: m.wr >= 55 ? C.greenDim : C.redDim,
+                }} />
+                <span style={{ position: 'relative', fontWeight: 600, color: m.wr >= 55 ? C.green : m.wr >= 45 ? C.gold : C.red }}>{m.wr.toFixed(0)}%</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/* ── DAY BREAKDOWN TABLE ────────────────────────────────────────── */
+
+function DayBreakdown({ trades }: { trades: Trade[] }) {
+  const data = useMemo(() => {
+    const map: Record<number, { pnl: number; wins: number; n: number }> = {}
+    for (const t of trades) {
+      const dow = new Date(t.entryDate).getDay()
+      if (!map[dow]) map[dow] = { pnl: 0, wins: 0, n: 0 }
+      map[dow].pnl += t.pnl; map[dow].n++; if (t.won) map[dow].wins++
+    }
+    return [1, 2, 3, 4, 5].map(d => {
+      const e = map[d] || { pnl: 0, wins: 0, n: 0 }
+      return { day: DAY_LABELS[d], ...e, wr: e.n > 0 ? (e.wins / e.n) * 100 : 0 }
+    }).filter(d => d.n > 0)
+  }, [trades])
+
+  const dTh: React.CSSProperties = { ...thS, textAlign: 'center', padding: '7px 8px' }
+  const dTd: React.CSSProperties = { ...tdS, textAlign: 'center', padding: '8px 8px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }
+
+  return (
+    <div style={{ overflow: 'auto', flex: 1 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead><tr>
+          <th style={{ ...dTh, textAlign: 'left' }}>DAY</th>
+          <th style={dTh}>ENTRY</th>
+          <th style={dTh}>WR</th>
+          <th style={dTh}>N</th>
+          <th style={dTh}>P&L</th>
+        </tr></thead>
+        <tbody>
+          {data.map(d => (
+            <tr key={d.day}>
+              <td style={{ ...dTd, textAlign: 'left', color: C.cyan, fontWeight: 600 }}>{d.day}</td>
+              <td style={{ ...dTd, color: 'var(--text-3)' }}>{d.day}</td>
+              <td style={{ ...dTd, fontWeight: 600, color: d.wr >= 65 ? C.green : d.wr >= 50 ? C.gold : C.red }}>{d.wr.toFixed(1)}%</td>
+              <td style={{ ...dTd, color: 'var(--text-3)' }}>{d.n}</td>
+              <td style={{ ...dTd, fontWeight: 600, color: d.pnl >= 0 ? C.green : C.red }}>{fmt$(d.pnl)}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -543,7 +593,6 @@ export default function BacktestView({ }: { state: AppState }) {
   const [running, setRunning] = useState(false)
   const [activeView, setActiveView] = useState<'none' | 'single' | 'sweep'>('none')
 
-  // Config state
   const [entryDay, setEntryDay] = useState<number | null>(null)
   const [entryWeek, setEntryWeek] = useState<number | null>(null)
   const [spreadWidth, setSpreadWidth] = useState(30)
@@ -554,7 +603,6 @@ export default function BacktestView({ }: { state: AppState }) {
   const [sizing, setSizing] = useState('fixed-1')
   const [startingCapital, setStartingCapital] = useState(100000)
 
-  // Results
   const [singleResult, setSingleResult] = useState<BacktestResult | null>(null)
   const [sweepResults, setSweepResults] = useState<ComboResult[] | null>(null)
   const [sweepIdx, setSweepIdx] = useState(0)
@@ -567,8 +615,7 @@ export default function BacktestView({ }: { state: AppState }) {
       setSingleResult(runSingle({
         entryDay, entryWeek, spreadWidth, targetDte, strikeOffset,
         profitTarget: profitTarget ? parseFloat(profitTarget) : null,
-        exitDte: exitDte ? parseInt(exitDte) : null,
-        sizing, startingCapital,
+        exitDte: exitDte ? parseInt(exitDte) : null, sizing, startingCapital,
       }))
       setActiveView('single'); setRunning(false)
     }, 20) })
@@ -591,7 +638,6 @@ export default function BacktestView({ }: { state: AppState }) {
       return sortAsc ? av - bv : bv - av
     })
   }, [sweepResults, sortKey, sortAsc])
-
   const selectedSweep = sortedSweep[sweepIdx] ?? null
   const toggleSort = (key: SortKey) => { if (sortKey === key) setSortAsc(p => !p); else { setSortKey(key); setSortAsc(false) } }
 
@@ -600,7 +646,6 @@ export default function BacktestView({ }: { state: AppState }) {
 
       {/* ── CONFIG PANEL ──────────────────────────────────────────────── */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '14px 18px', flexShrink: 0 }}>
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: 2, marginBottom: 2 }}>STRATEGY</div>
@@ -616,29 +661,23 @@ export default function BacktestView({ }: { state: AppState }) {
           </div>
         </div>
 
-        {/* Entry chips */}
         <div style={{ display: 'flex', gap: 24, marginBottom: 12, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: 2, marginBottom: 5 }}>ENTRY DAY</div>
             <div style={{ display: 'flex', gap: 4 }}>
               <Chip label="Any" active={entryDay === null} onClick={() => setEntryDay(null)} />
-              {([1, 2, 3, 4, 5] as const).map(d => (
-                <Chip key={d} label={DAY_LABELS[d]} active={entryDay === d} onClick={() => setEntryDay(d)} />
-              ))}
+              {([1, 2, 3, 4, 5] as const).map(d => <Chip key={d} label={DAY_LABELS[d]} active={entryDay === d} onClick={() => setEntryDay(d)} />)}
             </div>
           </div>
           <div>
             <div style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: 2, marginBottom: 5 }}>ENTRY WEEK</div>
             <div style={{ display: 'flex', gap: 4 }}>
               <Chip label="Any" active={entryWeek === null} onClick={() => setEntryWeek(null)} />
-              {([1, 2, 3, 4] as const).map(w => (
-                <Chip key={w} label={WEEK_LABELS[w]} active={entryWeek === w} onClick={() => setEntryWeek(w)} />
-              ))}
+              {([1, 2, 3, 4] as const).map(w => <Chip key={w} label={WEEK_LABELS[w]} active={entryWeek === w} onClick={() => setEntryWeek(w)} />)}
             </div>
           </div>
         </div>
 
-        {/* Params grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(115px, 1fr))', gap: 10, alignItems: 'end' }}>
           <FormField label="SPREAD WIDTH">
             <select value={spreadWidth} onChange={e => setSpreadWidth(+e.target.value)} style={selectS}>
@@ -676,9 +715,7 @@ export default function BacktestView({ }: { state: AppState }) {
           </FormField>
           <FormField label="STARTING CAPITAL">
             <select value={startingCapital} onChange={e => setStartingCapital(+e.target.value)} style={selectS}>
-              {[10000, 25000, 50000, 100000, 250000, 500000].map(c => (
-                <option key={c} value={c}>${(c / 1000).toFixed(0)}K</option>
-              ))}
+              {[10000, 25000, 50000, 100000, 250000, 500000].map(c => <option key={c} value={c}>${(c / 1000).toFixed(0)}K</option>)}
             </select>
           </FormField>
           <div style={{ display: 'flex', gap: 4, alignItems: 'end' }}>
@@ -690,15 +727,12 @@ export default function BacktestView({ }: { state: AppState }) {
               letterSpacing: 1, cursor: running ? 'wait' : 'pointer',
               fontFamily: "'Inter', sans-serif", transition: 'all 0.15s',
             }}>
-              <Play size={10} style={{ animation: running ? 'spin 1s linear infinite' : 'none' }} />
-              RUN
+              <Play size={10} style={{ animation: running ? 'spin 1s linear infinite' : 'none' }} />RUN
             </button>
             <button onClick={handleRunSweep} disabled={running} title="Sweep all day/week/exit combos" style={{
-              padding: '8px 10px', background: 'transparent',
-              border: '1px solid var(--border)', borderRadius: 3,
+              padding: '8px 10px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 3,
               color: running ? 'var(--text-5)' : C.gold, fontSize: 10, fontWeight: 700,
-              letterSpacing: 0.5, cursor: running ? 'wait' : 'pointer',
-              fontFamily: "'Inter', sans-serif", transition: 'all 0.15s',
+              cursor: running ? 'wait' : 'pointer', fontFamily: "'Inter', sans-serif", transition: 'all 0.15s',
             }}>SWEEP</button>
             {activeView !== 'none' && (
               <button onClick={handleReset} style={{
@@ -711,100 +745,107 @@ export default function BacktestView({ }: { state: AppState }) {
       </div>
 
       {/* ── SINGLE RESULTS ──────────────────────────────────────────── */}
-      {activeView === 'single' && singleResult && singleResult.numTrades > 0 && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', minHeight: 0 }}>
-          {/* Stat cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 6, flexShrink: 0 }}>
-            {[
-              { label: 'TRADES', value: String(singleResult.numTrades), sub: `${singleResult.wins}W ${singleResult.losses}L`, color: C.cyan },
-              { label: 'WIN RATE', value: singleResult.winRate.toFixed(1) + '%', color: singleResult.winRate >= 70 ? C.green : C.gold },
-              { label: 'TOTAL P/L', value: fmt$(singleResult.totalPnl), sub: fmtPct(singleResult.returnPct), color: singleResult.totalPnl >= 0 ? C.green : C.red },
-              { label: 'CAGR', value: fmtPct(singleResult.cagr), color: singleResult.cagr >= 10 ? C.green : singleResult.cagr >= 0 ? C.gold : C.red },
-              { label: 'PROFIT FACTOR', value: singleResult.profitFactor === Infinity ? '∞' : singleResult.profitFactor.toFixed(2), color: singleResult.profitFactor >= 1.5 ? C.green : C.gold },
-              { label: 'MAX DRAWDOWN', value: fmt$(singleResult.maxDrawdown), sub: `-${singleResult.maxDrawdownPct.toFixed(1)}%`, color: C.red },
-              { label: 'SHARPE', value: singleResult.sharpe.toFixed(2), sub: `Calmar ${singleResult.calmar.toFixed(2)}`, color: singleResult.sharpe >= 1.0 ? C.green : C.gold },
-              { label: 'AVG HOLD', value: singleResult.avgHoldDays.toFixed(0) + 'd', sub: `W${fmt$(singleResult.avgWin)} L${fmt$(singleResult.avgLoss)}`, color: C.blue },
-            ].map(s => (
-              <div key={s.label} style={{
-                background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4,
-                padding: '10px 8px', textAlign: 'center', transition: 'border-color 0.2s, box-shadow 0.2s',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.boxShadow = `0 0 16px ${C.cyanGlow}` }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
-              >
-                <div style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: 1.5, marginBottom: 3 }}>{s.label}</div>
-                <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 18, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
-                {s.sub && <div style={{ fontSize: 9, color: 'var(--text-4)', marginTop: 2 }}>{s.sub}</div>}
+      {activeView === 'single' && singleResult && singleResult.numTrades > 0 && (() => {
+        const endCap = startingCapital + singleResult.totalPnl
+        const maxLoss = singleResult.trades.length ? Math.min(...singleResult.trades.map(t => t.pnl)) : 0
+        return (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', minHeight: 0 }}>
+
+            {/* Capital Growth Chart */}
+            <div style={{ ...tile, minHeight: 300, flexShrink: 0 }}>
+              <div style={tileHdr}>
+                CAPITAL GROWTH
+                <span style={{ float: 'right', fontWeight: 400, color: 'var(--text-5)', fontSize: 10, letterSpacing: 0 }}>
+                  {singleResult.numTrades} trades · {SPX_DAILY[0][0]} → {SPX_DAILY[SPX_DAILY.length - 1][0]}
+                </span>
               </div>
-            ))}
-          </div>
-
-          {/* Equity curve - full width */}
-          <div style={{ ...tile, minHeight: 220, flexShrink: 0 }}>
-            <div style={tileHdr}>EQUITY CURVE · {singleResult.numTrades} TRADES</div>
-            <div style={{ flex: 1, padding: '8px 10px', overflow: 'hidden' }}>
-              <EquityCurve trades={singleResult.trades} />
-            </div>
-          </div>
-
-          {/* Drawdown + Monthly */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, flexShrink: 0 }}>
-            <div style={{ ...tile, minHeight: 180 }}>
-              <div style={tileHdr}>DRAWDOWN</div>
               <div style={{ flex: 1, padding: '6px 8px', overflow: 'hidden' }}>
-                <DrawdownChart trades={singleResult.trades} startingCapital={startingCapital} />
+                <CapitalGrowthChart trades={singleResult.trades} startingCapital={startingCapital} />
               </div>
             </div>
-            <div style={{ ...tile, minHeight: 180 }}>
-              <div style={tileHdr}>MONTHLY RETURNS · % OF CAPITAL</div>
-              <div style={{ flex: 1, padding: '6px 8px', overflow: 'auto' }}>
-                <MonthlyHeatmap trades={singleResult.trades} startingCapital={startingCapital} />
-              </div>
-            </div>
-          </div>
 
-          {/* Trade log */}
-          <div style={{ ...tile, flex: 1, minHeight: 200 }}>
-            <div style={tileHdr}>
-              TRADE LOG
-              <span style={{ float: 'right', fontWeight: 400, color: 'var(--text-5)', fontSize: 10, letterSpacing: 0 }}>
-                avg win {fmt$(singleResult.avgWin)} · avg loss {fmt$(singleResult.avgLoss)} · streak {singleResult.maxConsecLoss}L / {singleResult.maxConsecWin}W
-              </span>
+            {/* Stat cards — 10 cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4, flexShrink: 0 }}>
+              {([
+                { label: 'TRADES', value: String(singleResult.numTrades), color: C.cyan },
+                { label: 'WIN RATE', value: singleResult.winRate.toFixed(1) + '%', color: singleResult.winRate >= 65 ? C.green : singleResult.winRate >= 50 ? C.gold : C.red },
+                { label: 'TOTAL P&L', value: fmt$(singleResult.totalPnl), color: singleResult.totalPnl >= 0 ? C.green : C.red },
+                { label: 'ROI', value: fmtPct(singleResult.returnPct), color: singleResult.returnPct >= 0 ? C.green : C.red },
+                { label: 'MAX DRAWDOWN', value: `-${singleResult.maxDrawdownPct.toFixed(1)}%`, color: C.red },
+                { label: 'END CAPITAL', value: fmt$(endCap), color: endCap >= startingCapital ? C.green : C.red },
+                { label: 'PROFIT FACTOR', value: singleResult.profitFactor === Infinity ? '∞' : singleResult.profitFactor.toFixed(2), color: singleResult.profitFactor >= 1.5 ? C.green : C.gold },
+                { label: 'MAX LOSS', value: fmt$(maxLoss), color: C.red },
+                { label: 'AVG WIN', value: fmt$(singleResult.avgWin), color: C.green },
+                { label: 'AVG LOSS', value: fmt$(singleResult.avgLoss), color: C.red },
+              ] as const).map(s => (
+                <div key={s.label} style={{
+                  background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4,
+                  padding: '8px 4px', textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 8, color: 'var(--text-4)', letterSpacing: 1, marginBottom: 2, lineHeight: 1 }}>{s.label}</div>
+                  <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 16, fontWeight: 700, color: s.color, lineHeight: 1.1 }}>{s.value}</div>
+                </div>
+              ))}
             </div>
-            <div style={{ flex: 1, overflow: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    {['ENTRY', 'EXIT', 'SPX', 'STRIKES', 'CT', 'CREDIT', 'DEBIT', 'P/L', 'DAYS', 'EXIT'].map(h => (
-                      <th key={h} style={thS}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {singleResult.trades.map((t, i) => (
-                    <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-surface)' }}>
-                      <td style={{ ...tdS, fontSize: 10, color: 'var(--text-3)' }}>{t.entryDate.slice(5)}</td>
-                      <td style={{ ...tdS, fontSize: 10, color: 'var(--text-3)' }}>{t.exitDate.slice(5)}</td>
-                      <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
-                        {t.entrySpx.toFixed(0)}<span style={{ color: 'var(--text-4)' }}>→</span>{t.exitSpx.toFixed(0)}
-                      </td>
-                      <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: 'var(--text-3)' }}>{t.shortK}/{t.longK}</td>
-                      <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.cyan }}>{t.contracts}</td>
-                      <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.green }}>{t.netCredit.toFixed(2)}</td>
-                      <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.gold }}>{t.exitCost.toFixed(2)}</td>
-                      <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700, color: t.pnl >= 0 ? C.green : C.red }}>{fmt$(t.pnl)}</td>
-                      <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: 'var(--text-4)' }}>{t.holdDays}</td>
-                      <td style={{ ...tdS, fontSize: 10, color: t.exitReason.includes('Profit') ? C.green : t.exitReason === 'Expiry' ? C.blue : C.gold }}>{t.exitReason}</td>
+
+            {/* Monthly + Day breakdown */}
+            <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 6, flexShrink: 0 }}>
+              <div style={{ ...tile, maxHeight: 340 }}>
+                <div style={tileHdr}>MONTHLY P&L + OUTCOMES</div>
+                <MonthlyTable trades={singleResult.trades} />
+              </div>
+              <div style={{ ...tile, maxHeight: 340 }}>
+                <div style={tileHdr}>WIN RATE BY DAY</div>
+                <DayBreakdown trades={singleResult.trades} />
+              </div>
+            </div>
+
+            {/* Trade log — long window */}
+            <div style={{ ...tile, minHeight: 420, flexShrink: 0 }}>
+              <div style={tileHdr}>
+                TRADE LOG
+                <span style={{ float: 'right', fontWeight: 400, color: 'var(--text-5)', fontSize: 10, letterSpacing: 0 }}>{singleResult.numTrades} trades</span>
+              </div>
+              <div style={{ flex: 1, overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      {['DAY', 'ENTRY DATE', 'EXIT DATE', 'DTE', 'SPOT', 'STRIKES', 'CREDIT', 'SETTLE', 'OUTCOME', 'CTS', 'P/L', 'CAPITAL'].map(h => (
+                        <th key={h} style={thS}>{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {singleResult.trades.map((t, i) => {
+                      const dow = new Date(t.entryDate).getDay()
+                      const dayName = (['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const)[dow] || ''
+                      return (
+                        <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-surface)' }}>
+                          <td style={{ ...tdS, color: C.cyan, fontWeight: 600, fontSize: 11 }}>{dayName}</td>
+                          <td style={{ ...tdS, fontSize: 11, color: 'var(--text-2)' }}>{t.entryDate}</td>
+                          <td style={{ ...tdS, fontSize: 11, color: 'var(--text-3)' }}>{t.exitDate}</td>
+                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.blue }}>{t.holdDays}</td>
+                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>{t.entrySpx.toFixed(0)}</td>
+                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: 'var(--text-3)' }}>{t.shortK}/{t.longK}</td>
+                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.green }}>${t.netCredit.toFixed(2)}</td>
+                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>{t.exitSpx.toFixed(0)}</td>
+                          <td style={{ ...tdS, fontSize: 10, fontWeight: 700, color: t.won ? C.green : t.pnl <= maxLoss * 0.95 ? '#FF6B6B' : C.red }}>
+                            {t.won ? (t.exitReason.includes('Profit') ? t.exitReason : 'WIN') : (t.pnl <= maxLoss * 0.95 ? 'MAX LOSS' : 'LOSS')}
+                          </td>
+                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: 'var(--text-3)' }}>{t.contracts}</td>
+                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700, color: t.pnl >= 0 ? C.green : C.red }}>{fmt$(t.pnl)}</td>
+                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: 'var(--text-2)' }}>{fmt$(t.equityAfter)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
-      {/* Single: no trades */}
       {activeView === 'single' && singleResult && singleResult.numTrades === 0 && (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center', color: 'var(--text-3)', fontSize: 14 }}>
@@ -817,10 +858,9 @@ export default function BacktestView({ }: { state: AppState }) {
       {/* ── SWEEP RESULTS ───────────────────────────────────────────── */}
       {activeView === 'sweep' && sweepResults && sweepResults.length > 0 && selectedSweep && (
         <>
-          {/* Stat cards for selected combo */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 6, flexShrink: 0 }}>
-            {[
-              { label: 'COMBO', value: `${selectedSweep.dayLabel} · ${selectedSweep.weekLabel}`, sub: selectedSweep.exitLabel, color: C.cyan },
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4, flexShrink: 0 }}>
+            {([
+              { label: 'COMBO', value: `${selectedSweep.dayLabel}·${selectedSweep.weekLabel}`, color: C.cyan },
               { label: 'WIN RATE', value: selectedSweep.winRate.toFixed(1) + '%', color: selectedSweep.winRate >= 70 ? C.green : C.gold },
               { label: 'TOTAL P/L', value: fmt$(selectedSweep.totalPnl), color: selectedSweep.totalPnl >= 0 ? C.green : C.red },
               { label: 'AVG P/L', value: fmt$(selectedSweep.avgPnl), color: selectedSweep.avgPnl >= 0 ? C.green : C.red },
@@ -828,62 +868,48 @@ export default function BacktestView({ }: { state: AppState }) {
               { label: 'MAX DD', value: fmt$(selectedSweep.maxDrawdown), color: C.red },
               { label: 'SHARPE', value: selectedSweep.sharpe.toFixed(2), color: selectedSweep.sharpe >= 1.0 ? C.green : C.gold },
               { label: 'AVG HOLD', value: selectedSweep.avgHoldDays.toFixed(0) + 'd', color: C.blue },
-            ].map(s => (
+            ] as const).map(s => (
               <div key={s.label} style={{
                 background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4,
-                padding: '10px 8px', textAlign: 'center', transition: 'border-color 0.2s, box-shadow 0.2s',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.boxShadow = `0 0 16px ${C.cyanGlow}` }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
-              >
-                <div style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: 1.5, marginBottom: 3 }}>{s.label}</div>
-                <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 18, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
-                {s.sub && <div style={{ fontSize: 9, color: 'var(--text-4)', marginTop: 2 }}>{s.sub}</div>}
+                padding: '8px 6px', textAlign: 'center',
+              }}>
+                <div style={{ fontSize: 8, color: 'var(--text-4)', letterSpacing: 1, marginBottom: 2 }}>{s.label}</div>
+                <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 16, fontWeight: 700, color: s.color, lineHeight: 1.1 }}>{s.value}</div>
               </div>
             ))}
           </div>
 
-          {/* Sweep grid: ranking + charts */}
           <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 6, minHeight: 0 }}>
-            {/* Ranking table */}
             <div style={{ ...tile, gridRow: '1 / 3' }}>
               <div style={tileHdr}>
                 RANKING · {sortedSweep.length} COMBINATIONS
-                <span style={{ float: 'right', fontWeight: 400, color: 'var(--text-5)', fontSize: 10, letterSpacing: 0 }}>per contract · click row to inspect</span>
+                <span style={{ float: 'right', fontWeight: 400, color: 'var(--text-5)', fontSize: 10, letterSpacing: 0 }}>per contract</span>
               </div>
               <div style={{ flex: 1, overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>
-                      <th style={thS}>#</th>
-                      <th style={thS}>DAY</th>
-                      <th style={thS}>WEEK</th>
-                      <th style={thS}>EXIT</th>
-                      {COLUMNS.map(c => (
-                        <th key={c.key} onClick={() => toggleSort(c.key)} style={{
-                          ...thS, cursor: 'pointer', userSelect: 'none', width: c.w,
-                          color: sortKey === c.key ? C.cyan : 'var(--text-4)',
-                        }}>{c.label} {sortKey === c.key ? (sortAsc ? '▲' : '▼') : ''}</th>
-                      ))}
-                    </tr>
-                  </thead>
+                  <thead><tr>
+                    <th style={thS}>#</th><th style={thS}>DAY</th><th style={thS}>WEEK</th><th style={thS}>EXIT</th>
+                    {COLUMNS.map(c => (
+                      <th key={c.key} onClick={() => toggleSort(c.key)} style={{
+                        ...thS, cursor: 'pointer', userSelect: 'none', width: c.w,
+                        color: sortKey === c.key ? C.cyan : 'var(--text-4)',
+                      }}>{c.label} {sortKey === c.key ? (sortAsc ? '▲' : '▼') : ''}</th>
+                    ))}
+                  </tr></thead>
                   <tbody>
                     {sortedSweep.map((r, i) => {
                       const isSel = i === sweepIdx
                       return (
-                        <tr key={i} onClick={() => setSweepIdx(i)}
-                          style={{
-                            cursor: 'pointer',
-                            background: isSel ? C.cyanDim : i % 2 === 0 ? 'transparent' : 'var(--bg-surface)',
-                            borderLeft: isSel ? `2px solid ${C.cyan}` : '2px solid transparent',
-                            transition: 'background 0.1s',
-                          }}
+                        <tr key={i} onClick={() => setSweepIdx(i)} style={{
+                          cursor: 'pointer',
+                          background: isSel ? C.cyanDim : i % 2 === 0 ? 'transparent' : 'var(--bg-surface)',
+                          borderLeft: isSel ? `2px solid ${C.cyan}` : '2px solid transparent',
+                        }}
                           onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = 'var(--bg-elevated)' }}
                           onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--bg-surface)' }}
                         >
                           <td style={{ ...tdS, color: isSel ? C.cyan : 'var(--text-4)', fontWeight: isSel ? 700 : 400 }}>{i + 1}</td>
-                          <td style={tdS}>{r.dayLabel}</td>
-                          <td style={tdS}>{r.weekLabel}</td>
+                          <td style={tdS}>{r.dayLabel}</td><td style={tdS}>{r.weekLabel}</td>
                           <td style={{ ...tdS, fontSize: 10 }}>{r.exitLabel}</td>
                           {COLUMNS.map(c => (
                             <td key={c.key} style={{ ...tdS, color: cellColor(c.key, r[c.key] as number), fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
@@ -898,39 +924,24 @@ export default function BacktestView({ }: { state: AppState }) {
               </div>
             </div>
 
-            {/* Equity curve for selected combo */}
             <div style={tile}>
               <div style={tileHdr}>EQUITY CURVE · {selectedSweep.numTrades} TRADES</div>
-              <div style={{ flex: 1, padding: '8px 10px', overflow: 'hidden' }}>
-                <EquityCurve trades={selectedSweep.trades} />
-              </div>
+              <div style={{ flex: 1, padding: '8px 10px', overflow: 'hidden' }}><EquityCurve trades={selectedSweep.trades} /></div>
             </div>
 
-            {/* Trade log for selected combo */}
             <div style={tile}>
-              <div style={tileHdr}>
-                TRADE LOG
-                <span style={{ float: 'right', fontWeight: 400, color: 'var(--text-5)', fontSize: 10, letterSpacing: 0 }}>
-                  avg win {fmt$(selectedSweep.avgWin)} · avg loss {fmt$(selectedSweep.avgLoss)}
-                </span>
-              </div>
+              <div style={tileHdr}>TRADE LOG</div>
               <div style={{ flex: 1, overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>
-                      {['ENTRY', 'EXIT', 'SPX', 'STRIKES', 'CREDIT', 'DEBIT', 'P/L', 'DAYS', 'EXIT'].map(h => (
-                        <th key={h} style={thS}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
+                  <thead><tr>
+                    {['ENTRY', 'EXIT', 'SPX', 'STRIKES', 'CREDIT', 'DEBIT', 'P/L', 'DAYS', 'EXIT'].map(h => <th key={h} style={thS}>{h}</th>)}
+                  </tr></thead>
                   <tbody>
                     {selectedSweep.trades.map((t, i) => (
                       <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-surface)' }}>
                         <td style={{ ...tdS, fontSize: 10, color: 'var(--text-3)' }}>{t.entryDate.slice(5)}</td>
                         <td style={{ ...tdS, fontSize: 10, color: 'var(--text-3)' }}>{t.exitDate.slice(5)}</td>
-                        <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
-                          {t.entrySpx.toFixed(0)}<span style={{ color: 'var(--text-4)' }}>→</span>{t.exitSpx.toFixed(0)}
-                        </td>
+                        <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>{t.entrySpx.toFixed(0)}→{t.exitSpx.toFixed(0)}</td>
                         <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: 'var(--text-3)' }}>{t.shortK}/{t.longK}</td>
                         <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.green }}>{t.netCredit.toFixed(2)}</td>
                         <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.gold }}>{t.exitCost.toFixed(2)}</td>
@@ -975,34 +986,24 @@ export default function BacktestView({ }: { state: AppState }) {
               }}
                 onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 0 30px rgba(0,229,255,0.2)' }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = `0 0 20px ${C.cyanGlow}` }}
-              >
-                <Play size={12} /> RUN BACKTEST
-              </button>
+              ><Play size={12} /> RUN BACKTEST</button>
               <button onClick={handleRunSweep} style={{
                 padding: '10px 24px', background: 'transparent', border: `1px solid ${C.gold}`,
                 borderRadius: 3, color: C.gold, fontSize: 12, fontWeight: 700, letterSpacing: 1.5,
                 cursor: 'pointer', fontFamily: "'Inter', sans-serif",
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                transition: 'all 0.15s',
+                display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'all 0.15s',
               }}
                 onMouseEnter={e => { e.currentTarget.style.background = C.goldDim }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-              >
-                <Play size={12} /> FULL SWEEP
-              </button>
+              ><Play size={12} /> FULL SWEEP</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Loading */}
       {running && (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ textAlign: 'center', color: 'var(--text-3)' }}>
-            <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 18, fontWeight: 700, color: C.cyan, animation: 'pulse 1s ease-in-out infinite' }}>
-              COMPUTING…
-            </div>
-          </div>
+          <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 18, fontWeight: 700, color: C.cyan, animation: 'pulse 1s ease-in-out infinite' }}>COMPUTING…</div>
         </div>
       )}
     </div>
