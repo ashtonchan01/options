@@ -140,18 +140,29 @@ export interface Action {
 
 // ─── Scanner Result ───────────────────────────────────────────────────────────
 
+export type ScanFlag = 'HIGH_VOL' | 'HIGH_V_OI' | 'IV_SPIKE' | 'NEAR_TERM'
+
 export interface ScanResult {
   underlying: string
   strategyType: Extract<StrategyType, 'csp' | 'covered_call'>
+  stockPrice: number
   strike: number
   expiry: string
   dte: number
   delta: number
+  gamma: number
+  theta: number
   iv: number
+  ivRank: number            // 0-100 percentile within chain
   bid: number
+  ask: number
   mid: number
+  volume: number
+  openInterest: number
+  volumeOiRatio: number     // volume / openInterest
   annualizedYield: number   // mid / strike * (365/dte)
-  score: number             // composite rank
+  score: number             // composite rank 0-100
+  flags: ScanFlag[]
 }
 
 // ─── IBKR Sync State ─────────────────────────────────────────────────────────

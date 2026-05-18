@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react'
-import { Scan, AlertCircle } from 'lucide-react'
-import type { AppState, ScanResult } from '../../types'
+import { Scan, AlertCircle, TrendingUp, Activity, Zap, Clock } from 'lucide-react'
+import type { AppState, ScanResult, ScanFlag } from '../../types'
 import { scanAllTickers } from '../../services/yahoo'
 
 interface Props { state: AppState }
 
 type FilterType = 'all' | 'csp' | 'covered_call'
-type SortKey = 'score' | 'annualizedYield' | 'delta' | 'dte' | 'iv'
+type FlagFilter = 'all' | ScanFlag
+type SortKey = 'score' | 'annualizedYield' | 'delta' | 'dte' | 'iv' | 'volume' | 'openInterest' | 'volumeOiRatio' | 'gamma' | 'theta' | 'ivRank'
 
 const STRATEGY_LABEL: Record<ScanResult['strategyType'], string> = {
   csp: 'CSP',
@@ -18,33 +19,46 @@ const STRATEGY_COLOR: Record<ScanResult['strategyType'], string> = {
   covered_call: '#3b82f6',
 }
 
+const FLAG_CONFIG: Record<ScanFlag, { label: string; color: string; icon: typeof TrendingUp }> = {
+  HIGH_VOL:   { label: 'HIGH VOL',  color: '#00E5FF', icon: TrendingUp },
+  HIGH_V_OI:  { label: 'V/OI',      color: '#f59e0b', icon: Activity },
+  IV_SPIKE:   { label: 'IV SPIKE',  color: '#a855f7', icon: Zap },
+  NEAR_TERM:  { label: 'NEAR',      color: '#10b981', icon: Clock },
+}
+
 function fmtExpiry(s: string): string {
   const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
   if (!m) return s
   return new Date(`${m[1]}-${m[2]}-${m[3]}`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+function fmtK(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
+}
+
 function deltaColor(d: number): string {
   const abs = Math.abs(d)
-  if (abs < 0.20) return 'var(--text-2)'
-  if (abs > 0.35) return '#f59e0b'
+  if (abs < 0.15) return 'var(--text-3)'
+  if (abs > 0.40) return '#f59e0b'
   return '#10b981'
 }
 
-const colHdr: React.CSSProperties = {
-  padding: '12px 16px', fontSize: 13, fontWeight: 600,
-  color: 'var(--text-2)', textAlign: 'right', cursor: 'pointer',
-  userSelect: 'none', whiteSpace: 'nowrap', letterSpacing: '0.06em',
+function scoreColor(s: number): string {
+  if (s >= 70) return '#10b981'
+  if (s >= 40) return '#f59e0b'
+  return 'var(--text-3)'
 }
 
 export default function OpportunitiesView({ state }: Props) {
-  const [results, setResults]   = useState<ScanResult[]>([])
-  const [scanning, setScanning] = useState(false)
-  const [error, setError]       = useState<string | null>(null)
-  const [filter, setFilter]     = useState<FilterType>('all')
-  const [sortKey, setSortKey]   = useState<SortKey>('annualizedYield')
-  const [sortAsc, setSortAsc]   = useState(false)
-  const [scanned, setScanned]   = useState(false)
+  const [results, setResults]       = useState<ScanResult[]>([])
+  const [scanning, setScanning]     = useState(false)
+  const [error, setError]           = useState<string | null>(null)
+  const [filter, setFilter]         = useState<FilterType>('all')
+  const [flagFilter, setFlagFilter] = useState<FlagFilter>('all')
+  const [sortKey, setSortKey]       = useState<SortKey>('score')
+  const [sortAsc, setSortAsc]       = useState(false)
+  const [scanned, setScanned]       = useState(false)
+  const [scanProgress, setScanProgress] = useState('')
 
   const stocksHeld = useMemo(() => {
     const map: Record<string, number> = {}
@@ -54,12 +68,10 @@ export default function OpportunitiesView({ state }: Props) {
     return map
   }, [state.sync.positions])
 
-  // IA13 watchlist — always scan these
-  const IA13 = ['ALAB','AMD','ARM','ASML','AVGO','GOOG','MRVL','MU','NVDA','PLTR','TSLA','TSM','MSTR']
+  const WATCHLIST = ['TSLA','MSTR','AMD','ALAB','ARM','ASML','AVGO','GOOG','MRVL','MU','NVDA','PLTR','TSM']
 
   const tickers = useMemo(() => {
-    const set = new Set<string>(IA13)
-    // Also add any portfolio positions not already in the list (but skip indices like SPX)
+    const set = new Set<string>(WATCHLIST)
     const SKIP = new Set(['SPX','SPY','QQQ','IWM','DIA','VIX'])
     for (const p of state.sync.positions) {
       const sym = p.underlyingSymbol ?? (p.assetClass === 'STK' ? p.symbol : null)
@@ -67,8 +79,6 @@ export default function OpportunitiesView({ state }: Props) {
     }
     return [...set].sort()
   }, [state.sync.positions])
-
-  const [scanProgress, setScanProgress] = useState('')
 
   async function handleScan() {
     setScanning(true)
@@ -92,186 +102,414 @@ export default function OpportunitiesView({ state }: Props) {
     }
   }
 
-  // No auto-scan — user clicks Scan Now (avoids burning rate limit on every tab switch)
-  void 0 // eslint-disable-line
-
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(a => !a)
     else { setSortKey(key); setSortAsc(false) }
   }
 
   const filtered = useMemo(() => {
-    const base = filter === 'all' ? results : results.filter(r => r.strategyType === filter)
+    let base = filter === 'all' ? results : results.filter(r => r.strategyType === filter)
+    if (flagFilter !== 'all') {
+      base = base.filter(r => r.flags.includes(flagFilter))
+    }
     return [...base].sort((a, b) => {
       const diff = (a[sortKey] as number) - (b[sortKey] as number)
       return sortAsc ? diff : -diff
     })
-  }, [results, filter, sortKey, sortAsc])
+  }, [results, filter, flagFilter, sortKey, sortAsc])
+
+  // Stats summary
+  const stats = useMemo(() => {
+    if (results.length === 0) return null
+    const flagged = results.filter(r => r.flags.length > 0)
+    const avgScore = results.reduce((s, r) => s + r.score, 0) / results.length
+    const avgIv = results.reduce((s, r) => s + r.iv, 0) / results.length
+    const highVol = results.filter(r => r.flags.includes('HIGH_VOL')).length
+    const highVOI = results.filter(r => r.flags.includes('HIGH_V_OI')).length
+    const cspCount = results.filter(r => r.strategyType === 'csp').length
+    const ccCount = results.filter(r => r.strategyType === 'covered_call').length
+    return { total: results.length, flagged: flagged.length, avgScore, avgIv, highVol, highVOI, cspCount, ccCount }
+  }, [results])
 
   const sortIndicator = (key: SortKey) => sortKey === key ? (sortAsc ? ' ↑' : ' ↓') : ''
 
-  return (
-    <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
+  const thStyle = (key?: SortKey): React.CSSProperties => ({
+    padding: '10px 12px', fontSize: 10, fontWeight: 600,
+    color: key && sortKey === key ? 'var(--accent)' : 'var(--text-4)',
+    textAlign: 'right', cursor: key ? 'pointer' : 'default',
+    userSelect: 'none', whiteSpace: 'nowrap', letterSpacing: '1.5px',
+    textTransform: 'uppercase', background: 'var(--bg-surface)',
+    borderBottom: '1px solid var(--border)',
+  })
 
-      {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+  const tdStyle: React.CSSProperties = {
+    padding: '10px 12px', textAlign: 'right',
+    fontFamily: 'IBM Plex Mono, monospace', fontSize: 13,
+    color: 'var(--text-2)', borderBottom: '1px solid var(--border)',
+  }
+
+  return (
+    <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
+
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Activity size={18} style={{ color: 'var(--accent)' }} />
+          <span className="chakra" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+            Options Scanner
+          </span>
+        </div>
 
         <button
           onClick={handleScan}
           disabled={scanning}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 7,
-            padding: '8px 18px', fontSize: 15, fontWeight: 600,
-            background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-            color: scanning ? 'var(--text-3)' : 'var(--text-1)',
+            padding: '7px 18px', fontSize: 13, fontWeight: 600,
+            background: scanning ? 'var(--bg-elevated)' : 'var(--accent-dim)',
+            border: `1px solid ${scanning ? 'var(--border)' : 'rgba(0,229,255,0.25)'}`,
+            color: scanning ? 'var(--text-3)' : 'var(--accent)',
             cursor: scanning ? 'not-allowed' : 'pointer',
-            fontFamily: 'inherit', flexShrink: 0,
+            fontFamily: "'Chakra Petch', sans-serif", letterSpacing: '1px',
+            textTransform: 'uppercase',
           }}
         >
-          <Scan size={14} style={{ animation: scanning ? 'spin 1.5s linear infinite' : 'none' }} />
+          <Scan size={13} style={{ animation: scanning ? 'spin 1.5s linear infinite' : 'none' }} />
           {scanning ? 'Scanning…' : 'Scan Now'}
         </button>
 
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+        {scanning && (
+          <span className="mono" style={{ fontSize: 12, color: 'var(--accent)', animation: 'pulse 2s infinite' }}>
+            {scanProgress || 'Initializing…'}
+          </span>
+        )}
+
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 5 }}>
           {tickers.map(sym => (
             <span key={sym} style={{
-              padding: '3px 8px', fontSize: 13, fontWeight: 600,
+              padding: '2px 7px', fontSize: 11, fontWeight: 600,
               background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-              color: stocksHeld[sym] ? '#3b82f6' : 'var(--text-3)',
+              color: stocksHeld[sym] ? '#3b82f6' : 'var(--text-4)',
               fontFamily: 'IBM Plex Mono, monospace',
             }}>
-              {sym}{stocksHeld[sym] ? ` ×${stocksHeld[sym]}` : ''}
+              {sym}
             </span>
           ))}
         </div>
+      </div>
 
-        {scanned && (
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+      {/* ── Error ───────────────────────────────────────────────────────────── */}
+      {error && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f43f5e', fontSize: 13 }}>
+          <AlertCircle size={14} />{error}
+        </div>
+      )}
+
+      {/* ── Stats Bar ───────────────────────────────────────────────────────── */}
+      {stats && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {[
+            { label: 'TOTAL', value: String(stats.total), color: 'var(--text-1)' },
+            { label: 'CSP', value: String(stats.cspCount), color: '#f43f5e' },
+            { label: 'CC', value: String(stats.ccCount), color: '#3b82f6' },
+            { label: 'AVG SCORE', value: stats.avgScore.toFixed(0), color: scoreColor(stats.avgScore) },
+            { label: 'AVG IV', value: `${stats.avgIv.toFixed(0)}%`, color: 'var(--text-2)' },
+            { label: 'FLAGGED', value: String(stats.flagged), color: 'var(--accent)' },
+            { label: 'HIGH VOL', value: String(stats.highVol), color: '#00E5FF' },
+            { label: 'V/OI', value: String(stats.highVOI), color: '#f59e0b' },
+          ].map((s, i) => (
+            <div key={i} className="stat-card" style={{ padding: '10px 16px', minWidth: 90, flex: '1 1 0' }}>
+              <div className="stat-label" style={{ fontSize: 9, marginBottom: 4 }}>{s.label}</div>
+              <div className="stat-value" style={{ fontSize: 20, color: s.color }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Filters ─────────────────────────────────────────────────────────── */}
+      {scanned && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          {/* Strategy filter */}
+          <div style={{ display: 'flex', gap: 4 }}>
             {(['all', 'csp', 'covered_call'] as FilterType[]).map(f => (
               <button key={f} onClick={() => setFilter(f)} style={{
-                padding: '5px 12px', fontSize: 13, fontWeight: 600,
-                background: filter === f ? 'var(--bg-active)' : 'transparent',
-                border: `1px solid ${filter === f ? 'var(--text-5)' : 'var(--border)'}`,
-                color: filter === f ? 'var(--text-1)' : 'var(--text-3)',
-                cursor: 'pointer', fontFamily: 'inherit',
+                padding: '4px 12px', fontSize: 11, fontWeight: 600,
+                background: filter === f ? 'var(--accent-dim)' : 'transparent',
+                border: `1px solid ${filter === f ? 'rgba(0,229,255,0.25)' : 'var(--border)'}`,
+                color: filter === f ? 'var(--accent)' : 'var(--text-4)',
+                cursor: 'pointer', fontFamily: "'Chakra Petch', sans-serif",
+                letterSpacing: '1px', textTransform: 'uppercase',
               }}>
                 {f === 'all' ? 'ALL' : STRATEGY_LABEL[f as ScanResult['strategyType']]}
               </button>
             ))}
           </div>
-        )}
-      </div>
 
-      {/* ── Error ───────────────────────────────────────────────────────────── */}
-      {error && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f43f5e', fontSize: 14 }}>
-          <AlertCircle size={14} />{error}
-        </div>
-      )}
+          {/* Flag filter */}
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button onClick={() => setFlagFilter('all')} style={{
+              padding: '4px 10px', fontSize: 11, fontWeight: 600,
+              background: flagFilter === 'all' ? 'var(--bg-active)' : 'transparent',
+              border: `1px solid ${flagFilter === 'all' ? 'var(--border-light)' : 'var(--border)'}`,
+              color: flagFilter === 'all' ? 'var(--text-2)' : 'var(--text-4)',
+              cursor: 'pointer', fontFamily: "'Chakra Petch', sans-serif",
+              letterSpacing: '1px', textTransform: 'uppercase',
+            }}>
+              ALL FLAGS
+            </button>
+            {(Object.keys(FLAG_CONFIG) as ScanFlag[]).map(f => {
+              const cfg = FLAG_CONFIG[f]
+              const count = results.filter(r => r.flags.includes(f)).length
+              return (
+                <button key={f} onClick={() => setFlagFilter(flagFilter === f ? 'all' : f)} style={{
+                  padding: '4px 10px', fontSize: 11, fontWeight: 600,
+                  background: flagFilter === f ? `${cfg.color}18` : 'transparent',
+                  border: `1px solid ${flagFilter === f ? `${cfg.color}44` : 'var(--border)'}`,
+                  color: flagFilter === f ? cfg.color : 'var(--text-4)',
+                  cursor: 'pointer', fontFamily: "'Chakra Petch', sans-serif",
+                  letterSpacing: '0.5px',
+                }}>
+                  {cfg.label} ({count})
+                </button>
+              )
+            })}
+          </div>
 
-      {/* ── Loading ─────────────────────────────────────────────────────────── */}
-      {scanning && (
-        <div style={{ color: 'var(--text-2)', fontSize: 15, paddingTop: 40, textAlign: 'center' }}>
-          Scanning {tickers.length} tickers{scanProgress ? ` — ${scanProgress}` : '...'}
-          <br />
-          <span style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 6, display: 'block' }}>
-            Pacing requests to avoid Yahoo rate limits (~2s per ticker)
+          <span className="mono" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-4)' }}>
+            {filtered.length} / {results.length} results
           </span>
         </div>
       )}
 
-      {/* ── Empty ───────────────────────────────────────────────────────────── */}
+      {/* ── Empty States ────────────────────────────────────────────────────── */}
+      {scanning && !scanned && (
+        <div style={{ textAlign: 'center', paddingTop: 60 }}>
+          <div className="chakra" style={{ fontSize: 16, color: 'var(--text-2)', letterSpacing: '1px' }}>
+            SCANNING {tickers.length} TICKERS
+          </div>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 8 }}>
+            Pacing requests to avoid rate limits · ~2s per ticker
+          </div>
+          <div style={{
+            width: 200, height: 3, background: 'var(--border)', borderRadius: 2,
+            margin: '16px auto', overflow: 'hidden',
+          }}>
+            <div style={{
+              height: '100%', background: 'var(--accent)',
+              animation: 'pulse 1.5s ease-in-out infinite',
+              width: '60%', borderRadius: 2,
+            }} />
+          </div>
+        </div>
+      )}
+
       {!scanning && !scanned && !error && (
-        <div style={{ color: 'var(--text-2)', fontSize: 15, paddingTop: 60, textAlign: 'center' }}>
-          Press <span style={{ color: 'var(--text-1)' }}>Scan Now</span> to fetch live option chains across your watchlist.
-          <br />
-          <span style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 6, display: 'block' }}>
-            Blue tickers = shares held (eligible for covered calls)
-          </span>
+        <div style={{ textAlign: 'center', paddingTop: 80 }}>
+          <Activity size={32} style={{ color: 'var(--text-5)', marginBottom: 12 }} />
+          <div className="chakra" style={{ fontSize: 16, color: 'var(--text-2)', letterSpacing: '1px' }}>
+            OPTIONS SCANNER
+          </div>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 8, lineHeight: 1.8 }}>
+            Scan {tickers.length} tickers for CSP & CC opportunities<br />
+            Filters: Delta {MIN_DELTA_LABEL}–{MAX_DELTA_LABEL} · DTE 7–60 · Volume &amp; IV rank<br />
+            <span style={{ color: '#3b82f6' }}>Blue tickers</span> = shares held (eligible for covered calls)
+          </div>
+          <button
+            onClick={handleScan}
+            style={{
+              marginTop: 20, padding: '10px 28px', fontSize: 14, fontWeight: 600,
+              background: 'var(--accent-dim)', border: '1px solid rgba(0,229,255,0.25)',
+              color: 'var(--accent)', cursor: 'pointer',
+              fontFamily: "'Chakra Petch', sans-serif", letterSpacing: '1.5px',
+              textTransform: 'uppercase',
+            }}
+          >
+            <Scan size={14} style={{ verticalAlign: -2, marginRight: 8 }} />
+            START SCAN
+          </button>
         </div>
       )}
 
       {scanned && filtered.length === 0 && !scanning && (
-        <div style={{ color: 'var(--text-2)', fontSize: 15, paddingTop: 40, textAlign: 'center' }}>
-          No opportunities matched current filters (delta 0.12–0.45, DTE 14–60).
+        <div style={{ textAlign: 'center', paddingTop: 60, color: 'var(--text-3)', fontSize: 14 }}>
+          No opportunities matched current filters.
         </div>
       )}
 
-      {/* ── Table ───────────────────────────────────────────────────────────── */}
+      {/* ── Results Table ───────────────────────────────────────────────────── */}
       {filtered.length > 0 && (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'auto', flex: 1, minHeight: 0 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
+        <div className="panel" style={{ overflow: 'auto', flex: 1, minHeight: 0, borderRadius: 8 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                <th style={{ ...colHdr, textAlign: 'left', paddingLeft: 16 }}>TICKER</th>
-                <th style={{ ...colHdr, textAlign: 'left' }}>TYPE</th>
-                <th style={{ ...colHdr }}>STRIKE</th>
-                <th style={{ ...colHdr }}>EXPIRY</th>
-                <th style={{ ...colHdr }} onClick={() => toggleSort('dte')}>DTE{sortIndicator('dte')}</th>
-                <th style={{ ...colHdr }} onClick={() => toggleSort('delta')}>DELTA{sortIndicator('delta')}</th>
-                <th style={{ ...colHdr }} onClick={() => toggleSort('iv')}>IV%{sortIndicator('iv')}</th>
-                <th style={{ ...colHdr }}>BID</th>
-                <th style={{ ...colHdr }}>MID</th>
-                <th style={{ ...colHdr, color: sortKey === 'annualizedYield' ? 'var(--text-1)' : 'var(--text-3)' }} onClick={() => toggleSort('annualizedYield')}>
-                  YIELD/YR{sortIndicator('annualizedYield')}
+              <tr>
+                <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: 14 }}>TICKER</th>
+                <th style={{ ...thStyle(), textAlign: 'left' }}>TYPE</th>
+                <th style={{ ...thStyle(), textAlign: 'left' }}>FLAGS</th>
+                <th style={thStyle()}>PRICE</th>
+                <th style={thStyle()}>STRIKE</th>
+                <th style={thStyle()}>EXPIRY</th>
+                <th style={thStyle('dte')} onClick={() => toggleSort('dte')}>DTE{sortIndicator('dte')}</th>
+                <th style={thStyle('delta')} onClick={() => toggleSort('delta')}>Δ{sortIndicator('delta')}</th>
+                <th style={thStyle('gamma')} onClick={() => toggleSort('gamma')}>Γ{sortIndicator('gamma')}</th>
+                <th style={thStyle('theta')} onClick={() => toggleSort('theta')}>Θ{sortIndicator('theta')}</th>
+                <th style={thStyle('iv')} onClick={() => toggleSort('iv')}>IV%{sortIndicator('iv')}</th>
+                <th style={thStyle('ivRank')} onClick={() => toggleSort('ivRank')}>IVR{sortIndicator('ivRank')}</th>
+                <th style={thStyle()}>BID/ASK</th>
+                <th style={thStyle('volume')} onClick={() => toggleSort('volume')}>VOL{sortIndicator('volume')}</th>
+                <th style={thStyle('openInterest')} onClick={() => toggleSort('openInterest')}>OI{sortIndicator('openInterest')}</th>
+                <th style={thStyle('volumeOiRatio')} onClick={() => toggleSort('volumeOiRatio')}>V/OI{sortIndicator('volumeOiRatio')}</th>
+                <th style={thStyle('annualizedYield')} onClick={() => toggleSort('annualizedYield')}>
+                  YIELD{sortIndicator('annualizedYield')}
                 </th>
-                <th style={{ ...colHdr, color: sortKey === 'score' ? 'var(--text-1)' : 'var(--text-3)' }} onClick={() => toggleSort('score')}>
+                <th style={thStyle('score')} onClick={() => toggleSort('score')}>
                   SCORE{sortIndicator('score')}
                 </th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((r, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid var(--border-light)', background: i % 2 ? 'var(--bg-surface)' : 'transparent' }}>
-                  <td style={{ padding: '10px 14px 10px 16px', fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14 }}>
+                <tr key={i} style={{
+                  background: i % 2 ? 'var(--bg-surface)' : 'transparent',
+                  transition: 'background 0.1s',
+                }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = i % 2 ? 'var(--bg-surface)' : 'transparent' }}
+                >
+                  {/* Ticker */}
+                  <td style={{ ...tdStyle, textAlign: 'left', paddingLeft: 14, fontWeight: 700, color: 'var(--text-1)', fontSize: 13 }}>
                     {r.underlying}
                   </td>
-                  <td style={{ padding: '12px 16px' }}>
+
+                  {/* Type badge */}
+                  <td style={{ ...tdStyle, textAlign: 'left' }}>
                     <span style={{
-                      padding: '2px 7px', fontSize: 12, fontWeight: 700,
-                      background: `${STRATEGY_COLOR[r.strategyType]}18`,
-                      border: `1px solid ${STRATEGY_COLOR[r.strategyType]}44`,
+                      padding: '2px 6px', fontSize: 10, fontWeight: 700,
+                      background: `${STRATEGY_COLOR[r.strategyType]}15`,
+                      border: `1px solid ${STRATEGY_COLOR[r.strategyType]}40`,
                       color: STRATEGY_COLOR[r.strategyType],
-                      fontFamily: 'IBM Plex Mono, monospace',
+                      fontFamily: "'Chakra Petch', sans-serif", letterSpacing: '0.5px',
                     }}>
                       {STRATEGY_LABEL[r.strategyType]}
                     </span>
                   </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-1)' }}>
+
+                  {/* Flags */}
+                  <td style={{ ...tdStyle, textAlign: 'left' }}>
+                    <div style={{ display: 'flex', gap: 3 }}>
+                      {r.flags.map(f => {
+                        const cfg = FLAG_CONFIG[f]
+                        return (
+                          <span key={f} style={{
+                            padding: '1px 5px', fontSize: 9, fontWeight: 700,
+                            background: `${cfg.color}15`, border: `1px solid ${cfg.color}35`,
+                            color: cfg.color, letterSpacing: '0.3px',
+                            fontFamily: "'Chakra Petch', sans-serif",
+                          }}>
+                            {cfg.label}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </td>
+
+                  {/* Price */}
+                  <td style={{ ...tdStyle, color: 'var(--text-3)', fontSize: 12 }}>
+                    ${r.stockPrice.toFixed(0)}
+                  </td>
+
+                  {/* Strike */}
+                  <td style={{ ...tdStyle, color: 'var(--text-1)' }}>
                     ${r.strike.toLocaleString()}
                   </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-2)', fontSize: 14 }}>
+
+                  {/* Expiry */}
+                  <td style={{ ...tdStyle, color: 'var(--text-3)', fontSize: 12 }}>
                     {fmtExpiry(r.expiry)}
                   </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-2)' }}>
+
+                  {/* DTE */}
+                  <td style={{ ...tdStyle, color: r.dte <= 14 ? '#10b981' : 'var(--text-2)' }}>
                     {r.dte}
                   </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: deltaColor(r.delta) }}>
+
+                  {/* Delta */}
+                  <td style={{ ...tdStyle, color: deltaColor(r.delta) }}>
                     {r.delta.toFixed(2)}
                   </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-2)' }}>
+
+                  {/* Gamma */}
+                  <td style={{ ...tdStyle, color: 'var(--text-3)', fontSize: 12 }}>
+                    {r.gamma.toFixed(4)}
+                  </td>
+
+                  {/* Theta */}
+                  <td style={{ ...tdStyle, color: r.theta < 0 ? '#10b981' : '#f43f5e', fontSize: 12 }}>
+                    {r.theta.toFixed(2)}
+                  </td>
+
+                  {/* IV */}
+                  <td style={{ ...tdStyle }}>
                     {r.iv.toFixed(0)}%
                   </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-2)' }}>
-                    ${r.bid.toFixed(2)}
-                  </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-1)' }}>
-                    ${r.mid.toFixed(2)}
-                  </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#10b981', fontWeight: 600 }}>
-                    {r.annualizedYield.toFixed(0)}%
-                  </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
-                      <div style={{ width: 40, height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+
+                  {/* IV Rank */}
+                  <td style={tdStyle}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                      <div style={{ width: 28, height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
                         <div style={{
-                          height: '100%', width: `${Math.min(r.score * 100, 100)}%`,
-                          background: r.score > 0.6 ? '#10b981' : r.score > 0.3 ? '#f59e0b' : 'var(--text-3)',
+                          height: '100%', width: `${r.ivRank}%`,
+                          background: r.ivRank >= 75 ? '#a855f7' : r.ivRank >= 50 ? '#f59e0b' : 'var(--text-4)',
                           borderRadius: 2,
                         }} />
                       </div>
-                      <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-2)', fontSize: 13, minWidth: 28, textAlign: 'right' }}>
-                        {(r.score * 100).toFixed(0)}
+                      <span style={{ fontSize: 12, color: r.ivRank >= 75 ? '#a855f7' : 'var(--text-3)' }}>
+                        {r.ivRank}
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* Bid/Ask */}
+                  <td style={{ ...tdStyle, fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-2)' }}>${r.bid.toFixed(2)}</span>
+                    <span style={{ color: 'var(--text-5)', margin: '0 2px' }}>/</span>
+                    <span style={{ color: 'var(--text-3)' }}>${r.ask.toFixed(2)}</span>
+                  </td>
+
+                  {/* Volume */}
+                  <td style={{ ...tdStyle, color: r.flags.includes('HIGH_VOL') ? 'var(--accent)' : 'var(--text-2)', fontWeight: r.flags.includes('HIGH_VOL') ? 600 : 400 }}>
+                    {fmtK(r.volume)}
+                  </td>
+
+                  {/* OI */}
+                  <td style={{ ...tdStyle, color: 'var(--text-3)' }}>
+                    {fmtK(r.openInterest)}
+                  </td>
+
+                  {/* V/OI */}
+                  <td style={{ ...tdStyle, color: r.volumeOiRatio > 1 ? '#f59e0b' : 'var(--text-3)', fontWeight: r.volumeOiRatio > 1 ? 600 : 400 }}>
+                    {r.volumeOiRatio.toFixed(2)}
+                  </td>
+
+                  {/* Yield */}
+                  <td style={{ ...tdStyle, color: '#10b981', fontWeight: 600 }}>
+                    {r.annualizedYield.toFixed(0)}%
+                  </td>
+
+                  {/* Score */}
+                  <td style={tdStyle}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                      <div style={{ width: 36, height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%', width: `${r.score}%`,
+                          background: scoreColor(r.score),
+                          borderRadius: 2,
+                        }} />
+                      </div>
+                      <span style={{
+                        fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700,
+                        fontSize: 13, color: scoreColor(r.score), minWidth: 24, textAlign: 'right',
+                      }}>
+                        {r.score}
                       </span>
                     </div>
                   </td>
@@ -280,11 +518,22 @@ export default function OpportunitiesView({ state }: Props) {
             </tbody>
           </table>
 
-          <div style={{ padding: '8px 16px', color: 'var(--text-3)', fontSize: 13, fontFamily: 'IBM Plex Mono, monospace', borderTop: '1px solid var(--border)' }}>
-            {filtered.length} results · sorted by annual yield · delta 0.12–0.45 · DTE 14–60
+          {/* Footer */}
+          <div style={{
+            padding: '8px 14px', color: 'var(--text-4)', fontSize: 11,
+            fontFamily: 'IBM Plex Mono, monospace',
+            borderTop: '1px solid var(--border)',
+            display: 'flex', justifyContent: 'space-between',
+          }}>
+            <span>{filtered.length} results · Δ 0.08–0.55 · DTE 7–60</span>
+            <span>Score = Yield 30% + Vol 20% + Delta 20% + IV 20% + Spread 10%</span>
           </div>
         </div>
       )}
     </div>
   )
 }
+
+// Delta range labels for empty state
+const MIN_DELTA_LABEL = '0.08'
+const MAX_DELTA_LABEL = '0.55'
