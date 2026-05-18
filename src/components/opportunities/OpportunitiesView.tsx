@@ -138,17 +138,32 @@ export default function OpportunitiesView({ state }: Props) {
     })
   }, [results, filter, flagFilter, sortKey, sortAsc])
 
-  // Stats summary
-  const stats = useMemo(() => {
-    if (results.length === 0) return null
-    const flagged = results.filter(r => r.flags.length > 0)
-    const avgScore = results.reduce((s, r) => s + r.score, 0) / results.length
-    const avgIv = results.reduce((s, r) => s + r.iv, 0) / results.length
-    const highVol = results.filter(r => r.flags.includes('HIGH_VOL')).length
-    const highVOI = results.filter(r => r.flags.includes('HIGH_V_OI')).length
-    const cspCount = results.filter(r => r.strategyType === 'csp').length
-    const ccCount = results.filter(r => r.strategyType === 'covered_call').length
-    return { total: results.length, flagged: flagged.length, avgScore, avgIv, highVol, highVOI, cspCount, ccCount }
+  // Top 5 tickers by best score
+  const top5 = useMemo(() => {
+    if (results.length === 0) return []
+    // Group by ticker, pick best score per ticker
+    const byTicker = new Map<string, { bestScore: number; bestYield: number; avgIv: number; count: number; flagCount: number; price: number }>()
+    for (const r of results) {
+      const prev = byTicker.get(r.underlying)
+      if (!prev) {
+        byTicker.set(r.underlying, {
+          bestScore: r.score,
+          bestYield: r.annualizedYield,
+          avgIv: r.iv,
+          count: 1,
+          flagCount: r.flags.length,
+          price: r.stockPrice,
+        })
+      } else {
+        if (r.score > prev.bestScore) { prev.bestScore = r.score; prev.bestYield = r.annualizedYield }
+        prev.avgIv = (prev.avgIv * prev.count + r.iv) / (prev.count + 1)
+        prev.count += 1
+        prev.flagCount += r.flags.length
+      }
+    }
+    return [...byTicker.entries()]
+      .sort((a, b) => b[1].bestScore - a[1].bestScore)
+      .slice(0, 5)
   }, [results])
 
   const sortIndicator = (key: SortKey) => sortKey === key ? (sortAsc ? ' ↑' : ' ↓') : ''
@@ -242,22 +257,59 @@ export default function OpportunitiesView({ state }: Props) {
         </div>
       )}
 
-      {/* ── Stats Bar ───────────────────────────────────────────────────────── */}
-      {stats && (
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {[
-            { label: 'TOTAL', value: String(stats.total), color: 'var(--text-1)' },
-            { label: 'CSP', value: String(stats.cspCount), color: '#f43f5e' },
-            { label: 'CC', value: String(stats.ccCount), color: '#3b82f6' },
-            { label: 'AVG SCORE', value: stats.avgScore.toFixed(0), color: scoreColor(stats.avgScore) },
-            { label: 'AVG IV', value: `${stats.avgIv.toFixed(0)}%`, color: 'var(--text-2)' },
-            { label: 'FLAGGED', value: String(stats.flagged), color: 'var(--accent)' },
-            { label: 'HIGH VOL', value: String(stats.highVol), color: '#00E5FF' },
-            { label: 'V/OI', value: String(stats.highVOI), color: '#f59e0b' },
-          ].map((s, i) => (
-            <div key={i} className="stat-card" style={{ padding: '10px 16px', minWidth: 90, flex: '1 1 0' }}>
-              <div className="stat-label" style={{ fontSize: 9, marginBottom: 4 }}>{s.label}</div>
-              <div className="stat-value" style={{ fontSize: 20, color: s.color }}>{s.value}</div>
+      {/* ── Top 5 Tickers ──────────────────────────────────────────────────── */}
+      {top5.length > 0 && (
+        <div style={{ display: 'flex', gap: 10 }}>
+          {top5.map(([sym, d], i) => (
+            <div key={sym} className="stat-card" style={{
+              padding: '12px 16px', flex: '1 1 0', minWidth: 0,
+              borderColor: i === 0 ? 'rgba(0,229,255,0.25)' : 'var(--border)',
+              position: 'relative', overflow: 'hidden',
+            }}>
+              {/* Rank badge */}
+              <div style={{
+                position: 'absolute', top: 6, right: 8,
+                fontSize: 10, fontWeight: 700, color: 'var(--text-5)',
+                fontFamily: "'Chakra Petch', sans-serif",
+              }}>
+                #{i + 1}
+              </div>
+              {/* Ticker */}
+              <div style={{
+                fontFamily: "'Chakra Petch', sans-serif", fontSize: 18, fontWeight: 700,
+                color: i === 0 ? 'var(--accent)' : 'var(--text-1)',
+                letterSpacing: '1px', marginBottom: 4,
+              }}>
+                {sym}
+              </div>
+              {/* Price */}
+              <div className="mono" style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 8 }}>
+                ${d.price.toFixed(2)}
+              </div>
+              {/* Metrics */}
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 8, color: 'var(--text-4)', letterSpacing: '1.5px', fontWeight: 600, marginBottom: 2 }}>SCORE</div>
+                  <div className="mono" style={{ fontSize: 15, fontWeight: 700, color: scoreColor(d.bestScore) }}>{d.bestScore}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 8, color: 'var(--text-4)', letterSpacing: '1.5px', fontWeight: 600, marginBottom: 2 }}>YIELD</div>
+                  <div className="mono" style={{ fontSize: 15, fontWeight: 700, color: '#10b981' }}>{d.bestYield.toFixed(0)}%</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 8, color: 'var(--text-4)', letterSpacing: '1.5px', fontWeight: 600, marginBottom: 2 }}>IV</div>
+                  <div className="mono" style={{ fontSize: 15, color: 'var(--text-2)' }}>{d.avgIv.toFixed(0)}%</div>
+                </div>
+              </div>
+              {/* Bottom */}
+              <div className="mono" style={{ fontSize: 10, color: 'var(--text-4)', marginTop: 8, display: 'flex', justifyContent: 'space-between' }}>
+                <span>{d.count} contracts</span>
+                {d.flagCount > 0 && <span style={{ color: 'var(--accent)' }}>{d.flagCount} flags</span>}
+              </div>
+              {/* Score bar */}
+              <div style={{ marginTop: 6, height: 2, background: 'var(--border)', borderRadius: 1, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${d.bestScore}%`, background: scoreColor(d.bestScore), borderRadius: 1 }} />
+              </div>
             </div>
           ))}
         </div>
