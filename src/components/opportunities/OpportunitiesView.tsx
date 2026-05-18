@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Scan, AlertCircle, TrendingUp, Activity, Zap, Clock } from 'lucide-react'
 import type { AppState, ScanResult, ScanFlag } from '../../types'
+import { scanAllTickersTradier } from '../../services/tradier'
 import { scanAllTickers } from '../../services/yahoo'
 
 interface Props { state: AppState }
@@ -80,17 +81,36 @@ export default function OpportunitiesView({ state }: Props) {
     return [...set].sort()
   }, [state.sync.positions])
 
+  const [dataSource, setDataSource] = useState<'tradier' | 'yahoo'>('tradier')
+
   async function handleScan() {
     setScanning(true)
     setError(null)
     setResults([])
     setScanProgress('')
     try {
-      const all = await scanAllTickers(tickers, stocksHeld, (sym, i, total) => {
-        setScanProgress(`${sym} (${i + 1}/${total})`)
-      })
+      let all: ScanResult[] = []
+
+      if (dataSource === 'tradier') {
+        setScanProgress('Tradier — parallel fetch...')
+        all = await scanAllTickersTradier(tickers, stocksHeld, (sym, i, total) => {
+          setScanProgress(`${sym} (${i + 1}/${total})`)
+        })
+        // Fallback to Yahoo if Tradier returned nothing (token not set)
+        if (all.length === 0) {
+          setScanProgress('Tradier returned 0 results — falling back to Yahoo...')
+          all = await scanAllTickers(tickers, stocksHeld, (sym, i, total) => {
+            setScanProgress(`Yahoo: ${sym} (${i + 1}/${total})`)
+          })
+        }
+      } else {
+        all = await scanAllTickers(tickers, stocksHeld, (sym, i, total) => {
+          setScanProgress(`${sym} (${i + 1}/${total})`)
+        })
+      }
+
       if (all.length === 0 && tickers.length > 0) {
-        setError('No results — Yahoo may be rate-limiting. Wait 30s and try again.')
+        setError('No results — check API token or try again in 30s.')
       }
       setResults(all)
       setScanned(true)
@@ -177,6 +197,23 @@ export default function OpportunitiesView({ state }: Props) {
           <Scan size={13} style={{ animation: scanning ? 'spin 1.5s linear infinite' : 'none' }} />
           {scanning ? 'Scanning…' : 'Scan Now'}
         </button>
+
+        {/* Data source toggle */}
+        <div style={{ display: 'flex', gap: 2 }}>
+          {(['tradier', 'yahoo'] as const).map(src => (
+            <button key={src} onClick={() => setDataSource(src)} disabled={scanning} style={{
+              padding: '5px 10px', fontSize: 10, fontWeight: 700,
+              background: dataSource === src ? 'var(--accent-dim)' : 'transparent',
+              border: `1px solid ${dataSource === src ? 'rgba(0,229,255,0.25)' : 'var(--border)'}`,
+              color: dataSource === src ? 'var(--accent)' : 'var(--text-4)',
+              cursor: scanning ? 'not-allowed' : 'pointer',
+              fontFamily: "'Chakra Petch', sans-serif", letterSpacing: '1px',
+              textTransform: 'uppercase',
+            }}>
+              {src === 'tradier' ? '⚡ TRADIER' : '🐢 YAHOO'}
+            </button>
+          ))}
+        </div>
 
         {scanning && (
           <span className="mono" style={{ fontSize: 12, color: 'var(--accent)', animation: 'pulse 2s infinite' }}>
@@ -288,7 +325,7 @@ export default function OpportunitiesView({ state }: Props) {
             SCANNING {tickers.length} TICKERS
           </div>
           <div className="mono" style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 8 }}>
-            Pacing requests to avoid rate limits · ~2s per ticker
+            {dataSource === 'tradier' ? 'Parallel fetch via Tradier API' : 'Pacing requests to avoid rate limits · ~2s per ticker'}
           </div>
           <div style={{
             width: 200, height: 3, background: 'var(--border)', borderRadius: 2,
@@ -311,7 +348,7 @@ export default function OpportunitiesView({ state }: Props) {
           </div>
           <div className="mono" style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 8, lineHeight: 1.8 }}>
             Scan {tickers.length} tickers for CSP & CC opportunities<br />
-            Filters: Delta {MIN_DELTA_LABEL}–{MAX_DELTA_LABEL} · DTE 7–60 · Volume &amp; IV rank<br />
+            Filters: Delta 0.08–0.55 · DTE 7–60 · Volume &amp; IV rank<br />
             <span style={{ color: '#3b82f6' }}>Blue tickers</span> = shares held (eligible for covered calls)
           </div>
           <button
@@ -533,7 +570,3 @@ export default function OpportunitiesView({ state }: Props) {
     </div>
   )
 }
-
-// Delta range labels for empty state
-const MIN_DELTA_LABEL = '0.08'
-const MAX_DELTA_LABEL = '0.55'
