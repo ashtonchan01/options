@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react'
 import { Scan, AlertCircle, Activity, ChevronDown, ChevronUp } from 'lucide-react'
 import type { AppState, ScanResult, ScanFlag } from '../../types'
 import { scanAllTickersCboe } from '../../services/cboe'
-import { scanAllTickers } from '../../services/yahoo'
 
 interface Props { state: AppState }
 
@@ -30,6 +29,10 @@ function deltaColor(d: number): string {
   return '#10b981'
 }
 
+// ─── Card width ──────────────────────────────────────────────────────────────
+
+const CARD_W = 380 // fixed card width in px
+
 // ─── Ticker card data ────────────────────────────────────────────────────────
 
 interface TickerCard {
@@ -45,22 +48,12 @@ interface TickerCard {
 
 function buildCards(results: ScanResult[], tickers: string[]): TickerCard[] {
   const map = new Map<string, { results: ScanResult[]; price: number }>()
-
-  // Ensure all tickers appear even if no results
-  for (const sym of tickers) {
-    map.set(sym, { results: [], price: 0 })
-  }
-
+  for (const sym of tickers) map.set(sym, { results: [], price: 0 })
   for (const r of results) {
     const entry = map.get(r.underlying)
-    if (entry) {
-      entry.results.push(r)
-      if (!entry.price) entry.price = r.stockPrice
-    } else {
-      map.set(r.underlying, { results: [r], price: r.stockPrice })
-    }
+    if (entry) { entry.results.push(r); if (!entry.price) entry.price = r.stockPrice }
+    else map.set(r.underlying, { results: [r], price: r.stockPrice })
   }
-
   const cards: TickerCard[] = []
   for (const [symbol, { results: rs, price }] of map) {
     const csps = rs.filter(r => r.strategyType === 'csp').sort((a, b) => b.score - a.score).slice(0, 5)
@@ -68,34 +61,33 @@ function buildCards(results: ScanResult[], tickers: string[]): TickerCard[] {
     const bestScore = rs.length > 0 ? Math.max(...rs.map(r => r.score)) : 0
     const avgIv = rs.length > 0 ? rs.reduce((s, r) => s + r.iv, 0) / rs.length : 0
     const flagCount = rs.reduce((s, r) => s + r.flags.length, 0)
-
     cards.push({ symbol, price, bestScore, avgIv, totalContracts: rs.length, flagCount, topCsp: csps, topCc: ccs })
   }
-
-  // Sort by best score descending
   cards.sort((a, b) => b.bestScore - a.bestScore)
   return cards
 }
 
-// ─── Mini option row ─────────────────────────────────────────────────────────
+// ─── Mini table components ───────────────────────────────────────────────────
+
+const GRID_COLS = '18px 1fr 44px 34px 44px 40px 34px'
 
 function OptionRow({ r, rank }: { r: ScanResult; rank: number }) {
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: '16px 52px 42px 36px 40px 36px 36px',
-      gap: 4, alignItems: 'center',
-      padding: '4px 0',
+      display: 'grid', gridTemplateColumns: GRID_COLS,
+      gap: 4, alignItems: 'center', padding: '5px 0',
       borderBottom: '1px solid var(--border)',
       fontSize: 11, fontFamily: 'IBM Plex Mono, monospace',
     }}>
-      <span style={{ color: 'var(--text-5)', fontSize: 10 }}>{rank}</span>
-      <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>${r.strike}</span>
-      <span style={{ color: 'var(--text-3)' }}>{fmtExp(r.expiry)}</span>
-      <span style={{ color: 'var(--text-3)' }}>{r.dte}d</span>
-      <span style={{ color: deltaColor(r.delta) }}>{r.delta.toFixed(2)}</span>
-      <span style={{ color: '#10b981', fontWeight: 600 }}>{r.annualizedYield.toFixed(0)}%</span>
-      <span style={{ color: scoreColor(r.score), fontWeight: 700, fontFamily: "'Chakra Petch', sans-serif" }}>{r.score}</span>
+      <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
+      <span style={{ color: 'var(--text-1)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        ${r.strike}
+      </span>
+      <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{fmtExp(r.expiry)}</span>
+      <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{r.dte}d</span>
+      <span style={{ color: deltaColor(r.delta), textAlign: 'right' }}>{r.delta.toFixed(2)}</span>
+      <span style={{ color: '#10b981', fontWeight: 600, textAlign: 'right' }}>{r.annualizedYield.toFixed(0)}%</span>
+      <span style={{ color: scoreColor(r.score), fontWeight: 700, fontFamily: "'Chakra Petch', sans-serif", textAlign: 'right' }}>{r.score}</span>
     </div>
   )
 }
@@ -103,20 +95,51 @@ function OptionRow({ r, rank }: { r: ScanResult; rank: number }) {
 function MiniHeader() {
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: '16px 52px 42px 36px 40px 36px 36px',
-      gap: 4, padding: '2px 0 4px',
+      display: 'grid', gridTemplateColumns: GRID_COLS,
+      gap: 4, padding: '3px 0 5px',
       borderBottom: '1px solid var(--border-light)',
       fontSize: 8, fontWeight: 600, color: 'var(--text-4)',
       letterSpacing: '1px', textTransform: 'uppercase',
     }}>
-      <span>#</span>
+      <span style={{ textAlign: 'center' }}>#</span>
       <span>STRIKE</span>
-      <span>EXP</span>
-      <span>DTE</span>
-      <span>DELTA</span>
-      <span>YIELD</span>
-      <span>SCR</span>
+      <span style={{ textAlign: 'right' }}>EXP</span>
+      <span style={{ textAlign: 'right' }}>DTE</span>
+      <span style={{ textAlign: 'right' }}>DELTA</span>
+      <span style={{ textAlign: 'right' }}>YIELD</span>
+      <span style={{ textAlign: 'right' }}>SCR</span>
+    </div>
+  )
+}
+
+function StrategySection({ label, color, items }: { label: string; color: string; items: ScanResult[] }) {
+  if (items.length === 0) return null
+  const uniqueFlags = Array.from(new Set(items.flatMap(r => r.flags)))
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <span style={{
+          padding: '1px 6px', fontSize: 9, fontWeight: 700,
+          background: `${color}15`, border: `1px solid ${color}40`, color,
+          fontFamily: "'Chakra Petch', sans-serif", letterSpacing: '0.5px',
+        }}>
+          {label}
+        </span>
+        <span className="mono" style={{ fontSize: 9, color: 'var(--text-4)' }}>TOP {items.length}</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 3 }}>
+          {uniqueFlags.map(f => (
+            <span key={f} style={{
+              padding: '0 4px', fontSize: 8, fontWeight: 700,
+              background: `${FLAG_COLORS[f]}12`, color: FLAG_COLORS[f],
+              fontFamily: "'Chakra Petch', sans-serif",
+            }}>
+              {FLAG_LABELS[f]}
+            </span>
+          ))}
+        </div>
+      </div>
+      <MiniHeader />
+      {items.map((r, i) => <OptionRow key={i} r={r} rank={i + 1} />)}
     </div>
   )
 }
@@ -129,7 +152,6 @@ export default function OpportunitiesView({ state }: Props) {
   const [error, setError]       = useState<string | null>(null)
   const [scanned, setScanned]   = useState(false)
   const [scanProgress, setScanProgress] = useState('')
-  const [dataSource, setDataSource] = useState<'cboe' | 'yahoo'>('cboe')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   const stocksHeld = useMemo(() => {
@@ -165,30 +187,16 @@ export default function OpportunitiesView({ state }: Props) {
   async function handleScan() {
     setScanning(true); setError(null); setResults([]); setScanProgress('')
     try {
-      let all: ScanResult[] = []
-      if (dataSource === 'cboe') {
-        setScanProgress('CBOE — parallel fetch...')
-        all = await scanAllTickersCboe(tickers, stocksHeld, (sym, i, total) => {
-          setScanProgress(`${sym} (${i + 1}/${total})`)
-        })
-        if (all.length === 0) {
-          setScanProgress('CBOE returned 0 — falling back to Yahoo...')
-          all = await scanAllTickers(tickers, stocksHeld, (sym, i, total) => {
-            setScanProgress(`Yahoo: ${sym} (${i + 1}/${total})`)
-          })
-        }
-      } else {
-        all = await scanAllTickers(tickers, stocksHeld, (sym, i, total) => {
-          setScanProgress(`${sym} (${i + 1}/${total})`)
-        })
-      }
+      setScanProgress('CBOE — parallel fetch...')
+      const all = await scanAllTickersCboe(tickers, stocksHeld, (sym, i, total) => {
+        setScanProgress(`${sym} (${i + 1}/${total})`)
+      })
       if (all.length === 0 && tickers.length > 0) setError('No results — try again in 30s.')
       setResults(all); setScanned(true)
     } catch (e) { setError(String(e)) }
     finally { setScanning(false); setScanProgress('') }
   }
 
-  // Summary stats
   const totalResults = results.length
   const totalFlagged = results.filter(r => r.flags.length > 0).length
 
@@ -196,7 +204,7 @@ export default function OpportunitiesView({ state }: Props) {
     <div style={{ padding: '16px', height: '100%', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
         <Activity size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
         <span className="chakra" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '1px', textTransform: 'uppercase' }}>
           Scanner
@@ -215,21 +223,6 @@ export default function OpportunitiesView({ state }: Props) {
           {scanning ? 'Scanning…' : 'Scan'}
         </button>
 
-        <div style={{ display: 'flex', gap: 2 }}>
-          {(['cboe', 'yahoo'] as const).map(src => (
-            <button key={src} onClick={() => setDataSource(src)} disabled={scanning} style={{
-              padding: '4px 8px', fontSize: 9, fontWeight: 700,
-              background: dataSource === src ? 'var(--accent-dim)' : 'transparent',
-              border: `1px solid ${dataSource === src ? 'rgba(0,229,255,0.25)' : 'var(--border)'}`,
-              color: dataSource === src ? 'var(--accent)' : 'var(--text-4)',
-              cursor: scanning ? 'not-allowed' : 'pointer',
-              fontFamily: "'Chakra Petch', sans-serif", letterSpacing: '1px', textTransform: 'uppercase',
-            }}>
-              {src === 'cboe' ? '⚡ CBOE' : '🐢 YAHOO'}
-            </button>
-          ))}
-        </div>
-
         {scanning && (
           <span className="mono" style={{ fontSize: 11, color: 'var(--accent)', animation: 'pulse 2s infinite' }}>
             {scanProgress || 'Initializing…'}
@@ -245,7 +238,7 @@ export default function OpportunitiesView({ state }: Props) {
 
       {/* ── Error ───────────────────────────────────────────────────────────── */}
       {error && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f43f5e', fontSize: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f43f5e', fontSize: 12, flexShrink: 0 }}>
           <AlertCircle size={13} />{error}
         </div>
       )}
@@ -257,7 +250,7 @@ export default function OpportunitiesView({ state }: Props) {
             SCANNING {tickers.length} TICKERS
           </div>
           <div className="mono" style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 6 }}>
-            {dataSource === 'cboe' ? 'Parallel fetch via CBOE' : 'Pacing requests · ~2s per ticker'}
+            Parallel fetch via CBOE delayed quotes
           </div>
           <div style={{ width: 160, height: 3, background: 'var(--border)', borderRadius: 2, margin: '14px auto', overflow: 'hidden' }}>
             <div style={{ height: '100%', background: 'var(--accent)', animation: 'pulse 1.5s ease-in-out infinite', width: '60%', borderRadius: 2 }} />
@@ -287,9 +280,9 @@ export default function OpportunitiesView({ state }: Props) {
       {scanned && cards.length > 0 && (
         <div style={{
           flex: 1, minHeight: 0, overflow: 'auto',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))',
+          display: 'flex', flexWrap: 'wrap',
           gap: 10, alignContent: 'start',
+          justifyContent: 'center',
         }}>
           {cards.map((card, cardIdx) => {
             const isCollapsed = collapsed.has(card.symbol)
@@ -298,8 +291,9 @@ export default function OpportunitiesView({ state }: Props) {
 
             return (
               <div key={card.symbol} style={{
+                width: CARD_W, minWidth: CARD_W, maxWidth: CARD_W,
                 background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
-                overflow: 'hidden', display: 'flex', flexDirection: 'column',
+                overflow: 'hidden', flexShrink: 0,
                 borderColor: cardIdx < 3 && hasData ? 'rgba(0,229,255,0.15)' : 'var(--border)',
               }}>
 
@@ -307,10 +301,11 @@ export default function OpportunitiesView({ state }: Props) {
                 <div
                   onClick={() => hasData && toggleCollapse(card.symbol)}
                   style={{
-                    padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8,
                     cursor: hasData ? 'pointer' : 'default',
                     background: 'var(--bg-surface)',
                     borderBottom: isCollapsed || !hasData ? 'none' : '1px solid var(--border)',
+                    userSelect: 'none',
                   }}
                 >
                   {/* Rank */}
@@ -325,7 +320,7 @@ export default function OpportunitiesView({ state }: Props) {
 
                   {/* Ticker */}
                   <span style={{
-                    fontFamily: "'Chakra Petch', sans-serif", fontSize: 16, fontWeight: 700,
+                    fontFamily: "'Chakra Petch', sans-serif", fontSize: 15, fontWeight: 700,
                     color: cardIdx === 0 && hasData ? 'var(--accent)' : hasData ? 'var(--text-1)' : 'var(--text-4)',
                     letterSpacing: '1px',
                   }}>
@@ -350,9 +345,9 @@ export default function OpportunitiesView({ state }: Props) {
                     </span>
                   )}
 
-                  {/* Spacer + right side metrics */}
-                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {hasData && (
+                  {/* Right side */}
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {hasData ? (
                       <>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 7, color: 'var(--text-4)', letterSpacing: '1px', fontWeight: 600 }}>SCORE</div>
@@ -362,24 +357,17 @@ export default function OpportunitiesView({ state }: Props) {
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 7, color: 'var(--text-4)', letterSpacing: '1px', fontWeight: 600 }}>IV</div>
-                          <div className="mono" style={{ fontSize: 13, color: 'var(--text-2)' }}>
-                            {card.avgIv.toFixed(0)}%
-                          </div>
+                          <div className="mono" style={{ fontSize: 13, color: 'var(--text-2)' }}>{card.avgIv.toFixed(0)}%</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 7, color: 'var(--text-4)', letterSpacing: '1px', fontWeight: 600 }}>OPTS</div>
-                          <div className="mono" style={{ fontSize: 13, color: 'var(--text-3)' }}>
-                            {card.totalContracts}
-                          </div>
+                          <div className="mono" style={{ fontSize: 13, color: 'var(--text-3)' }}>{card.totalContracts}</div>
                         </div>
-                        {hasData && (
-                          isCollapsed
-                            ? <ChevronDown size={14} style={{ color: 'var(--text-4)' }} />
-                            : <ChevronUp size={14} style={{ color: 'var(--text-4)' }} />
-                        )}
+                        {isCollapsed
+                          ? <ChevronDown size={14} style={{ color: 'var(--text-4)', flexShrink: 0 }} />
+                          : <ChevronUp size={14} style={{ color: 'var(--text-4)', flexShrink: 0 }} />}
                       </>
-                    )}
-                    {!hasData && (
+                    ) : (
                       <span className="mono" style={{ fontSize: 10, color: 'var(--text-5)' }}>NO DATA</span>
                     )}
                   </div>
@@ -387,74 +375,9 @@ export default function OpportunitiesView({ state }: Props) {
 
                 {/* ── Card Body ────────────────────────────────────────────── */}
                 {hasData && !isCollapsed && (
-                  <div style={{ padding: '8px 14px 12px' }}>
-
-                    {/* CSP section */}
-                    {card.topCsp.length > 0 && (
-                      <div style={{ marginBottom: card.topCc.length > 0 ? 12 : 0 }}>
-                        <div style={{
-                          display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6,
-                        }}>
-                          <span style={{
-                            padding: '1px 6px', fontSize: 9, fontWeight: 700,
-                            background: '#f43f5e15', border: '1px solid #f43f5e40', color: '#f43f5e',
-                            fontFamily: "'Chakra Petch', sans-serif", letterSpacing: '0.5px',
-                          }}>
-                            CSP
-                          </span>
-                          <span className="mono" style={{ fontSize: 9, color: 'var(--text-4)' }}>
-                            TOP {card.topCsp.length}
-                          </span>
-                          {/* Flags summary */}
-                          <div style={{ marginLeft: 'auto', display: 'flex', gap: 3 }}>
-                            {Array.from(new Set(card.topCsp.flatMap(r => r.flags))).map(f => (
-                              <span key={f} style={{
-                                padding: '0 4px', fontSize: 8, fontWeight: 700,
-                                background: `${FLAG_COLORS[f]}12`, color: FLAG_COLORS[f],
-                                fontFamily: "'Chakra Petch', sans-serif",
-                              }}>
-                                {FLAG_LABELS[f]}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <MiniHeader />
-                        {card.topCsp.map((r, i) => <OptionRow key={i} r={r} rank={i + 1} />)}
-                      </div>
-                    )}
-
-                    {/* CC section */}
-                    {card.topCc.length > 0 && (
-                      <div>
-                        <div style={{
-                          display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6,
-                        }}>
-                          <span style={{
-                            padding: '1px 6px', fontSize: 9, fontWeight: 700,
-                            background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6',
-                            fontFamily: "'Chakra Petch', sans-serif", letterSpacing: '0.5px',
-                          }}>
-                            CC
-                          </span>
-                          <span className="mono" style={{ fontSize: 9, color: 'var(--text-4)' }}>
-                            TOP {card.topCc.length}
-                          </span>
-                          <div style={{ marginLeft: 'auto', display: 'flex', gap: 3 }}>
-                            {Array.from(new Set(card.topCc.flatMap(r => r.flags))).map(f => (
-                              <span key={f} style={{
-                                padding: '0 4px', fontSize: 8, fontWeight: 700,
-                                background: `${FLAG_COLORS[f]}12`, color: FLAG_COLORS[f],
-                                fontFamily: "'Chakra Petch', sans-serif",
-                              }}>
-                                {FLAG_LABELS[f]}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <MiniHeader />
-                        {card.topCc.map((r, i) => <OptionRow key={i} r={r} rank={i + 1} />)}
-                      </div>
-                    )}
+                  <div style={{ padding: '8px 12px 10px' }}>
+                    <StrategySection label="CSP" color="#f43f5e" items={card.topCsp} />
+                    <StrategySection label="CC" color="#3b82f6" items={card.topCc} />
                   </div>
                 )}
               </div>
