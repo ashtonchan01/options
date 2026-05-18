@@ -1,15 +1,15 @@
 import { useState } from 'react'
-import { LayoutDashboard, CalendarDays, Layers, Telescope, Zap, ClipboardList, FlaskConical, ChevronLeft, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Layers, Radar, Zap, ClipboardList, FlaskConical, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 
-export const TAB_IDS = ['portfolio', 'calendar', 'strategies', 'opportunities', 'actions', 'plan', 'backtest'] as const
+export const TAB_IDS = ['portfolio', 'calendar', 'strategies', 'scanner', 'actions', 'plan', 'backtest'] as const
 export type TabId = typeof TAB_IDS[number]
 
 const NAV_ITEMS: { id: TabId; label: string; Icon: React.FC<{ size?: number }> }[] = [
   { id: 'portfolio',     label: 'Portfolio',     Icon: LayoutDashboard },
   { id: 'calendar',      label: 'Calendar',      Icon: CalendarDays },
   { id: 'strategies',    label: 'Strategies',    Icon: Layers },
-  { id: 'opportunities', label: 'Opportunities', Icon: Telescope },
+  { id: 'scanner',       label: 'Scanner',       Icon: Radar },
   { id: 'actions',       label: 'Actions',       Icon: Zap },
   { id: 'plan',          label: 'Plan',          Icon: ClipboardList },
   { id: 'backtest',      label: 'Backtest',      Icon: FlaskConical },

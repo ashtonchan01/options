@@ -19,7 +19,7 @@ const VIEWS: Record<TabId, ViewComponent> = {
   portfolio:     PortfolioView,
   calendar:      CalendarView as ViewComponent,
   strategies:    StrategiesView as ViewComponent,
-  opportunities: OpportunitiesView as ViewComponent,
+  scanner:       OpportunitiesView as ViewComponent,
   actions:       ActionsView as ViewComponent,
   plan:          PlanView as ViewComponent,
   backtest:      BacktestView as ViewComponent,

@@ -8,7 +8,7 @@ const TAB_LABELS: Record<TabId, string> = {
   portfolio:     'Portfolio',
   calendar:      'Calendar',
   strategies:    'Strategies',
-  opportunities: 'Opportunities',
+  scanner:       'Scanner',
   actions:       'Actions',
   plan:          'Plan',
   backtest:      'Backtest',
