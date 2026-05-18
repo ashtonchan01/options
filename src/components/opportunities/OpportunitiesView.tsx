@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Scan, AlertCircle, TrendingUp, Activity, Zap, Clock } from 'lucide-react'
 import type { AppState, ScanResult, ScanFlag } from '../../types'
-import { scanAllTickersTradier } from '../../services/tradier'
+import { scanAllTickersCboe } from '../../services/cboe'
 import { scanAllTickers } from '../../services/yahoo'
 
 interface Props { state: AppState }
@@ -81,7 +81,7 @@ export default function OpportunitiesView({ state }: Props) {
     return [...set].sort()
   }, [state.sync.positions])
 
-  const [dataSource, setDataSource] = useState<'tradier' | 'yahoo'>('tradier')
+  const [dataSource, setDataSource] = useState<'cboe' | 'yahoo'>('cboe')
 
   async function handleScan() {
     setScanning(true)
@@ -91,14 +91,14 @@ export default function OpportunitiesView({ state }: Props) {
     try {
       let all: ScanResult[] = []
 
-      if (dataSource === 'tradier') {
-        setScanProgress('Tradier — parallel fetch...')
-        all = await scanAllTickersTradier(tickers, stocksHeld, (sym, i, total) => {
+      if (dataSource === 'cboe') {
+        setScanProgress('CBOE — parallel fetch...')
+        all = await scanAllTickersCboe(tickers, stocksHeld, (sym, i, total) => {
           setScanProgress(`${sym} (${i + 1}/${total})`)
         })
-        // Fallback to Yahoo if Tradier returned nothing (token not set)
+        // Fallback to Yahoo if CBOE returned nothing
         if (all.length === 0) {
-          setScanProgress('Tradier returned 0 results — falling back to Yahoo...')
+          setScanProgress('CBOE returned 0 — falling back to Yahoo...')
           all = await scanAllTickers(tickers, stocksHeld, (sym, i, total) => {
             setScanProgress(`Yahoo: ${sym} (${i + 1}/${total})`)
           })
@@ -110,7 +110,7 @@ export default function OpportunitiesView({ state }: Props) {
       }
 
       if (all.length === 0 && tickers.length > 0) {
-        setError('No results — check API token or try again in 30s.')
+        setError('No results — try again in 30s.')
       }
       setResults(all)
       setScanned(true)
@@ -200,7 +200,7 @@ export default function OpportunitiesView({ state }: Props) {
 
         {/* Data source toggle */}
         <div style={{ display: 'flex', gap: 2 }}>
-          {(['tradier', 'yahoo'] as const).map(src => (
+          {(['cboe', 'yahoo'] as const).map(src => (
             <button key={src} onClick={() => setDataSource(src)} disabled={scanning} style={{
               padding: '5px 10px', fontSize: 10, fontWeight: 700,
               background: dataSource === src ? 'var(--accent-dim)' : 'transparent',
@@ -210,7 +210,7 @@ export default function OpportunitiesView({ state }: Props) {
               fontFamily: "'Chakra Petch', sans-serif", letterSpacing: '1px',
               textTransform: 'uppercase',
             }}>
-              {src === 'tradier' ? '⚡ TRADIER' : '🐢 YAHOO'}
+              {src === 'cboe' ? '⚡ CBOE' : '🐢 YAHOO'}
             </button>
           ))}
         </div>
@@ -325,7 +325,7 @@ export default function OpportunitiesView({ state }: Props) {
             SCANNING {tickers.length} TICKERS
           </div>
           <div className="mono" style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 8 }}>
-            {dataSource === 'tradier' ? 'Parallel fetch via Tradier API' : 'Pacing requests to avoid rate limits · ~2s per ticker'}
+            {dataSource === 'cboe' ? 'Parallel fetch via CBOE delayed quotes' : 'Pacing requests to avoid rate limits · ~2s per ticker'}
           </div>
           <div style={{
             width: 200, height: 3, background: 'var(--border)', borderRadius: 2,
