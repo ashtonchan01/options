@@ -246,7 +246,7 @@ export default function PortfolioView({ state }: { state: AppState }) {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       {/* ── Stats row ────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 8, padding: '12px 16px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+      <div className="portfolio-stats" style={{ display: 'flex', gap: 8, padding: '12px 16px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
         {[
           { label: 'NET LIQUIDATION', value: fmt$(netLiq), color: 'var(--text-1)' },
           { label: 'TARGET PORTFOLIO', value: fmt$(totalTargetAmt), color: 'var(--text-2)' },
@@ -419,7 +419,7 @@ export default function PortfolioView({ state }: { state: AppState }) {
           </div>
 
           {/* Allocation + Pre-IPO row */}
-          <div style={{
+          <div className="portfolio-bottom" style={{
             borderTop: '1px solid var(--border)',
             display: 'flex', gap: 32, padding: '16px 20px', background: 'var(--bg-card)',
           }}>
@@ -449,7 +449,7 @@ export default function PortfolioView({ state }: { state: AppState }) {
           </div>
 
           {/* Pie charts row */}
-          <div style={{
+          <div className="portfolio-pies" style={{
             borderTop: '1px solid var(--border)',
             display: 'flex', justifyContent: 'space-around', alignItems: 'center',
             padding: '20px 20px', background: 'var(--bg-card)', gap: 16,

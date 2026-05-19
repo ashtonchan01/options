@@ -491,13 +491,13 @@ export default function CalendarView({ state }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
       {/* ── Top: Calendar + Sidebar ──────────────────────────────────────── */}
-      <div style={{ flex: '1 1 50%', display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+      <div className="calendar-layout" style={{ flex: '1 1 50%', display: 'flex', minHeight: 0, overflow: 'hidden' }}>
 
         {/* Calendar grid */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px 20px' }}>
+        <div className="calendar-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px 20px' }}>
 
           {/* Month nav */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexShrink: 0 }}>
+          <div className="calendar-nav" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexShrink: 0 }}>
             <button onClick={prevMonth} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
               <ChevronLeft size={14} />
             </button>
@@ -522,7 +522,7 @@ export default function CalendarView({ state }: Props) {
           </div>
 
           {/* Day headers: Mon–Fri + WK P&L */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) 100px', gap: 3, marginBottom: 3, flexShrink: 0 }}>
+          <div className="calendar-header-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) 100px', gap: 3, marginBottom: 3, flexShrink: 0 }}>
             {WEEKDAYS.map(d => (
               <div key={d} style={{ padding: '4px', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', textAlign: 'center' }}>
                 {d}
@@ -534,7 +534,7 @@ export default function CalendarView({ state }: Props) {
           </div>
 
           {/* Grid: 5 weekday cols + 1 P&L col */}
-          <div style={{
+          <div className="calendar-grid-wrap" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(5, 1fr) 100px',
             gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))`,
@@ -558,13 +558,13 @@ export default function CalendarView({ state }: Props) {
         </div>
 
         {/* Activity sidebar */}
-        <div style={{ width: 300, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="calendar-sidebar" style={{ width: 300, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <ActivitySidebar events={events} dailyTrades={dailyTrades} selectedDate={selected} year={year} month={month} />
         </div>
       </div>
 
       {/* ── Bottom: Trade Log ────────────────────────────────────────────── */}
-      <div style={{
+      <div className="calendar-tradelog" style={{
         flex: '1 1 50%',
         minHeight: 0,
         overflow: 'hidden',

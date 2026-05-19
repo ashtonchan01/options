@@ -160,7 +160,7 @@ export default function ActionsView({ state }: Props) {
     <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
 
       {/* ── Stats row ──────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, flexShrink: 0 }}>
+      <div className="actions-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, flexShrink: 0 }}>
         {[
           { label: 'URGENT',      value: urgent,      color: urgent > 0      ? '#f43f5e' : 'var(--text-5)' },
           { label: 'MANAGE',      value: manage,      color: manage > 0      ? '#f59e0b' : 'var(--text-5)' },
@@ -183,7 +183,7 @@ export default function ActionsView({ state }: Props) {
 
       {/* ── 2×2 urgency grid ───────────────────────────────────────────── */}
       {actions.length > 0 && (
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 12, minHeight: 0 }}>
+        <div className="actions-grid" style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 12, minHeight: 0 }}>
           {URGENCY_ORDER.map(u => {
             const cfg = URGENCY_CONFIG[u]
             const items = byUrgency[u]

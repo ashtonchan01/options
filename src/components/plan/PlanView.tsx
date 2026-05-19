@@ -242,7 +242,7 @@ export default function PlanView({ state }: Props) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 1400 }}>
 
         {/* ── Row 1: Stats ─────────────────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+        <div className="plan-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
           {[
             { label: 'NET LIQUIDATION', value: capital > 0 ? fmt$(capital) : '—', color: 'var(--text-1)' },
             { label: 'MONTHLY TARGET', value: `${fmtK(MONTHLY_TARGET_MIN)}–${fmtK(MONTHLY_TARGET_MAX)}`, color: '#6366F1' },
@@ -259,7 +259,7 @@ export default function PlanView({ state }: Props) {
         </div>
 
         {/* ── Row 2: Allocation + Income Split ────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="plan-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
           {/* Portfolio allocation */}
           <div style={tile}>
@@ -321,7 +321,7 @@ export default function PlanView({ state }: Props) {
         </div>
 
         {/* ── Row 3: Strategy Rules ───────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <div className="plan-3col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
           {[SPX_RULES, CC_RULES, ROTATION_RULES].map(strat => (
             <div key={strat.title} style={{ ...tile, borderTop: `3px solid ${strat.color}` }}>
               <div style={{ ...tileHdr, color: strat.color }}>{strat.title}</div>
@@ -340,7 +340,7 @@ export default function PlanView({ state }: Props) {
         {/* ── Row 4: Weekly Routine ───────────────────────────────────── */}
         <div style={tile}>
           <div style={tileHdr}>WEEKLY ROUTINE</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 0 }}>
+          <div className="plan-routine" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 0 }}>
             {WEEKLY_ROUTINE.map((d, i) => (
               <div key={d.day} style={{
                 padding: '12px 14px',
@@ -359,7 +359,7 @@ export default function PlanView({ state }: Props) {
         </div>
 
         {/* ── Row 5: Performance (Chart + Wheel Phase) ────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 12 }}>
+        <div className="plan-performance" style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 12 }}>
           <div style={{ ...tile, minHeight: 200 }}>
             <div style={tileHdr}>MONTHLY NET P&L</div>
             <div style={{ flex: 1, padding: '10px 14px', minHeight: 120 }}>
@@ -423,7 +423,7 @@ export default function PlanView({ state }: Props) {
         )}
 
         {/* ── Row 7: Risk + Scaling + Projections ─────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <div className="plan-3col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
 
           {/* Risk management */}
           <div style={{ ...tile, borderTop: '3px solid #f43f5e' }}>
@@ -490,7 +490,7 @@ export default function PlanView({ state }: Props) {
         {/* ── Row 8: Monthly Review Checklist ──────────────────────────── */}
         <div style={tile}>
           <div style={tileHdr}>MONTHLY REVIEW CHECKLIST</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, padding: '8px 0' }}>
+          <div className="plan-review" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, padding: '8px 0' }}>
             {MONTHLY_REVIEW.map((item, i) => (
               <div key={i} style={{ padding: '6px 14px', display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-2)', lineHeight: 1.4 }}>
                 <span style={{ color: 'var(--text-4)', flexShrink: 0 }}>☐</span>

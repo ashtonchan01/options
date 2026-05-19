@@ -126,7 +126,7 @@ function StrategyCard({ s }: { s: Strategy }) {
   const minDte = Math.min(...s.legs.map(l => l.dte))
 
   return (
-    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, borderLeft: `3px solid ${color}`, overflow: 'hidden' }}>
+    <div className="strategy-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, borderLeft: `3px solid ${color}`, overflow: 'hidden' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
@@ -257,7 +257,7 @@ export default function StrategiesView({ state }: Props) {
     <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, flexShrink: 0 }}>
+      <div className="strategies-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, flexShrink: 0 }}>
         {[
           { label: 'STRATEGIES', value: String(strategies.length), color: 'var(--text-1)' },
           { label: 'TOTAL PREMIUM', value: fmt$(totalPremium), color: 'var(--text-1)' },
@@ -273,7 +273,7 @@ export default function StrategiesView({ state }: Props) {
       </div>
 
       {/* Strategy groups in 2-column layout */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minHeight: 0 }}>
+      <div className="strategies-grid" style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minHeight: 0 }}>
         <div style={tile}>
           <div style={tileHdr}>{col1Types.map(t => STRAT_LABEL[t].toUpperCase()).join(' · ') || 'STRATEGIES'}</div>
           <div style={{ flex: 1, overflow: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>

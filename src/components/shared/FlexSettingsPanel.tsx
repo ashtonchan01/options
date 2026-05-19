@@ -61,7 +61,7 @@ export default function FlexSettingsPanel({ settings, onSave, onClose }: Props) 
     }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{
+      <div className="settings-modal" style={{
         background: 'var(--bg-card)', border: '1px solid var(--border)',
         borderRadius: 10, width: 520, maxWidth: '95vw', padding: 28,
         display: 'flex', flexDirection: 'column', gap: 18,
