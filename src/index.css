@@ -125,3 +125,77 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
+
+/* ─── Mobile responsive ───────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  /* App root: column layout, sidebar at bottom */
+  .app-root { flex-direction: column !important; }
+  .app-root > .app-sidebar { order: 2; }
+  .app-root > .app-main { order: 1; }
+
+  /* Sidebar → bottom tab bar */
+  .app-sidebar {
+    width: 100% !important; height: auto !important;
+    border-right: none !important; border-top: 1px solid var(--border) !important;
+    flex-direction: row !important; flex-shrink: 0 !important;
+  }
+  .app-sidebar .sidebar-logo { display: none !important; }
+  .app-sidebar .sidebar-sync { display: none !important; }
+  .app-sidebar nav {
+    flex-direction: row !important; padding: 0 !important;
+    gap: 0 !important; width: 100%; overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .app-sidebar nav button {
+    flex: 1 1 0 !important; min-width: 0 !important;
+    padding: 10px 4px !important; justify-content: center !important;
+    border-left: none !important;
+    border-top: 2px solid transparent !important;
+    font-size: 9px !important; gap: 3px !important;
+    flex-direction: column !important; align-items: center !important;
+  }
+  .app-sidebar nav button[data-active="true"] {
+    border-top-color: var(--accent) !important;
+    border-left-color: transparent !important;
+  }
+  .app-sidebar .nav-label { display: block !important; font-size: 9px !important; }
+
+  /* Header: compact */
+  .app-header {
+    height: 44px !important; padding: 0 12px !important;
+  }
+  .app-header .header-btn-text { display: none !important; }
+  .app-header .header-sync-time { display: none !important; }
+  .app-header .header-sync-error { max-width: 120px !important; font-size: 9px !important; }
+
+  /* Scanner: full-width cards */
+  .scanner-grid {
+    justify-content: stretch !important;
+  }
+  .scanner-card {
+    width: 100% !important; min-width: 0 !important; max-width: none !important;
+  }
+  .scanner-header { padding: 12px !important; }
+  .scanner-tickers { display: none !important; }
+
+  /* Backtest: responsive */
+  .backtest-config {
+    padding: 10px 12px !important;
+  }
+  .backtest-config .config-header {
+    flex-direction: column !important; align-items: flex-start !important; gap: 6px !important;
+  }
+  .backtest-stats { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)) !important; gap: 6px !important; }
+  .backtest-stats .stat-card { padding: 8px 10px !important; }
+  .backtest-stats .stat-value { font-size: 18px !important; }
+  .backtest-bottom {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .backtest-bottom > div { min-height: 200px !important; }
+
+  /* Global: smaller stat cards */
+  .stat-card { padding: 10px 12px !important; }
+  .stat-value { font-size: 20px !important; }
+}

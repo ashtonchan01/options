@@ -1,8 +1,15 @@
 import { useState } from 'react'
 
-export interface FlexSettings {
+export interface FlexProfile {
+  id: string
+  name: string
   token: string
   queryId: string
+}
+
+export interface FlexSettings {
+  profiles: FlexProfile[]
+  activeId: string
 }
 
 const LS_KEY = 'options:flex'
@@ -10,9 +17,19 @@ const LS_KEY = 'options:flex'
 function load(): FlexSettings {
   try {
     const raw = localStorage.getItem(LS_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed.profiles) return parsed as FlexSettings
+      if (parsed.token || parsed.queryId) {
+        const id = crypto.randomUUID()
+        return {
+          profiles: [{ id, name: 'Default', token: parsed.token || '', queryId: parsed.queryId || '' }],
+          activeId: id,
+        }
+      }
+    }
   } catch { /* ignore */ }
-  return { token: '', queryId: '' }
+  return { profiles: [], activeId: '' }
 }
 
 function save(s: FlexSettings) {
@@ -22,13 +39,12 @@ function save(s: FlexSettings) {
 export function useSettingsStore() {
   const [settings, setSettings] = useState<FlexSettings>(load)
 
-  const update = (patch: Partial<FlexSettings>) => {
-    setSettings(prev => {
-      const next = { ...prev, ...patch }
-      save(next)
-      return next
-    })
+  const update = (next: FlexSettings) => {
+    save(next)
+    setSettings(next)
   }
 
-  return { settings, update }
+  const activeProfile = settings.profiles.find(p => p.id === settings.activeId) ?? null
+
+  return { settings, update, activeProfile }
 }

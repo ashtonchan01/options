@@ -52,27 +52,28 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
   }
 
   return (
-    <header style={{
+    <header className="app-header" style={{
       height: 56,
       padding: '0 24px',
       background: 'var(--bg-surface)',
       borderBottom: '1px solid var(--border)',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
         <h1 style={{
           margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-1)',
           fontFamily: "'Chakra Petch', sans-serif", letterSpacing: 2,
+          whiteSpace: 'nowrap',
         }}>
           {TAB_LABELS[activeTab].toUpperCase()}
         </h1>
         {lastSync && (
-          <span style={{ fontSize: 11, color: 'var(--text-4)', fontFamily: 'IBM Plex Mono, monospace' }}>
+          <span className="header-sync-time" style={{ fontSize: 11, color: 'var(--text-4)', fontFamily: 'IBM Plex Mono, monospace' }}>
             {relativeTime(lastSync)}
           </span>
         )}
         {syncStatus === 'error' && (
-          <span title={syncError} style={{ fontSize: 11, color: '#FF4757', fontFamily: 'IBM Plex Mono, monospace', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
+          <span className="header-sync-error" title={syncError} style={{ fontSize: 11, color: '#FF4757', fontFamily: 'IBM Plex Mono, monospace', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
             {syncError ?? 'sync failed'}
           </span>
         )}
@@ -86,7 +87,7 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-3)' }}
         >
           <Upload size={12} />
-          UPLOAD XML
+          <span className="header-btn-text">UPLOAD XML</span>
           <input ref={fileRef} type="file" accept=".xml" style={{ display: 'none' }} onChange={handleFile} />
         </label>
 
@@ -105,7 +106,7 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.color = hasCredentials ? 'var(--text-3)' : 'var(--text-4)' }}
         >
           <RefreshCw size={12} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
-          FLEX SYNC
+          <span className="header-btn-text">FLEX SYNC</span>
         </button>
 
         {/* Sync dot */}

@@ -30,7 +30,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
   const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <aside style={{
+    <aside className="app-sidebar" style={{
       width: collapsed ? 58 : 220,
       transition: 'width 0.2s ease',
       background: 'var(--bg-surface)',
@@ -38,7 +38,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
       display: 'flex', flexDirection: 'column', height: '100vh', flexShrink: 0,
     }}>
       {/* Logo + toggle */}
-      <div style={{
+      <div className="sidebar-logo" style={{
         height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 16px', borderBottom: '1px solid var(--border)', flexShrink: 0,
       }}>
@@ -71,6 +71,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
             <button
               key={id}
               onClick={() => onTabChange(id)}
+              data-active={active}
               style={{
                 display: 'flex', alignItems: 'center',
                 gap: collapsed ? 0 : 12,
@@ -113,14 +114,14 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
                   </span>
                 )}
               </div>
-              {!collapsed && label}
+              <span className="nav-label" style={{ display: collapsed ? 'none' : undefined }}>{label}</span>
             </button>
           )
         })}
       </nav>
 
       {/* Sync dot */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="sidebar-sync" style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{
           width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
           background: SYNC_COLOR[syncStatus],

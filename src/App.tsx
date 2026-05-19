@@ -29,13 +29,13 @@ export default function App() {
   const [activeTab, setActiveTab]       = useState<TabId>('portfolio')
   const [showSettings, setShowSettings] = useState(false)
   const { state, uploadXML, syncFlex }  = useAppStore()
-  const { settings, update }            = useSettingsStore()
+  const { settings, update, activeProfile } = useSettingsStore()
 
-  const hasCredentials = !!(settings.token && settings.queryId)
+  const hasCredentials = !!(activeProfile?.token && activeProfile?.queryId)
   const View = VIEWS[activeTab]
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-page)', maxWidth: 1920, margin: '0 auto' }}>
+    <div className="app-root" style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-page)', maxWidth: 1920, margin: '0 auto' }}>
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -43,14 +43,14 @@ export default function App() {
         syncStatus={state.sync.status}
       />
 
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+      <div className="app-main" style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
         <Header
           activeTab={activeTab}
           syncStatus={state.sync.status}
           syncError={state.sync.error}
           lastSync={state.sync.lastSync}
           hasCredentials={hasCredentials}
-          onSyncClick={() => syncFlex(settings.token, settings.queryId)}
+          onSyncClick={() => activeProfile && syncFlex(activeProfile.token, activeProfile.queryId)}
           onXmlUpload={uploadXML}
           onOpenSettings={() => setShowSettings(true)}
         />
@@ -63,7 +63,7 @@ export default function App() {
       {showSettings && (
         <FlexSettingsPanel
           settings={settings}
-          onSave={s => { update(s); setShowSettings(false) }}
+          onSave={update}
           onClose={() => setShowSettings(false)}
         />
       )}

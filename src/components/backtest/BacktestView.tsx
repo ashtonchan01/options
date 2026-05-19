@@ -645,8 +645,8 @@ export default function BacktestView({ }: { state: AppState }) {
     <div style={{ padding: 14, height: '100%', display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
 
       {/* ── CONFIG PANEL ──────────────────────────────────────────────── */}
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '14px 18px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+      <div className="backtest-config" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '14px 18px', flexShrink: 0 }}>
+        <div className="config-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: 2, marginBottom: 2 }}>STRATEGY</div>
             <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 18, fontWeight: 700, color: 'var(--text-1)', letterSpacing: 1 }}>
@@ -765,7 +765,7 @@ export default function BacktestView({ }: { state: AppState }) {
             </div>
 
             {/* Stat cards — 10 cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4, flexShrink: 0 }}>
+            <div className="backtest-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4, flexShrink: 0 }}>
               {([
                 { label: 'TRADES', value: String(singleResult.numTrades), color: C.cyan },
                 { label: 'WIN RATE', value: singleResult.winRate.toFixed(1) + '%', color: singleResult.winRate >= 65 ? C.green : singleResult.winRate >= 50 ? C.gold : C.red },
@@ -789,7 +789,7 @@ export default function BacktestView({ }: { state: AppState }) {
             </div>
 
             {/* Monthly + Day breakdown */}
-            <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 6, flexShrink: 0 }}>
+            <div className="backtest-bottom" style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 6, flexShrink: 0 }}>
               <div style={{ ...tile, maxHeight: 340 }}>
                 <div style={tileHdr}>MONTHLY P&L + OUTCOMES</div>
                 <MonthlyTable trades={singleResult.trades} />
@@ -858,7 +858,7 @@ export default function BacktestView({ }: { state: AppState }) {
       {/* ── SWEEP RESULTS ───────────────────────────────────────────── */}
       {activeView === 'sweep' && sweepResults && sweepResults.length > 0 && selectedSweep && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4, flexShrink: 0 }}>
+          <div className="backtest-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4, flexShrink: 0 }}>
             {([
               { label: 'COMBO', value: `${selectedSweep.dayLabel}·${selectedSweep.weekLabel}`, color: C.cyan },
               { label: 'WIN RATE', value: selectedSweep.winRate.toFixed(1) + '%', color: selectedSweep.winRate >= 70 ? C.green : C.gold },
@@ -879,7 +879,7 @@ export default function BacktestView({ }: { state: AppState }) {
             ))}
           </div>
 
-          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 6, minHeight: 0 }}>
+          <div className="backtest-bottom" style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 6, minHeight: 0 }}>
             <div style={{ ...tile, gridRow: '1 / 3' }}>
               <div style={tileHdr}>
                 RANKING · {sortedSweep.length} COMBINATIONS

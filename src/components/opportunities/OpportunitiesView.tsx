@@ -31,7 +31,15 @@ function deltaColor(d: number): string {
 
 // ─── Card width ──────────────────────────────────────────────────────────────
 
-const CARD_W = 380 // fixed card width in px
+const CARD_W = 380
+
+const CUSTOM_TICKERS_KEY = 'options:custom_tickers'
+function loadCustomTickers(): string[] {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_TICKERS_KEY) || '[]') } catch { return [] }
+}
+function saveCustomTickers(t: string[]) {
+  localStorage.setItem(CUSTOM_TICKERS_KEY, JSON.stringify(t))
+}
 
 // ─── Ticker card data ────────────────────────────────────────────────────────
 
@@ -153,6 +161,8 @@ export default function OpportunitiesView({ state }: Props) {
   const [scanned, setScanned]   = useState(false)
   const [scanProgress, setScanProgress] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [customTickers, setCustomTickers] = useState<string[]>(loadCustomTickers)
+  const [tickerInput, setTickerInput] = useState('')
 
   const stocksHeld = useMemo(() => {
     const map: Record<string, number> = {}
@@ -165,14 +175,14 @@ export default function OpportunitiesView({ state }: Props) {
   const WATCHLIST = ['TSLA','MSTR','AMD','ALAB','ARM','ASML','AVGO','GOOG','MRVL','MU','NVDA','PLTR','TSM']
 
   const tickers = useMemo(() => {
-    const set = new Set<string>(WATCHLIST)
+    const set = new Set<string>([...WATCHLIST, ...customTickers])
     const SKIP = new Set(['SPX','SPY','QQQ','IWM','DIA','VIX'])
     for (const p of state.sync.positions) {
       const sym = p.underlyingSymbol ?? (p.assetClass === 'STK' ? p.symbol : null)
       if (sym && !SKIP.has(sym)) set.add(sym)
     }
     return [...set].sort()
-  }, [state.sync.positions])
+  }, [state.sync.positions, customTickers])
 
   const cards = useMemo(() => buildCards(results, tickers), [results, tickers])
 
@@ -182,6 +192,21 @@ export default function OpportunitiesView({ state }: Props) {
       if (next.has(sym)) next.delete(sym); else next.add(sym)
       return next
     })
+  }
+
+  function addTicker() {
+    const sym = tickerInput.trim().toUpperCase()
+    if (!sym || customTickers.includes(sym) || WATCHLIST.includes(sym)) return
+    const next = [...customTickers, sym]
+    setCustomTickers(next)
+    saveCustomTickers(next)
+    setTickerInput('')
+  }
+
+  function removeTicker(sym: string) {
+    const next = customTickers.filter(t => t !== sym)
+    setCustomTickers(next)
+    saveCustomTickers(next)
   }
 
   async function handleScan() {
@@ -223,6 +248,23 @@ export default function OpportunitiesView({ state }: Props) {
           {scanning ? 'Scanning…' : 'Scan'}
         </button>
 
+        {/* Add ticker */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <input
+            type="text"
+            value={tickerInput}
+            onChange={e => setTickerInput(e.target.value.toUpperCase())}
+            onKeyDown={e => e.key === 'Enter' && addTicker()}
+            placeholder="+ TICKER"
+            style={{
+              width: 80, padding: '5px 8px', fontSize: 11,
+              background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+              color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace',
+              outline: 'none', borderRadius: 3,
+            }}
+          />
+        </div>
+
         {scanning && (
           <span className="mono" style={{ fontSize: 11, color: 'var(--accent)', animation: 'pulse 2s infinite' }}>
             {scanProgress || 'Initializing…'}
@@ -235,6 +277,24 @@ export default function OpportunitiesView({ state }: Props) {
           </span>
         )}
       </div>
+
+      {/* ── Custom tickers ─────────────────────────────────────────────────── */}
+      {customTickers.length > 0 && (
+        <div className="scanner-tickers" style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flexShrink: 0, alignItems: 'center' }}>
+          <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5 }}>CUSTOM:</span>
+          {customTickers.map(sym => (
+            <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '2px 8px', fontSize: 10, fontWeight: 600,
+              background: 'var(--accent-dim)', border: '1px solid rgba(0,229,255,0.2)',
+              color: 'var(--accent)', cursor: 'pointer', borderRadius: 3,
+              fontFamily: "'IBM Plex Mono', monospace",
+            }}>
+              {sym} <span style={{ color: 'var(--text-4)', fontSize: 8 }}>&times;</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Error ───────────────────────────────────────────────────────────── */}
       {error && (
@@ -278,7 +338,7 @@ export default function OpportunitiesView({ state }: Props) {
 
       {/* ── Card Grid ───────────────────────────────────────────────────────── */}
       {scanned && cards.length > 0 && (
-        <div style={{
+        <div className="scanner-grid" style={{
           flex: 1, minHeight: 0, overflow: 'auto',
           display: 'flex', flexWrap: 'wrap',
           gap: 10, alignContent: 'start',
@@ -290,7 +350,7 @@ export default function OpportunitiesView({ state }: Props) {
             const shares = stocksHeld[card.symbol] ?? 0
 
             return (
-              <div key={card.symbol} style={{
+              <div key={card.symbol} className="scanner-card" style={{
                 width: CARD_W, minWidth: CARD_W, maxWidth: CARD_W,
                 background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
                 overflow: 'hidden', flexShrink: 0,
@@ -299,6 +359,7 @@ export default function OpportunitiesView({ state }: Props) {
 
                 {/* ── Card Header ─────────────────────────────────────────── */}
                 <div
+                  className="scanner-header"
                   onClick={() => hasData && toggleCollapse(card.symbol)}
                   style={{
                     padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8,
