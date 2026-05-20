@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import Sidebar, { type TabId } from './components/layout/Sidebar'
-import Header from './components/layout/Header'
+import TopNav, { type TabId } from './components/layout/TopNav'
 import FlexSettingsPanel from './components/shared/FlexSettingsPanel'
 import { useAppStore } from './store/appStore'
 import { useSettingsStore } from './store/settingsStore'
@@ -35,30 +34,23 @@ export default function App() {
   const View = VIEWS[activeTab]
 
   return (
-    <div className="app-root" style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-page)', maxWidth: 1920, margin: '0 auto' }}>
-      <Sidebar
+    <div className="app-root" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: 'var(--bg-page)', maxWidth: 1920, margin: '0 auto' }}>
+      <TopNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
         actionCount={state.actions.length}
         syncStatus={state.sync.status}
+        syncError={state.sync.error}
+        lastSync={state.sync.lastSync}
+        hasCredentials={hasCredentials}
+        onSyncClick={() => activeProfile && syncFlex(activeProfile.token, activeProfile.queryId)}
+        onXmlUpload={uploadXML}
+        onOpenSettings={() => setShowSettings(true)}
       />
 
-      <div className="app-main" style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-        <Header
-          activeTab={activeTab}
-          syncStatus={state.sync.status}
-          syncError={state.sync.error}
-          lastSync={state.sync.lastSync}
-          hasCredentials={hasCredentials}
-          onSyncClick={() => activeProfile && syncFlex(activeProfile.token, activeProfile.queryId)}
-          onXmlUpload={uploadXML}
-          onOpenSettings={() => setShowSettings(true)}
-        />
-
-        <main style={{ flex: 1, overflow: 'hidden', background: 'var(--bg-page)' }}>
-          <View state={state} />
-        </main>
-      </div>
+      <main style={{ flex: 1, overflow: 'hidden', background: 'var(--bg-page)' }}>
+        <View state={state} />
+      </main>
 
       {showSettings && (
         <FlexSettingsPanel

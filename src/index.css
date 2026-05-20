@@ -126,47 +126,204 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 
+/* ─── Top Nav ─────────────────────────────────────────────────────────────── */
+
+.top-nav {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.top-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.top-nav-logo {
+  font-family: 'Chakra Petch', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 3px;
+  color: var(--accent);
+}
+
+.top-nav-sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.top-nav-sync-dot[data-status="success"] { background: #00D084; box-shadow: 0 0 6px rgba(0,208,132,0.4); }
+.top-nav-sync-dot[data-status="loading"] { background: #F0B429; animation: pulse 1s ease-in-out infinite; }
+.top-nav-sync-dot[data-status="error"]   { background: #FF4757; }
+
+.top-nav-sync-time {
+  font-size: 11px;
+  color: var(--text-4);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.top-nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.top-nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-4);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.top-nav-tab:hover { color: var(--text-2); background: var(--bg-elevated); }
+.top-nav-tab.active {
+  color: var(--accent);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.top-nav-badge {
+  background: #FF4757;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+}
+
+.top-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.top-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.top-nav-btn:hover { border-color: var(--border-light); color: var(--text-2); }
+.top-nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.top-nav-burger {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+/* ─── Mobile menu ─────────────────────────────────────────────────────────── */
+
+.mobile-menu-overlay {
+  position: fixed;
+  inset: 0;
+  top: 52px;
+  z-index: 40;
+  background: rgba(0,0,0,0.5);
+}
+.mobile-menu {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 52px);
+  overflow-y: auto;
+}
+.mobile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+.mobile-menu-item:hover { background: var(--bg-elevated); color: var(--text-1); }
+.mobile-menu-item.active {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--accent-dim);
+  border-left: 3px solid var(--accent);
+}
+.mobile-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 16px;
+}
+.mobile-menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mobile-menu-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+.mobile-menu-action-btn:hover { background: var(--bg-elevated); color: var(--text-1); }
+.mobile-menu-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* ─── Mobile responsive ───────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
 
-  /* ── APP SHELL ──────────────────────────────────────────────────────────── */
-  .app-root { flex-direction: column !important; }
-  .app-root > .app-sidebar { order: 2; }
-  .app-root > .app-main   { order: 1; flex: 1 1 0 !important; min-height: 0 !important; }
-
-  /* Sidebar → bottom tab bar */
-  .app-sidebar {
-    width: 100% !important; height: auto !important;
-    border-right: none !important; border-top: 1px solid var(--border) !important;
-    flex-direction: row !important; flex-shrink: 0 !important;
-  }
-  .app-sidebar .sidebar-logo { display: none !important; }
-  .app-sidebar .sidebar-sync { display: none !important; }
-  .app-sidebar nav {
-    flex-direction: row !important; padding: 0 !important;
-    gap: 0 !important; width: 100%; overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .app-sidebar nav button {
-    flex: 1 1 0 !important; min-width: 0 !important;
-    padding: 8px 2px !important; justify-content: center !important;
-    border-left: none !important;
-    border-top: 2px solid transparent !important;
-    font-size: 9px !important; gap: 2px !important;
-    flex-direction: column !important; align-items: center !important;
-  }
-  .app-sidebar nav button[data-active="true"] {
-    border-top-color: var(--accent) !important;
-    border-left-color: transparent !important;
-  }
-  .app-sidebar .nav-label { display: block !important; font-size: 9px !important; }
-
-  /* Header: compact */
-  .app-header { height: 44px !important; padding: 0 10px !important; }
-  .app-header .header-btn-text { display: none !important; }
-  .app-header .header-sync-time { display: none !important; }
-  .app-header .header-sync-error { max-width: 100px !important; font-size: 9px !important; }
+  /* ── TOP NAV ────────────────────────────────────────────────────────────── */
+  .top-nav-tabs    { display: none !important; }
+  .top-nav-actions { display: none !important; }
+  .top-nav-burger  { display: flex !important; margin-left: auto; }
+  .top-nav-sync-time { display: none !important; }
 
   /* ── PORTFOLIO ──────────────────────────────────────────────────────────── */
   .portfolio-stats {
