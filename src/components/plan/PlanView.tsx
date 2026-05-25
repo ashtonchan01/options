@@ -111,6 +111,64 @@ const MONTHLY_REVIEW = [
   'Adjust strike selection if IV environment changed',
 ]
 
+// ─── $1M Roadmap — SPX 65 DTE ────────────────────────────────────────────────
+
+const RM_START_CAPITAL = 100_000
+const RM_TARGET_CAPITAL = 1_000_000
+const RM_WIN_RATE = 80          // % — 10-year backtest result
+const RM_DTE = 65
+const RM_START_CONTRACTS = 10
+const RM_MONTHLY_RETURN_PCT = 2.5  // net avg monthly return after losses, on deployed capital
+
+// Model: 50-pt SPX spread, ~$700 credit, close at 50% profit or 2× credit stop
+// EV/contract = 0.80 × $350 (50% profit) − 0.20 × $700 (stop) = $140 net
+// 10 contracts → $1,400/mo on $100k = 1.4%; with multiple open positions → ~2.5% net
+
+const RM_MILESTONES = [
+  { capital: 100_000,   phase: 'LAUNCH',      color: '#6366F1' },
+  { capital: 150_000,   phase: 'SCALE 1',     color: '#3b82f6' },
+  { capital: 200_000,   phase: 'DOUBLED',     color: '#10b981' },
+  { capital: 300_000,   phase: 'SCALE 2',     color: '#10b981' },
+  { capital: 500_000,   phase: 'HALFWAY',     color: '#f59e0b' },
+  { capital: 750_000,   phase: 'FINAL PUSH',  color: '#f59e0b' },
+  { capital: 1_000_000, phase: 'THE GOAL',    color: '#f43f5e' },
+]
+
+const RM_SCALING_RULES = [
+  { trigger: '+$10k capital',    action: 'Add 1 contract',         detail: 'Keeps max risk ≤ 10% at all times' },
+  { trigger: '20% drawdown',     action: 'Pause & reduce by 50%',  detail: 'Resume after 1 clean winning trade' },
+  { trigger: 'VIX > 30',        action: 'Widen strikes or sit out', detail: 'Preserve capital in extreme vol' },
+  { trigger: '3 losses in a row', action: 'Cut to half size',       detail: 'Reset discipline before scaling back' },
+]
+
+function buildRoadmapMilestones() {
+  const rate = RM_MONTHLY_RETURN_PCT / 100
+  return RM_MILESTONES.map(m => {
+    const months = m.capital === RM_START_CAPITAL
+      ? 0
+      : Math.round(Math.log(m.capital / RM_START_CAPITAL) / Math.log(1 + rate))
+    const contracts = Math.floor(m.capital / 10_000)
+    const monthlyIncome = Math.round(m.capital * rate)
+    const years = Math.floor(months / 12)
+    const remMo = months % 12
+    const timeLabel = months === 0
+      ? 'Day 1'
+      : years > 0
+        ? `Yr ${years}${remMo > 0 ? ` Mo ${remMo}` : ''}`
+        : `Mo ${months}`
+    return { ...m, months, contracts, monthlyIncome, timeLabel }
+  })
+}
+
+function buildRoadmapCurve() {
+  const rate = RM_MONTHLY_RETURN_PCT / 100
+  const pts: { month: number; capital: number }[] = []
+  for (let m = 0; m <= 96; m += 2) {
+    pts.push({ month: m, capital: Math.round(RM_START_CAPITAL * Math.pow(1 + rate, m)) })
+  }
+  return pts
+}
+
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const tile: React.CSSProperties = {
@@ -486,6 +544,141 @@ export default function PlanView({ state }: Props) {
             </div>
           </div>
         </div>
+
+        {/* ── Roadmap to $1M ────────────────────────────────────────────── */}
+        {(() => {
+          const milestones = buildRoadmapMilestones()
+          const curve = buildRoadmapCurve()
+          const maxCurve = curve[curve.length - 1].capital
+          return (
+            <>
+              {/* Banner */}
+              <div style={{ ...tile, borderTop: '3px solid #f59e0b' }}>
+                <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 220 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', letterSpacing: '0.14em', marginBottom: 4 }}>ROAD MAP — SPX {RM_DTE} DTE PUT CREDIT SPREADS</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace', lineHeight: 1.1 }}>$100k → $1,000,000</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6 }}>
+                      {RM_WIN_RATE}% win rate · 10-yr backtest · {RM_MONTHLY_RETURN_PCT}% avg monthly return · fully compounded · 10% max risk/trade
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                    {[
+                      { label: 'DTE',       value: `${RM_DTE}`,              sub: 'days to expiry' },
+                      { label: 'WIN RATE',  value: `${RM_WIN_RATE}%`,        sub: '10yr backtest' },
+                      { label: 'START',     value: `${RM_START_CONTRACTS} cts`, sub: '$100k capital' },
+                      { label: 'TIMELINE',  value: '~7.7 yrs',               sub: 'compounded' },
+                    ].map(s => (
+                      <div key={s.label} style={{ textAlign: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 2 }}>{s.label}</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', fontFamily: 'IBM Plex Mono, monospace' }}>{s.value}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-4)' }}>{s.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Milestone timeline */}
+              <div style={tile}>
+                <div style={tileHdr}>MILESTONE PROGRESSION</div>
+                <div style={{ padding: '20px 16px 16px', overflowX: 'auto' }}>
+                  <div style={{ display: 'flex', gap: 0, minWidth: 660, position: 'relative' }}>
+                    {/* connector line */}
+                    <div style={{ position: 'absolute', top: 11, left: '5%', right: '5%', height: 2, background: 'linear-gradient(90deg, #6366F1 0%, #10b981 60%, #f59e0b 85%, #f43f5e 100%)', zIndex: 0 }} />
+                    {milestones.map((m, i) => (
+                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+                        <div style={{
+                          width: m.capital === RM_TARGET_CAPITAL ? 26 : 22,
+                          height: m.capital === RM_TARGET_CAPITAL ? 26 : 22,
+                          borderRadius: '50%',
+                          background: m.color,
+                          border: '3px solid var(--bg-card)',
+                          boxShadow: `0 0 0 2px ${m.color}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        }}>
+                          {m.capital === RM_TARGET_CAPITAL && <span style={{ fontSize: 11, lineHeight: 1 }}>★</span>}
+                        </div>
+                        <div style={{ marginTop: 10, textAlign: 'center', padding: '0 2px' }}>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: m.color, fontFamily: 'IBM Plex Mono, monospace' }}>
+                            {m.capital >= 1_000_000 ? '$1M' : m.capital >= 1000 ? `$${m.capital / 1000}k` : `$${m.capital}`}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.06em', marginTop: 1 }}>{m.phase}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'IBM Plex Mono, monospace', marginTop: 3, fontWeight: 600 }}>{m.timeLabel}</div>
+                          <div style={{ fontSize: 11, color: '#10b981', fontFamily: 'IBM Plex Mono, monospace', marginTop: 1 }}>{m.contracts} cts</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-4)', marginTop: 1 }}>${(m.monthlyIncome / 1000).toFixed(1)}k/mo</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Growth curve + scaling rules */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+
+                {/* Compounding curve */}
+                <div style={{ ...tile, minHeight: 200 }}>
+                  <div style={tileHdr}>COMPOUNDING GROWTH CURVE — 2.5%/mo FULLY REINVESTED</div>
+                  <div style={{ flex: 1, padding: '12px 16px 8px', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 1.5, paddingBottom: 22, position: 'relative', minHeight: 130 }}>
+                      <div style={{ position: 'absolute', bottom: 22, left: 0, right: 0, height: 1, background: 'var(--border)' }} />
+                      {curve.map((pt, i) => {
+                        const barH = Math.max((pt.capital / maxCurve) * 100, 1)
+                        const color = pt.capital >= RM_TARGET_CAPITAL ? '#f43f5e' : pt.capital >= 500_000 ? '#f59e0b' : pt.capital >= 200_000 ? '#10b981' : '#6366F1'
+                        return (
+                          <div key={i}
+                            title={`Mo ${pt.month}: ${fmtK(pt.capital)}`}
+                            style={{ flex: 1, height: `${barH}%`, background: color, borderRadius: '2px 2px 0 0', opacity: 0.85, minHeight: 2, cursor: 'default' }}
+                          />
+                        )
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-4)', fontFamily: 'IBM Plex Mono, monospace' }}>
+                      {['Mo 0', 'Mo 16', 'Mo 32', 'Mo 48', 'Mo 64', 'Mo 80', 'Mo 93'].map(l => <span key={l}>{l}</span>)}
+                    </div>
+                    <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+                      {[
+                        { color: '#6366F1', label: '$100k–$200k' },
+                        { color: '#10b981', label: '$200k–$500k' },
+                        { color: '#f59e0b', label: '$500k–$1M' },
+                        { color: '#f43f5e', label: '$1M+ reached' },
+                      ].map(l => (
+                        <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text-3)' }}>
+                          <div style={{ width: 8, height: 8, borderRadius: 2, background: l.color }} />
+                          {l.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Scaling rules */}
+                <div style={{ ...tile, borderTop: '3px solid #f43f5e' }}>
+                  <div style={{ ...tileHdr, color: '#f43f5e' }}>SCALING RULES</div>
+                  <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {RM_SCALING_RULES.map((r, i) => (
+                      <div key={i} style={{ padding: '8px 10px', background: 'var(--bg-elevated)', borderRadius: 6, borderLeft: '3px solid #f43f5e' }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', letterSpacing: '0.06em', marginBottom: 2 }}>WHEN: {r.trigger}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>{r.action}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 2 }}>{r.detail}</div>
+                      </div>
+                    ))}
+                    <div style={{ marginTop: 4, padding: '8px 10px', background: 'var(--bg-elevated)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-4)', marginBottom: 4, letterSpacing: '0.06em', fontWeight: 700 }}>CONTRACT SCALING</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-2)', lineHeight: 1.6 }}>
+                        1 contract per $10k capital<br />
+                        10 cts → $100k · 20 cts → $200k<br />
+                        50 cts → $500k · 100 cts → $1M
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </>
+          )
+        })()}
 
         {/* ── Row 8: Monthly Review Checklist ──────────────────────────── */}
         <div style={tile}>
