@@ -64,7 +64,7 @@ function expiryToMs(expiry: string): number {
 
 const MIN_DTE = 7
 const MAX_DTE = 60
-const MIN_DELTA = 0.08
+const MIN_DELTA = 0.05
 const MAX_DELTA = 0.55
 const MIN_BID = 0.05
 
