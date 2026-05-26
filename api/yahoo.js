@@ -4,7 +4,7 @@ const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (
 let cachedCrumb = null
 let cachedCookies = null
 let cacheTime = 0
-const CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+const CACHE_TTL = 25 * 60 * 1000 // 25 minutes — keep crumb longer to avoid rate limits
 
 // Response cache to avoid hitting Yahoo for identical requests
 const responseCache = new Map()
@@ -41,10 +41,18 @@ async function getCrumb() {
 
   if (!cookieStr) throw new Error('No cookies from fc.yahoo.com')
 
-  // Step 2: Get crumb using cookies
-  const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
-    headers: { 'User-Agent': UA, 'Cookie': cookieStr },
-  })
+  // Step 2: Get crumb using cookies (retry on 429)
+  let crumbRes
+  for (let ci = 0; ci < 3; ci++) {
+    crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+      headers: { 'User-Agent': UA, 'Cookie': cookieStr },
+    })
+    if (crumbRes.status === 429 && ci < 2) {
+      await sleep(3000 * (ci + 1)) // 3s, 6s backoff
+      continue
+    }
+    break
+  }
   if (!crumbRes.ok) throw new Error(`Crumb endpoint returned ${crumbRes.status}`)
 
   const crumb = (await crumbRes.text()).trim()
@@ -84,7 +92,7 @@ export default async function handler(req, res) {
     try {
       if (attempt > 0) {
         cachedCrumb = null
-        await sleep(attempt * 1500) // 1.5s, 3s backoff
+        await sleep(attempt * 3000) // 3s, 6s backoff
       }
 
       const { crumb, cookies } = await getCrumb()
