@@ -64,12 +64,14 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.status(204).end()
 
-  const { symbol, date } = req.query
+  const { symbol, date, type } = req.query
   if (!symbol) return res.status(400).json({ error: 'Missing symbol' })
   if (!/^[A-Za-z0-9.\-]+$/.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' })
 
+  const isEarnings = type === 'earnings'
+
   // Check response cache
-  const cacheKey = `${symbol}:${date || 'default'}`
+  const cacheKey = `${symbol}:${isEarnings ? 'earnings' : date || 'default'}`
   const cached = responseCache.get(cacheKey)
   if (cached && Date.now() - cached.time < RESPONSE_TTL) {
     res.setHeader('Content-Type', 'application/json')
@@ -86,8 +88,13 @@ export default async function handler(req, res) {
       }
 
       const { crumb, cookies } = await getCrumb()
-      let url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}?crumb=${encodeURIComponent(crumb)}`
-      if (date) url += `&date=${date}`
+      let url
+      if (isEarnings) {
+        url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=calendarEvents&crumb=${encodeURIComponent(crumb)}`
+      } else {
+        url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}?crumb=${encodeURIComponent(crumb)}`
+        if (date) url += `&date=${date}`
+      }
 
       const yahooRes = await fetch(url, {
         headers: { 'User-Agent': UA, 'Cookie': cookies },
