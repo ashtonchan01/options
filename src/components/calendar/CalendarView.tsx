@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { AppState, Strategy, StrategyType, RawTrade } from '../../types'
-import EmptyState from '../shared/EmptyState'
 import TradeLog from './TradeLog'
 import { HOLIDAY_MAP } from '../../data/marketHolidays'
 import { WATCHLIST } from '../../data/watchlist'

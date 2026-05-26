@@ -200,7 +200,7 @@ export default function OpportunitiesView({ state }: Props) {
   }
   function addTicker() {
     const sym = tickerInput.trim().toUpperCase()
-    if (!sym || customTickers.includes(sym) || WATCHLIST.includes(sym)) return
+    if (!sym || customTickers.includes(sym) || (WATCHLIST as readonly string[]).includes(sym)) return
     const next = [...customTickers, sym]; setCustomTickers(next); saveCustomTickers(next); setTickerInput('')
   }
   function removeTicker(sym: string) {
