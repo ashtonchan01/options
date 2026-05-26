@@ -41,10 +41,12 @@ async function getCrumb() {
 
   if (!cookieStr) throw new Error('No cookies from fc.yahoo.com')
 
-  // Step 2: Get crumb using cookies (retry on 429)
+  // Step 2: Get crumb using cookies (retry on 429, alternate query hosts)
+  const QUERY_HOSTS = ['query2.finance.yahoo.com', 'query1.finance.yahoo.com']
   let crumbRes
   for (let ci = 0; ci < 3; ci++) {
-    crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+    const host = QUERY_HOSTS[ci % QUERY_HOSTS.length]
+    crumbRes = await fetch(`https://${host}/v1/test/getcrumb`, {
       headers: { 'User-Agent': UA, 'Cookie': cookieStr },
     })
     if (crumbRes.status === 429 && ci < 2) {
@@ -96,11 +98,13 @@ export default async function handler(req, res) {
       }
 
       const { crumb, cookies } = await getCrumb()
+      // Alternate query hosts across retries to mitigate per-host rate limits
+      const dataHost = attempt % 2 === 0 ? 'query2.finance.yahoo.com' : 'query1.finance.yahoo.com'
       let url
       if (isEarnings) {
-        url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=calendarEvents&crumb=${encodeURIComponent(crumb)}`
+        url = `https://${dataHost}/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=calendarEvents&crumb=${encodeURIComponent(crumb)}`
       } else {
-        url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}?crumb=${encodeURIComponent(crumb)}`
+        url = `https://${dataHost}/v7/finance/options/${encodeURIComponent(symbol)}?crumb=${encodeURIComponent(crumb)}`
         if (date) url += `&date=${date}`
       }
 
