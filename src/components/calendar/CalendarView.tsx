@@ -1,8 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { AppState, Strategy, StrategyType, RawTrade } from '../../types'
 import EmptyState from '../shared/EmptyState'
 import TradeLog from './TradeLog'
+import { HOLIDAY_MAP } from '../../data/marketHolidays'
+import { WATCHLIST } from '../../data/watchlist'
+import { fetchEarningsDates, earningsByDate } from '../../services/earnings'
 
 interface Props { state: AppState }
 
@@ -62,6 +65,8 @@ interface DayData {
   trades: DailyTradeData | null
   totalPnL: number
   hasActivity: boolean
+  earnings: string[]     // ticker symbols reporting earnings
+  holiday: string | null // CBOE holiday name or null
 }
 
 interface CalendarWeek {
@@ -188,15 +193,16 @@ function DayCell({
   if (!date) return <div style={{ background: 'var(--bg-surface)', borderRadius: 4 }} />
 
   const dayNum = parseInt(date.split('-')[2])
-  const { events, trades, hasActivity } = data
+  const { events, trades, hasActivity, earnings, holiday } = data
   const hasPnL = trades && trades.netCash !== 0
+  const isHoliday = !!holiday
 
   return (
     <div
       onClick={onClick}
       style={{
-        background: isSelected ? 'var(--bg-active)' : hasActivity ? 'var(--bg-card)' : 'var(--bg-surface)',
-        border: `1px solid ${isSelected ? '#312e81' : isToday ? '#3b82f6' : 'var(--bg-active)'}`,
+        background: isHoliday ? '#f43f5e08' : isSelected ? 'var(--bg-active)' : hasActivity ? 'var(--bg-card)' : 'var(--bg-surface)',
+        border: `1px solid ${isSelected ? '#312e81' : isToday ? '#3b82f6' : isHoliday ? '#f43f5e30' : 'var(--bg-active)'}`,
         borderRadius: 4,
         padding: '4px 6px',
         cursor: hasActivity ? 'pointer' : 'default',
@@ -204,12 +210,13 @@ function DayCell({
         transition: 'background 0.1s',
         display: 'flex',
         flexDirection: 'column',
+        opacity: isHoliday ? 0.7 : 1,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
         <span style={{
           fontSize: 13, fontWeight: isToday ? 700 : 400,
-          color: isToday ? '#3b82f6' : hasActivity ? 'var(--text-1)' : 'var(--text-3)',
+          color: isToday ? '#3b82f6' : isHoliday ? '#f43f5e' : hasActivity ? 'var(--text-1)' : 'var(--text-3)',
           fontFamily: 'IBM Plex Mono, monospace',
           background: isToday ? '#3b82f614' : 'transparent',
           borderRadius: 2, padding: isToday ? '0 3px' : 0,
@@ -225,6 +232,40 @@ function DayCell({
           </span>
         )}
       </div>
+
+      {/* CBOE holiday */}
+      {isHoliday && (
+        <div style={{
+          fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+          color: '#f43f5e', background: '#f43f5e14',
+          padding: '1px 4px', borderRadius: 3, marginBottom: 2,
+          textAlign: 'center', border: '1px solid #f43f5e30',
+        }}>
+          CLOSED
+        </div>
+      )}
+
+      {/* Earnings badges */}
+      {earnings.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 2 }}>
+          {earnings.slice(0, 3).map(t => (
+            <span key={t} style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
+              color: '#F0B429', background: '#F0B42914',
+              padding: '1px 4px', borderRadius: 3,
+              border: '1px solid #F0B42930',
+              fontFamily: 'IBM Plex Mono, monospace',
+            }}>
+              ER {t}
+            </span>
+          ))}
+          {earnings.length > 3 && (
+            <span style={{ fontSize: 9, color: '#F0B429', fontFamily: 'IBM Plex Mono, monospace' }}>
+              +{earnings.length - 3}
+            </span>
+          )}
+        </div>
+      )}
 
       {trades && trades.tradeCount > 0 && (
         <div style={{
@@ -317,20 +358,34 @@ function WeekPnLCell({
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 function ActivitySidebar({
-  events, dailyTrades, selectedDate, year, month,
+  events, dailyTrades, earningsByDateMap, selectedDate, year, month,
 }: {
   events: ExpiryEvent[]
   dailyTrades: Record<string, DailyTradeData>
+  earningsByDateMap: Record<string, string[]>
   selectedDate: string | null
   year: number
   month: number // 0-indexed
 }) {
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`
+
+  // Collect all dates that have any activity (trades, earnings, holidays)
   const monthDates = useMemo(() => {
-    const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
-    return Object.keys(dailyTrades)
-      .filter(d => d.startsWith(prefix))
-      .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
-  }, [dailyTrades, year, month])
+    const dateSet = new Set<string>()
+    // Trade dates
+    for (const d of Object.keys(dailyTrades)) {
+      if (d.startsWith(monthPrefix)) dateSet.add(d)
+    }
+    // Earnings dates
+    for (const d of Object.keys(earningsByDateMap)) {
+      if (d.startsWith(monthPrefix)) dateSet.add(d)
+    }
+    // Holiday dates
+    for (const d of Object.keys(HOLIDAY_MAP)) {
+      if (d.startsWith(monthPrefix)) dateSet.add(d)
+    }
+    return [...dateSet].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+  }, [dailyTrades, earningsByDateMap, monthPrefix])
 
   const displayDates = selectedDate ? [selectedDate] : monthDates
 
@@ -354,7 +409,9 @@ function ActivitySidebar({
         {displayDates.map(date => {
           const dayEvents = events.filter(e => e.date === date)
           const dayTrades = dailyTrades[date]
-          if (!dayEvents.length && !dayTrades) return null
+          const dayEarnings = earningsByDateMap[date] ?? []
+          const dayHoliday = HOLIDAY_MAP[date] ?? null
+          if (!dayEvents.length && !dayTrades && !dayEarnings.length && !dayHoliday) return null
 
           const d = new Date(date + 'T12:00:00')
           const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
@@ -365,12 +422,34 @@ function ActivitySidebar({
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'var(--bg-elevated)' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', fontFamily: 'IBM Plex Mono, monospace' }}>{label}</span>
                 <div style={{ flex: 1 }} />
+                {dayHoliday && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#f43f5e', background: '#f43f5e14', padding: '1px 6px', borderRadius: 3, border: '1px solid #f43f5e30' }}>
+                    CLOSED
+                  </span>
+                )}
                 {dayPnL !== 0 && (
                   <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: dayPnL >= 0 ? '#10b981' : '#f43f5e' }}>
                     {fmt$(dayPnL)}
                   </span>
                 )}
               </div>
+
+              {/* Holiday detail */}
+              {dayHoliday && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderTop: '1px solid var(--border-light)', fontSize: 13 }}>
+                  <div style={{ width: 3, height: 24, background: '#f43f5e', flexShrink: 0, borderRadius: 1 }} />
+                  <span style={{ color: '#f43f5e', fontWeight: 600, fontSize: 12 }}>{dayHoliday}</span>
+                </div>
+              )}
+
+              {/* Earnings detail */}
+              {dayEarnings.map(ticker => (
+                <div key={`er-${ticker}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderTop: '1px solid var(--border-light)', fontSize: 13 }}>
+                  <div style={{ width: 3, height: 24, background: '#F0B429', flexShrink: 0, borderRadius: 1 }} />
+                  <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }}>{ticker}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#F0B429', background: '#F0B42914', padding: '1px 6px', borderRadius: 3, border: '1px solid #F0B42930' }}>EARNINGS</span>
+                </div>
+              ))}
 
               {dayTrades && [...dayTrades.trades].sort((a, b) => Math.abs(b.netCash) - Math.abs(a.netCash)).map((t, i) => (
                 <div key={`t-${i}`} style={{
@@ -440,6 +519,13 @@ export default function CalendarView({ state }: Props) {
   const [month, setMonth]   = useState(today.getMonth())
   const [selected, setSelected] = useState<string | null>(null)
 
+  // Earnings dates (fetched once, cached 6h)
+  const [earningsMap, setEarningsMap] = useState<Record<string, string[]>>({})
+  useEffect(() => {
+    fetchEarningsDates([...WATCHLIST]).then(setEarningsMap).catch(() => {})
+  }, [])
+  const earningsByDateMap = useMemo(() => earningsByDate(earningsMap), [earningsMap])
+
   const events = useMemo(() => deriveEvents(state.strategies), [state.strategies])
   const dailyTrades = useMemo(() => buildDailyTrades(state.sync.trades), [state.sync.trades])
 
@@ -469,22 +555,17 @@ export default function CalendarView({ state }: Props) {
     .filter(([d]) => d.startsWith(monthPrefix))
     .reduce((s, [, dt]) => s + dt.tradeCount, 0)
 
-  const hasAnyData = state.strategies.length > 0 || state.sync.trades.length > 0
-
-  if (!hasAnyData) {
-    return (
-      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <EmptyState title="No data" message="Sync your IBKR portfolio to see trades and expirations on the calendar." showUpload />
-      </div>
-    )
-  }
+  // Calendar always renders (holidays + earnings are always available)
 
   function getDayData(date: string | null): DayData {
-    if (!date) return { events: [], trades: null, totalPnL: 0, hasActivity: false }
+    if (!date) return { events: [], trades: null, totalPnL: 0, hasActivity: false, earnings: [], holiday: null }
     const evs = eventsByDate[date] ?? []
     const tr = dailyTrades[date] ?? null
     const totalPnL = (tr?.netCash ?? 0) + evs.reduce((s, e) => s + e.unrealizedPnL, 0)
-    return { events: evs, trades: tr, totalPnL, hasActivity: evs.length > 0 || (tr !== null && tr.tradeCount > 0) }
+    const earnings = earningsByDateMap[date] ?? []
+    const holiday = HOLIDAY_MAP[date] ?? null
+    const hasActivity = evs.length > 0 || (tr !== null && tr.tradeCount > 0) || earnings.length > 0 || holiday !== null
+    return { events: evs, trades: tr, totalPnL, hasActivity, earnings, holiday }
   }
 
   return (
@@ -559,7 +640,7 @@ export default function CalendarView({ state }: Props) {
 
         {/* Activity sidebar */}
         <div className="calendar-sidebar" style={{ width: 300, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <ActivitySidebar events={events} dailyTrades={dailyTrades} selectedDate={selected} year={year} month={month} />
+          <ActivitySidebar events={events} dailyTrades={dailyTrades} earningsByDateMap={earningsByDateMap} selectedDate={selected} year={year} month={month} />
         </div>
       </div>
 

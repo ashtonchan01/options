@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Scan, AlertCircle, Activity, ChevronDown, ChevronUp } from 'lucide-react'
 import type { AppState, ScanResult, ScanFlag } from '../../types'
 import { scanAllTickersCboe } from '../../services/cboe'
+import { WATCHLIST } from '../../data/watchlist'
 
 interface Props { state: AppState }
 
@@ -180,8 +181,6 @@ export default function OpportunitiesView({ state }: Props) {
       if (p.assetClass === 'STK') map[p.symbol] = (map[p.symbol] ?? 0) + p.quantity
     return map
   }, [state.sync.positions])
-
-  const WATCHLIST = ['TSLA','MSTR','AMD','ALAB','ARM','ASML','AVGO','GOOG','MRVL','MU','NVDA','PLTR','TSM']
 
   const tickers = useMemo(() => {
     const set = new Set<string>([...WATCHLIST, ...customTickers])
