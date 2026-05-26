@@ -7,6 +7,9 @@
     },
     "api/yahoo.js": {
       "maxDuration": 30
+    },
+    "api/earnings.js": {
+      "maxDuration": 60
     }
   }
 }
