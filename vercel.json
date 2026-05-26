@@ -4,9 +4,6 @@
   "functions": {
     "api/flex-sync.js": {
       "maxDuration": 90
-    },
-    "api/yahoo.js": {
-      "maxDuration": 45
     }
   }
 }
