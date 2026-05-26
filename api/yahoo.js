@@ -14,11 +14,7 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-async function getCrumb() {
-  if (cachedCrumb && Date.now() - cacheTime < CACHE_TTL) {
-    return { crumb: cachedCrumb, cookies: cachedCookies }
-  }
-
+async function getCrumbDirect() {
   // Step 1: Get cookies from consent endpoint
   const fcRes = await fetch('https://fc.yahoo.com', {
     headers: { 'User-Agent': UA },
@@ -41,31 +37,57 @@ async function getCrumb() {
 
   if (!cookieStr) throw new Error('No cookies from fc.yahoo.com')
 
-  // Step 2: Get crumb using cookies (retry on 429, alternate query hosts)
+  // Step 2: Get crumb using cookies (alternate query hosts)
   const QUERY_HOSTS = ['query2.finance.yahoo.com', 'query1.finance.yahoo.com']
   let crumbRes
-  for (let ci = 0; ci < 3; ci++) {
-    const host = QUERY_HOSTS[ci % QUERY_HOSTS.length]
+  for (let ci = 0; ci < 2; ci++) {
+    const host = QUERY_HOSTS[ci]
     crumbRes = await fetch(`https://${host}/v1/test/getcrumb`, {
       headers: { 'User-Agent': UA, 'Cookie': cookieStr },
     })
-    if (crumbRes.status === 429 && ci < 2) {
-      await sleep(3000 * (ci + 1)) // 3s, 6s backoff
+    if (crumbRes.status === 429 && ci < 1) {
+      await sleep(2000)
       continue
     }
     break
   }
-  if (!crumbRes.ok) throw new Error(`Crumb endpoint returned ${crumbRes.status}`)
+  if (!crumbRes.ok) throw new Error(`Crumb ${crumbRes.status}`)
 
   const crumb = (await crumbRes.text()).trim()
   if (!crumb || crumb.startsWith('{') || crumb.startsWith('<') || crumb.length > 40) {
     throw new Error(`Invalid crumb: ${crumb.slice(0, 50)}`)
   }
-
-  cachedCrumb = crumb
-  cachedCookies = cookieStr
-  cacheTime = Date.now()
   return { crumb, cookies: cookieStr }
+}
+
+async function getCrumbViaEdge() {
+  // Fallback: fetch crumb from edge function (different IP pool)
+  const res = await fetch('https://options-jade.vercel.app/api/crumb', {
+    signal: AbortSignal.timeout(12000),
+  })
+  if (!res.ok) throw new Error(`Edge crumb ${res.status}`)
+  const { crumb, cookies } = await res.json()
+  if (!crumb || !cookies) throw new Error('Edge crumb empty')
+  return { crumb, cookies }
+}
+
+async function getCrumb() {
+  if (cachedCrumb && Date.now() - cacheTime < CACHE_TTL) {
+    return { crumb: cachedCrumb, cookies: cachedCookies }
+  }
+
+  // Try direct first, fall back to edge function (different IP)
+  let result
+  try {
+    result = await getCrumbDirect()
+  } catch {
+    result = await getCrumbViaEdge()
+  }
+
+  cachedCrumb = result.crumb
+  cachedCookies = result.cookies
+  cacheTime = Date.now()
+  return result
 }
 
 export default async function handler(req, res) {
