@@ -1,20 +1,25 @@
 import { useState, useRef } from 'react'
-import { LayoutDashboard, CalendarDays, Layers, Radar, Zap, ClipboardList, FlaskConical, Menu, X, RefreshCw, Upload, Settings, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Layers, Radar, ClipboardList, FlaskConical, Menu, X, RefreshCw, Upload, Settings, Sun, Moon, ChevronDown } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
 
-export const TAB_IDS = ['portfolio', 'calendar', 'strategies', 'scanner', 'actions', 'plan', 'backtest'] as const
+export const TAB_IDS = ['dashboard', 'portfolio', 'calendar', 'strategies', 'scanner', 'plan', 'backtest'] as const
 export type TabId = typeof TAB_IDS[number]
 
-const NAV_ITEMS: { id: TabId; label: string; Icon: React.FC<{ size?: number }> }[] = [
-  { id: 'portfolio',  label: 'Portfolio',  Icon: LayoutDashboard },
-  { id: 'calendar',   label: 'Calendar',   Icon: CalendarDays },
-  { id: 'strategies', label: 'Strategies', Icon: Layers },
-  { id: 'scanner',    label: 'Scanner',    Icon: Radar },
-  { id: 'actions',    label: 'Actions',    Icon: Zap },
-  { id: 'plan',       label: 'Plan',       Icon: ClipboardList },
-  { id: 'backtest',   label: 'Backtest',   Icon: FlaskConical },
+const STRATEGY_ITEMS = [
+  'Covered Calls',
+  'Cash Secured Puts',
+  'LEAP',
+  'SPX',
+  'Rotation Model',
+  'PTOS',
+  'DCAS',
+  'Profit Taking',
+  'LILO',
+  'ARB Cloud',
+  'TABI',
 ]
+
 
 function relativeTime(ms: number): string {
   const diff = Date.now() - ms
@@ -38,7 +43,9 @@ interface Props {
 
 export default function TopNav({ activeTab, onTabChange, actionCount, syncStatus, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [stratOpen, setStratOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const stratRef = useRef<HTMLDivElement>(null)
   const { theme, toggle } = useThemeStore()
   const isLoading = syncStatus === 'loading'
 
@@ -51,6 +58,16 @@ export default function TopNav({ activeTab, onTabChange, actionCount, syncStatus
   function selectTab(tab: TabId) {
     onTabChange(tab)
     setMenuOpen(false)
+    setStratOpen(false)
+  }
+
+  // Close strat dropdown on outside click
+  const handleStratBlur = () => {
+    setTimeout(() => {
+      if (stratRef.current && !stratRef.current.contains(document.activeElement)) {
+        setStratOpen(false)
+      }
+    }, 150)
   }
 
   return (
@@ -63,19 +80,91 @@ export default function TopNav({ activeTab, onTabChange, actionCount, syncStatus
         </div>
 
         <div className="top-nav-tabs">
-          {NAV_ITEMS.map(({ id, label, Icon }) => (
+          {/* Dashboard */}
+          <button
+            className={`top-nav-tab${activeTab === 'dashboard' ? ' active' : ''}`}
+            onClick={() => selectTab('dashboard')}
+          >
+            <LayoutDashboard size={15} />
+            <span>Dashboard</span>
+            {actionCount > 0 && (
+              <span className="top-nav-badge">{actionCount > 9 ? '9+' : actionCount}</span>
+            )}
+          </button>
+
+          {/* Portfolio */}
+          <button
+            className={`top-nav-tab${activeTab === 'portfolio' ? ' active' : ''}`}
+            onClick={() => selectTab('portfolio')}
+          >
+            <LayoutDashboard size={15} />
+            <span>Portfolio</span>
+          </button>
+
+          {/* Calendar */}
+          <button
+            className={`top-nav-tab${activeTab === 'calendar' ? ' active' : ''}`}
+            onClick={() => selectTab('calendar')}
+          >
+            <CalendarDays size={15} />
+            <span>Calendar</span>
+          </button>
+
+          {/* Strategies dropdown */}
+          <div className="strat-dropdown-wrap" ref={stratRef} onBlur={handleStratBlur}>
             <button
-              key={id}
-              className={`top-nav-tab${activeTab === id ? ' active' : ''}`}
-              onClick={() => selectTab(id)}
+              className={`top-nav-tab strat-dropdown-trigger${activeTab === 'strategies' ? ' active' : ''}`}
+              onClick={() => setStratOpen(o => !o)}
+              aria-haspopup="true"
+              aria-expanded={stratOpen}
             >
-              <Icon size={15} />
-              <span>{label}</span>
-              {id === 'actions' && actionCount > 0 && (
-                <span className="top-nav-badge">{actionCount > 9 ? '9+' : actionCount}</span>
-              )}
+              <Layers size={15} />
+              <span>Strategies</span>
+              <ChevronDown size={12} style={{ transition: 'transform 0.2s', transform: stratOpen ? 'rotate(180deg)' : 'none', marginLeft: 2 }} />
             </button>
-          ))}
+            {stratOpen && (
+              <div className="strat-dropdown-menu">
+                <div className="strat-dropdown-view-all">
+                  <button className="strat-dropdown-item strat-all" onClick={() => selectTab('strategies')}>
+                    All Strategies
+                  </button>
+                </div>
+                <div className="strat-dropdown-divider" />
+                {STRATEGY_ITEMS.map(item => (
+                  <button key={item} className="strat-dropdown-item" onClick={() => selectTab('strategies')}>
+                    {item}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Scanner */}
+          <button
+            className={`top-nav-tab${activeTab === 'scanner' ? ' active' : ''}`}
+            onClick={() => selectTab('scanner')}
+          >
+            <Radar size={15} />
+            <span>Scanner</span>
+          </button>
+
+          {/* Backtest */}
+          <button
+            className={`top-nav-tab${activeTab === 'backtest' ? ' active' : ''}`}
+            onClick={() => selectTab('backtest')}
+          >
+            <FlaskConical size={15} />
+            <span>Backtest</span>
+          </button>
+
+          {/* Plan */}
+          <button
+            className={`top-nav-tab${activeTab === 'plan' ? ' active' : ''}`}
+            onClick={() => selectTab('plan')}
+          >
+            <ClipboardList size={15} />
+            <span>Plan</span>
+          </button>
         </div>
 
         <div className="top-nav-actions">
@@ -112,19 +201,39 @@ export default function TopNav({ activeTab, onTabChange, actionCount, syncStatus
       {menuOpen && (
         <div className="mobile-menu-overlay" onClick={() => setMenuOpen(false)}>
           <div className="mobile-menu" onClick={e => e.stopPropagation()}>
-            {NAV_ITEMS.map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                className={`mobile-menu-item${activeTab === id ? ' active' : ''}`}
-                onClick={() => selectTab(id)}
-              >
-                <Icon size={18} />
-                <span>{label}</span>
-                {id === 'actions' && actionCount > 0 && (
-                  <span className="top-nav-badge">{actionCount > 9 ? '9+' : actionCount}</span>
-                )}
-              </button>
-            ))}
+            {(['dashboard', 'portfolio', 'calendar', 'strategies', 'scanner', 'backtest', 'plan'] as TabId[]).map(id => {
+              const iconMap: Record<TabId, React.ReactNode> = {
+                dashboard:  <LayoutDashboard size={18} />,
+                portfolio:  <LayoutDashboard size={18} />,
+                calendar:   <CalendarDays size={18} />,
+                strategies: <Layers size={18} />,
+                scanner:    <Radar size={18} />,
+                backtest:   <FlaskConical size={18} />,
+                plan:       <ClipboardList size={18} />,
+              }
+              const labelMap: Record<TabId, string> = {
+                dashboard:  'Dashboard',
+                portfolio:  'Portfolio',
+                calendar:   'Calendar',
+                strategies: 'Strategies',
+                scanner:    'Scanner',
+                backtest:   'Backtest',
+                plan:       'Plan',
+              }
+              return (
+                <button
+                  key={id}
+                  className={`mobile-menu-item${activeTab === id ? ' active' : ''}`}
+                  onClick={() => selectTab(id)}
+                >
+                  {iconMap[id]}
+                  <span>{labelMap[id]}</span>
+                  {id === 'dashboard' && actionCount > 0 && (
+                    <span className="top-nav-badge">{actionCount > 9 ? '9+' : actionCount}</span>
+                  )}
+                </button>
+              )
+            })}
             <div className="mobile-menu-divider" />
             <div className="mobile-menu-actions">
               <label className="mobile-menu-action-btn">

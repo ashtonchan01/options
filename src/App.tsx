@@ -3,11 +3,11 @@ import TopNav, { type TabId } from './components/layout/TopNav'
 import FlexSettingsPanel from './components/shared/FlexSettingsPanel'
 import { useAppStore } from './store/appStore'
 import { useSettingsStore } from './store/settingsStore'
+import DashboardView from './components/dashboard/DashboardView'
 import PortfolioView from './components/portfolio/PortfolioView'
 import CalendarView from './components/calendar/CalendarView'
 import StrategiesView from './components/strategies/StrategiesView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
-import ActionsView from './components/actions/ActionsView'
 import PlanView from './components/plan/PlanView'
 import BacktestView from './components/backtest/BacktestView'
 import type { AppState } from './types'
@@ -15,17 +15,17 @@ import type { AppState } from './types'
 type ViewComponent = React.FC<{ state: AppState }>
 
 const VIEWS: Record<TabId, ViewComponent> = {
-  portfolio:     PortfolioView,
-  calendar:      CalendarView as ViewComponent,
-  strategies:    StrategiesView as ViewComponent,
-  scanner:       OpportunitiesView as ViewComponent,
-  actions:       ActionsView as ViewComponent,
-  plan:          PlanView as ViewComponent,
-  backtest:      BacktestView as ViewComponent,
+  dashboard:  DashboardView,
+  portfolio:  PortfolioView,
+  calendar:   CalendarView as ViewComponent,
+  strategies: StrategiesView as ViewComponent,
+  scanner:    OpportunitiesView as ViewComponent,
+  plan:       PlanView as ViewComponent,
+  backtest:   BacktestView as ViewComponent,
 }
 
 export default function App() {
-  const [activeTab, setActiveTab]       = useState<TabId>('portfolio')
+  const [activeTab, setActiveTab]       = useState<TabId>('dashboard')
   const [showSettings, setShowSettings] = useState(false)
   const { state, uploadXML, syncFlex }  = useAppStore()
   const { settings, update, activeProfile } = useSettingsStore()
