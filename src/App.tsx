@@ -28,6 +28,7 @@ export type StrategyPage =
   | 'lilo'
   | 'arb_cloud'
   | 'tabi'
+  | 'forex'
 
 export interface TradeLabels {
   labels:   Record<string, TradeLabel>

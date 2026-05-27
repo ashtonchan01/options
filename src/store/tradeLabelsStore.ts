@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import type { StrategyPage } from '../App'
 
-export type TradeLabel = Exclude<StrategyPage, 'overview'>
+export type TradeLabel = Exclude<StrategyPage, 'overview' | 'label_trades'>
 
 const LS_KEY = 'options:tradeLabels'
 
