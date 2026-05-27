@@ -86,6 +86,7 @@ function SummaryStrip({ trades }: { trades: RawTrade[] }) {
   const totalNet   = trades.reduce((s, t) => s + t.netCash, 0)
   const sells      = trades.filter(t => t.quantity < 0)
   const winRate    = sells.length ? (sells.filter(t => t.netCash > 0).length / sells.length) * 100 : 0
+  const openFees   = active.reduce((s, t) => s + Math.abs(t.commissions ?? 0), 0)
   const totalComm  = trades.reduce((s, t) => s + Math.abs(t.commissions ?? 0), 0)
 
   const cards = [
@@ -96,7 +97,8 @@ function SummaryStrip({ trades }: { trades: RawTrade[] }) {
     { label: 'Realized P&L',  value: fmt$(realized, 0),  color: realized >= 0 ? '#10b981' : '#f43f5e' },
     { label: 'Net Cash',      value: fmt$(totalNet, 0),  color: totalNet >= 0 ? '#10b981' : '#f43f5e' },
     { label: 'Win Rate',      value: sells.length ? `${winRate.toFixed(0)}%` : '—', color: winRate >= 70 ? '#10b981' : winRate >= 50 ? '#f59e0b' : '#f43f5e' },
-    { label: 'Commissions',   value: fmt$(totalComm, 2), color: '#f59e0b' },
+    { label: 'Open Fees',     value: fmt$(openFees, 2),  color: '#f59e0b' },
+    { label: 'Total Fees',    value: fmt$(totalComm, 2), color: 'var(--text-4)' },
   ]
 
   return (
