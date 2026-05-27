@@ -70,8 +70,8 @@ function SummaryStrip({ trades, color }: { trades: RawTrade[]; color: string }) 
   // Net cash across all legs — this is true realised P&L
   const totalNet  = trades.reduce((s, t) => s + t.netCash, 0)
 
-  // Income = premium received on opens only (not all positive netCash)
-  const income    = opens.filter(t => t.netCash > 0).reduce((s, t) => s + t.netCash, 0)
+  // Income = net premium on open legs (sell premium minus cost of hedge legs for spreads)
+  const income    = opens.reduce((s, t) => s + t.netCash, 0)
 
   // Win rate = opens that expired/closed profitably (positive netCash on the open leg)
   const winRate   = opens.length ? (opens.filter(t => t.netCash > 0).length / opens.length) * 100 : 0
@@ -82,7 +82,7 @@ function SummaryStrip({ trades, color }: { trades: RawTrade[]; color: string }) 
     { label: 'Total Trades',    value: String(trades.length),          color: 'var(--text-1)' },
     { label: 'Opens (Sold)',    value: String(opens.length),            color: 'var(--text-1)' },
     { label: 'Closes (Bought)', value: String(closes.length),          color: 'var(--text-1)' },
-    { label: 'Total Income',    value: fmt$(income, 0),                 color: '#10b981'       },
+    { label: 'Net Premium',     value: fmt$(income, 0),                 color: income >= 0 ? '#10b981' : '#f43f5e' },
     { label: 'Net Cash',        value: fmt$(totalNet, 0),               color: totalNet >= 0 ? '#10b981' : '#f43f5e' },
     { label: 'Win Rate',        value: opens.length ? `${winRate.toFixed(0)}%` : '—', color: winRate >= 70 ? '#10b981' : winRate >= 50 ? '#f59e0b' : '#f43f5e' },
     { label: 'Avg Premium',     value: opens.length ? fmt$(avgPrem, 0) : '—', color },

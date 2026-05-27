@@ -68,8 +68,8 @@ function SummaryStrip({ trades }: { trades: RawTrade[] }) {
   const opens    = trades.filter(t => t.openClose === 'O' || (t.openClose == null && t.quantity < 0))
   const closes   = trades.filter(t => t.openClose === 'C' || (t.openClose == null && t.quantity > 0))
   const totalNet = trades.reduce((s, t) => s + t.netCash, 0)
-  // Income = premium received on opens only (not all positive netCash across all legs)
-  const income   = opens.filter(t => t.netCash > 0).reduce((s, t) => s + t.netCash, 0)
+  // Income = net premium on open legs (sell premium minus cost of hedge legs for spreads)
+  const income   = opens.reduce((s, t) => s + t.netCash, 0)
   const winTrades = opens.filter(t => t.netCash > 0)
   const winRate  = opens.length ? (winTrades.length / opens.length) * 100 : 0
   const avgPrem  = opens.length ? income / opens.length : 0
@@ -79,7 +79,7 @@ function SummaryStrip({ trades }: { trades: RawTrade[] }) {
     { label: 'Total Trades',    value: String(trades.length) },
     { label: 'Opens (Sold)',    value: String(opens.length) },
     { label: 'Closes (Bought)', value: String(closes.length) },
-    { label: 'Total Income',    value: fmt$(income, 0),   color: '#10b981' },
+    { label: 'Net Premium',     value: fmt$(income, 0),   color: income >= 0 ? '#10b981' : '#f43f5e' },
     { label: 'Net Cash',        value: fmt$(totalNet, 0), color: totalNet >= 0 ? '#10b981' : '#f43f5e' },
     { label: 'Win Rate',        value: opens.length ? `${winRate.toFixed(0)}%` : '—', color: winRate >= 70 ? '#10b981' : winRate >= 50 ? '#f59e0b' : '#f43f5e' },
     { label: 'Avg Premium',     value: opens.length ? fmt$(avgPrem, 0) : '—', color: '#3b82f6' },
