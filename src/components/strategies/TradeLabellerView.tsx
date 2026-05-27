@@ -18,6 +18,7 @@ export const STRATEGY_OPTIONS: { value: TradeLabel; label: string; color: string
   { value: 'arb_cloud',      label: 'ARB Cloud',         color: '#a78bfa' },
   { value: 'tabi',           label: 'TABI',              color: '#34d399' },
   { value: 'forex',          label: 'Forex',             color: '#e879f9' },
+  { value: 'assignment',     label: 'Assignment',        color: '#fb7185' },
 ]
 
 const STRAT_MAP = Object.fromEntries(STRATEGY_OPTIONS.map(s => [s.value, s])) as Record<TradeLabel, typeof STRATEGY_OPTIONS[number]>
