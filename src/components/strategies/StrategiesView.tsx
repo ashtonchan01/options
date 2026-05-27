@@ -1,6 +1,70 @@
 import type { AppState, Strategy, StrategyType, OptionLeg } from '../../types'
+import type { StrategyPage } from '../../App'
+import CoveredCallsView from './CoveredCallsView'
+import StrategyTradeLog from './StrategyTradeLog'
 
-interface Props { state: AppState }
+interface Props { state: AppState; stratPage?: StrategyPage }
+
+// ─── Strategy page configs ────────────────────────────────────────────────────
+
+const STRAT_CONFIGS = {
+  csp: {
+    id: 'CSP', label: 'Cash Secured Puts', color: '#f43f5e',
+    description: 'Trade log — put option legs',
+    filter: (t: import('../../types').RawTrade) => t.assetClass === 'OPT' && t.putCall === 'P',
+  },
+  leap: {
+    id: 'LEAP', label: 'LEAP', color: '#10b981',
+    description: 'Trade log — LEAP & risk reversal legs (long-dated options)',
+    filter: (t: import('../../types').RawTrade) => {
+      if (t.assetClass !== 'OPT') return false
+      // Risk reversals appear here too; identify by expiry > ~9 months out if available
+      // Fallback: include all option trades not already covered by CC/CSP heuristics
+      return true
+    },
+  },
+  spx: {
+    id: 'SPX', label: 'SPX', color: '#8b5cf6',
+    description: 'Trade log — SPX / SPXW index trades',
+    filter: (t: import('../../types').RawTrade) =>
+      /^SPX|^SPXW/.test(t.underlyingSymbol ?? t.symbol),
+  },
+  rotation: {
+    id: 'ROT', label: 'Rotation Model', color: '#f59e0b',
+    description: 'Trade log — sector rotation trades (stocks)',
+    filter: (t: import('../../types').RawTrade) => t.assetClass === 'STK',
+  },
+  ptos: {
+    id: 'PTOS', label: 'PTOS', color: '#06b6d4',
+    description: 'Trade log — PTOS strategy',
+    filter: (t: import('../../types').RawTrade) => t.assetClass === 'OPT' && t.putCall === 'P' && (t.quantity ?? 0) > 0,
+  },
+  dcas: {
+    id: 'DCAS', label: 'DCAS', color: '#ec4899',
+    description: 'Trade log — dollar-cost average accumulation (stock buys)',
+    filter: (t: import('../../types').RawTrade) => t.assetClass === 'STK' && (t.quantity ?? 0) > 0,
+  },
+  profit_taking: {
+    id: 'PT', label: 'Profit Taking', color: '#84cc16',
+    description: 'Trade log — closing trades with net positive cash',
+    filter: (t: import('../../types').RawTrade) => t.netCash > 0 && (t.openClose === 'C'),
+  },
+  lilo: {
+    id: 'LILO', label: 'LILO', color: '#f97316',
+    description: 'Trade log — LILO strategy trades',
+    filter: (t: import('../../types').RawTrade) => t.assetClass === 'OPT',
+  },
+  arb_cloud: {
+    id: 'ARB', label: 'ARB Cloud', color: '#a78bfa',
+    description: 'Trade log — ARB Cloud trades',
+    filter: (t: import('../../types').RawTrade) => t.assetClass === 'OPT' && t.putCall === 'C' && (t.quantity ?? 0) > 0,
+  },
+  tabi: {
+    id: 'TABI', label: 'TABI', color: '#34d399',
+    description: 'Trade log — TABI strategy trades',
+    filter: (t: import('../../types').RawTrade) => t.assetClass === 'OPT',
+  },
+} as const
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -197,7 +261,13 @@ function StrategyCard({ s }: { s: Strategy }) {
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
-export default function StrategiesView({ state }: Props) {
+export default function StrategiesView({ state, stratPage = 'overview' }: Props) {
+  if (stratPage === 'covered_calls') return <CoveredCallsView state={state} />
+  if (stratPage !== 'overview') {
+    const cfg = STRAT_CONFIGS[stratPage as keyof typeof STRAT_CONFIGS]
+    if (cfg) return <StrategyTradeLog state={state} config={cfg} />
+  }
+
   const { strategies } = state
 
   if (!strategies.length) {

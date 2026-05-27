@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { AppState, Strategy, StrategyType, RawTrade } from '../../types'
-import TradeLog from './TradeLog'
 import { HOLIDAY_MAP } from '../../data/marketHolidays'
 import { WATCHLIST } from '../../data/watchlist'
 import { fetchEarningsDates, earningsByDate } from '../../services/earnings'
@@ -643,16 +642,6 @@ export default function CalendarView({ state }: Props) {
         </div>
       </div>
 
-      {/* ── Bottom: Trade Log ────────────────────────────────────────────── */}
-      <div className="calendar-tradelog" style={{
-        flex: '1 1 50%',
-        minHeight: 0,
-        overflow: 'hidden',
-        borderTop: '2px solid var(--border)',
-        background: 'var(--bg-card)',
-      }}>
-        <TradeLog trades={state.sync.trades} />
-      </div>
     </div>
   )
 }

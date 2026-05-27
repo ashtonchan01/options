@@ -2,22 +2,23 @@ import { useState, useRef } from 'react'
 import { LayoutDashboard, CalendarDays, Layers, Radar, ClipboardList, FlaskConical, Menu, X, RefreshCw, Upload, Settings, Sun, Moon, ChevronDown } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
+import type { StrategyPage } from '../../App'
 
 export const TAB_IDS = ['dashboard', 'portfolio', 'calendar', 'strategies', 'scanner', 'plan', 'backtest'] as const
 export type TabId = typeof TAB_IDS[number]
 
-const STRATEGY_ITEMS = [
-  'Covered Calls',
-  'Cash Secured Puts',
-  'LEAP',
-  'SPX',
-  'Rotation Model',
-  'PTOS',
-  'DCAS',
-  'Profit Taking',
-  'LILO',
-  'ARB Cloud',
-  'TABI',
+const STRATEGY_ITEMS: { label: string; page: StrategyPage }[] = [
+  { label: 'Covered Calls',    page: 'covered_calls'  },
+  { label: 'Cash Secured Puts',page: 'csp'            },
+  { label: 'LEAP',             page: 'leap'           },
+  { label: 'SPX',              page: 'spx'            },
+  { label: 'Rotation Model',   page: 'rotation'       },
+  { label: 'PTOS',             page: 'ptos'           },
+  { label: 'DCAS',             page: 'dcas'           },
+  { label: 'Profit Taking',    page: 'profit_taking'  },
+  { label: 'LILO',             page: 'lilo'           },
+  { label: 'ARB Cloud',        page: 'arb_cloud'      },
+  { label: 'TABI',             page: 'tabi'           },
 ]
 
 
@@ -31,6 +32,7 @@ function relativeTime(ms: number): string {
 interface Props {
   activeTab: TabId
   onTabChange: (tab: TabId) => void
+  onStrategySelect: (page: StrategyPage) => void
   actionCount: number
   syncStatus: SyncStatus
   syncError?: string
@@ -41,7 +43,7 @@ interface Props {
   onOpenSettings: () => void
 }
 
-export default function TopNav({ activeTab, onTabChange, actionCount, syncStatus, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings }: Props) {
+export default function TopNav({ activeTab, onTabChange, onStrategySelect, actionCount, syncStatus, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [stratOpen, setStratOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -125,14 +127,14 @@ export default function TopNav({ activeTab, onTabChange, actionCount, syncStatus
             {stratOpen && (
               <div className="strat-dropdown-menu">
                 <div className="strat-dropdown-view-all">
-                  <button className="strat-dropdown-item strat-all" onClick={() => selectTab('strategies')}>
+                  <button className="strat-dropdown-item strat-all" onClick={() => { onStrategySelect('overview'); setStratOpen(false) }}>
                     All Strategies
                   </button>
                 </div>
                 <div className="strat-dropdown-divider" />
                 {STRATEGY_ITEMS.map(item => (
-                  <button key={item} className="strat-dropdown-item" onClick={() => selectTab('strategies')}>
-                    {item}
+                  <button key={item.page} className="strat-dropdown-item" onClick={() => { onStrategySelect(item.page); setStratOpen(false) }}>
+                    {item.label}
                   </button>
                 ))}
               </div>

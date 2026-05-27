@@ -12,7 +12,21 @@ import PlanView from './components/plan/PlanView'
 import BacktestView from './components/backtest/BacktestView'
 import type { AppState } from './types'
 
-type ViewComponent = React.FC<{ state: AppState }>
+export type StrategyPage =
+  | 'overview'
+  | 'covered_calls'
+  | 'csp'
+  | 'leap'
+  | 'spx'
+  | 'rotation'
+  | 'ptos'
+  | 'dcas'
+  | 'profit_taking'
+  | 'lilo'
+  | 'arb_cloud'
+  | 'tabi'
+
+type ViewComponent = React.FC<{ state: AppState; stratPage?: StrategyPage }>
 
 const VIEWS: Record<TabId, ViewComponent> = {
   dashboard:  DashboardView,
@@ -26,6 +40,7 @@ const VIEWS: Record<TabId, ViewComponent> = {
 
 export default function App() {
   const [activeTab, setActiveTab]       = useState<TabId>('dashboard')
+  const [stratPage, setStratPage]       = useState<StrategyPage>('overview')
   const [showSettings, setShowSettings] = useState(false)
   const { state, uploadXML, syncFlex }  = useAppStore()
   const { settings, update, activeProfile } = useSettingsStore()
@@ -33,11 +48,22 @@ export default function App() {
   const hasCredentials = !!(activeProfile?.token && activeProfile?.queryId)
   const View = VIEWS[activeTab]
 
+  function handleTabChange(tab: TabId) {
+    setActiveTab(tab)
+    if (tab !== 'strategies') setStratPage('overview')
+  }
+
+  function handleStrategySelect(page: StrategyPage) {
+    setActiveTab('strategies')
+    setStratPage(page)
+  }
+
   return (
     <div className="app-root" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: 'var(--bg-page)', maxWidth: 1920, margin: '0 auto' }}>
       <TopNav
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
+        onStrategySelect={handleStrategySelect}
         actionCount={state.actions.length}
         syncStatus={state.sync.status}
         syncError={state.sync.error}
@@ -49,7 +75,7 @@ export default function App() {
       />
 
       <main style={{ flex: 1, overflow: 'hidden', background: 'var(--bg-page)' }}>
-        <View state={state} />
+        <View state={state} stratPage={stratPage} />
       </main>
 
       {showSettings && (
