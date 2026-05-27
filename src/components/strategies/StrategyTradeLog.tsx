@@ -63,10 +63,18 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 // ─── Summary strip ────────────────────────────────────────────────────────────
 
 function SummaryStrip({ trades, color }: { trades: RawTrade[]; color: string }) {
-  const opens     = trades.filter(t => t.quantity < 0)
-  const closes    = trades.filter(t => t.quantity > 0)
+  // Opens = trades where a position was opened (sell-to-open: qty < 0, openClose = 'O')
+  // Falls back to qty < 0 if openClose not available
+  const opens  = trades.filter(t => t.openClose === 'O' ? t.quantity < 0 : t.quantity < 0)
+  const closes = trades.filter(t => t.openClose === 'C' || (t.openClose == null && t.quantity > 0))
+
+  // Net cash across all legs — this is true realised P&L
   const totalNet  = trades.reduce((s, t) => s + t.netCash, 0)
-  const income    = trades.filter(t => t.netCash > 0).reduce((s, t) => s + t.netCash, 0)
+
+  // Income = premium received on opens only (not all positive netCash)
+  const income    = opens.filter(t => t.netCash > 0).reduce((s, t) => s + t.netCash, 0)
+
+  // Win rate = opens that expired/closed profitably (positive netCash on the open leg)
   const winRate   = opens.length ? (opens.filter(t => t.netCash > 0).length / opens.length) * 100 : 0
   const avgPrem   = opens.length ? income / opens.length : 0
   const totalComm = trades.reduce((s, t) => s + Math.abs(t.commissions ?? 0), 0)
