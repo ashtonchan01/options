@@ -65,7 +65,7 @@ function isCCTrade(t: RawTrade) {
 // ─── Summary strip ────────────────────────────────────────────────────────────
 
 function SummaryStrip({ trades }: { trades: RawTrade[] }) {
-  const opens    = trades.filter(t => t.openClose === 'O' ? t.quantity < 0 : t.quantity < 0)
+  const opens    = trades.filter(t => t.openClose === 'O' || (t.openClose == null && t.quantity < 0))
   const closes   = trades.filter(t => t.openClose === 'C' || (t.openClose == null && t.quantity > 0))
   const totalNet = trades.reduce((s, t) => s + t.netCash, 0)
   // Income = premium received on opens only (not all positive netCash across all legs)

@@ -63,9 +63,8 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 // ─── Summary strip ────────────────────────────────────────────────────────────
 
 function SummaryStrip({ trades, color }: { trades: RawTrade[]; color: string }) {
-  // Opens = trades where a position was opened (sell-to-open: qty < 0, openClose = 'O')
-  // Falls back to qty < 0 if openClose not available
-  const opens  = trades.filter(t => t.openClose === 'O' ? t.quantity < 0 : t.quantity < 0)
+  // Opens = sell-to-open legs: openClose='O', or qty < 0 when openClose not available
+  const opens  = trades.filter(t => t.openClose === 'O' || (t.openClose == null && t.quantity < 0))
   const closes = trades.filter(t => t.openClose === 'C' || (t.openClose == null && t.quantity > 0))
 
   // Net cash across all legs — this is true realised P&L
