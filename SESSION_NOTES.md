@@ -1,75 +1,58 @@
-# Session Notes — Claude Code Session
+# Session Notes — Options Dashboard
 
-**Date:** 2026-05-27  
-**Session:** https://claude.ai/code/session_01VNWU2ws946VQwdZsssUPNS
+## Last updated: 2026-05-27
 
----
+## What's been built
 
-## Changes Made This Session
-
-### 1. Full App Redesign
-
-**Nav order:** Dashboard (default) | Portfolio | Calendar | Strategies▾ | Scanner | Backtest | Plan
-
-- `src/App.tsx` — added DashboardView, default tab → `'dashboard'`, removed ActionsView from VIEWS, added `StrategyPage` type + `stratPage` state + `onStrategySelect` handler
-- `src/components/layout/TopNav.tsx` — Strategies dropdown with 11 items + ChevronDown, action badge moved to Dashboard tab, Actions tab removed, each dropdown item routes to a specific strategy sub-page
-- `src/index.css` — dashboard layout CSS (`.db-*`), Strategies dropdown CSS (`.strat-dropdown-*`), Covered Calls view CSS (`.cc-*`), mobile responsive breakpoints
-
-### 2. Dashboard Page (new default landing)
-
-`src/components/dashboard/DashboardView.tsx`
-
-- **P&L strip** — 6 cards: Net Liquidation, Total P&L, Realized P&L, Unrealized P&L, Options Income, Cash Balance
-- **Income Channels** — 11 cards, one per strategy, each with unique color + glow
-- **Portfolio Snapshot** — 4 stat cards: Total Positions, Stock Positions, Option Legs, Open Strategies
-- **Recent Trades table** + **Calendar Highlights** (expiring options, open strategies ≤30 DTE) side by side
-- **Right sidebar (300px)** — Actions & To-Do bucketed by URGENT / MANAGE / OPPORTUNITY / WATCH
-
-### 3. Covered Calls Trade Log
-
-`src/components/strategies/CoveredCallsView.tsx`
-
-- Filters: OPT + CALL trades
-- FY filter dropdown (Financial Year = Jul 1 – Jun 30)
-- Sort: Date newest/oldest, Net $ high/low, Underlying A–Z
-- 8-card summary strip + FY performance bar chart
-- Full trade log table with OPEN/CLOSE badges, color-coded Net Cash
-
-### 4. Generic Strategy Trade Log
-
-`src/components/strategies/StrategyTradeLog.tsx`
-
-Reusable component used by all other 10 strategy pages:
-- **CSP** → put trades (putCall === 'P')
-- **LEAP** → all option trades
-- **SPX** → SPX/SPXW tickers
-- **Rotation Model** → stock trades
-- **PTOS** → long puts
-- **DCAS** → stock buys
-- **Profit Taking** → closing trades with positive net cash
-- **LILO** → all option trades
-- **ARB Cloud** → long calls
-- **TABI** → all option trades
-
-Same FY filter + sort controls as Covered Calls.
-
-### 5. Calendar Cleanup
-
-`src/components/calendar/CalendarView.tsx` — trade log section removed (moved concept to strategy pages)
-
----
-
-## GitHub Token
-Token used for push: stored in git remote origin URL  
-Repo: https://github.com/ashtonchan01/options  
-Branch: `main`
-
----
-
-## Tech Stack
+### App structure
 - React 19 + TypeScript + Vite 8
-- Tailwind CSS 4
-- Lucide React icons
-- Zustand state management
-- IBKR Flex XML / API integration
-- Deployed on Vercel: https://options-jade.vercel.app
+- Default tab: Dashboard
+- Nav: Dashboard | Portfolio | Calendar | Strategies▾ | Scanner | Backtest | Plan
+- Strategies dropdown: Label Trades + 13 strategy pages
+- Trade labels stored in localStorage via `src/store/tradeLabelsStore.ts`
+
+### Key files
+- `src/App.tsx` — root, StrategyPage type, TradeLabels interface
+- `src/components/layout/TopNav.tsx` — nav with Strategies dropdown
+- `src/components/dashboard/DashboardView.tsx` — dashboard with P&L strip, income channels, actions sidebar
+- `src/components/strategies/StrategiesView.tsx` — strategy router
+- `src/components/strategies/CoveredCallsView.tsx` — CC trade log (expiry-based)
+- `src/components/strategies/StrategyTradeLog.tsx` — generic spread-grouped trade log (SPX, CSP, LEAP, etc.)
+- `src/components/strategies/TradeLabellerView.tsx` — manual label assignment + auto-label rules
+- `src/store/tradeLabelsStore.ts` — localStorage label store
+- `src/services/ibkr.ts` — IBKR Flex XML parser
+- `src/index.css` — all CSS including .cc-*, .tl-*, .db-* classes
+
+### Strategy trade log (StrategyTradeLog.tsx)
+Columns match user's spreadsheet:
+  Date Open | C | Strike Price | Expiry Date | Initial DTE | Price (Premium) | Transaction Fees | Opening Amount | Position Status | DTE | Profit / Loss
+
+Grouping: legs with same tradeDate + expiry → one spread row
+Expired rows: greyed out (opacity 0.38) with EXPIRED badge
+Summary strip cards: Total Trades | Active | Expired | Open Premium | Realized P&L | Net Cash | Win Rate | Open Fees | Total Fees
+
+### Income calculation logic
+- Open Premium = netCash from sell legs (qty < 0) on non-expired trades only
+- Realized P&L = netCash sum of expired trades
+- Net Cash = all trades total (should match IBKR statement)
+- Do NOT use openCloseIndicator — unreliable for index options
+- Use expiry date vs today to determine active vs expired
+
+### Auto-label rules (TradeLabellerView.tsx)
+- SPX/SPXW underlying → label 'spx'
+- Only applies to unlabelled trades (never overwrites manual labels)
+
+### Git push method
+Local proxy returns 403. Always use token URL directly:
+```
+git push https://<YOUR_GITHUB_TOKEN>@github.com/ashtonchan01/options.git main
+```
+(Token must be passed at runtime — do not store in repo.)
+
+### Vercel deployment
+Auto-deploys from main branch: https://options-jade.vercel.app
+
+## Pending / next steps
+- Covered Calls page (CoveredCallsView.tsx) uses same expiry-based logic but still has individual leg rows — consider applying SpreadTable grouping there too if user wants it
+- SPX P&L for CLOSED positions (bought back before expiry) — currently pnl = openingAmount (assumes held to expiry); need to match open+close legs for accurate realized P&L on early closes
+- Dashboard income channel cards may need to be wired to actual labeled trade data
