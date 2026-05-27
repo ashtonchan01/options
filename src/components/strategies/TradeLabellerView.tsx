@@ -106,6 +106,89 @@ function LabelProgress({ total, labelled }: { total: number; labelled: number })
 
 // ─── Main view ────────────────────────────────────────────────────────────────
 
+// ─── Auto-label rules ─────────────────────────────────────────────────────────
+
+const AUTO_RULES: { label: string; stratLabel: TradeLabel; match: (t: import('../../types').RawTrade) => boolean }[] = [
+  {
+    label: 'SPX / SPXW tickers → SPX',
+    stratLabel: 'spx',
+    match: t => /^SPX(W)?/.test(t.underlyingSymbol ?? t.symbol),
+  },
+  {
+    label: 'Covered calls (short OPT calls) → Covered Calls',
+    stratLabel: 'covered_calls',
+    match: t => t.assetClass === 'OPT' && t.putCall === 'C' && t.quantity < 0,
+  },
+  {
+    label: 'Cash-secured puts (short OPT puts) → CSP',
+    stratLabel: 'csp',
+    match: t => t.assetClass === 'OPT' && t.putCall === 'P' && t.quantity < 0,
+  },
+  {
+    label: 'Forex (CASH asset class) → Forex',
+    stratLabel: 'forex',
+    match: t => t.assetClass === 'CASH',
+  },
+]
+
+function AutoLabelPanel({ trades, labels, setMany }: {
+  trades: import('../../types').RawTrade[]
+  labels: Record<string, TradeLabel>
+  setMany: (ids: string[], label: TradeLabel | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [applied, setApplied] = useState<string | null>(null)
+
+  const previews = AUTO_RULES.map(rule => {
+    const matches = trades.filter(t => rule.match(t) && !labels[tradeId(t)])
+    return { ...rule, count: matches.length, ids: matches.map(t => tradeId(t)) }
+  })
+
+  function apply(rule: typeof previews[number]) {
+    if (!rule.ids.length) return
+    setMany(rule.ids, rule.stratLabel)
+    setApplied(rule.label)
+    setTimeout(() => setApplied(null), 2500)
+  }
+
+  return (
+    <div className="tl-auto-panel">
+      <button className="tl-auto-toggle" onClick={() => setOpen(o => !o)}>
+        ⚡ Auto-label rules {open ? '▲' : '▼'}
+      </button>
+      {open && (
+        <div className="tl-auto-rules">
+          {previews.map(rule => (
+            <div key={rule.label} className="tl-auto-rule">
+              <div className="tl-auto-rule-desc">
+                <span className="tl-auto-rule-label">{rule.label}</span>
+                <span className="tl-auto-rule-count">
+                  {rule.count > 0
+                    ? `${rule.count} unlabelled trade${rule.count !== 1 ? 's' : ''} match`
+                    : 'No unlabelled matches'}
+                </span>
+              </div>
+              <button
+                className="tl-btn tl-btn-primary"
+                style={{ fontSize: 11, padding: '4px 10px' }}
+                disabled={rule.count === 0}
+                onClick={() => apply(rule)}
+              >
+                Apply to {rule.count}
+              </button>
+            </div>
+          ))}
+          {applied && (
+            <div style={{ fontSize: 12, color: '#10b981', padding: '4px 0' }}>
+              ✓ {applied} — labels saved
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function TradeLabellerView({ state, labels, setLabel, setMany, clearAll }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<FilterMode>('all')
@@ -175,6 +258,9 @@ export default function TradeLabellerView({ state, labels, setLabel, setMany, cl
         </div>
         <LabelProgress total={trades.length} labelled={labelledCount} />
       </div>
+
+      {/* ── Auto-label ──────────────────────────────────────────────────────── */}
+      <AutoLabelPanel trades={trades} labels={labels} setMany={setMany} />
 
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
       <div className="tl-toolbar">

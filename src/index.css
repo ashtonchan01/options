@@ -1083,3 +1083,59 @@ body {
   .tl-toolbar { flex-direction: column; }
   .tl-toolbar-right { flex-wrap: wrap; }
 }
+
+/* ─── Auto-label panel ────────────────────────────────────────────────────── */
+
+.tl-auto-panel {
+  flex-shrink: 0;
+}
+
+.tl-auto-toggle {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.15s;
+}
+.tl-auto-toggle:hover { background: var(--accent-dim); }
+
+.tl-auto-rules {
+  margin-top: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tl-auto-rule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.tl-auto-rule:last-of-type { border-bottom: none; }
+
+.tl-auto-rule-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tl-auto-rule-label {
+  font-size: 13px;
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.tl-auto-rule-count {
+  font-size: 11px;
+  color: var(--text-4);
+  font-family: 'IBM Plex Mono', monospace;
+}
