@@ -48,6 +48,21 @@ function fmtExpiry(s: string) {
   return isNaN(d.getTime()) ? s : d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: '2-digit' })
 }
 
+function parseExpiry(s: string): Date | null {
+  if (!s) return null
+  if (/^\d{8}$/.test(s)) s = `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d
+}
+
+const TODAY = new Date(); TODAY.setHours(0,0,0,0)
+
+function isExpired(t: RawTrade): boolean {
+  if (!t.expiry) return false
+  const d = parseExpiry(t.expiry)
+  return d !== null && d < TODAY
+}
+
 function pnlCls(n: number) { return n > 0 ? 'pos' : n < 0 ? 'neg' : 'neu' }
 
 type SortKey = 'date_desc' | 'date_asc' | 'net_desc' | 'net_asc' | 'underlying'
@@ -62,31 +77,33 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 
 // ─── Summary strip ────────────────────────────────────────────────────────────
 
-function SummaryStrip({ trades, color }: { trades: RawTrade[]; color: string }) {
-  // Opens = sell-to-open legs: openClose='O', or qty < 0 when openClose not available
-  const opens  = trades.filter(t => t.openClose === 'O' || (t.openClose == null && t.quantity < 0))
-  const closes = trades.filter(t => t.openClose === 'C' || (t.openClose == null && t.quantity > 0))
+function SummaryStrip({ trades }: { trades: RawTrade[]; color?: string }) {
+  // Active = trades whose expiry hasn't passed yet (or no expiry = stock/non-option)
+  const active  = trades.filter(t => !isExpired(t))
+  const expired = trades.filter(t => isExpired(t))
 
-  // Net cash across all legs — this is true realised P&L
-  const totalNet  = trades.reduce((s, t) => s + t.netCash, 0)
+  // Open premium = net cash from sell legs (qty < 0) on active (non-expired) trades
+  const openPrem   = active.filter(t => t.quantity < 0).reduce((s, t) => s + t.netCash, 0)
 
-  // Income = net premium on open legs (sell premium minus cost of hedge legs for spreads)
-  const income    = opens.reduce((s, t) => s + t.netCash, 0)
+  // Realized P&L = net cash from all expired trades (what we kept / lost)
+  const realized   = expired.reduce((s, t) => s + t.netCash, 0)
 
-  // Win rate = opens that expired/closed profitably (positive netCash on the open leg)
-  const winRate   = opens.length ? (opens.filter(t => t.netCash > 0).length / opens.length) * 100 : 0
-  const avgPrem   = opens.length ? income / opens.length : 0
-  const totalComm = trades.reduce((s, t) => s + Math.abs(t.commissions ?? 0), 0)
+  // Total net cash across everything
+  const totalNet   = trades.reduce((s, t) => s + t.netCash, 0)
+
+  const sells      = trades.filter(t => t.quantity < 0)
+  const winRate    = sells.length ? (sells.filter(t => t.netCash > 0).length / sells.length) * 100 : 0
+  const totalComm  = trades.reduce((s, t) => s + Math.abs(t.commissions ?? 0), 0)
 
   const cards = [
-    { label: 'Total Trades',    value: String(trades.length),          color: 'var(--text-1)' },
-    { label: 'Opens (Sold)',    value: String(opens.length),            color: 'var(--text-1)' },
-    { label: 'Closes (Bought)', value: String(closes.length),          color: 'var(--text-1)' },
-    { label: 'Net Premium',     value: fmt$(income, 0),                 color: income >= 0 ? '#10b981' : '#f43f5e' },
-    { label: 'Net Cash',        value: fmt$(totalNet, 0),               color: totalNet >= 0 ? '#10b981' : '#f43f5e' },
-    { label: 'Win Rate',        value: opens.length ? `${winRate.toFixed(0)}%` : '—', color: winRate >= 70 ? '#10b981' : winRate >= 50 ? '#f59e0b' : '#f43f5e' },
-    { label: 'Avg Premium',     value: opens.length ? fmt$(avgPrem, 0) : '—', color },
-    { label: 'Commissions',     value: fmt$(totalComm, 2),              color: '#f59e0b'       },
+    { label: 'Total Trades',   value: String(trades.length),                color: 'var(--text-1)' },
+    { label: 'Active',         value: String(active.length),                 color: '#10b981'       },
+    { label: 'Expired',        value: String(expired.length),                color: 'var(--text-4)' },
+    { label: 'Open Premium',   value: fmt$(openPrem, 0),                     color: openPrem >= 0 ? '#10b981' : '#f43f5e' },
+    { label: 'Realized P&L',   value: fmt$(realized, 0),                     color: realized >= 0 ? '#10b981' : '#f43f5e' },
+    { label: 'Net Cash',       value: fmt$(totalNet, 0),                     color: totalNet >= 0 ? '#10b981' : '#f43f5e' },
+    { label: 'Win Rate',       value: sells.length ? `${winRate.toFixed(0)}%` : '—', color: winRate >= 70 ? '#10b981' : winRate >= 50 ? '#f59e0b' : '#f43f5e' },
+    { label: 'Commissions',    value: fmt$(totalComm, 2),                    color: '#f59e0b'       },
   ]
 
   return (
@@ -166,35 +183,46 @@ function TradeTable({ trades }: { trades: RawTrade[] }) {
         </thead>
         <tbody>
           {trades.map((t, i) => {
-            const isOpen  = t.quantity < 0
-            const ocColor = isOpen ? '#10b981' : '#f59e0b'
+            const expired = isExpired(t)
             const pcColor = t.putCall === 'C' ? '#3b82f6' : '#f43f5e'
+            const rowStyle = expired ? { opacity: 0.38 } : undefined
             return (
-              <tr key={i}>
+              <tr key={i} style={rowStyle}>
                 <td className="mono" style={{ color: 'var(--text-3)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDate(t.tradeDate)}</td>
-                <td style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace' }}>{t.underlyingSymbol ?? '—'}</td>
-                <td style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, color: 'var(--text-3)' }}>{t.symbol}</td>
+                <td style={{ fontWeight: 700, color: expired ? 'var(--text-4)' : 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace' }}>{t.underlyingSymbol ?? '—'}</td>
+                <td style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, color: 'var(--text-4)' }}>{t.symbol}</td>
                 <td>
-                  {t.putCall && (
+                  {t.putCall && !expired && (
                     <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', color: pcColor, background: `${pcColor}14`, border: `1px solid ${pcColor}30` }}>
                       {t.putCall === 'C' ? 'CALL' : 'PUT'}
                     </span>
                   )}
-                  {!t.putCall && <span style={{ color: 'var(--text-4)', fontSize: 11 }}>{t.assetClass}</span>}
+                  {t.putCall && expired && (
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', color: 'var(--text-5)', background: 'var(--bg-2)', border: '1px solid var(--border)' }}>
+                      EXPIRED
+                    </span>
+                  )}
+                  {!t.putCall && <span style={{ color: 'var(--text-5)', fontSize: 11 }}>{t.assetClass}</span>}
                 </td>
-                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>{t.strike ? `$${t.strike.toLocaleString()}` : '—'}</td>
-                <td className="mono" style={{ fontSize: 12, color: 'var(--text-3)' }}>{fmtExpiry(t.expiry ?? '')}</td>
+                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{t.strike ? `$${t.strike.toLocaleString()}` : '—'}</td>
+                <td className="mono" style={{ fontSize: 12, color: expired ? 'var(--text-5)' : 'var(--text-3)' }}>{fmtExpiry(t.expiry ?? '')}</td>
                 <td style={{ textAlign: 'center' }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', color: ocColor, background: `${ocColor}14`, border: `1px solid ${ocColor}33`, letterSpacing: '0.06em' }}>
-                    {isOpen ? 'OPEN' : 'CLOSE'}
-                  </span>
+                  {!expired && (
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px',
+                      color: t.quantity < 0 ? '#10b981' : '#f59e0b',
+                      background: t.quantity < 0 ? '#10b98114' : '#f59e0b14',
+                      border: `1px solid ${t.quantity < 0 ? '#10b98133' : '#f59e0b33'}`,
+                      letterSpacing: '0.06em' }}>
+                      {t.quantity < 0 ? 'SELL' : 'BUY'}
+                    </span>
+                  )}
                 </td>
-                <td className="mono" style={{ textAlign: 'right', color: t.quantity > 0 ? '#f43f5e' : '#10b981' }}>
+                <td className="mono" style={{ textAlign: 'right', color: expired ? 'var(--text-5)' : t.quantity > 0 ? '#f43f5e' : '#10b981' }}>
                   {t.quantity > 0 ? '+' : ''}{t.quantity}
                 </td>
-                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>{t.tradePrice != null ? `$${t.tradePrice.toFixed(2)}` : '—'}</td>
+                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{t.tradePrice != null ? `$${t.tradePrice.toFixed(2)}` : '—'}</td>
                 <td className="mono" style={{ textAlign: 'right', color: '#f59e0b', fontSize: 12 }}>{t.commissions != null ? fmt$(t.commissions, 2) : '—'}</td>
-                <td className={`mono ${pnlCls(t.netCash)}`} style={{ textAlign: 'right', fontWeight: 700 }}>{fmt$(t.netCash)}</td>
+                <td className={`mono ${expired ? 'neu' : pnlCls(t.netCash)}`} style={{ textAlign: 'right', fontWeight: 700, color: expired ? 'var(--text-4)' : undefined }}>{fmt$(t.netCash)}</td>
               </tr>
             )
           })}
