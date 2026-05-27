@@ -1,7 +1,11 @@
 import { useState, useMemo } from 'react'
 import type { AppState, RawTrade } from '../../types'
 
-interface Props { state: AppState }
+interface Props {
+  state: AppState
+  labelFilter?: (t: RawTrade) => boolean
+  hasLabels?: boolean
+}
 
 // ─── Financial year helpers ───────────────────────────────────────────────────
 // FY ends 30 June — so Jul 2024–Jun 2025 = FY2025
@@ -228,14 +232,15 @@ function TradeTable({ trades }: { trades: RawTrade[] }) {
 
 // ─── Main view ────────────────────────────────────────────────────────────────
 
-export default function CoveredCallsView({ state }: Props) {
+export default function CoveredCallsView({ state, labelFilter, hasLabels }: Props) {
+  const effectiveFilter = labelFilter ?? isCCTrade
   const [selectedFY, setSelectedFY] = useState<number | 'all'>('all')
   const [sort, setSort] = useState<SortKey>('date_desc')
 
   // All CC trades
   const allCC = useMemo(
-    () => state.sync.trades.filter(isCCTrade),
-    [state.sync.trades]
+    () => state.sync.trades.filter(effectiveFilter),
+    [state.sync.trades, effectiveFilter]
   )
 
   // Available FYs
@@ -265,6 +270,13 @@ export default function CoveredCallsView({ state }: Props) {
 
   return (
     <div className="cc-root">
+
+      {/* ── Label nudge ─────────────────────────────────────────────────────── */}
+      {!hasLabels && (
+        <div className="cc-label-nudge">
+          ⚠️ Trades are auto-detected by type. For accurate P&amp;L, go to <strong>Strategies ▾ → Label Trades</strong> to manually assign each trade to a strategy.
+        </div>
+      )}
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="cc-header">

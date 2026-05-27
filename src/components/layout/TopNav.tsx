@@ -130,6 +130,9 @@ export default function TopNav({ activeTab, onTabChange, onStrategySelect, actio
                   <button className="strat-dropdown-item strat-all" onClick={() => { onStrategySelect('overview'); setStratOpen(false) }}>
                     All Strategies
                   </button>
+                  <button className="strat-dropdown-item" style={{ color: '#f59e0b' }} onClick={() => { onStrategySelect('label_trades'); setStratOpen(false) }}>
+                    ✏️ Label Trades
+                  </button>
                 </div>
                 <div className="strat-dropdown-divider" />
                 {STRATEGY_ITEMS.map(item => (

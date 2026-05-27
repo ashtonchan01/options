@@ -896,3 +896,190 @@ body {
   .cc-controls { flex-direction: column; width: 100%; }
   .cc-select { min-width: 0; width: 100%; }
 }
+
+/* ─── Trade Labeller View ─────────────────────────────────────────────────── */
+
+.tl-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 20px 24px;
+  gap: 12px;
+}
+
+.tl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-shrink: 0;
+}
+
+.tl-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 220px;
+}
+
+.tl-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.tl-progress-fill {
+  height: 100%;
+  background: #10b981;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.tl-progress-text {
+  font-size: 11px;
+  color: var(--text-4);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.tl-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.tl-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tl-filter-chip {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.tl-filter-chip:hover { border-color: var(--text-3); color: var(--text-2); }
+.tl-filter-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+.tl-divider-v {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.tl-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tl-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  font-family: 'Inter', sans-serif;
+}
+.tl-btn:hover { border-color: var(--border-light); color: var(--text-1); background: var(--bg-elevated); }
+.tl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.tl-btn-primary {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.tl-btn-primary:hover { background: var(--accent); color: var(--bg-page); }
+.tl-btn-danger { border-color: #f43f5e; color: #f43f5e; }
+.tl-btn-danger:hover { background: #f43f5e18; }
+
+.tl-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--accent-glow);
+  border: 1px solid var(--accent-dim);
+  border-radius: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.tl-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.tl-table {
+  font-size: 13px;
+}
+
+.tl-row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.tl-row:hover td { background: var(--bg-elevated) !important; }
+.tl-row-selected td { background: var(--accent-glow) !important; }
+
+.tl-checkbox {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.tl-strat-select {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: 5px;
+  color: var(--text-2);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+  max-width: 170px;
+}
+.tl-strat-select:hover, .tl-strat-select:focus { border-color: var(--accent); }
+
+/* Covered Calls label nudge */
+.cc-label-nudge {
+  background: #f59e0b14;
+  border: 1px solid #f59e0b40;
+  border-radius: 7px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .tl-header { flex-direction: column; align-items: flex-start; }
+  .tl-toolbar { flex-direction: column; }
+  .tl-toolbar-right { flex-wrap: wrap; }
+}

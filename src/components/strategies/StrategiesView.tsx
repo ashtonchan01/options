@@ -1,9 +1,11 @@
 import type { AppState, Strategy, StrategyType, OptionLeg } from '../../types'
-import type { StrategyPage } from '../../App'
+import type { StrategyPage, TradeLabels } from '../../App'
 import CoveredCallsView from './CoveredCallsView'
 import StrategyTradeLog from './StrategyTradeLog'
+import TradeLabellerView from './TradeLabellerView'
+import { tradeId } from '../../store/tradeLabelsStore'
 
-interface Props { state: AppState; stratPage?: StrategyPage }
+interface Props { state: AppState; stratPage?: StrategyPage; tradeLabels?: TradeLabels }
 
 // ─── Strategy page configs ────────────────────────────────────────────────────
 
@@ -261,11 +263,36 @@ function StrategyCard({ s }: { s: Strategy }) {
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
-export default function StrategiesView({ state, stratPage = 'overview' }: Props) {
-  if (stratPage === 'covered_calls') return <CoveredCallsView state={state} />
+export default function StrategiesView({ state, stratPage = 'overview', tradeLabels }: Props) {
+  const labels = tradeLabels?.labels ?? {}
+
+  // Label-based filter: show only trades the user has assigned to this strategy
+  function labelFilter(page: string) {
+    return (t: import('../../types').RawTrade) => labels[tradeId(t)] === page
+  }
+
+  if (stratPage === 'label_trades' && tradeLabels) {
+    return <TradeLabellerView state={state} {...tradeLabels} />
+  }
+
+  if (stratPage === 'covered_calls') {
+    return <CoveredCallsView state={state} labelFilter={labelFilter('covered_calls')} hasLabels={Object.keys(labels).length > 0} />
+  }
+
   if (stratPage !== 'overview') {
-    const cfg = STRAT_CONFIGS[stratPage as keyof typeof STRAT_CONFIGS]
-    if (cfg) return <StrategyTradeLog state={state} config={cfg} />
+    const base = STRAT_CONFIGS[stratPage as keyof typeof STRAT_CONFIGS]
+    if (base) {
+      const cfg = {
+        ...base,
+        filter: Object.keys(labels).length > 0
+          ? labelFilter(stratPage)
+          : base.filter,
+        description: Object.keys(labels).length > 0
+          ? `Trade log — labelled as ${base.label}`
+          : base.description + ' (auto-detected — label trades for accuracy)',
+      }
+      return <StrategyTradeLog state={state} config={cfg} />
+    }
   }
 
   const { strategies } = state

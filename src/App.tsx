@@ -3,6 +3,7 @@ import TopNav, { type TabId } from './components/layout/TopNav'
 import FlexSettingsPanel from './components/shared/FlexSettingsPanel'
 import { useAppStore } from './store/appStore'
 import { useSettingsStore } from './store/settingsStore'
+import { useTradeLabelStore } from './store/tradeLabelsStore'
 import DashboardView from './components/dashboard/DashboardView'
 import PortfolioView from './components/portfolio/PortfolioView'
 import CalendarView from './components/calendar/CalendarView'
@@ -11,9 +12,11 @@ import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import PlanView from './components/plan/PlanView'
 import BacktestView from './components/backtest/BacktestView'
 import type { AppState } from './types'
+import type { TradeLabel } from './store/tradeLabelsStore'
 
 export type StrategyPage =
   | 'overview'
+  | 'label_trades'
   | 'covered_calls'
   | 'csp'
   | 'leap'
@@ -26,7 +29,14 @@ export type StrategyPage =
   | 'arb_cloud'
   | 'tabi'
 
-type ViewComponent = React.FC<{ state: AppState; stratPage?: StrategyPage }>
+export interface TradeLabels {
+  labels:   Record<string, TradeLabel>
+  setLabel: (id: string, label: TradeLabel | null) => void
+  setMany:  (ids: string[], label: TradeLabel | null) => void
+  clearAll: () => void
+}
+
+type ViewComponent = React.FC<{ state: AppState; stratPage?: StrategyPage; tradeLabels?: TradeLabels }>
 
 const VIEWS: Record<TabId, ViewComponent> = {
   dashboard:  DashboardView,
@@ -44,9 +54,11 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const { state, uploadXML, syncFlex }  = useAppStore()
   const { settings, update, activeProfile } = useSettingsStore()
+  const { labels, setLabel, setMany, clearAll } = useTradeLabelStore()
 
   const hasCredentials = !!(activeProfile?.token && activeProfile?.queryId)
   const View = VIEWS[activeTab]
+  const tradeLabels: TradeLabels = { labels, setLabel, setMany, clearAll }
 
   function handleTabChange(tab: TabId) {
     setActiveTab(tab)
@@ -75,7 +87,7 @@ export default function App() {
       />
 
       <main style={{ flex: 1, overflow: 'hidden', background: 'var(--bg-page)' }}>
-        <View state={state} stratPage={stratPage} />
+        <View state={state} stratPage={stratPage} tradeLabels={tradeLabels} />
       </main>
 
       {showSettings && (
