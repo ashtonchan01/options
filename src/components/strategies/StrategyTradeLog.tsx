@@ -89,7 +89,8 @@ interface Position {
   initialDTE: number
   openPrice: number       // net credit per share
   openFees: number
-  netPremium: number      // total net credit received
+  premiumCollected: number  // gross credit from sell legs only
+  netPremium: number        // net credit after hedge cost + fees
   bep: number             // breakeven price
 
   status: 'Active' | 'Closed' | 'Expired'
@@ -98,7 +99,6 @@ interface Position {
   dateClosed?: string
   closePrice?: number
   closeFees?: number
-  daysHeld?: number
   closingAmount?: number
   pnl?: number
 }
@@ -145,21 +145,29 @@ function buildPositions(trades: RawTrade[]): Position[] {
     const expDate = parseExpiry(og.expiry)
     const legs    = og.legs
 
-    // Sells = the short legs
-    const sells = legs.filter(l => l.quantity < 0)
-    const buys  = legs.filter(l => l.quantity > 0)  // hedge legs (spread)
+    // Split legs: true opening trades (openClose='O' or unset) vs settlement/close entries (openClose='C')
+    // For 0DTE ITM, IBKR records the cash settlement as trades with openClose='C' on the same day
+    const openLegs       = legs.filter(l => l.openClose !== 'C')
+    const settlementLegs = legs.filter(l => l.openClose === 'C')
+
+    // Sells = the short legs among opening trades
+    const sells = openLegs.filter(l => l.quantity < 0)
+    const buys  = openLegs.filter(l => l.quantity > 0)  // hedge legs (spread)
 
     const contracts = sells.length > 0 ? Math.abs(sells[0].quantity) : 1
 
-    // Net proceeds from opening = sum of all legs' proceeds
-    const totalProceeds = legs.reduce((s, l) => s + l.proceeds, 0)
-    const openFees      = legs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0)
-    const openingNetCash = legs.reduce((s, l) => s + l.netCash, 0)
+    // Opening proceeds = only from true opening legs
+    const totalProceeds  = openLegs.reduce((s, l) => s + l.proceeds, 0)
+    const openFees       = openLegs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0)
+    const openingNetCash = openLegs.reduce((s, l) => s + l.netCash, 0)
+
+    // Premium collected = gross cash from sell legs only (before hedge cost)
+    const premiumCollected = sells.reduce((s, l) => s + l.netCash, 0)
 
     // openPrice = net credit per share (net proceeds / contracts / 100)
     const openPrice = contracts > 0 ? totalProceeds / contracts / 100 : 0
 
-    // Net premium = credit received minus fees
+    // Net premium = opening credit net of hedge cost and fees
     const netPremium = openingNetCash
 
     // Strikes
@@ -198,32 +206,36 @@ function buildPositions(trades: RawTrade[]): Position[] {
     if (closeIdx >= 0) {
       usedCloses.add(closeIdx)
       const cg = closeGroups[closeIdx]
-      const closeFees   = cg.legs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0)
-      const closeNetCash = cg.legs.reduce((s, l) => s + l.netCash, 0)  // negative = debit paid
-      const closingAmount = Math.abs(closeNetCash) + closeFees
+      const closeFees    = cg.legs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0)
+      const closeNetCash = cg.legs.reduce((s, l) => s + l.netCash, 0)
+      const closingAmount = Math.abs(closeNetCash)
       const closePrice   = cg.legs.reduce((s, l) => s + l.tradePrice, 0) / cg.legs.length
-      const daysHeld     = daysBetween(og.date, cg.date)
-      const pnl          = netPremium - closingAmount
+      const pnl          = openingNetCash + closeNetCash
 
       return {
         id: og.key, week, underlying: og.underlying,
         contracts, strikeDisplay, putCall: putCallChar,
         expiry: og.expiry, dateOpen: og.date, initialDTE,
-        openPrice, openFees, netPremium, bep,
+        openPrice, openFees, premiumCollected, netPremium, bep,
         status: 'Closed', currentDTE: null,
-        dateClosed: cg.date, closePrice, closeFees, daysHeld, closingAmount, pnl,
+        dateClosed: cg.date, closePrice, closeFees, closingAmount, pnl,
       }
     }
 
     if (expired) {
-      const daysHeld = expDate ? daysBetween(og.date, expDate) : initialDTE
+      // For 0DTE ITM: settlement trades are in settlementLegs (openClose='C')
+      const settlementNetCash = settlementLegs.reduce((s, l) => s + l.netCash, 0)
+      const closingAmount     = settlementLegs.length > 0 ? Math.abs(settlementNetCash) : 0
+      const pnl               = openingNetCash + settlementNetCash  // net of opening credit + settlement debit
+
       return {
         id: og.key, week, underlying: og.underlying,
         contracts, strikeDisplay, putCall: putCallChar,
         expiry: og.expiry, dateOpen: og.date, initialDTE,
-        openPrice, openFees, netPremium, bep,
+        openPrice, openFees, premiumCollected, netPremium, bep,
         status: 'Expired', currentDTE: null,
-        daysHeld, closingAmount: 0, pnl: netPremium,
+        closingAmount: settlementLegs.length > 0 ? closingAmount : undefined,
+        pnl,
       }
     }
 
@@ -232,7 +244,7 @@ function buildPositions(trades: RawTrade[]): Position[] {
       id: og.key, week, underlying: og.underlying,
       contracts, strikeDisplay, putCall: putCallChar,
       expiry: og.expiry, dateOpen: og.date, initialDTE,
-      openPrice, openFees, netPremium, bep,
+      openPrice, openFees, premiumCollected, netPremium, bep,
       status: 'Active', currentDTE,
     }
   })
@@ -340,7 +352,7 @@ function PositionTable({ positions, strategyId }: { positions: Position[]; strat
         <thead>
           {/* Group headers */}
           <tr>
-            <th colSpan={11} style={{ ...TH_OPEN, textAlign: 'center', letterSpacing: '0.1em', fontSize: 10, fontWeight: 700, padding: '4px 8px' }}>
+            <th colSpan={12} style={{ ...TH_OPEN, textAlign: 'center', letterSpacing: '0.1em', fontSize: 10, fontWeight: 700, padding: '4px 8px' }}>
               OPENING PARAMETERS
             </th>
             <th colSpan={2} style={{ ...TH_CUR, textAlign: 'center', letterSpacing: '0.1em', fontSize: 10, fontWeight: 700, padding: '4px 8px' }}>
@@ -364,6 +376,7 @@ function PositionTable({ positions, strategyId }: { positions: Position[]; strat
             <th>Expiry</th>
             <th style={{ textAlign: 'right' }}>Price</th>
             <th style={{ textAlign: 'right' }}>Open Fees</th>
+            <th style={{ textAlign: 'right' }}>Premium Collected</th>
             <th style={{ textAlign: 'right' }}>Net Premium</th>
             <th style={{ textAlign: 'right' }}>BEP</th>
             <th style={{ textAlign: 'center' }}>Status</th>
@@ -417,6 +430,7 @@ function PositionTable({ positions, strategyId }: { positions: Position[]; strat
                 <td className="mono" style={{ color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtExpiry(p.expiry)}</td>
                 <td className="mono" style={{ textAlign: 'right', color: '#10b981', whiteSpace: 'nowrap' }}>${p.openPrice.toFixed(2)}</td>
                 <td className="mono" style={{ textAlign: 'right', color: '#f59e0b', whiteSpace: 'nowrap' }}>{fmt$(p.openFees, 2)}</td>
+                <td className="mono pos" style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmt$(p.premiumCollected, 2)}</td>
                 <td className={`mono ${pnlCls(p.netPremium)}`} style={{ textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt$(p.netPremium, 2)}</td>
                 <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{p.bep ? `$${p.bep.toFixed(2)}` : '—'}</td>
                 <td style={{ textAlign: 'center' }}>{statusEl}</td>
