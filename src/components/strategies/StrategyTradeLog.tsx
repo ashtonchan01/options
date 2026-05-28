@@ -340,13 +340,13 @@ function PositionTable({ positions, strategyId }: { positions: Position[]; strat
         <thead>
           {/* Group headers */}
           <tr>
-            <th colSpan={12} style={{ ...TH_OPEN, textAlign: 'center', letterSpacing: '0.1em', fontSize: 10, fontWeight: 700, padding: '4px 8px' }}>
+            <th colSpan={11} style={{ ...TH_OPEN, textAlign: 'center', letterSpacing: '0.1em', fontSize: 10, fontWeight: 700, padding: '4px 8px' }}>
               OPENING PARAMETERS
             </th>
             <th colSpan={2} style={{ ...TH_CUR, textAlign: 'center', letterSpacing: '0.1em', fontSize: 10, fontWeight: 700, padding: '4px 8px' }}>
               CURRENT
             </th>
-            <th colSpan={6} style={{ ...TH_CLOSE, textAlign: 'center', letterSpacing: '0.1em', fontSize: 10, fontWeight: 700, padding: '4px 8px' }}>
+            <th colSpan={4} style={{ ...TH_CLOSE, textAlign: 'center', letterSpacing: '0.1em', fontSize: 10, fontWeight: 700, padding: '4px 8px' }}>
               CLOSING PARAMETERS
             </th>
             <th style={{ ...TH_PNL, textAlign: 'center', letterSpacing: '0.1em', fontSize: 10, fontWeight: 700, padding: '4px 8px' }}>
@@ -362,7 +362,6 @@ function PositionTable({ positions, strategyId }: { positions: Position[]; strat
             <th style={{ textAlign: 'right' }}>C</th>
             <th style={{ textAlign: 'right' }}>Strike</th>
             <th>Expiry</th>
-            <th style={{ textAlign: 'right' }}>Init DTE</th>
             <th style={{ textAlign: 'right' }}>Price</th>
             <th style={{ textAlign: 'right' }}>Open Fees</th>
             <th style={{ textAlign: 'right' }}>Net Premium</th>
@@ -372,7 +371,6 @@ function PositionTable({ positions, strategyId }: { positions: Position[]; strat
             <th>Date Closed</th>
             <th style={{ textAlign: 'right' }}>Close Price</th>
             <th style={{ textAlign: 'right' }}>Close Fees</th>
-            <th style={{ textAlign: 'right' }}>Days Held</th>
             <th style={{ textAlign: 'right' }}>Closing Amt</th>
             <th style={{ textAlign: 'right' }}>Profit / Loss</th>
           </tr>
@@ -417,11 +415,10 @@ function PositionTable({ positions, strategyId }: { positions: Position[]; strat
                 <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)', fontWeight: 600 }}>{p.contracts}</td>
                 <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-1)' }}>{p.strikeDisplay}</td>
                 <td className="mono" style={{ color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtExpiry(p.expiry)}</td>
-                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-4)' }}>{p.initialDTE || '—'}</td>
-                <td className="mono" style={{ textAlign: 'right', color: '#10b981' }}>${p.openPrice.toFixed(2)}</td>
-                <td className="mono" style={{ textAlign: 'right', color: '#f59e0b' }}>{fmt$(p.openFees, 2)}</td>
-                <td className={`mono ${pnlCls(p.netPremium)}`} style={{ textAlign: 'right', fontWeight: 700 }}>{fmt$(p.netPremium, 2)}</td>
-                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{p.bep ? `$${p.bep.toFixed(2)}` : '—'}</td>
+                <td className="mono" style={{ textAlign: 'right', color: '#10b981', whiteSpace: 'nowrap' }}>${p.openPrice.toFixed(2)}</td>
+                <td className="mono" style={{ textAlign: 'right', color: '#f59e0b', whiteSpace: 'nowrap' }}>{fmt$(p.openFees, 2)}</td>
+                <td className={`mono ${pnlCls(p.netPremium)}`} style={{ textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt$(p.netPremium, 2)}</td>
+                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{p.bep ? `$${p.bep.toFixed(2)}` : '—'}</td>
                 <td style={{ textAlign: 'center' }}>{statusEl}</td>
                 <td className="mono" style={{ textAlign: 'right',
                   color: (p.currentDTE ?? 99) <= 7 ? '#f43f5e' : (p.currentDTE ?? 99) <= 21 ? '#f59e0b' : 'var(--text-3)',
@@ -429,11 +426,10 @@ function PositionTable({ positions, strategyId }: { positions: Position[]; strat
                   {p.currentDTE ?? '—'}
                 </td>
                 <td className="mono" style={{ color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{p.dateClosed ? fmtDate(p.dateClosed) : '—'}</td>
-                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{p.closePrice != null ? `$${p.closePrice.toFixed(2)}` : '—'}</td>
-                <td className="mono" style={{ textAlign: 'right', color: '#f59e0b' }}>{p.closeFees != null ? fmt$(p.closeFees, 2) : '—'}</td>
-                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-4)' }}>{p.daysHeld ?? '—'}</td>
-                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{p.closingAmount != null ? fmt$(p.closingAmount, 2) : '—'}</td>
-                <td className={`mono ${p.pnl != null ? pnlCls(p.pnl) : ''}`} style={{ textAlign: 'right', fontWeight: 700 }}>
+                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{p.closePrice != null ? `$${p.closePrice.toFixed(2)}` : '—'}</td>
+                <td className="mono" style={{ textAlign: 'right', color: '#f59e0b', whiteSpace: 'nowrap' }}>{p.closeFees != null ? fmt$(p.closeFees, 2) : '—'}</td>
+                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{p.closingAmount != null ? fmt$(p.closingAmount, 2) : '—'}</td>
+                <td className={`mono ${p.pnl != null ? pnlCls(p.pnl) : ''}`} style={{ textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
                   {p.pnl != null ? fmt$(p.pnl, 2) : '—'}
                 </td>
               </tr>
