@@ -84,110 +84,95 @@ export function generateActions(
     // ── Covered Calls & CSPs ──────────────────────────────────────────────────
     if (s.type === 'covered_call' || s.type === 'csp') {
       const leg = shortLegs[0]
+      const priceKnown = stkPrice !== null
 
-      // Is this option currently ITM? (stock moved against us)
-      // CC: ITM when stock price > call strike  (shares at risk of being called away)
-      // CSP: ITM when stock price < put strike  (put at risk of assignment)
-      // If we can't find the stock price, default to false — never falsely flag OTM as ITM.
-      const itm = stkPrice !== null
-        ? (s.type === 'covered_call' ? stkPrice > leg.strike : stkPrice < leg.strike)
-        : false
+      // ITM status — only determined when we have the stock price.
+      // CC ITM: stock > call strike.  CSP ITM: stock < put strike.
+      const itm: boolean | null = priceKnown
+        ? (s.type === 'covered_call' ? stkPrice! > leg.strike : stkPrice! < leg.strike)
+        : null   // unknown — do NOT assume either way
 
-      // 1. Losing badly — option moved deep ITM
-      if (pnl < 0 && premium > 0 && Math.abs(pnl) > premium * 0.5) {
-        const rollExpiry = suggestRollExpiry(leg.expiry, 35)
-        const lossPct = Math.min(Math.abs(pnl / premium) * 100, 999).toFixed(0)
-        if (s.type === 'csp') {
-          acts.push(action(s.type, s.underlying, 'urgent', 'roll',
-            `Down ${lossPct}% — put is ITM, roll down & out`,
-            `Stock dropped through your strike. Roll to a lower strike further out to collect more credit and reduce cost basis. Or accept assignment and start selling covered calls.`,
-            {
-              relatedStrategyId: s.id, legSummary: summary,
-              suggestedStrike: Math.round(leg.strike * 0.95 / 5) * 5,
-              suggestedExpiry: fmtExpiry(rollExpiry),
-              suggestedDelta: 0.25,
-            }
-          ))
-        } else {
-          acts.push(action(s.type, s.underlying, 'urgent', 'manage',
-            `Up ${Math.min(Math.abs(pnl / premium) * 100, 999).toFixed(0)}% — call is ITM, shares at risk`,
-            `Stock rallied above your strike. Decide: roll the call up & out to avoid share call-away, or let shares get called at your strike price and keep the premium.`,
-            {
-              relatedStrategyId: s.id, legSummary: summary,
-              suggestedStrike: stkPrice ? Math.round(stkPrice * 1.03 / 5) * 5 : undefined,
-              suggestedExpiry: fmtExpiry(rollExpiry),
-              suggestedDelta: 0.25,
-            }
-          ))
-        }
-
-      // 2. Expiring soon AND ITM — assignment decision
-      } else if (minDte <= 7 && itm) {
-        const rollExpiry = suggestRollExpiry(leg.expiry, 35)
-        if (s.type === 'csp') {
-          acts.push(action(s.type, s.underlying, 'urgent', 'manage',
-            `${minDte}d left, put is ITM — assignment decision`,
-            `You will likely be assigned the shares. Options: (1) roll down & out now to avoid assignment, (2) take assignment and immediately sell a covered call to start the wheel, (3) close for a loss if you don't want the shares.`,
-            {
-              relatedStrategyId: s.id, legSummary: summary,
-              suggestedExpiry: fmtExpiry(rollExpiry), suggestedDelta: 0.25,
-            }
-          ))
-        } else {
-          acts.push(action(s.type, s.underlying, 'urgent', 'manage',
-            `${minDte}d left, call is ITM — shares may be called away`,
-            `Stock is above your call strike. Options: (1) roll up & out to keep your shares, (2) let shares get called away at your strike and collect full premium, (3) buy back the call if you want to hold.`,
-            {
-              relatedStrategyId: s.id, legSummary: summary,
-              suggestedExpiry: fmtExpiry(rollExpiry), suggestedDelta: 0.25,
-            }
-          ))
-        }
-
-      // 3. Expiring soon AND OTM — this is the goal, just flag it
-      } else if (minDte <= 7 && !itm) {
-        acts.push(action(s.type, s.underlying, 'watch', 'manage',
-          `${minDte}d left — on track to expire worthless ✓`,
-          `Position is OTM. You keep the full premium. No action needed unless you want to close early to free capital. After expiry, look to sell the next cycle.`,
+      // ── When price is unavailable and expiry is imminent, show neutral warning ──
+      if (!priceKnown && minDte <= 7) {
+        acts.push(action(s.type, s.underlying, 'manage', 'manage',
+          `${minDte}d left — verify OTM/ITM in your broker`,
+          `Live price unavailable. Check if the option is OTM (keep premium, let expire) or ITM (assignment risk — roll or close). Do not rely on this app alone for the decision.`,
           { relatedStrategyId: s.id, legSummary: summary }
         ))
 
-      // 4. 50%+ profit captured — optional early close
-      } else if (profitPct >= 0.5) {
+      // ── Price known: full ITM/OTM logic ──────────────────────────────────────
+      } else if (priceKnown) {
         const rollExpiry = suggestRollExpiry(leg.expiry, 35)
-        acts.push(action(s.type, s.underlying, 'manage', 'close',
-          `${(profitPct * 100).toFixed(0)}% profit captured — consider closing early`,
-          `You've banked over half the max premium with ${minDte} DTE remaining. Closing now frees capital to redeploy into a new position sooner. The remaining premium isn't worth the gamma risk.`,
-          {
-            relatedStrategyId: s.id, legSummary: summary,
-            suggestedExpiry: fmtExpiry(rollExpiry), suggestedDelta: 0.25,
-          }
-        ))
 
-      // 5. Approaching 21 DTE and ITM — may need to manage
-      } else if (minDte <= 21 && itm) {
-        const rollExpiry = suggestRollExpiry(leg.expiry, 35)
-        acts.push(action(s.type, s.underlying, 'manage', 'roll',
-          `${minDte}d left, option is ITM — consider rolling`,
-          s.type === 'csp'
-            ? `Put is in the money but loss is under 50%. You can roll down & out to collect more credit and lower your cost basis, or hold and see if stock recovers before expiry.`
-            : `Call is in the money. Roll up & out to avoid share call-away and collect additional credit, or let shares be called at your strike price.`,
-          {
-            relatedStrategyId: s.id, legSummary: summary,
-            suggestedStrike: leg.strike,
-            suggestedExpiry: fmtExpiry(rollExpiry),
-            suggestedDelta: 0.25,
+        // 1. ITM + big loss → urgent
+        if (itm && pnl < 0 && premium > 0 && Math.abs(pnl) > premium * 0.5) {
+          const lossPct = Math.min(Math.abs(pnl / premium) * 100, 300).toFixed(0)
+          if (s.type === 'csp') {
+            acts.push(action(s.type, s.underlying, 'urgent', 'roll',
+              `Down ${lossPct}% — put is ITM, roll down & out`,
+              `Stock dropped through your $${leg.strike} strike (now $${stkPrice!.toFixed(0)}). Roll to a lower strike further out to collect credit and reduce cost basis, or accept assignment and sell a covered call.`,
+              { relatedStrategyId: s.id, legSummary: summary, suggestedStrike: Math.round(leg.strike * 0.95 / 5) * 5, suggestedExpiry: fmtExpiry(rollExpiry), suggestedDelta: 0.25 }
+            ))
+          } else {
+            acts.push(action(s.type, s.underlying, 'urgent', 'manage',
+              `Call ITM — stock $${stkPrice!.toFixed(0)} above $${leg.strike} strike`,
+              `Stock rallied above your call strike. Decide: roll up & out to keep your shares, or let shares get called away at $${leg.strike} and keep the full premium.`,
+              { relatedStrategyId: s.id, legSummary: summary, suggestedStrike: Math.round(stkPrice! * 1.03 / 5) * 5, suggestedExpiry: fmtExpiry(rollExpiry), suggestedDelta: 0.25 }
+            ))
           }
-        ))
 
-      // 6. 21 DTE OTM — comfortable, note upcoming expiry for redeployment
-      } else if (minDte <= 21 && !itm) {
-        acts.push(action(s.type, s.underlying, 'watch', 'manage',
-          `${minDte}d left — OTM, looking good`,
-          `Position is on track. Start planning your next cycle: after expiry, ${s.type === 'csp' ? 'sell another CSP at 0.25–0.30 delta, 30–45 DTE' : 'sell the next covered call at 0.25–0.30 delta, 30–45 DTE'}.`,
-          { relatedStrategyId: s.id, legSummary: summary, suggestedDelta: 0.27 }
-        ))
+        // 2. ITM + expiring soon → assignment decision
+        } else if (itm && minDte <= 7) {
+          if (s.type === 'csp') {
+            acts.push(action(s.type, s.underlying, 'urgent', 'manage',
+              `${minDte}d left, put ITM — assignment decision`,
+              `Stock $${stkPrice!.toFixed(0)} is below your $${leg.strike} strike. Options: roll down & out, take assignment + sell a covered call, or close for a loss.`,
+              { relatedStrategyId: s.id, legSummary: summary, suggestedExpiry: fmtExpiry(rollExpiry), suggestedDelta: 0.25 }
+            ))
+          } else {
+            acts.push(action(s.type, s.underlying, 'urgent', 'manage',
+              `${minDte}d left, call ITM — shares at risk`,
+              `Stock $${stkPrice!.toFixed(0)} is above your $${leg.strike} strike. Roll up & out to keep shares, or let them be called away at your strike.`,
+              { relatedStrategyId: s.id, legSummary: summary, suggestedExpiry: fmtExpiry(rollExpiry), suggestedDelta: 0.25 }
+            ))
+          }
+
+        // 3. OTM + expiring soon → goal achieved
+        } else if (!itm && minDte <= 7) {
+          acts.push(action(s.type, s.underlying, 'watch', 'manage',
+            `${minDte}d left — OTM, expiring worthless ✓`,
+            `Stock $${stkPrice!.toFixed(0)} is safely ${s.type === 'covered_call' ? 'below' : 'above'} your $${leg.strike} strike. You keep the full premium. After expiry, sell the next cycle.`,
+            { relatedStrategyId: s.id, legSummary: summary }
+          ))
+
+        // 4. 50%+ profit → optional early close
+        } else if (profitPct >= 0.5) {
+          acts.push(action(s.type, s.underlying, 'manage', 'close',
+            `${(profitPct * 100).toFixed(0)}% profit captured — close early?`,
+            `Over half the premium banked with ${minDte} DTE left. Close now to free capital and redeploy sooner, or hold for the remaining ${(100 - profitPct * 100).toFixed(0)}%.`,
+            { relatedStrategyId: s.id, legSummary: summary, suggestedExpiry: fmtExpiry(rollExpiry), suggestedDelta: 0.25 }
+          ))
+
+        // 5. ITM + approaching 21 DTE → consider rolling
+        } else if (itm && minDte <= 21) {
+          acts.push(action(s.type, s.underlying, 'manage', 'roll',
+            `${minDte}d left, option is ITM — consider rolling`,
+            s.type === 'csp'
+              ? `Put ITM (stock $${stkPrice!.toFixed(0)} < $${leg.strike} strike). Loss under 50% — you can hold and wait for recovery, or roll down & out to collect more credit.`
+              : `Call ITM (stock $${stkPrice!.toFixed(0)} > $${leg.strike} strike). Roll up & out to avoid share call-away, or let shares be called at your strike.`,
+            { relatedStrategyId: s.id, legSummary: summary, suggestedStrike: leg.strike, suggestedExpiry: fmtExpiry(rollExpiry), suggestedDelta: 0.25 }
+          ))
+
+        // 6. OTM + 21 DTE → looking good, plan next cycle
+        } else if (!itm && minDte <= 21) {
+          acts.push(action(s.type, s.underlying, 'watch', 'manage',
+            `${minDte}d left — OTM, on track`,
+            `Stock $${stkPrice!.toFixed(0)} safely ${s.type === 'covered_call' ? 'below' : 'above'} your $${leg.strike} strike. Start planning your next cycle for after expiry.`,
+            { relatedStrategyId: s.id, legSummary: summary, suggestedDelta: 0.27 }
+          ))
+        }
       }
+      // If price unknown and DTE > 7: no action generated (nothing actionable without price)
     }
 
     // ── PMCC ─────────────────────────────────────────────────────────────────
