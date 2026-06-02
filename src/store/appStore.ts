@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { AppState, RawPosition, RawTrade } from '../types'
 import { syncFromXML, syncFromFlexAPI } from '../services/ibkr'
 import { classifyPositions } from '../engine/classifier'
@@ -6,6 +6,7 @@ import { generateActions } from '../engine/actions'
 import { fetchStockPrices } from '../services/stockPrice'
 
 const STORAGE_KEY = 'options_sync_data'
+const PRICE_REFRESH_MS = 60 * 1000 // refresh live prices every 60 seconds
 
 interface PersistedData {
   positions: RawPosition[]
@@ -31,6 +32,17 @@ function savePersisted(data: PersistedData) {
   } catch (e) {
     console.warn('[Store] Failed to persist sync data:', e)
   }
+}
+
+/** Underlyings that have short option legs but no corresponding STK position */
+function missingPriceSymbols(strategies: ReturnType<typeof classifyPositions>, positions: RawPosition[]): string[] {
+  const stkSymbols = new Set(positions.filter(p => p.assetClass === 'STK').map(p => p.symbol))
+  return [...new Set(
+    strategies
+      .filter(s => s.legs.some(l => l.quantity < 0))
+      .map(s => s.underlying)
+      .filter(u => !stkSymbols.has(u))
+  )]
 }
 
 function buildState(data: PersistedData): Partial<AppState> {
@@ -62,13 +74,50 @@ const INITIAL: AppState = {
 }
 
 if (persisted) {
-  console.log(`[Store] Restored ${persisted.positions.length} positions from cache (synced ${new Date(persisted.lastSync).toLocaleString()})`)
+  console.log(`[Store] Restored ${persisted.positions.length} positions from cache`)
 }
 
 export function useAppStore() {
   const [state, setState] = useState<AppState>(INITIAL)
 
-  const applyData = useCallback((positions: RawPosition[], trades: RawTrade[], cashBalance: number, netLiquidation?: number) => {
+  // Keep a ref to current strategies+positions so the interval can read them
+  const strategiesRef = useRef(state.strategies)
+  const positionsRef  = useRef(state.sync.positions)
+  useEffect(() => { strategiesRef.current = state.strategies }, [state.strategies])
+  useEffect(() => { positionsRef.current = state.sync.positions }, [state.sync.positions])
+
+  /** Fetch live prices for any underlyings not in IBKR positions, then re-generate actions */
+  const refreshPrices = useCallback((
+    strategies: ReturnType<typeof classifyPositions>,
+    positions: RawPosition[],
+  ) => {
+    const missing = missingPriceSymbols(strategies, positions)
+    if (missing.length === 0) return
+
+    fetchStockPrices(missing).then(extraPrices => {
+      if (Object.keys(extraPrices).length === 0) return
+      console.log(`[Store] Live prices: ${Object.entries(extraPrices).map(([s,p]) => `${s}=$${p}`).join(', ')}`)
+      const enrichedActions = generateActions(strategies, positions, extraPrices)
+      setState(s => ({ ...s, actions: enrichedActions }))
+    })
+  }, [])
+
+  /** Periodic price refresh every 2 minutes while app is open */
+  useEffect(() => {
+    const id = setInterval(() => {
+      const strats = strategiesRef.current
+      const pos    = positionsRef.current
+      if (strats.length > 0) refreshPrices(strats, pos)
+    }, PRICE_REFRESH_MS)
+    return () => clearInterval(id)
+  }, [refreshPrices])
+
+  const applyData = useCallback((
+    positions: RawPosition[],
+    trades: RawTrade[],
+    cashBalance: number,
+    netLiquidation?: number,
+  ) => {
     const strategies = classifyPositions(positions)
     const actions    = generateActions(strategies, positions)
     const lastSync   = Date.now()
@@ -83,25 +132,17 @@ export function useAppStore() {
       actions,
     }))
 
-    // Find underlyings with options but no STK position — fetch their prices
-    const stkSymbols = new Set(positions.filter(p => p.assetClass === 'STK').map(p => p.symbol))
-    const missing = [...new Set(
-      strategies
-        .filter(s => s.legs.some(l => l.quantity < 0))
-        .map(s => s.underlying)
-        .filter(u => !stkSymbols.has(u))
-    )]
+    // Fetch live prices immediately after sync
+    refreshPrices(strategies, positions)
+  }, [refreshPrices])
 
-    if (missing.length > 0) {
-      console.log(`[Store] Fetching live prices for: ${missing.join(', ')}`)
-      fetchStockPrices(missing).then(extraPrices => {
-        if (Object.keys(extraPrices).length === 0) return
-        const enrichedActions = generateActions(strategies, positions, extraPrices)
-        console.log(`[Store] Re-generated ${enrichedActions.length} actions with live prices`)
-        setState(s => ({ ...s, actions: enrichedActions }))
-      })
+  // Fetch live prices on startup if we loaded persisted data
+  useEffect(() => {
+    if (persisted && state.strategies.length > 0) {
+      refreshPrices(state.strategies, state.sync.positions)
     }
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // run once on mount
 
   const uploadXML = useCallback(async (file: File) => {
     setState(s => ({ ...s, sync: { ...s.sync, status: 'loading', error: undefined } }))
