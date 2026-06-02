@@ -123,11 +123,15 @@ function statusOf(s: Strategy, actions: Action[]): { label: string; color: strin
   // WATCH means OTM + expiring soon — goal achieved, show OK not MANAGE
   if (related?.urgency === 'watch') return { label: 'OK', color: '#34c98a' }
   if (related?.urgency === 'manage') {
-    // If high profit + low DTE + OTM (watch-like), override to OK
-    const pnl = optionPnl(s)
+    const pnl  = optionPnl(s)
     const prem = Math.abs(s.netPremiumReceived)
     const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : Infinity
+    // Expiring worthless (high profit + very low DTE) → OK
     if (prem > 0 && pnl / prem >= 0.75 && minDte <= 7)
+      return { label: 'OK', color: '#34c98a' }
+    // Profit-only MANAGE (no ITM risk per live price) → OK
+    // e.g. $180C +57% with stock at $148 (21% OTM) — no real action needed
+    if (pnl > 0 && related.actionType === 'close' && related.reason.includes('profit'))
       return { label: 'OK', color: '#34c98a' }
     return { label: 'MANAGE', color: '#d4a843' }
   }
