@@ -3,13 +3,13 @@ import EmptyState from '../shared/EmptyState'
 
 interface Props { state: AppState }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Config ───────────────────────────────────────────────────────────────────
 
-const URGENCY_CONFIG: Record<UrgencyLevel, { label: string; color: string; bg: string }> = {
-  urgent:      { label: 'URGENT',      color: '#f43f5e', bg: '#f43f5e14' },
-  manage:      { label: 'MANAGE',      color: '#f59e0b', bg: '#f59e0b14' },
-  opportunity: { label: 'OPPORTUNITY', color: '#10b981', bg: '#10b98114' },
-  watch:       { label: 'WATCH',       color: 'var(--text-3)', bg: '#5D658014' },
+const URGENCY: Record<UrgencyLevel, { label: string; color: string; dot: string }> = {
+  urgent:      { label: 'Urgent',      color: '#f43f5e', dot: '🔴' },
+  manage:      { label: 'Manage',      color: '#f59e0b', dot: '🟡' },
+  opportunity: { label: 'Opportunity', color: '#10b981', dot: '🟢' },
+  watch:       { label: 'Watch',       color: '#94a3b8', dot: '⚪' },
 }
 
 const ACTION_LABEL: Record<Action['actionType'], string> = {
@@ -37,110 +37,201 @@ const STRAT_LABEL: Record<StrategyType, string> = {
   other:         'OTHER',
 }
 
-const STRAT_COLOR: Record<StrategyType, string> = {
-  csp:           '#f43f5e',
-  covered_call:  '#3b82f6',
-  pmcc:          '#3b82f6',
-  risk_reversal: '#38bdf8',
-  put_spread:    '#fbbf24',
-  call_spread:   '#fb923c',
-  leap:          '#10b981',
-  other:         '#64748b',
-}
-
 const URGENCY_ORDER: UrgencyLevel[] = ['urgent', 'manage', 'opportunity', 'watch']
 
-// ─── Tile styles ─────────────────────────────────────────────────────────────
+// ─── Summary bar ─────────────────────────────────────────────────────────────
 
-const tile: React.CSSProperties = {
-  background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
-  overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0,
+function SummaryBar({ actions }: { actions: Action[] }) {
+  return (
+    <div style={{
+      display: 'flex', gap: 8, flexWrap: 'wrap', flexShrink: 0,
+    }}>
+      {URGENCY_ORDER.map(u => {
+        const cfg = URGENCY[u]
+        const count = actions.filter(a => a.urgency === u).length
+        return (
+          <div key={u} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: count > 0 ? `${cfg.color}12` : 'var(--bg-card)',
+            border: `1px solid ${count > 0 ? `${cfg.color}40` : 'var(--border)'}`,
+            borderRadius: 8, padding: '6px 12px',
+            opacity: count === 0 ? 0.45 : 1,
+          }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: count > 0 ? cfg.color : 'var(--border)',
+              flexShrink: 0,
+            }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-3)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              {cfg.label}
+            </span>
+            <span style={{
+              fontSize: 15, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace',
+              color: count > 0 ? cfg.color : 'var(--text-5)',
+            }}>
+              {count}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 // ─── Action card ─────────────────────────────────────────────────────────────
 
 function ActionCard({ a }: { a: Action }) {
-  const urgency = URGENCY_CONFIG[a.urgency]
-  const aColor  = ACTION_COLOR[a.actionType]
-  const sColor  = STRAT_COLOR[a.strategyType]
+  const urg = URGENCY[a.urgency]
+  const aColor = ACTION_COLOR[a.actionType]
 
   return (
     <div style={{
-      background: 'var(--bg-elevated)',
+      background: 'var(--bg-card)',
       border: '1px solid var(--border)',
-      borderLeft: `3px solid ${urgency.color}`,
-      padding: '12px 14px',
+      borderRadius: 10,
+      borderLeft: `3px solid ${urg.color}`,
+      padding: '14px 16px',
       display: 'flex',
-      gap: 10,
+      flexDirection: 'column',
+      gap: 8,
     }}>
-      {/* Left: ticker + badges */}
-      <div style={{ flexShrink: 0, minWidth: 80 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace', marginBottom: 4 }}>
+
+      {/* ── Row 1: ticker + strategy + action + urgency ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{
+          fontSize: 17, fontWeight: 800, fontFamily: 'IBM Plex Mono, monospace',
+          color: 'var(--text-1)', marginRight: 2,
+        }}>
           {a.underlying}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <span style={{
-            padding: '2px 6px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
-            color: sColor, background: `${sColor}14`, border: `1px solid ${sColor}30`,
-            width: 'fit-content',
-          }}>
-            {STRAT_LABEL[a.strategyType]}
-          </span>
-          <span style={{
-            padding: '2px 6px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
-            color: aColor, background: `${aColor}14`, border: `1px solid ${aColor}30`,
-            width: 'fit-content',
-          }}>
-            {ACTION_LABEL[a.actionType]}
-          </span>
-        </div>
+        </span>
+
+        {/* Strategy badge */}
+        <span style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: '0.07em',
+          color: 'var(--text-2)', background: 'var(--bg-elevated)',
+          border: '1px solid var(--border)', borderRadius: 4,
+          padding: '2px 7px',
+        }}>
+          {STRAT_LABEL[a.strategyType]}
+        </span>
+
+        {/* Action badge */}
+        <span style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: '0.07em',
+          color: aColor, background: `${aColor}18`,
+          border: `1px solid ${aColor}40`, borderRadius: 4,
+          padding: '2px 7px',
+        }}>
+          {ACTION_LABEL[a.actionType]}
+        </span>
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* Urgency pill — right aligned */}
+        <span style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+          color: urg.color, background: `${urg.color}12`,
+          border: `1px solid ${urg.color}40`, borderRadius: 20,
+          padding: '2px 10px',
+        }}>
+          {urg.label.toUpperCase()}
+        </span>
       </div>
 
-      {/* Right: position ID + reason + details */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {/* Position identifier — tells you exactly which position this is */}
-        {a.legSummary && (
-          <div style={{
-            fontSize: 11, fontFamily: 'IBM Plex Mono, monospace',
-            color: urgency.color, background: urgency.bg,
-            border: `1px solid ${urgency.color}33`,
-            padding: '2px 6px', marginBottom: 5, display: 'inline-block',
-            letterSpacing: '0.04em', fontWeight: 600,
-          }}>
-            {a.legSummary}
-          </div>
-        )}
-        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-1)', marginBottom: 2, lineHeight: 1.4 }}>
-          {a.reason}
+      {/* ── Row 2: position identifier (which exact position) ── */}
+      {a.legSummary && (
+        <div style={{
+          fontSize: 12, fontFamily: 'IBM Plex Mono, monospace',
+          fontWeight: 600, color: urg.color,
+          background: `${urg.color}0e`,
+          border: `1px solid ${urg.color}28`,
+          borderRadius: 5, padding: '4px 10px',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          alignSelf: 'flex-start',
+        }}>
+          <span style={{ color: 'var(--text-4)', fontWeight: 400 }}>Position</span>
+          {a.legSummary}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.4 }}>
-          {a.details}
-        </div>
-        {(a.suggestedStrike || a.suggestedExpiry || a.estimatedCredit) && (
-          <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-            {a.suggestedStrike && (
-              <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-3)' }}>
-                strike <span style={{ color: 'var(--text-2)' }}>${a.suggestedStrike}</span>
-              </span>
-            )}
-            {a.suggestedDelta && (
-              <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-3)' }}>
-                delta <span style={{ color: 'var(--text-2)' }}>{a.suggestedDelta.toFixed(2)}</span>
-              </span>
-            )}
-            {a.suggestedExpiry && (
-              <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-3)' }}>
-                exp <span style={{ color: 'var(--text-2)' }}>{a.suggestedExpiry}</span>
-              </span>
-            )}
-            {a.estimatedCredit && (
-              <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: '#10b981' }}>
-                est. ${a.estimatedCredit.toFixed(2)}
-              </span>
-            )}
-          </div>
-        )}
+      )}
+
+      {/* ── Row 3: reason (short headline) ── */}
+      <div style={{
+        fontSize: 14, fontWeight: 600, color: 'var(--text-1)', lineHeight: 1.4,
+      }}>
+        {a.reason}
       </div>
+
+      {/* ── Row 4: recommendation text ── */}
+      <div style={{
+        fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55,
+        padding: '8px 10px',
+        background: 'var(--bg-elevated)',
+        borderRadius: 6,
+        borderLeft: `2px solid var(--border)`,
+      }}>
+        {a.details}
+      </div>
+
+      {/* ── Row 5: suggested params ── */}
+      {(a.suggestedStrike || a.suggestedExpiry || a.suggestedDelta || a.estimatedCredit) && (
+        <div style={{
+          display: 'flex', gap: 16, flexWrap: 'wrap',
+          paddingTop: 4,
+          borderTop: '1px solid var(--border)',
+        }}>
+          {a.suggestedStrike && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <span style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Suggested Strike</span>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-1)' }}>${a.suggestedStrike}</span>
+            </div>
+          )}
+          {a.suggestedDelta && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <span style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Target Delta</span>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-1)' }}>{a.suggestedDelta.toFixed(2)}</span>
+            </div>
+          )}
+          {a.suggestedExpiry && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <span style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Suggested Expiry</span>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-1)' }}>{a.suggestedExpiry}</span>
+            </div>
+          )}
+          {a.estimatedCredit && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <span style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Est. Credit</span>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace', color: '#10b981' }}>${a.estimatedCredit.toFixed(2)}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Section header ───────────────────────────────────────────────────────────
+
+function SectionHeader({ urgency, count }: { urgency: UrgencyLevel; count: number }) {
+  const cfg = URGENCY[urgency]
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '4px 0',
+    }}>
+      <div style={{ width: 10, height: 10, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
+      <span style={{ fontSize: 13, fontWeight: 700, color: cfg.color, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+        {cfg.label}
+      </span>
+      <span style={{
+        fontSize: 12, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace',
+        color: cfg.color, background: `${cfg.color}18`,
+        border: `1px solid ${cfg.color}40`,
+        borderRadius: 4, padding: '1px 7px',
+      }}>
+        {count}
+      </span>
+      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
     </div>
   )
 }
@@ -163,67 +254,36 @@ export default function ActionsView({ state }: Props) {
     return acc
   }, {} as Record<UrgencyLevel, Action[]>)
 
-  const urgent      = byUrgency.urgent.length
-  const manage      = byUrgency.manage.length
-  const opportunity = byUrgency.opportunity.length
-  const watch       = byUrgency.watch.length
-
   return (
-    <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
+    <div style={{
+      padding: '16px 20px',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 14,
+      overflow: 'hidden',
+    }}>
 
-      {/* ── Stats row ──────────────────────────────────────────────────── */}
-      <div className="actions-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, flexShrink: 0 }}>
-        {[
-          { label: 'URGENT',      value: urgent,      color: urgent > 0      ? '#f43f5e' : 'var(--text-5)' },
-          { label: 'MANAGE',      value: manage,      color: manage > 0      ? '#f59e0b' : 'var(--text-5)' },
-          { label: 'OPPORTUNITY', value: opportunity, color: opportunity > 0 ? '#10b981' : 'var(--text-5)' },
-          { label: 'WATCH',       value: watch,       color: watch > 0       ? 'var(--text-3)' : 'var(--border)' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="stat-card">
-            <div className="stat-label">{label}</div>
-            <div className="stat-value" style={{ color, fontSize: 34 }}>{value}</div>
-          </div>
-        ))}
-      </div>
+      {/* ── Summary bar ── */}
+      <SummaryBar actions={actions} />
 
-      {/* ── No actions ─────────────────────────────────────────────────── */}
+      {/* ── All-clear ── */}
       {actions.length === 0 && (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)', fontSize: 15 }}>
-          All positions are within normal parameters. Nothing to action right now.
+          All positions within normal parameters — nothing to action.
         </div>
       )}
 
-      {/* ── 2×2 urgency grid ───────────────────────────────────────────── */}
+      {/* ── Scrollable action list ── */}
       {actions.length > 0 && (
-        <div className="actions-grid" style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 12, minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 8 }}>
           {URGENCY_ORDER.map(u => {
-            const cfg = URGENCY_CONFIG[u]
             const items = byUrgency[u]
+            if (!items.length) return null
             return (
-              <div key={u} style={{ ...tile, borderTop: `2px solid ${items.length > 0 ? cfg.color : 'var(--border)'}`, opacity: items.length > 0 ? 1 : 0.5 }}>
-                <div style={{
-                  padding: '10px 16px', borderBottom: '1px solid var(--border)',
-                  fontSize: 13, fontWeight: 700, color: cfg.color, letterSpacing: '0.08em',
-                  display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
-                }}>
-                  {cfg.label}
-                  <span style={{
-                    fontSize: 12, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace',
-                    color: cfg.color, background: cfg.bg,
-                    border: `1px solid ${cfg.color}33`,
-                    padding: '1px 6px',
-                  }}>
-                    {items.length}
-                  </span>
-                </div>
-                <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 4, padding: items.length > 0 ? 6 : 0 }}>
-                  {items.length === 0 && (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-5)', fontSize: 13 }}>
-                      None
-                    </div>
-                  )}
-                  {items.map(a => <ActionCard key={a.id} a={a} />)}
-                </div>
+              <div key={u} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <SectionHeader urgency={u} count={items.length} />
+                {items.map(a => <ActionCard key={a.id} a={a} />)}
               </div>
             )
           })}
