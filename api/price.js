@@ -44,12 +44,12 @@ export default async function handler(req) {
   const results = await Promise.all(
     symbols.map(async sym => {
       try {
-        const res = await fetch(
+        const r = await fetch(
           `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1d&interval=1d&includePrePost=false`,
           { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) },
         )
-        if (!res.ok) return [sym, null]
-        const json = await res.json()
+        if (!r.ok) return [sym, null]
+        const json = await r.json()
         const price = json?.chart?.result?.[0]?.meta?.regularMarketPrice
         return [sym, typeof price === 'number' && price > 0 ? price : null]
       } catch {
@@ -58,9 +58,9 @@ export default async function handler(req) {
     })
   )
 
-  const data: Record<string, number> = {}
+  const data = {}
   for (const [sym, price] of results) {
-    if (price !== null) data[sym as string] = price as number
+    if (price !== null) data[sym] = price
   }
 
   return new Response(JSON.stringify(data), {
