@@ -143,6 +143,8 @@ function statusOf(s: Strategy, actions: Action[]): { label: string; color: strin
   const lossPct = premium > 0 ? Math.abs(pnl) / premium : 0
 
   if (pnl < 0 && lossPct > 0.5) return { label: 'URGENT', color: '#e05070' }
+  // Long DTE (>90d) with no big loss = no immediate risk → OK
+  if (minDte > 90) return { label: 'OK', color: '#34c98a' }
   // High profit + expiring soon = goal achieved → OK (not MANAGE)
   if (premium > 0 && pnl / premium >= 0.75 && minDte <= 7) return { label: 'OK', color: '#34c98a' }
   if (minDte <= 21 || (premium > 0 && pnl / premium >= 0.5) || (pnl < 0 && lossPct > 0.25))
