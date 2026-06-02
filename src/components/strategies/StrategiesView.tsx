@@ -129,16 +129,14 @@ function statusOf(s: Strategy, actions: Action[]): { label: string; color: strin
   const lossPct = premium > 0 ? Math.abs(pnl) / premium : 0
 
   if (pnl < 0 && lossPct > 0.5) return { label: 'URGENT', color: '#e05070' }
+  // High profit + expiring soon = goal achieved → OK (not MANAGE)
+  if (premium > 0 && pnl / premium >= 0.75 && minDte <= 7) return { label: 'OK', color: '#34c98a' }
   if (minDte <= 21 || (premium > 0 && pnl / premium >= 0.5) || (pnl < 0 && lossPct > 0.25))
     return { label: 'MANAGE', color: '#d4a843' }
 
   return { label: 'OK', color: '#34c98a' }
 }
 
-function profitPct(s: Strategy): number | null {
-  if (!s.netPremiumReceived || s.netPremiumReceived <= 0) return null
-  return Math.min(Math.max(optionPnl(s) / s.netPremiumReceived, -1), 1)
-}
 
 /** Short legs formatted as "$340P 21Jun25 ×1" */
 function legLine(s: Strategy): string {
@@ -149,19 +147,38 @@ function legLine(s: Strategy): string {
 
 // ─── Strategy row ─────────────────────────────────────────────────────────────
 
-/** Determine assignment risk for a strategy given live stock price */
-function assignmentRisk(s: Strategy, livePrice: number | null): 'yes' | 'no' | 'unknown' {
+/** Determine assignment risk for a strategy given live stock price.
+ *  Shows YES if strictly ITM, or within 2% of strike (near-ATM on volatile stocks). */
+function assignmentRisk(s: Strategy, livePrice: number | null): 'yes' | 'near' | 'no' | 'unknown' {
   if (livePrice === null) return 'unknown'
   const shortLegs = s.legs.filter(l => l.quantity < 0)
-  if (!shortLegs.length) return 'no' // long only — no assignment risk
+  if (!shortLegs.length) return 'no'
 
+  let nearATM = false
   for (const leg of shortLegs) {
     const itm = leg.putCall === 'C'
-      ? livePrice > leg.strike   // short call: ITM when stock > strike
-      : livePrice < leg.strike   // short put:  ITM when stock < strike
+      ? livePrice > leg.strike
+      : livePrice < leg.strike
     if (itm) return 'yes'
+
+    // Near-ATM: within 2% of strike (especially relevant for volatile stocks)
+    const dist = leg.putCall === 'C'
+      ? (leg.strike - livePrice) / livePrice
+      : (livePrice - leg.strike) / livePrice
+    if (dist < 0.02) nearATM = true
   }
-  return 'no'
+  return nearATM ? 'near' : 'no'
+}
+
+/** Is P&L data stale? Live price says ITM but P&L shows profit (synced when OTM) */
+function isPnlStale(s: Strategy, livePrice: number | null, pnl: number): boolean {
+  if (livePrice === null || pnl <= 0) return false
+  const shortLegs = s.legs.filter(l => l.quantity < 0)
+  for (const leg of shortLegs) {
+    const itm = leg.putCall === 'C' ? livePrice > leg.strike : livePrice < leg.strike
+    if (itm) return true  // showing profit but live price says ITM = stale
+  }
+  return false
 }
 
 function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boolean; actions: Action[]; livePrices: Record<string, number> }) {
@@ -169,7 +186,9 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
   const status     = statusOf(s, actions)
   const livePrice  = livePrices[s.underlying] ?? null
   const assignment = assignmentRisk(s, livePrice)
-  const pct    = profitPct(s)
+  const opPnl      = optionPnl(s)
+  const stale      = isPnlStale(s, livePrice, opPnl)
+  const pct    = s.netPremiumReceived > 0 ? Math.min(Math.max(opPnl / s.netPremiumReceived, -1), 1) : null
   const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : null
   const dteColor = minDte === null ? 'var(--text-4)'
     : minDte <= 7  ? '#e05070'
@@ -278,13 +297,18 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
         )}
       </td>
 
-      {/* P&L — option legs only, not stock position */}
+      {/* P&L — option legs only (from last sync — may be stale if price moved) */}
       <td style={{ padding: '9px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: pnlColor(optionPnl(s)) }}>
-            {fmt$(optionPnl(s))}
+          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: pnlColor(opPnl) }}>
+            {fmt$(opPnl)}
           </span>
-          {status.label === 'URGENT' && (
+          {stale && (
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: '#d4a843' }}>
+              ⚠ STALE — RE-SYNC
+            </span>
+          )}
+          {!stale && status.label === 'URGENT' && (
             <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#e05070' }}>
               ITM RISK
             </span>
@@ -295,21 +319,18 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
       {/* Assignment risk */}
       <td style={{ padding: '9px 8px', textAlign: 'center' }}>
         {assignment === 'yes' ? (
-          <span style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
-            color: '#e05070', background: '#e0507018',
-            border: '1px solid #e0507040',
-            borderRadius: 3, padding: '2px 7px',
-          }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#e05070', background: '#e0507018', border: '1px solid #e0507040', borderRadius: 3, padding: '2px 7px' }}>
             YES
           </span>
+        ) : assignment === 'near' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#d4a843', background: '#d4a84318', border: '1px solid #d4a84340', borderRadius: 3, padding: '2px 7px' }}>
+              NEAR
+            </span>
+            <span style={{ fontSize: 9, color: 'var(--text-4)' }}>&lt;2% from strike</span>
+          </div>
         ) : assignment === 'no' ? (
-          <span style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
-            color: '#34c98a', background: '#34c98a14',
-            border: '1px solid #34c98a35',
-            borderRadius: 3, padding: '2px 7px',
-          }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#34c98a', background: '#34c98a14', border: '1px solid #34c98a35', borderRadius: 3, padding: '2px 7px' }}>
             NO
           </span>
         ) : (
@@ -456,7 +477,7 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
               <th style={TH}>LEGS</th>
               <th style={{ ...TH, textAlign: 'right' }}>DTE</th>
               <th style={{ ...TH, textAlign: 'right' }}>PREMIUM</th>
-              <th style={{ ...TH, textAlign: 'right' }}>P&L</th>
+              <th style={{ ...TH, textAlign: 'right' }}>P&L (sync)</th>
               <th style={{ ...TH, textAlign: 'center' }}>ASSIGN RISK</th>
               <th style={{ ...TH, textAlign: 'right' }}>CAPTURED</th>
             </tr>
