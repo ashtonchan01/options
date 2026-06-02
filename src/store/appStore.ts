@@ -3,6 +3,7 @@ import type { AppState, RawPosition, RawTrade } from '../types'
 import { syncFromXML, syncFromFlexAPI } from '../services/ibkr'
 import { classifyPositions } from '../engine/classifier'
 import { generateActions } from '../engine/actions'
+import { fetchStockPrices } from '../services/stockPrice'
 
 const STORAGE_KEY = 'options_sync_data'
 
@@ -73,7 +74,6 @@ export function useAppStore() {
     const lastSync   = Date.now()
     console.log(`[Store] ${positions.length} positions → ${strategies.length} strategies, ${actions.length} actions`)
 
-    // Persist to localStorage
     savePersisted({ positions, trades, cashBalance, netLiquidation, lastSync })
 
     setState(s => ({
@@ -82,6 +82,25 @@ export function useAppStore() {
       strategies,
       actions,
     }))
+
+    // Find underlyings with options but no STK position — fetch their prices
+    const stkSymbols = new Set(positions.filter(p => p.assetClass === 'STK').map(p => p.symbol))
+    const missing = [...new Set(
+      strategies
+        .filter(s => s.legs.some(l => l.quantity < 0))
+        .map(s => s.underlying)
+        .filter(u => !stkSymbols.has(u))
+    )]
+
+    if (missing.length > 0) {
+      console.log(`[Store] Fetching live prices for: ${missing.join(', ')}`)
+      fetchStockPrices(missing).then(extraPrices => {
+        if (Object.keys(extraPrices).length === 0) return
+        const enrichedActions = generateActions(strategies, positions, extraPrices)
+        console.log(`[Store] Re-generated ${enrichedActions.length} actions with live prices`)
+        setState(s => ({ ...s, actions: enrichedActions }))
+      })
+    }
   }, [])
 
   const uploadXML = useCallback(async (file: File) => {

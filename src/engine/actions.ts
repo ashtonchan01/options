@@ -50,15 +50,24 @@ function action(
 
 // ─── Stock price lookup ───────────────────────────────────────────────────────
 
-/** Get current stock price for an underlying from raw positions (STK mark price). */
-function stockPrice(underlying: string, positions: RawPosition[]): number | null {
+/** Get current stock price — positions first, then fetched prices fallback. */
+function stockPrice(
+  underlying: string,
+  positions: RawPosition[],
+  extraPrices: Record<string, number>,
+): number | null {
   const p = positions.find(p => p.assetClass === 'STK' && (p.symbol === underlying || p.underlyingSymbol === underlying))
-  return p?.markPrice ?? null
+  if (p?.markPrice) return p.markPrice
+  return extraPrices[underlying] ?? null
 }
 
 // ─── Main engine ──────────────────────────────────────────────────────────────
 
-export function generateActions(strategies: Strategy[], positions: RawPosition[]): Action[] {
+export function generateActions(
+  strategies: Strategy[],
+  positions: RawPosition[],
+  extraPrices: Record<string, number> = {},
+): Action[] {
   const acts: Action[] = []
 
   for (const s of strategies) {
@@ -70,7 +79,7 @@ export function generateActions(strategies: Strategy[], positions: RawPosition[]
     const pnl       = s.unrealizedPnL               // positive = winning, negative = losing
     const profitPct = premium > 0 ? pnl / premium : 0
     const summary   = legSummary(s.legs)
-    const stkPrice  = stockPrice(s.underlying, positions)
+    const stkPrice  = stockPrice(s.underlying, positions, extraPrices)
 
     // ── Covered Calls & CSPs ──────────────────────────────────────────────────
     if (s.type === 'covered_call' || s.type === 'csp') {
