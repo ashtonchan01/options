@@ -191,6 +191,8 @@ export interface AppState {
   quotes: Record<string, Quote>
   actions: Action[]
   scanResults: ScanResult[]
+  /** Live stock prices keyed by underlying symbol, refreshed every 60s */
+  livePrices: Record<string, number>
 }
 
 // ─── Calendar ────────────────────────────────────────────────────────────────

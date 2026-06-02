@@ -68,6 +68,7 @@ const INITIAL: AppState = {
   quotes: {},
   actions: [],
   scanResults: [],
+  livePrices: {},
   ...(persisted ? buildState(persisted) : {}),
 }
 
@@ -96,7 +97,7 @@ export function useAppStore() {
       if (Object.keys(extraPrices).length === 0) return
       console.log(`[Store] Live prices: ${Object.entries(extraPrices).map(([s,p]) => `${s}=$${p}`).join(', ')}`)
       const enrichedActions = generateActions(strategies, positions, extraPrices)
-      setState(s => ({ ...s, actions: enrichedActions }))
+      setState(s => ({ ...s, actions: enrichedActions, livePrices: { ...s.livePrices, ...extraPrices } }))
     })
   }, [])
 

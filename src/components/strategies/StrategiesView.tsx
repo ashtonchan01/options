@@ -149,9 +149,26 @@ function legLine(s: Strategy): string {
 
 // ─── Strategy row ─────────────────────────────────────────────────────────────
 
-function StratRow({ s, isLast, actions }: { s: Strategy; isLast: boolean; actions: Action[] }) {
-  const color  = STRAT_COLOR[s.type]
-  const status = statusOf(s, actions)
+/** Determine assignment risk for a strategy given live stock price */
+function assignmentRisk(s: Strategy, livePrice: number | null): 'yes' | 'no' | 'unknown' {
+  if (livePrice === null) return 'unknown'
+  const shortLegs = s.legs.filter(l => l.quantity < 0)
+  if (!shortLegs.length) return 'no' // long only — no assignment risk
+
+  for (const leg of shortLegs) {
+    const itm = leg.putCall === 'C'
+      ? livePrice > leg.strike   // short call: ITM when stock > strike
+      : livePrice < leg.strike   // short put:  ITM when stock < strike
+    if (itm) return 'yes'
+  }
+  return 'no'
+}
+
+function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boolean; actions: Action[]; livePrices: Record<string, number> }) {
+  const color      = STRAT_COLOR[s.type]
+  const status     = statusOf(s, actions)
+  const livePrice  = livePrices[s.underlying] ?? null
+  const assignment = assignmentRisk(s, livePrice)
   const pct    = profitPct(s)
   const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : null
   const dteColor = minDte === null ? 'var(--text-4)'
@@ -273,6 +290,31 @@ function StratRow({ s, isLast, actions }: { s: Strategy; isLast: boolean; action
             </span>
           )}
         </div>
+      </td>
+
+      {/* Assignment risk */}
+      <td style={{ padding: '9px 8px', textAlign: 'center' }}>
+        {assignment === 'yes' ? (
+          <span style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+            color: '#e05070', background: '#e0507018',
+            border: '1px solid #e0507040',
+            borderRadius: 3, padding: '2px 7px',
+          }}>
+            YES
+          </span>
+        ) : assignment === 'no' ? (
+          <span style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+            color: '#34c98a', background: '#34c98a14',
+            border: '1px solid #34c98a35',
+            borderRadius: 3, padding: '2px 7px',
+          }}>
+            NO
+          </span>
+        ) : (
+          <span style={{ fontSize: 10, color: 'var(--text-5)' }}>—</span>
+        )}
       </td>
 
       {/* % captured / lost */}
@@ -415,6 +457,7 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
               <th style={{ ...TH, textAlign: 'right' }}>DTE</th>
               <th style={{ ...TH, textAlign: 'right' }}>PREMIUM</th>
               <th style={{ ...TH, textAlign: 'right' }}>P&L</th>
+              <th style={{ ...TH, textAlign: 'center' }}>ASSIGN RISK</th>
               <th style={{ ...TH, textAlign: 'right' }}>CAPTURED</th>
             </tr>
           </thead>
@@ -427,7 +470,7 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
                 <>
                   {/* Group header row */}
                   <tr key={`hdr-${type}`} style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-                    <td colSpan={6} style={{ padding: '5px 14px' }}>
+                    <td colSpan={7} style={{ padding: '5px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
                         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color }}>
@@ -450,7 +493,7 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
                   </tr>
                   {/* Strategy rows */}
                   {items.map((s, i) => (
-                    <StratRow key={s.id} s={s} isLast={i === items.length - 1} actions={state.actions} />
+                    <StratRow key={s.id} s={s} isLast={i === items.length - 1} actions={state.actions} livePrices={state.livePrices} />
                   ))}
                 </>
               )
