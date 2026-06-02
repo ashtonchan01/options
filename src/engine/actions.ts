@@ -79,16 +79,18 @@ export function generateActions(strategies: Strategy[], positions: RawPosition[]
       // Is this option currently ITM? (stock moved against us)
       // CC: ITM when stock price > call strike  (shares at risk of being called away)
       // CSP: ITM when stock price < put strike  (put at risk of assignment)
+      // If we can't find the stock price, default to false — never falsely flag OTM as ITM.
       const itm = stkPrice !== null
         ? (s.type === 'covered_call' ? stkPrice > leg.strike : stkPrice < leg.strike)
-        : pnl < -(premium * 0.3)   // fallback heuristic: losing >30% suggests ITM
+        : false
 
       // 1. Losing badly — option moved deep ITM
       if (pnl < 0 && premium > 0 && Math.abs(pnl) > premium * 0.5) {
         const rollExpiry = suggestRollExpiry(leg.expiry, 35)
+        const lossPct = Math.min(Math.abs(pnl / premium) * 100, 999).toFixed(0)
         if (s.type === 'csp') {
           acts.push(action(s.type, s.underlying, 'urgent', 'roll',
-            `Down ${(Math.abs(pnl / premium) * 100).toFixed(0)}% — put is ITM, roll down & out`,
+            `Down ${lossPct}% — put is ITM, roll down & out`,
             `Stock dropped through your strike. Roll to a lower strike further out to collect more credit and reduce cost basis. Or accept assignment and start selling covered calls.`,
             {
               relatedStrategyId: s.id, legSummary: summary,
@@ -99,7 +101,7 @@ export function generateActions(strategies: Strategy[], positions: RawPosition[]
           ))
         } else {
           acts.push(action(s.type, s.underlying, 'urgent', 'manage',
-            `Up ${(Math.abs(pnl / premium) * 100).toFixed(0)}% — call is ITM, shares at risk`,
+            `Up ${Math.min(Math.abs(pnl / premium) * 100, 999).toFixed(0)}% — call is ITM, shares at risk`,
             `Stock rallied above your strike. Decide: roll the call up & out to avoid share call-away, or let shares get called at your strike price and keep the premium.`,
             {
               relatedStrategyId: s.id, legSummary: summary,
@@ -185,7 +187,7 @@ export function generateActions(strategies: Strategy[], positions: RawPosition[]
       const longCall  = s.legs.find(l => l.quantity > 0)
       if (shortCall) {
         const stkP = stkPrice
-        const callItm = stkP != null ? stkP > shortCall.strike : pnl < -(premium * 0.3)
+        const callItm = stkP != null ? stkP > shortCall.strike : false
 
         if (callItm && pnl < 0 && premium > 0 && Math.abs(pnl) > premium * 0.5) {
           acts.push(action(s.type, s.underlying, 'urgent', 'roll',
