@@ -393,7 +393,8 @@ function ActionsSidebar({ state }: { state: AppState }) {
                 const sColor = STRAT_COLOR[a.strategyType]
                 return (
                   <div key={a.id} className="db-action-card" style={{ borderLeft: `3px solid ${cfg.color}` }}>
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+                    {/* Ticker + strategy + action */}
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                       <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-1)' }}>
                         {a.underlying}
                       </span>
@@ -404,15 +405,46 @@ function ActionsSidebar({ state }: { state: AppState }) {
                         {ACTION_LABEL[a.actionType]}
                       </span>
                     </div>
+                    {/* Position identifier — which exact position */}
+                    {a.legSummary && (
+                      <div style={{
+                        fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600,
+                        color: cfg.color, background: `${cfg.color}10`,
+                        border: `1px solid ${cfg.color}28`, borderRadius: 4,
+                        padding: '2px 6px', marginBottom: 5, display: 'inline-block',
+                      }}>
+                        {a.legSummary}
+                      </div>
+                    )}
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-1)', lineHeight: 1.4, marginBottom: 2 }}>
                       {a.reason}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.4 }}>
                       {a.details}
                     </div>
-                    {a.estimatedCredit != null && (
-                      <div style={{ fontSize: 11, color: '#10b981', marginTop: 4, fontFamily: 'IBM Plex Mono, monospace' }}>
-                        est. ${a.estimatedCredit.toFixed(2)}
+                    {/* Suggested params */}
+                    {(a.suggestedStrike || a.suggestedExpiry || a.suggestedDelta || a.estimatedCredit != null) && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
+                        {a.suggestedStrike && (
+                          <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-4)' }}>
+                            strike <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>${a.suggestedStrike}</span>
+                          </span>
+                        )}
+                        {a.suggestedDelta && (
+                          <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-4)' }}>
+                            δ <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>{a.suggestedDelta.toFixed(2)}</span>
+                          </span>
+                        )}
+                        {a.suggestedExpiry && (
+                          <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-4)' }}>
+                            exp <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>{a.suggestedExpiry}</span>
+                          </span>
+                        )}
+                        {a.estimatedCredit != null && (
+                          <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: '#10b981', fontWeight: 700 }}>
+                            est. ${a.estimatedCredit.toFixed(2)}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
