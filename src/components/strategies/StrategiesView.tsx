@@ -212,12 +212,52 @@ function StratRow({ s, isLast, actions }: { s: Strategy; isLast: boolean; action
         )}
       </td>
 
-      {/* Premium */}
+      {/* Premium — for RR show credit received + debit paid separately */}
       <td style={{ padding: '9px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-        {s.netPremiumReceived > 0 && (
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, color: 'var(--text-3)' }}>
-            {fmt$(s.netPremiumReceived)}
-          </span>
+        {s.type === 'risk_reversal' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+            {/* Short leg credit */}
+            {(() => {
+              const shortLeg = s.legs.find(l => l.quantity < 0)
+              const longLeg  = s.legs.find(l => l.quantity > 0)
+              const credit   = shortLeg ? Math.abs(shortLeg.costBasis) : 0
+              const debit    = longLeg  ? Math.abs(longLeg.costBasis)  : 0
+              return (
+                <>
+                  {credit > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '0.05em' }}>REC</span>
+                      <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, color: '#34c98a' }}>
+                        {fmt$(credit)}
+                      </span>
+                    </div>
+                  )}
+                  {debit > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '0.05em' }}>PAID</span>
+                      <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, color: '#e05070' }}>
+                        {fmt$(debit)}
+                      </span>
+                    </div>
+                  )}
+                  {s.netPremiumReceived !== 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderTop: '1px solid var(--border)', paddingTop: 2, marginTop: 1 }}>
+                      <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '0.05em' }}>NET</span>
+                      <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, color: s.netPremiumReceived >= 0 ? '#34c98a' : '#e05070' }}>
+                        {s.netPremiumReceived >= 0 ? '+' : ''}{fmt$(s.netPremiumReceived)}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
+          </div>
+        ) : (
+          s.netPremiumReceived > 0 && (
+            <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, color: 'var(--text-3)' }}>
+              {fmt$(s.netPremiumReceived)}
+            </span>
+          )
         )}
       </td>
 
