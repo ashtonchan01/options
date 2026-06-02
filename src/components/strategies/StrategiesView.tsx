@@ -18,12 +18,7 @@ const STRAT_CONFIGS = {
   leap: {
     id: 'LEAP', label: 'LEAP', color: '#10b981',
     description: 'Trade log — LEAP & risk reversal legs (long-dated options)',
-    filter: (t: import('../../types').RawTrade) => {
-      if (t.assetClass !== 'OPT') return false
-      // Risk reversals appear here too; identify by expiry > ~9 months out if available
-      // Fallback: include all option trades not already covered by CC/CSP heuristics
-      return true
-    },
+    filter: (t: import('../../types').RawTrade) => t.assetClass === 'OPT',
   },
   spx: {
     id: 'SPX', label: 'SPX', color: '#8b5cf6',
@@ -73,7 +68,7 @@ const STRAT_CONFIGS = {
 const STRAT_COLOR: Record<StrategyType, string> = {
   csp:           '#f43f5e',
   covered_call:  '#3b82f6',
-  pmcc:          '#3b82f6',
+  pmcc:          '#818cf8',
   risk_reversal: '#38bdf8',
   put_spread:    '#fbbf24',
   call_spread:   '#fb923c',
@@ -106,17 +101,17 @@ function fmt$(n: number, d = 0) {
 function fmtExpiry(s: string) {
   const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
   if (!m) return s
-  return new Date(`${m[1]}-${m[2]}-${m[3]}`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return `${parseInt(m[3])} ${months[parseInt(m[2]) - 1]} '${m[1].slice(2)}`
 }
 
-function pnlColor(n: number) { return n >= 0 ? '#10b981' : '#f43f5e' }
+function pnlColor(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#f43f5e' : 'var(--text-4)' }
 
 function statusOf(s: Strategy): { label: string; color: string } {
   const maxPremium = Math.abs(s.netPremiumReceived)
   const profit = s.unrealizedPnL
-  const minDte = Math.min(...s.legs.map(l => l.dte))
-
-  if (profit < 0 && Math.abs(profit) > maxPremium * 0.5)
+  const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : Infinity
+  if (profit < 0 && maxPremium > 0 && Math.abs(profit) > maxPremium * 0.5)
     return { label: 'URGENT', color: '#f43f5e' }
   if (minDte <= 21 || (maxPremium > 0 && profit / maxPremium >= 0.5))
     return { label: 'MANAGE', color: '#f59e0b' }
@@ -128,135 +123,268 @@ function profitPct(s: Strategy): number | null {
   return Math.min(Math.max(s.unrealizedPnL / s.netPremiumReceived, -1), 1)
 }
 
-// ─── Tile styles ─────────────────────────────────────────────────────────────
+// ─── Leg pill ─────────────────────────────────────────────────────────────────
 
-const tile: React.CSSProperties = {
-  background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
-  overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0,
-}
-const tileHdr: React.CSSProperties = {
-  padding: '12px 20px', borderBottom: '1px solid var(--border)',
-  fontSize: 13, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', flexShrink: 0,
-}
-
-// ─── Leg row ─────────────────────────────────────────────────────────────────
-
-function LegRow({ leg }: { leg: OptionLeg }) {
+function LegPill({ leg }: { leg: OptionLeg }) {
   const isShort = leg.quantity < 0
   const isCall  = leg.putCall === 'C'
-  const legColor = isCall ? '#3b82f6' : '#f43f5e'
+  const color   = isCall ? '#3b82f6' : '#f43f5e'
   const dteColor = leg.dte <= 7 ? '#f43f5e' : leg.dte <= 21 ? '#f59e0b' : 'var(--text-3)'
 
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: '110px 1fr 70px 90px 45px 45px 65px',
-      alignItems: 'center',
-      padding: '9px 16px',
-      borderBottom: '1px solid var(--border-light)',
+      display: 'flex', alignItems: 'center', gap: 8,
+      background: 'var(--bg-surface)',
+      border: `1px solid ${color}28`,
+      borderLeft: `2px solid ${color}`,
+      borderRadius: 6,
+      padding: '7px 12px',
       fontSize: 13,
     }}>
+      {/* Side + type */}
       <span style={{
-        padding: '2px 6px', fontSize: 11, fontWeight: 700,
-        color: legColor, background: `${legColor}14`, border: `1px solid ${legColor}33`,
-        fontFamily: 'IBM Plex Mono, monospace', display: 'inline-block', width: 'fit-content',
+        fontSize: 10, fontWeight: 700, letterSpacing: '0.07em',
+        color, background: `${color}18`,
+        border: `1px solid ${color}40`,
+        borderRadius: 4, padding: '2px 6px',
+        flexShrink: 0,
       }}>
-        {isShort ? 'SHORT' : 'LONG'} {isCall ? 'CALL' : 'PUT'}
+        {isShort ? '↓ SHORT' : '↑ LONG'} {isCall ? 'CALL' : 'PUT'}
       </span>
-      <span />
-      <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-1)', textAlign: 'right' }}>
+
+      {/* Strike */}
+      <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, color: 'var(--text-1)', fontSize: 14 }}>
         ${leg.strike.toLocaleString()}
       </span>
-      <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-3)', textAlign: 'right', fontSize: 12 }}>
+
+      {/* Expiry */}
+      <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-3)', fontSize: 12 }}>
         {fmtExpiry(leg.expiry)}
       </span>
-      <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: dteColor, textAlign: 'right', fontWeight: 600 }}>
+
+      {/* DTE */}
+      <span style={{
+        fontFamily: 'IBM Plex Mono, monospace', fontSize: 12,
+        fontWeight: 600, color: dteColor,
+        background: `${dteColor}14`, border: `1px solid ${dteColor}30`,
+        borderRadius: 4, padding: '1px 6px',
+      }}>
         {leg.dte}d
       </span>
-      <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: isShort ? '#f43f5e' : '#10b981', textAlign: 'right' }}>
-        {isShort ? '' : '+'}{leg.quantity}
+
+      {/* Qty */}
+      <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-4)', fontSize: 12 }}>
+        ×{Math.abs(leg.quantity)}
       </span>
-      <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: pnlColor(leg.unrealizedPnL), textAlign: 'right' }}>
+
+      <div style={{ flex: 1 }} />
+
+      {/* Leg P&L */}
+      <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: pnlColor(leg.unrealizedPnL) }}>
         {fmt$(leg.unrealizedPnL)}
       </span>
     </div>
   )
 }
 
-// ─── Strategy card ───────────────────────────────────────────────────────────
+// ─── Strategy card ────────────────────────────────────────────────────────────
 
 function StrategyCard({ s }: { s: Strategy }) {
   const color  = STRAT_COLOR[s.type]
   const status = statusOf(s)
   const pct    = profitPct(s)
-  const minDte = Math.min(...s.legs.map(l => l.dte))
+  const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : null
 
   return (
-    <div className="strategy-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, borderLeft: `3px solid ${color}`, overflow: 'hidden' }}>
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border)',
+      borderRadius: 10,
+      borderLeft: `3px solid ${color}`,
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+    }}>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace', minWidth: 50 }}>
+      {/* ── Header row ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '12px 16px',
+        borderBottom: '1px solid var(--border)',
+        flexWrap: 'wrap',
+      }}>
+        <span style={{
+          fontSize: 17, fontWeight: 800,
+          fontFamily: 'IBM Plex Mono, monospace',
+          color: 'var(--text-1)',
+        }}>
           {s.underlying}
         </span>
-        <span style={{ padding: '2px 7px', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color, background: `${color}14`, border: `1px solid ${color}33` }}>
+
+        <span style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: '0.07em',
+          color, background: `${color}18`,
+          border: `1px solid ${color}40`, borderRadius: 4,
+          padding: '2px 8px',
+        }}>
           {STRAT_LABEL[s.type]}
         </span>
-        <span style={{ padding: '2px 7px', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: status.color, background: `${status.color}14`, border: `1px solid ${status.color}33` }}>
+
+        <span style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+          color: status.color, background: `${status.color}12`,
+          border: `1px solid ${status.color}40`, borderRadius: 20,
+          padding: '2px 8px',
+        }}>
           {status.label}
         </span>
-        <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: minDte <= 21 ? '#f59e0b' : 'var(--text-5)' }}>
-          {minDte}d
-        </span>
-        <div style={{ flex: 1 }} />
-        {s.netPremiumReceived > 0 && (
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: '0.06em' }}>PREM</div>
-            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, color: 'var(--text-3)' }}>{fmt$(s.netPremiumReceived)}</div>
-          </div>
+
+        {minDte !== null && (
+          <span style={{
+            fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600,
+            color: minDte <= 7 ? '#f43f5e' : minDte <= 21 ? '#f59e0b' : 'var(--text-4)',
+          }}>
+            {minDte}d
+          </span>
         )}
-        <div style={{ textAlign: 'right', minWidth: 70 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: '0.06em' }}>P&L</div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, fontWeight: 600, color: pnlColor(s.unrealizedPnL) }}>
-            {fmt$(s.unrealizedPnL)}
+
+        <div style={{ flex: 1 }} />
+
+        {/* Premium + P&L */}
+        <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+          {s.netPremiumReceived > 0 && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Premium</div>
+              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, fontWeight: 600, color: 'var(--text-2)' }}>
+                {fmt$(s.netPremiumReceived)}
+              </div>
+            </div>
+          )}
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Unr. P&L</div>
+            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 16, fontWeight: 700, color: pnlColor(s.unrealizedPnL) }}>
+              {fmt$(s.unrealizedPnL)}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Shares row */}
+      {/* ── Stock row ── */}
       {s.shares && (
-        <div style={{ display: 'flex', gap: 20, padding: '9px 16px', borderBottom: '1px solid var(--border-light)', fontSize: 13 }}>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-5)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', alignSelf: 'center' }}>STOCK</span>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-2)' }}>{s.shares.quantity} sh</span>
-          <span style={{ color: 'var(--text-4)' }}>avg <span style={{ color: 'var(--text-3)', fontFamily: 'IBM Plex Mono, monospace' }}>{fmt$(s.shares.avgCost, 2)}</span></span>
-          <span style={{ marginLeft: 'auto', fontFamily: 'IBM Plex Mono, monospace', color: pnlColor(s.shares.unrealizedPnL) }}>{fmt$(s.shares.unrealizedPnL)}</span>
-        </div>
-      )}
-
-      {/* Column headers */}
-      <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 90px 45px 45px 65px', padding: '5px 14px', fontSize: 11, fontWeight: 600, color: 'var(--text-3)', letterSpacing: '0.06em' }}>
-        <span>LEG</span><span /><span style={{ textAlign: 'right' }}>STRIKE</span>
-        <span style={{ textAlign: 'right' }}>EXPIRY</span><span style={{ textAlign: 'right' }}>DTE</span>
-        <span style={{ textAlign: 'right' }}>QTY</span><span style={{ textAlign: 'right' }}>P&L</span>
-      </div>
-      {s.legs.map((leg, i) => <LegRow key={i} leg={leg} />)}
-
-      {/* Progress bar */}
-      {pct !== null && (
-        <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: '0.06em', minWidth: 80 }}>PROFIT</span>
-          <div style={{ flex: 1, height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', width: `${Math.abs(pct) * 100}%`,
-              background: pct >= 0 ? (pct >= 0.5 ? '#10b981' : '#3b82f6') : '#f43f5e',
-              borderRadius: 2,
-            }} />
-          </div>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, color: pct >= 0 ? '#10b981' : '#f43f5e', minWidth: 30, textAlign: 'right' }}>
-            {(pct * 100).toFixed(0)}%
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '8px 16px',
+          background: 'var(--bg-elevated)',
+          borderBottom: '1px solid var(--border)',
+          fontSize: 13,
+        }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', color: '#3b82f6', background: '#3b82f618', border: '1px solid #3b82f640', borderRadius: 4, padding: '2px 6px' }}>
+            STOCK
+          </span>
+          <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-2)', fontWeight: 600 }}>
+            {s.shares.quantity} shares
+          </span>
+          <span style={{ color: 'var(--text-4)', fontSize: 12 }}>
+            avg <span style={{ color: 'var(--text-3)', fontFamily: 'IBM Plex Mono, monospace' }}>{fmt$(s.shares.avgCost, 2)}</span>
+          </span>
+          <div style={{ flex: 1 }} />
+          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: pnlColor(s.shares.unrealizedPnL) }}>
+            {fmt$(s.shares.unrealizedPnL)}
           </span>
         </div>
       )}
+
+      {/* ── Legs ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 14px' }}>
+        {s.legs.map((leg, i) => <LegPill key={i} leg={leg} />)}
+      </div>
+
+      {/* ── Profit bar ── */}
+      {pct !== null && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '8px 16px 12px',
+        }}>
+          <span style={{ fontSize: 11, color: 'var(--text-4)', letterSpacing: '0.06em', textTransform: 'uppercase', minWidth: 70 }}>
+            {pct >= 0 ? 'Profit' : 'Loss'}
+          </span>
+          <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', width: `${Math.abs(pct) * 100}%`,
+              background: pct >= 0 ? (pct >= 0.5 ? '#10b981' : '#3b82f6') : '#f43f5e',
+              borderRadius: 2, transition: 'width 0.3s ease',
+            }} />
+          </div>
+          <span style={{
+            fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 700,
+            color: pct >= 0 ? '#10b981' : '#f43f5e',
+            minWidth: 38, textAlign: 'right',
+          }}>
+            {(Math.abs(pct) * 100).toFixed(0)}%
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Section divider ──────────────────────────────────────────────────────────
+
+function SectionHeader({ type, count, pnl }: { type: StrategyType; count: number; pnl: number }) {
+  const color = STRAT_COLOR[type]
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
+      <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
+      <span style={{ fontSize: 13, fontWeight: 700, color, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+        {STRAT_LABEL[type]}
+      </span>
+      <span style={{
+        fontSize: 12, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace',
+        color, background: `${color}18`, border: `1px solid ${color}40`,
+        borderRadius: 4, padding: '1px 7px',
+      }}>
+        {count}
+      </span>
+      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+      <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: pnlColor(pnl) }}>
+        {fmt$(pnl)}
+      </span>
+    </div>
+  )
+}
+
+// ─── Summary bar ─────────────────────────────────────────────────────────────
+
+function SummaryBar({ strategies }: { strategies: Strategy[] }) {
+  const totalPnL     = strategies.reduce((s, st) => s + st.unrealizedPnL, 0)
+  const totalPremium = strategies.reduce((s, st) => s + st.netPremiumReceived, 0)
+  const urgent       = strategies.filter(s => statusOf(s).label === 'URGENT').length
+  const manage       = strategies.filter(s => statusOf(s).label === 'MANAGE').length
+
+  const stats = [
+    { label: 'Positions', value: String(strategies.length), color: 'var(--text-1)' },
+    { label: 'Total Premium', value: fmt$(totalPremium), color: 'var(--text-1)' },
+    { label: 'Unrealized P&L', value: fmt$(totalPnL), color: pnlColor(totalPnL) },
+    { label: 'Manage', value: String(manage), color: manage > 0 ? '#f59e0b' : 'var(--text-4)' },
+    { label: 'Urgent', value: String(urgent), color: urgent > 0 ? '#f43f5e' : 'var(--text-4)' },
+  ]
+
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+      {stats.map(({ label, value, color }) => (
+        <div key={label} style={{
+          display: 'flex', flexDirection: 'column', gap: 2,
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderRadius: 8, padding: '8px 14px', flex: '1 1 80px', minWidth: 80,
+        }}>
+          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-4)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            {label}
+          </span>
+          <span style={{ fontSize: 18, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace', color }}>
+            {value}
+          </span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -266,7 +394,6 @@ function StrategyCard({ s }: { s: Strategy }) {
 export default function StrategiesView({ state, stratPage = 'overview', tradeLabels }: Props) {
   const labels = tradeLabels?.labels ?? {}
 
-  // Label-based filter: show only trades the user has assigned to this strategy
   function labelFilter(page: string) {
     return (t: import('../../types').RawTrade) => labels[tradeId(t)] === page
   }
@@ -274,19 +401,15 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
   if (stratPage === 'label_trades' && tradeLabels) {
     return <TradeLabellerView state={state} {...tradeLabels} />
   }
-
   if (stratPage === 'covered_calls') {
     return <CoveredCallsView state={state} labelFilter={labelFilter('covered_calls')} hasLabels={Object.keys(labels).length > 0} />
   }
-
   if (stratPage !== 'overview') {
     const base = STRAT_CONFIGS[stratPage as keyof typeof STRAT_CONFIGS]
     if (base) {
       const cfg = {
         ...base,
-        filter: Object.keys(labels).length > 0
-          ? labelFilter(stratPage)
-          : base.filter,
+        filter: Object.keys(labels).length > 0 ? labelFilter(stratPage) : base.filter,
         description: Object.keys(labels).length > 0
           ? `Trade log — labelled as ${base.label}`
           : base.description + ' (auto-detected — label trades for accuracy)',
@@ -297,6 +420,7 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
 
   const { strategies } = state
 
+  // ── No data: show raw positions debug table ──────────────────────────────
   if (!strategies.length) {
     return (
       <div style={{ padding: '20px 24px' }}>
@@ -317,12 +441,12 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
                 <tr key={i} style={{ borderBottom: '1px solid var(--border-light)', background: i % 2 ? 'var(--bg-surface)' : 'transparent' }}>
                   <td style={{ padding: '9px 14px', color: 'var(--text-1)' }}>{p.symbol}</td>
                   <td style={{ padding: '9px 14px', color: p.assetClass === 'OPT' ? '#10b981' : p.assetClass === 'STK' ? '#3b82f6' : '#f59e0b' }}>{p.assetClass}</td>
-                  <td style={{ padding: '9px 14px', color: p.putCall ? '#10b981' : '#f43f5e' }}>{p.putCall ?? '—'}</td>
-                  <td style={{ padding: '9px 14px', color: p.strike ? '#10b981' : '#f43f5e' }}>{p.strike ?? '—'}</td>
-                  <td style={{ padding: '9px 14px', color: p.expiry ? '#10b981' : '#f43f5e' }}>{p.expiry ?? '—'}</td>
+                  <td style={{ padding: '9px 14px' }}>{p.putCall ?? '—'}</td>
+                  <td style={{ padding: '9px 14px' }}>{p.strike ?? '—'}</td>
+                  <td style={{ padding: '9px 14px' }}>{p.expiry ?? '—'}</td>
                   <td style={{ padding: '9px 14px', color: 'var(--text-2)' }}>{p.underlyingSymbol ?? '—'}</td>
-                  <td style={{ padding: '9px 14px', color: 'var(--text-2)' }}>{p.quantity}</td>
-                  <td style={{ padding: '9px 14px', color: p.positionValue > 0 ? '#10b981' : p.positionValue < 0 ? '#f43f5e' : 'var(--text-3)' }}>{p.positionValue.toLocaleString()}</td>
+                  <td style={{ padding: '9px 14px' }}>{p.quantity}</td>
+                  <td style={{ padding: '9px 14px', color: pnlColor(p.positionValue) }}>{p.positionValue.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -340,79 +464,33 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
     return acc
   }, {} as Record<StrategyType, Strategy[]>)
 
-  const totalPnL     = strategies.reduce((s, st) => s + st.unrealizedPnL, 0)
-  const totalPremium = strategies.reduce((s, st) => s + st.netPremiumReceived, 0)
-  const urgent       = strategies.filter(s => statusOf(s).label === 'URGENT').length
-  const manage       = strategies.filter(s => statusOf(s).label === 'MANAGE').length
-
-  // Split groups into two columns
   const activeTypes = TYPE_ORDER.filter(t => byType[t].length > 0)
-  const col1Types = activeTypes.filter((_, i) => i % 2 === 0)
-  const col2Types = activeTypes.filter((_, i) => i % 2 === 1)
 
   return (
-    <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
+    <div style={{
+      padding: '16px 20px',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 14,
+      overflow: 'hidden',
+    }}>
 
-      {/* Stats */}
-      <div className="strategies-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, flexShrink: 0 }}>
-        {[
-          { label: 'STRATEGIES', value: String(strategies.length), color: 'var(--text-1)' },
-          { label: 'TOTAL PREMIUM', value: fmt$(totalPremium), color: 'var(--text-1)' },
-          { label: 'UNREALIZED P&L', value: fmt$(totalPnL), color: pnlColor(totalPnL) },
-          { label: 'MANAGE', value: String(manage), color: manage > 0 ? '#f59e0b' : 'var(--text-5)' },
-          { label: 'URGENT', value: String(urgent), color: urgent > 0 ? '#f43f5e' : 'var(--text-5)' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="stat-card">
-            <div className="stat-label">{label}</div>
-            <div className="stat-value" style={{ color, fontSize: 28 }}>{value}</div>
-          </div>
-        ))}
-      </div>
+      {/* ── Summary bar ── */}
+      <SummaryBar strategies={strategies} />
 
-      {/* Strategy groups in 2-column layout */}
-      <div className="strategies-grid" style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minHeight: 0 }}>
-        <div style={tile}>
-          <div style={tileHdr}>{col1Types.map(t => STRAT_LABEL[t].toUpperCase()).join(' · ') || 'STRATEGIES'}</div>
-          <div style={{ flex: 1, overflow: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {col1Types.map(t => (
-              <div key={t}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: STRAT_COLOR[t], letterSpacing: '0.1em' }}>{STRAT_LABEL[t].toUpperCase()}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{byType[t].length}</span>
-                  <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-                  <span style={{ fontSize: 13, fontFamily: 'IBM Plex Mono, monospace', color: pnlColor(byType[t].reduce((s, st) => s + st.unrealizedPnL, 0)), fontWeight: 600 }}>
-                    {fmt$(byType[t].reduce((s, st) => s + st.unrealizedPnL, 0))}
-                  </span>
-                </div>
-                {byType[t].map(s => <StrategyCard key={s.id} s={s} />)}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={tile}>
-          <div style={tileHdr}>{col2Types.map(t => STRAT_LABEL[t].toUpperCase()).join(' · ') || 'STRATEGIES'}</div>
-          <div style={{ flex: 1, overflow: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {col2Types.map(t => (
-              <div key={t}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: STRAT_COLOR[t], letterSpacing: '0.1em' }}>{STRAT_LABEL[t].toUpperCase()}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{byType[t].length}</span>
-                  <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-                  <span style={{ fontSize: 13, fontFamily: 'IBM Plex Mono, monospace', color: pnlColor(byType[t].reduce((s, st) => s + st.unrealizedPnL, 0)), fontWeight: 600 }}>
-                    {fmt$(byType[t].reduce((s, st) => s + st.unrealizedPnL, 0))}
-                  </span>
-                </div>
-                {byType[t].map(s => <StrategyCard key={s.id} s={s} />)}
-              </div>
-            ))}
-            {col2Types.length === 0 && (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-5)', fontSize: 14 }}>
-                No additional strategy types
-              </div>
-            )}
-          </div>
-        </div>
+      {/* ── Scrollable strategy list ── */}
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 8 }}>
+        {activeTypes.map(t => {
+          const items = byType[t]
+          const groupPnl = items.reduce((s, st) => s + st.unrealizedPnL, 0)
+          return (
+            <div key={t} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <SectionHeader type={t} count={items.length} pnl={groupPnl} />
+              {items.map(s => <StrategyCard key={s.id} s={s} />)}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
