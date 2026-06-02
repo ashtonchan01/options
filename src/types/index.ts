@@ -132,6 +132,8 @@ export interface Action {
   reason: string
   details: string
   relatedStrategyId?: string
+  /** Human-readable position identifier, e.g. "$340P 21Jun25 (14d)" */
+  legSummary?: string
   suggestedStrike?: number
   suggestedExpiry?: string
   suggestedDelta?: number

@@ -96,8 +96,20 @@ function ActionCard({ a }: { a: Action }) {
         </div>
       </div>
 
-      {/* Right: reason + details */}
+      {/* Right: position ID + reason + details */}
       <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Position identifier — tells you exactly which position this is */}
+        {a.legSummary && (
+          <div style={{
+            fontSize: 11, fontFamily: 'IBM Plex Mono, monospace',
+            color: urgency.color, background: urgency.bg,
+            border: `1px solid ${urgency.color}33`,
+            padding: '2px 6px', marginBottom: 5, display: 'inline-block',
+            letterSpacing: '0.04em', fontWeight: 600,
+          }}>
+            {a.legSummary}
+          </div>
+        )}
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-1)', marginBottom: 2, lineHeight: 1.4 }}>
           {a.reason}
         </div>
