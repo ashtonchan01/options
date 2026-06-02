@@ -120,7 +120,17 @@ function statusOf(s: Strategy, actions: Action[]): { label: string; color: strin
   // Use actions engine output (has live price ITM detection)
   const related = actions.find(a => a.relatedStrategyId === s.id)
   if (related?.urgency === 'urgent') return { label: 'URGENT', color: '#e05070' }
-  if (related?.urgency === 'manage') return { label: 'MANAGE', color: '#d4a843' }
+  // WATCH means OTM + expiring soon — goal achieved, show OK not MANAGE
+  if (related?.urgency === 'watch') return { label: 'OK', color: '#34c98a' }
+  if (related?.urgency === 'manage') {
+    // If high profit + low DTE + OTM (watch-like), override to OK
+    const pnl = optionPnl(s)
+    const prem = Math.abs(s.netPremiumReceived)
+    const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : Infinity
+    if (prem > 0 && pnl / prem >= 0.75 && minDte <= 7)
+      return { label: 'OK', color: '#34c98a' }
+    return { label: 'MANAGE', color: '#d4a843' }
+  }
 
   // Heuristic fallback (no live-price action available yet)
   const premium = Math.abs(s.netPremiumReceived)
@@ -431,7 +441,7 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
 
   const activeTypes = TYPE_ORDER.filter(t => byType[t].length > 0)
 
-  const totalPnL     = strategies.reduce((s, st) => s + st.unrealizedPnL, 0)
+  const totalPnL     = strategies.reduce((s, st) => s + optionPnl(st), 0)
   const totalPremium = strategies.reduce((s, st) => s + st.netPremiumReceived, 0)
   const urgent       = strategies.filter(s => statusOf(s, state.actions).label === 'URGENT').length
   const manage       = strategies.filter(s => statusOf(s, state.actions).label === 'MANAGE').length
@@ -448,7 +458,7 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
         {[
           { label: 'POSITIONS',     value: String(strategies.length), color: 'var(--text-1)' },
           { label: 'PREMIUM',       value: fmt$(totalPremium),        color: 'var(--text-1)' },
-          { label: 'UNREALIZED P&L',value: fmt$(totalPnL),            color: pnlColor(totalPnL) },
+          { label: 'OPTIONS P&L',    value: fmt$(totalPnL),            color: pnlColor(totalPnL) },
           { label: 'MANAGE',        value: String(manage),            color: manage > 0 ? '#d4a843' : 'var(--text-4)' },
           { label: 'URGENT',        value: String(urgent),            color: urgent > 0 ? '#e05070' : 'var(--text-4)' },
         ].map(({ label, value, color }, i, arr) => (
@@ -486,7 +496,7 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
             {activeTypes.map(type => {
               const items = byType[type]
               const color = STRAT_COLOR[type]
-              const groupPnl = items.reduce((s, st) => s + st.unrealizedPnL, 0)
+              const groupPnl = items.reduce((s, st) => s + optionPnl(st), 0)
               return (
                 <>
                   {/* Group header row */}
