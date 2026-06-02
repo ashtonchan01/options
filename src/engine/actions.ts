@@ -50,15 +50,17 @@ function action(
 
 // ─── Stock price lookup ───────────────────────────────────────────────────────
 
-/** Get current stock price — positions first, then fetched prices fallback. */
+/** Get current stock price — live fetched price takes priority over stale IBKR mark price. */
 function stockPrice(
   underlying: string,
   positions: RawPosition[],
   extraPrices: Record<string, number>,
 ): number | null {
+  // Live price first — IBKR mark price is from sync time (could be hours old)
+  if (extraPrices[underlying]) return extraPrices[underlying]
+  // Fall back to IBKR mark price if live fetch didn't return this symbol
   const p = positions.find(p => p.assetClass === 'STK' && (p.symbol === underlying || p.underlyingSymbol === underlying))
-  if (p?.markPrice) return p.markPrice
-  return extraPrices[underlying] ?? null
+  return p?.markPrice ?? null
 }
 
 // ─── Main engine ──────────────────────────────────────────────────────────────

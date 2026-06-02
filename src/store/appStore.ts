@@ -34,14 +34,12 @@ function savePersisted(data: PersistedData) {
   }
 }
 
-/** Underlyings that have short option legs but no corresponding STK position */
-function missingPriceSymbols(strategies: ReturnType<typeof classifyPositions>, positions: RawPosition[]): string[] {
-  const stkSymbols = new Set(positions.filter(p => p.assetClass === 'STK').map(p => p.symbol))
+/** All underlyings with short option legs — always fetch live, IBKR mark price is stale */
+function optionUnderlyings(strategies: ReturnType<typeof classifyPositions>): string[] {
   return [...new Set(
     strategies
       .filter(s => s.legs.some(l => l.quantity < 0))
       .map(s => s.underlying)
-      .filter(u => !stkSymbols.has(u))
   )]
 }
 
@@ -91,7 +89,7 @@ export function useAppStore() {
     strategies: ReturnType<typeof classifyPositions>,
     positions: RawPosition[],
   ) => {
-    const missing = missingPriceSymbols(strategies, positions)
+    const missing = optionUnderlyings(strategies)
     if (missing.length === 0) return
 
     fetchStockPrices(missing).then(extraPrices => {
