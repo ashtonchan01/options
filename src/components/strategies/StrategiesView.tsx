@@ -1,4 +1,4 @@
-import type { AppState, Strategy, StrategyType } from '../../types'
+import type { AppState, Strategy, StrategyType, Action } from '../../types'
 import type { StrategyPage, TradeLabels } from '../../App'
 import CoveredCallsView from './CoveredCallsView'
 import StrategyTradeLog from './StrategyTradeLog'
@@ -112,22 +112,24 @@ function optionPnl(s: Strategy): number {
   return s.legs.reduce((sum, l) => sum + l.unrealizedPnL, 0)
 }
 
-function statusOf(s: Strategy): { label: string; color: string } {
+/**
+ * Derive status from the actions engine output — it has live ITM detection.
+ * Falls back to heuristic if no action exists for this strategy.
+ */
+function statusOf(s: Strategy, actions: Action[]): { label: string; color: string } {
+  // Use actions engine output (has live price ITM detection)
+  const related = actions.find(a => a.relatedStrategyId === s.id)
+  if (related?.urgency === 'urgent') return { label: 'URGENT', color: '#e05070' }
+  if (related?.urgency === 'manage') return { label: 'MANAGE', color: '#d4a843' }
+
+  // Heuristic fallback (no live-price action available yet)
   const premium = Math.abs(s.netPremiumReceived)
   const pnl = optionPnl(s)
   const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : Infinity
   const lossPct = premium > 0 ? Math.abs(pnl) / premium : 0
 
-  // URGENT: option lost >50% of premium
-  if (pnl < 0 && lossPct > 0.5)
-    return { label: 'URGENT', color: '#e05070' }
-
-  // MANAGE: any of these conditions
-  if (
-    minDte <= 21 ||                        // approaching expiry
-    (premium > 0 && pnl / premium >= 0.5) || // 50%+ profit — close early
-    (pnl < 0 && lossPct > 0.25)            // lost >25% of premium — needs watching
-  )
+  if (pnl < 0 && lossPct > 0.5) return { label: 'URGENT', color: '#e05070' }
+  if (minDte <= 21 || (premium > 0 && pnl / premium >= 0.5) || (pnl < 0 && lossPct > 0.25))
     return { label: 'MANAGE', color: '#d4a843' }
 
   return { label: 'OK', color: '#34c98a' }
@@ -147,9 +149,9 @@ function legLine(s: Strategy): string {
 
 // ─── Strategy row ─────────────────────────────────────────────────────────────
 
-function StratRow({ s, isLast }: { s: Strategy; isLast: boolean }) {
+function StratRow({ s, isLast, actions }: { s: Strategy; isLast: boolean; actions: Action[] }) {
   const color  = STRAT_COLOR[s.type]
-  const status = statusOf(s)
+  const status = statusOf(s, actions)
   const pct    = profitPct(s)
   const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : null
   const dteColor = minDte === null ? 'var(--text-4)'
@@ -221,9 +223,16 @@ function StratRow({ s, isLast }: { s: Strategy; isLast: boolean }) {
 
       {/* P&L — option legs only, not stock position */}
       <td style={{ padding: '9px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: pnlColor(optionPnl(s)) }}>
-          {fmt$(optionPnl(s))}
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: pnlColor(optionPnl(s)) }}>
+            {fmt$(optionPnl(s))}
+          </span>
+          {status.label === 'URGENT' && (
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#e05070' }}>
+              ITM RISK
+            </span>
+          )}
+        </div>
       </td>
 
       {/* % captured / lost */}
@@ -321,8 +330,8 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
 
   const totalPnL     = strategies.reduce((s, st) => s + st.unrealizedPnL, 0)
   const totalPremium = strategies.reduce((s, st) => s + st.netPremiumReceived, 0)
-  const urgent       = strategies.filter(s => statusOf(s).label === 'URGENT').length
-  const manage       = strategies.filter(s => statusOf(s).label === 'MANAGE').length
+  const urgent       = strategies.filter(s => statusOf(s, state.actions).label === 'URGENT').length
+  const manage       = strategies.filter(s => statusOf(s, state.actions).label === 'MANAGE').length
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -401,7 +410,7 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
                   </tr>
                   {/* Strategy rows */}
                   {items.map((s, i) => (
-                    <StratRow key={s.id} s={s} isLast={i === items.length - 1} />
+                    <StratRow key={s.id} s={s} isLast={i === items.length - 1} actions={state.actions} />
                   ))}
                 </>
               )
