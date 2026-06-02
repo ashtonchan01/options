@@ -116,10 +116,20 @@ function statusOf(s: Strategy): { label: string; color: string } {
   const premium = Math.abs(s.netPremiumReceived)
   const pnl = optionPnl(s)
   const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : Infinity
-  if (pnl < 0 && premium > 0 && Math.abs(pnl) > premium * 0.5)
+  const lossPct = premium > 0 ? Math.abs(pnl) / premium : 0
+
+  // URGENT: option lost >50% of premium
+  if (pnl < 0 && lossPct > 0.5)
     return { label: 'URGENT', color: '#e05070' }
-  if (minDte <= 21 || (premium > 0 && pnl / premium >= 0.5))
+
+  // MANAGE: any of these conditions
+  if (
+    minDte <= 21 ||                        // approaching expiry
+    (premium > 0 && pnl / premium >= 0.5) || // 50%+ profit — close early
+    (pnl < 0 && lossPct > 0.25)            // lost >25% of premium — needs watching
+  )
     return { label: 'MANAGE', color: '#d4a843' }
+
   return { label: 'OK', color: '#34c98a' }
 }
 
@@ -216,8 +226,8 @@ function StratRow({ s, isLast }: { s: Strategy; isLast: boolean }) {
         </span>
       </td>
 
-      {/* % captured */}
-      <td style={{ padding: '9px 14px', width: 80 }}>
+      {/* % captured / lost */}
+      <td style={{ padding: '9px 14px', width: 96 }}>
         {pct !== null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ flex: 1, height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden', minWidth: 40 }}>
@@ -227,8 +237,12 @@ function StratRow({ s, isLast }: { s: Strategy; isLast: boolean }) {
                 borderRadius: 2,
               }} />
             </div>
-            <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10, color: pct >= 0 ? '#34c98a' : '#e05070', minWidth: 28, textAlign: 'right' }}>
-              {(Math.abs(pct) * 100).toFixed(0)}%
+            <span style={{
+              fontFamily: 'IBM Plex Mono, monospace', fontSize: 10,
+              color: pct >= 0 ? '#34c98a' : '#e05070',
+              minWidth: 36, textAlign: 'right',
+            }}>
+              {pct < 0 ? '-' : '+'}{(Math.abs(pct) * 100).toFixed(0)}%
             </span>
           </div>
         )}

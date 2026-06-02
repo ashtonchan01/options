@@ -157,6 +157,30 @@ export function generateActions(
             { relatedStrategyId: s.id, legSummary: summary, suggestedExpiry: fmtExpiry(rollExpiry), suggestedDelta: 0.25 }
           ))
 
+        // 4b. OTM but dangerously close to strike (<3%) → manage
+        } else if (!itm && premium > 0) {
+          const distPct = s.type === 'covered_call'
+            ? (leg.strike - stkPrice!) / stkPrice!   // how far below the call strike
+            : (stkPrice! - leg.strike) / stkPrice!   // how far above the put strike
+          if (distPct < 0.03) {
+            acts.push(action(s.type, s.underlying, 'manage', 'manage',
+              `Stock within 3% of strike — monitor closely`,
+              s.type === 'covered_call'
+                ? `Stock $${stkPrice!.toFixed(0)} is only $${(leg.strike - stkPrice!).toFixed(0)} below your $${leg.strike} call. At this distance, small moves can flip to ITM and risk share call-away.`
+                : `Stock $${stkPrice!.toFixed(0)} is only $${(stkPrice! - leg.strike).toFixed(0)} above your $${leg.strike} put. One down day could flip to ITM and trigger assignment.`,
+              { relatedStrategyId: s.id, legSummary: summary }
+            ))
+          // 4c. OTM but option has lost >25% of premium → manage (stock drifting toward strike)
+          } else if (pnl < 0 && Math.abs(pnl) > premium * 0.25) {
+            acts.push(action(s.type, s.underlying, 'manage', 'manage',
+              `Option lost ${(Math.abs(pnl / premium) * 100).toFixed(0)}% of premium — monitor`,
+              s.type === 'covered_call'
+                ? `The short call has gained value — stock moved toward your $${leg.strike} strike. Still OTM with ${minDte} DTE but the position is under pressure.`
+                : `The short put has gained value — stock dropped toward your $${leg.strike} strike. Still OTM with ${minDte} DTE but worth watching.`,
+              { relatedStrategyId: s.id, legSummary: summary }
+            ))
+          }
+
         // 5. ITM + approaching 21 DTE → consider rolling
         } else if (itm && minDte <= 21) {
           acts.push(action(s.type, s.underlying, 'manage', 'roll',
