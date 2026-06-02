@@ -107,9 +107,14 @@ function fmtExpiry(s: string) {
 
 function pnlColor(n: number) { return n > 0 ? '#34c98a' : n < 0 ? '#e05070' : 'var(--text-4)' }
 
+/** Option-legs-only P&L — excludes stock position which distorts the ratio */
+function optionPnl(s: Strategy): number {
+  return s.legs.reduce((sum, l) => sum + l.unrealizedPnL, 0)
+}
+
 function statusOf(s: Strategy): { label: string; color: string } {
   const premium = Math.abs(s.netPremiumReceived)
-  const pnl = s.unrealizedPnL
+  const pnl = optionPnl(s)
   const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : Infinity
   if (pnl < 0 && premium > 0 && Math.abs(pnl) > premium * 0.5)
     return { label: 'URGENT', color: '#e05070' }
@@ -120,7 +125,7 @@ function statusOf(s: Strategy): { label: string; color: string } {
 
 function profitPct(s: Strategy): number | null {
   if (!s.netPremiumReceived || s.netPremiumReceived <= 0) return null
-  return Math.min(Math.max(s.unrealizedPnL / s.netPremiumReceived, -1), 1)
+  return Math.min(Math.max(optionPnl(s) / s.netPremiumReceived, -1), 1)
 }
 
 /** Short legs formatted as "$340P 21Jun25 ×1" */
@@ -204,10 +209,10 @@ function StratRow({ s, isLast }: { s: Strategy; isLast: boolean }) {
         )}
       </td>
 
-      {/* P&L */}
+      {/* P&L — option legs only, not stock position */}
       <td style={{ padding: '9px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: pnlColor(s.unrealizedPnL) }}>
-          {fmt$(s.unrealizedPnL)}
+        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: pnlColor(optionPnl(s)) }}>
+          {fmt$(optionPnl(s))}
         </span>
       </td>
 

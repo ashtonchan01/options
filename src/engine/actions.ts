@@ -78,7 +78,9 @@ export function generateActions(
 
     const minDte    = Math.min(...shortLegs.map(l => l.dte))
     const premium   = s.netPremiumReceived          // credit received (positive)
-    const pnl       = s.unrealizedPnL               // positive = winning, negative = losing
+    // Use ONLY the option legs' P&L — strategy.unrealizedPnL includes the
+    // stock position which can overwhelm the option premium comparison.
+    const pnl       = s.legs.reduce((sum, l) => sum + l.unrealizedPnL, 0)
     const profitPct = premium > 0 ? pnl / premium : 0
     const summary   = legSummary(s.legs)
     const stkPrice  = stockPrice(s.underlying, positions, extraPrices)
