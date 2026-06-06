@@ -1,22 +1,8 @@
+import { useState } from 'react'
 import type { AppState, Action, UrgencyLevel, StrategyType } from '../../types'
+import PortfolioView from '../portfolio/PortfolioView'
 
 interface Props { state: AppState }
-
-// ─── Strategy channel definitions ────────────────────────────────────────────
-
-const INCOME_CHANNELS = [
-  { id: 'covered_calls',  label: 'Covered Calls',    short: 'CC',    color: '#3b82f6', glow: '#3b82f620' },
-  { id: 'csp',            label: 'Cash Secured Puts', short: 'CSP',   color: '#f43f5e', glow: '#f43f5e20' },
-  { id: 'leap',           label: 'LEAP',             short: 'LEAP',  color: '#10b981', glow: '#10b98120' },
-  { id: 'spx',            label: 'SPX',              short: 'SPX',   color: '#8b5cf6', glow: '#8b5cf620' },
-  { id: 'rotation',       label: 'Rotation Model',   short: 'ROT',   color: '#f59e0b', glow: '#f59e0b20' },
-  { id: 'ptos',           label: 'PTOS',             short: 'PTOS',  color: '#06b6d4', glow: '#06b6d420' },
-  { id: 'dcas',           label: 'DCAS',             short: 'DCAS',  color: '#ec4899', glow: '#ec489920' },
-  { id: 'profit_taking',  label: 'Profit Taking',    short: 'PT',    color: '#84cc16', glow: '#84cc1620' },
-  { id: 'lilo',           label: 'LILO',             short: 'LILO',  color: '#f97316', glow: '#f9731620' },
-  { id: 'arb_cloud',      label: 'ARB Cloud',        short: 'ARB',   color: '#a78bfa', glow: '#a78bfa20' },
-  { id: 'tabi',           label: 'TABI',             short: 'TABI',  color: '#34d399', glow: '#34d39920' },
-] as const
 
 // ─── Urgency config ───────────────────────────────────────────────────────────
 
@@ -79,274 +65,7 @@ function fmtDollar(n: number): string {
   return `${sign}$${fmt(Math.abs(n))}`
 }
 
-function pnlClass(n: number) {
-  if (n > 0) return 'pos'
-  if (n < 0) return 'neg'
-  return 'neu'
-}
 
-function formatExpiry(yyyymmdd: string): string {
-  if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd
-  return `${yyyymmdd.slice(4, 6)}/${yyyymmdd.slice(6, 8)}/${yyyymmdd.slice(0, 4)}`
-}
-
-// ─── P&L Strip ────────────────────────────────────────────────────────────────
-
-function PnlStrip({ state }: { state: AppState }) {
-  const { sync } = state
-
-  const netLiq      = sync.netLiquidation ?? 0
-  const cashBal     = sync.cashBalance
-  const unrealized  = sync.positions.reduce((s, p) => s + (p.unrealizedPnL ?? 0), 0)
-  const realized    = sync.trades.reduce((s, t) => s + t.netCash, 0)
-  const totalPnl    = realized + unrealized
-  const optionIncome = sync.trades
-    .filter(t => t.assetClass === 'OPT' && t.netCash > 0)
-    .reduce((s, t) => s + t.netCash, 0)
-
-  const cards = [
-    { label: 'Net Liquidation', value: fmtDollar(netLiq),     pnl: false },
-    { label: 'Total P&L',       value: fmtDollar(totalPnl),   pnl: true,  n: totalPnl    },
-    { label: 'Realized P&L',    value: fmtDollar(realized),   pnl: true,  n: realized    },
-    { label: 'Unrealized P&L',  value: fmtDollar(unrealized), pnl: true,  n: unrealized  },
-    { label: 'Options Income',  value: fmtDollar(optionIncome), pnl: false, accent: true  },
-    { label: 'Cash Balance',    value: fmtDollar(cashBal),    pnl: false },
-  ]
-
-  return (
-    <div className="db-pnl-strip">
-      {cards.map(c => (
-        <div key={c.label} className="db-pnl-card">
-          <div className="stat-label">{c.label}</div>
-          <div className={`stat-value db-pnl-value ${c.pnl ? pnlClass(c.n ?? 0) : c.accent ? 'db-accent-val' : ''}`}>
-            {c.value}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ─── Income Channel Card ──────────────────────────────────────────────────────
-
-function ChannelCard({ ch, state }: { ch: typeof INCOME_CHANNELS[number]; state: AppState }) {
-  // Map channel id to strategy type where possible
-  const typeMap: Record<string, StrategyType> = {
-    covered_calls: 'covered_call',
-    csp:           'csp',
-    leap:          'leap',
-  }
-  const stype = typeMap[ch.id]
-
-  const relatedStrats = stype
-    ? state.strategies.filter(s => s.type === stype)
-    : []
-
-  const income  = relatedStrats.reduce((s, st) => s + st.netPremiumReceived, 0)
-  const pnl     = relatedStrats.reduce((s, st) => s + st.unrealizedPnL, 0)
-  const count   = relatedStrats.length
-  const hasData = count > 0
-
-  return (
-    <div className="db-channel-card" style={{ borderTop: `3px solid ${ch.color}`, boxShadow: hasData ? `0 0 12px ${ch.glow}` : undefined }}>
-      <div className="db-channel-header">
-        <span className="db-channel-badge" style={{ color: ch.color, background: ch.glow, border: `1px solid ${ch.color}33` }}>
-          {ch.short}
-        </span>
-        <span className="db-channel-label">{ch.label}</span>
-      </div>
-      <div className="db-channel-body">
-        {hasData ? (
-          <>
-            <div className="db-channel-stat">
-              <span className="label">Positions</span>
-              <span style={{ color: ch.color, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700 }}>{count}</span>
-            </div>
-            <div className="db-channel-stat">
-              <span className="label">Income</span>
-              <span className="pos mono" style={{ fontSize: 13, fontWeight: 600 }}>{fmtDollar(income)}</span>
-            </div>
-            <div className="db-channel-stat">
-              <span className="label">P&amp;L</span>
-              <span className={`${pnlClass(pnl)} mono`} style={{ fontSize: 12 }}>{fmtDollar(pnl)}</span>
-            </div>
-          </>
-        ) : (
-          <div className="db-channel-empty">No positions</div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Portfolio Snapshot ───────────────────────────────────────────────────────
-
-function PortfolioSnapshot({ state }: { state: AppState }) {
-  const { positions } = state.sync
-  const stocks  = positions.filter(p => p.assetClass === 'STK')
-  const options = positions.filter(p => p.assetClass === 'OPT')
-
-  return (
-    <div className="db-snapshot-grid">
-      <div className="db-snapshot-card">
-        <div className="stat-label">Total Positions</div>
-        <div className="stat-value" style={{ fontSize: 28 }}>{positions.length}</div>
-      </div>
-      <div className="db-snapshot-card">
-        <div className="stat-label">Stock Positions</div>
-        <div className="stat-value" style={{ fontSize: 28 }}>{stocks.length}</div>
-      </div>
-      <div className="db-snapshot-card">
-        <div className="stat-label">Option Legs</div>
-        <div className="stat-value" style={{ fontSize: 28 }}>{options.length}</div>
-      </div>
-      <div className="db-snapshot-card">
-        <div className="stat-label">Open Strategies</div>
-        <div className="stat-value" style={{ fontSize: 28 }}>{state.strategies.length}</div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Recent Trades ────────────────────────────────────────────────────────────
-
-function RecentTrades({ state }: { state: AppState }) {
-  const recent = [...state.sync.trades]
-    .sort((a, b) => b.tradeDate.localeCompare(a.tradeDate))
-    .slice(0, 20)
-
-  return (
-    <div className="db-bottom-panel">
-      <div className="db-panel-header">Recent Trades</div>
-      {recent.length === 0 ? (
-        <div className="db-empty-msg">No trades loaded</div>
-      ) : (
-        <div style={{ overflow: 'auto', flex: 1 }}>
-          <table className="trade-table" style={{ fontSize: 12 }}>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Symbol</th>
-                <th>Type</th>
-                <th style={{ textAlign: 'right' }}>Qty</th>
-                <th style={{ textAlign: 'right' }}>Price</th>
-                <th style={{ textAlign: 'right' }}>Net $</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recent.map((t, i) => (
-                <tr key={i}>
-                  <td className="mono" style={{ color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{t.tradeDate}</td>
-                  <td style={{ fontWeight: 600, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace' }}>{t.symbol}</td>
-                  <td>
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '1px 5px',
-                      color: t.assetClass === 'OPT' ? '#8b5cf6' : '#38bdf8',
-                      background: t.assetClass === 'OPT' ? '#8b5cf614' : '#38bdf814',
-                      border: `1px solid ${t.assetClass === 'OPT' ? '#8b5cf630' : '#38bdf830'}`,
-                    }}>
-                      {t.assetClass}
-                    </span>
-                  </td>
-                  <td className="mono" style={{ textAlign: 'right', color: t.quantity < 0 ? '#f43f5e' : '#10b981' }}>
-                    {t.quantity > 0 ? '+' : ''}{t.quantity}
-                  </td>
-                  <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>
-                    ${t.tradePrice.toFixed(2)}
-                  </td>
-                  <td className={`mono ${pnlClass(t.netCash)}`} style={{ textAlign: 'right', fontWeight: 600 }}>
-                    {fmtDollar(t.netCash)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Calendar Highlights ──────────────────────────────────────────────────────
-
-function CalendarHighlights({ state }: { state: AppState }) {
-  const today = new Date()
-  const soon  = new Date(today.getTime() + 30 * 86400_000)
-
-  // Gather expiring options
-  const expiring = state.sync.positions
-    .filter(p => p.assetClass === 'OPT' && p.expiry)
-    .map(p => ({ symbol: p.symbol, expiry: p.expiry!, underlying: p.underlyingSymbol ?? p.symbol, qty: p.quantity }))
-    .filter(p => {
-      const exp = new Date(`${p.expiry.slice(0, 4)}-${p.expiry.slice(4, 6)}-${p.expiry.slice(6, 8)}`)
-      return exp <= soon
-    })
-    .sort((a, b) => a.expiry.localeCompare(b.expiry))
-    .slice(0, 12)
-
-  // Open strategies with expiry
-  const stratExps = state.strategies
-    .flatMap(s => s.legs.map(l => ({ id: s.id, type: s.type, underlying: s.underlying, expiry: l.expiry, dte: l.dte })))
-    .filter(l => l.dte <= 30)
-    .sort((a, b) => a.dte - b.dte)
-    .slice(0, 8)
-
-  return (
-    <div className="db-bottom-panel">
-      <div className="db-panel-header">Calendar Highlights</div>
-      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 12, padding: '8px 0' }}>
-
-        {/* Expiring options */}
-        {expiring.length > 0 && (
-          <div>
-            <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '0 12px', marginBottom: 6 }}>
-              Expiring within 30 days
-            </div>
-            {expiring.map((p, i) => (
-              <div key={i} className="db-cal-row">
-                <span className="mono" style={{ color: 'var(--text-1)', fontWeight: 600, minWidth: 80 }}>{p.underlying}</span>
-                <span style={{ fontSize: 11, color: 'var(--text-3)', flex: 1 }}>{p.symbol}</span>
-                <span className="mono" style={{ fontSize: 11, color: '#f59e0b' }}>{formatExpiry(p.expiry)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Strategies expiring soon */}
-        {stratExps.length > 0 && (
-          <div>
-            <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '0 12px', marginBottom: 6 }}>
-              Open strategies — expiring
-            </div>
-            {stratExps.map((l, i) => {
-              const scolor = STRAT_COLOR[l.type]
-              return (
-                <div key={i} className="db-cal-row">
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: '1px 5px',
-                    color: scolor, background: `${scolor}14`, border: `1px solid ${scolor}30`,
-                    minWidth: 56, textAlign: 'center',
-                  }}>
-                    {STRAT_LABEL[l.type]}
-                  </span>
-                  <span className="mono" style={{ color: 'var(--text-1)', fontWeight: 600, minWidth: 60 }}>{l.underlying}</span>
-                  <span className={`mono`} style={{ fontSize: 11, color: l.dte <= 7 ? '#f43f5e' : l.dte <= 14 ? '#f59e0b' : 'var(--text-3)' }}>
-                    {l.dte}d
-                  </span>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--text-4)' }}>{formatExpiry(l.expiry)}</span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {expiring.length === 0 && stratExps.length === 0 && (
-          <div className="db-empty-msg">No upcoming expirations</div>
-        )}
-      </div>
-    </div>
-  )
-}
 
 // ─── Actions Sidebar ──────────────────────────────────────────────────────────
 
@@ -458,42 +177,272 @@ function ActionsSidebar({ state }: { state: AppState }) {
   )
 }
 
-// ─── Dashboard View ───────────────────────────────────────────────────────────
+// ─── Actual Portfolio View ────────────────────────────────────────────────────
 
-export default function DashboardView({ state }: Props) {
+function ActualPortfolio({ state }: { state: AppState }) {
+  const { positions, trades, cashBalance, netLiquidation } = state.sync
+
+  const stocks  = positions.filter(p => p.assetClass === 'STK')
+  const options = positions.filter(p => p.assetClass === 'OPT')
+
+  const stockMV  = stocks.reduce((s, p) => s + p.positionValue, 0)
+  const stockPnL = stocks.reduce((s, p) => s + p.unrealizedPnL, 0)
+  const stockCost= stocks.reduce((s, p) => s + p.costBasisMoney, 0)
+  const optionMV = options.reduce((s, p) => s + p.positionValue, 0)
+  const realizedPnL = trades.reduce((s, t) => s + t.netCash, 0)
+  const netLiq   = netLiquidation ?? (stockMV + optionMV + cashBalance)
+  const totalUnrealized = stocks.reduce((s, p) => s + p.unrealizedPnL, 0)
+
+  const pnlColor = (n: number) => n >= 0 ? '#34c98a' : '#e05070'
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  function fmtExpiry(s: string) {
+    const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
+    if (!m) return s
+    return `${parseInt(m[3])} ${MONTHS[parseInt(m[2]) - 1]} '${m[1].slice(2)}`
+  }
+
+  const TH: React.CSSProperties = {
+    padding: '7px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '1.5px',
+    textTransform: 'uppercase', color: 'var(--text-4)', whiteSpace: 'nowrap',
+    borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)',
+    position: 'sticky', top: 0, zIndex: 2,
+  }
+  const TD: React.CSSProperties = {
+    padding: '8px 12px', fontSize: 13, fontFamily: 'IBM Plex Mono, monospace',
+    borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
+  }
+  const TDR = { ...TD, textAlign: 'right' as const }
+
   return (
-    <div className="db-root">
-      {/* ── Main content area ───────────────────────────────────────────── */}
-      <div className="db-main">
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* P&L Strip */}
-        <PnlStrip state={state} />
-
-        {/* Income Channels */}
-        <section>
-          <div className="db-section-title">Income Channels</div>
-          <div className="db-channels-grid">
-            {INCOME_CHANNELS.map(ch => (
-              <ChannelCard key={ch.id} ch={ch} state={state} />
-            ))}
+      {/* ── Key metrics ── */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 0, flexShrink: 0, borderBottom: '1px solid var(--border)',
+      }}>
+        {[
+          { label: 'Net Liquidation', value: fmtDollar(netLiq), color: 'var(--text-1)' },
+          { label: 'Unrealized P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
+          { label: 'Realized P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
+          { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
+        ].map(({ label, value, color }, i, arr) => (
+          <div key={label} style={{
+            padding: '12px 20px',
+            borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+          }}>
+            <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'Chakra Petch, sans-serif', color }}>{value}</div>
           </div>
-        </section>
-
-        {/* Portfolio Snapshot */}
-        <section>
-          <div className="db-section-title">Portfolio Snapshot</div>
-          <PortfolioSnapshot state={state} />
-        </section>
-
-        {/* Bottom row */}
-        <div className="db-bottom-row">
-          <RecentTrades state={state} />
-          <CalendarHighlights state={state} />
-        </div>
+        ))}
       </div>
 
-      {/* ── Right Sidebar ────────────────────────────────────────────────── */}
-      <ActionsSidebar state={state} />
+      {/* ── Scrollable content ── */}
+      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+        {/* Stocks */}
+        {stocks.length > 0 && (
+          <div>
+            <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: 'var(--accent)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+              Stocks · {stocks.length} positions
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ ...TH, textAlign: 'left' }}>Ticker</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Shares</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Avg Cost</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Last</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Market Value</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Unrealized P&L</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stocks.map((p, i) => {
+                  const unrealPct = p.costBasisMoney !== 0 ? p.unrealizedPnL / Math.abs(p.costBasisMoney) : 0
+                  return (
+                    <tr key={i} style={{ background: i % 2 ? 'var(--bg-surface)' : 'transparent' }}>
+                      <td style={{ ...TD, fontWeight: 700, color: 'var(--text-1)' }}>{p.symbol}</td>
+                      <td style={{ ...TDR, color: 'var(--text-2)' }}>{p.quantity.toLocaleString()}</td>
+                      <td style={{ ...TDR, color: 'var(--text-3)' }}>{fmtDollar(p.costBasisPrice)}</td>
+                      <td style={{ ...TDR, color: 'var(--text-1)', fontWeight: 600 }}>{fmtDollar(p.markPrice)}</td>
+                      <td style={{ ...TDR, color: 'var(--text-1)' }}>{fmtDollar(p.positionValue)}</td>
+                      <td style={{ ...TDR, color: pnlColor(p.unrealizedPnL), fontWeight: 600 }}>{fmtDollar(p.unrealizedPnL)}</td>
+                      <td style={{ ...TDR, color: pnlColor(unrealPct), fontSize: 12 }}>{(unrealPct * 100).toFixed(1)}%</td>
+                    </tr>
+                  )
+                })}
+                {/* Totals */}
+                <tr style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
+                  <td style={{ ...TD, fontWeight: 700, color: 'var(--text-1)' }}>TOTAL</td>
+                  <td style={TDR}></td>
+                  <td style={TDR}></td>
+                  <td style={TDR}></td>
+                  <td style={{ ...TDR, fontWeight: 700, color: 'var(--text-1)' }}>{fmtDollar(stockMV)}</td>
+                  <td style={{ ...TDR, fontWeight: 700, color: pnlColor(stockPnL) }}>{fmtDollar(stockPnL)}</td>
+                  <td style={{ ...TDR, color: pnlColor(stockPnL / Math.abs(stockCost || 1)), fontSize: 12 }}>
+                    {(stockPnL / Math.abs(stockCost || 1) * 100).toFixed(1)}%
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Options */}
+        {options.length > 0 && (
+          <div>
+            <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: '#a855f7', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+              Options · {options.length} legs
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ ...TH, textAlign: 'left' }}>Symbol</th>
+                  <th style={{ ...TH, textAlign: 'left' }}>Type</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Strike</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Expiry</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Qty</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Mark</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Mkt Value</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Cost Basis</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Unrealized</th>
+                </tr>
+              </thead>
+              <tbody>
+                {options.map((p, i) => {
+                  const isShort = p.quantity < 0
+                  const isCall  = p.putCall === 'C'
+                  const typeColor = isCall ? '#3b82f6' : '#f43f5e'
+                  return (
+                    <tr key={i} style={{ background: i % 2 ? 'var(--bg-surface)' : 'transparent' }}>
+                      <td style={{ ...TD, fontWeight: 600, color: 'var(--text-2)' }}>{p.underlyingSymbol ?? p.symbol}</td>
+                      <td style={{ ...TD }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: typeColor, background: `${typeColor}18`, border: `1px solid ${typeColor}35`, borderRadius: 3, padding: '1px 5px' }}>
+                          {isShort ? '↓' : '↑'} {isCall ? 'CALL' : 'PUT'}
+                        </span>
+                      </td>
+                      <td style={{ ...TDR, color: 'var(--text-1)' }}>${p.strike?.toLocaleString()}</td>
+                      <td style={{ ...TDR, color: 'var(--text-3)', fontSize: 12 }}>{p.expiry ? fmtExpiry(p.expiry) : '—'}</td>
+                      <td style={{ ...TDR, color: isShort ? '#e05070' : '#34c98a', fontWeight: 600 }}>{p.quantity}</td>
+                      <td style={{ ...TDR, color: 'var(--text-2)' }}>${p.markPrice.toFixed(2)}</td>
+                      <td style={{ ...TDR, color: p.positionValue >= 0 ? 'var(--text-2)' : '#e05070' }}>{fmtDollar(p.positionValue)}</td>
+                      <td style={{ ...TDR, color: 'var(--text-3)' }}>{fmtDollar(p.costBasisMoney)}</td>
+                      <td style={{ ...TDR, fontWeight: 600, color: pnlColor(p.unrealizedPnL) }}>{fmtDollar(p.unrealizedPnL)}</td>
+                    </tr>
+                  )
+                })}
+                {/* Options totals */}
+                <tr style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
+                  <td colSpan={6} style={{ ...TD, color: 'var(--text-4)' }}>TOTAL OPTIONS</td>
+                  <td style={{ ...TDR, fontWeight: 700, color: optionMV >= 0 ? 'var(--text-1)' : '#e05070' }}>{fmtDollar(optionMV)}</td>
+                  <td style={TDR}></td>
+                  <td style={{ ...TDR, fontWeight: 700, color: pnlColor(options.reduce((s, p) => s + p.unrealizedPnL, 0)) }}>
+                    {fmtDollar(options.reduce((s, p) => s + p.unrealizedPnL, 0))}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Cash */}
+        <div>
+          <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: '#34c98a', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+            Cash
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <tbody>
+              <tr>
+                <td style={{ ...TD, color: 'var(--text-2)', width: 160 }}>Base (USD equiv.)</td>
+                <td style={{ ...TDR, fontWeight: 700, color: '#34c98a' }}>{fmtDollar(cashBalance)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Net Liquidation reconciliation */}
+        <div style={{ padding: '12px 16px', background: 'var(--bg-elevated)', borderTop: '2px solid var(--border)', marginTop: 'auto' }}>
+          <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Stocks', value: stockMV },
+              { label: 'Options', value: optionMV },
+              { label: 'Cash', value: cashBalance },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
+                <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: value >= 0 ? 'var(--text-2)' : '#e05070' }}>{fmtDollar(value)}</div>
+              </div>
+            ))}
+            <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 2 }}>Net Liquidation</div>
+              <div style={{ fontFamily: 'Chakra Petch, sans-serif', fontSize: 18, fontWeight: 700, color: 'var(--text-1)' }}>{fmtDollar(netLiq)}</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
+// ─── Dashboard View ───────────────────────────────────────────────────────────
+
+type DashTab = 'portfolio' | 'target'
+
+export default function DashboardView({ state }: Props) {
+  const [tab, setTab] = useState<DashTab>('portfolio')
+
+  const TAB_BTN = (t: DashTab): React.CSSProperties => ({
+    padding: '8px 20px',
+    background: 'transparent',
+    border: 'none',
+    borderBottom: `2px solid ${tab === t ? 'var(--accent)' : 'transparent'}`,
+    color: tab === t ? 'var(--accent)' : 'var(--text-4)',
+    fontFamily: 'Inter, sans-serif',
+    fontSize: 12,
+    fontWeight: tab === t ? 700 : 400,
+    cursor: 'pointer',
+    letterSpacing: '0.04em',
+    transition: 'all 0.15s',
+    whiteSpace: 'nowrap' as const,
+  })
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+      {/* ── Tab switcher ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--bg-surface)',
+        flexShrink: 0, paddingLeft: 8,
+      }}>
+        <button style={TAB_BTN('portfolio')} onClick={() => setTab('portfolio')}>
+          Actual Portfolio
+        </button>
+        <button style={TAB_BTN('target')} onClick={() => setTab('target')}>
+          $1M Target
+        </button>
+      </div>
+
+      {/* ── Content ── */}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+        {tab === 'portfolio' ? (
+          <div className="db-root" style={{ flex: 1 }}>
+            <div className="db-main" style={{ flex: 1, overflow: 'auto' }}>
+              <ActualPortfolio state={state} />
+            </div>
+            <ActionsSidebar state={state} />
+          </div>
+        ) : (
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <PortfolioView state={state} />
+          </div>
+        )}
+      </div>
     </div>
   )
 }
