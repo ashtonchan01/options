@@ -209,7 +209,8 @@ function buildPositions(trades: RawTrade[]): Position[] {
       const closeFees    = cg.legs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0)
       const closeNetCash = cg.legs.reduce((s, l) => s + l.netCash, 0)
       const closingAmount = Math.abs(closeNetCash)
-      const closePrice   = cg.legs.reduce((s, l) => s + l.tradePrice, 0) / cg.legs.length
+      // Net debit per share (mirrors openPrice — meaningful for both single legs and spreads)
+      const closePrice   = contracts > 0 ? closingAmount / contracts / 100 : 0
       const pnl          = openingNetCash + closeNetCash
 
       return {

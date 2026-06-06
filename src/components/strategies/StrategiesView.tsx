@@ -1,6 +1,5 @@
 import type { AppState, Strategy, StrategyType, Action } from '../../types'
 import type { StrategyPage, TradeLabels } from '../../App'
-import CoveredCallsView from './CoveredCallsView'
 import StrategyTradeLog from './StrategyTradeLog'
 import TradeLabellerView from './TradeLabellerView'
 import { tradeId } from '../../store/tradeLabelsStore'
@@ -10,6 +9,11 @@ interface Props { state: AppState; stratPage?: StrategyPage; tradeLabels?: Trade
 // ─── Strategy page configs ────────────────────────────────────────────────────
 
 const STRAT_CONFIGS = {
+  covered_calls: {
+    id: 'CC', label: 'Covered Calls', color: '#3b82f6',
+    description: 'Trade log — call option legs',
+    filter: (t: import('../../types').RawTrade) => t.assetClass === 'OPT' && t.putCall === 'C',
+  },
   csp: {
     id: 'CSP', label: 'Cash Secured Puts', color: '#f43f5e',
     description: 'Trade log — put option legs',
@@ -389,7 +393,6 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
   }
 
   if (stratPage === 'label_trades' && tradeLabels) return <TradeLabellerView state={state} {...tradeLabels} />
-  if (stratPage === 'covered_calls') return <CoveredCallsView state={state} labelFilter={labelFilter('covered_calls')} hasLabels={Object.keys(labels).length > 0} />
   if (stratPage !== 'overview') {
     const base = STRAT_CONFIGS[stratPage as keyof typeof STRAT_CONFIGS]
     if (base) {

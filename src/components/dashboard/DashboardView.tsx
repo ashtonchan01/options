@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import type { AppState, Action, UrgencyLevel, StrategyType } from '../../types'
-import PortfolioView from '../portfolio/PortfolioView'
+import type { AppState, Action, UrgencyLevel, StrategyType, RawTrade } from '../../types'
+import type { TradeLabels } from '../../App'
+import { tradeId } from '../../store/tradeLabelsStore'
 
-interface Props { state: AppState }
+interface Props { state: AppState; tradeLabels?: TradeLabels }
 
 // ─── Urgency config ───────────────────────────────────────────────────────────
 
@@ -179,7 +179,109 @@ function ActionsSidebar({ state }: { state: AppState }) {
 
 // ─── Actual Portfolio View ────────────────────────────────────────────────────
 
-function ActualPortfolio({ state }: { state: AppState }) {
+// ─── Income channel strip ─────────────────────────────────────────────────────
+
+const INCOME_CHANNELS: Array<{ page: string; label: string; color: string }> = [
+  { page: 'covered_calls', label: 'Covered Calls', color: '#3b82f6' },
+  { page: 'csp',           label: 'CSP',           color: '#f43f5e' },
+  { page: 'spx',           label: 'SPX',           color: '#8b5cf6' },
+  { page: 'leap',          label: 'LEAP',          color: '#10b981' },
+  { page: 'ptos',          label: 'PTOS',          color: '#06b6d4' },
+  { page: 'lilo',          label: 'LILO',          color: '#f97316' },
+  { page: 'arb_cloud',     label: 'ARB Cloud',     color: '#a78bfa' },
+  { page: 'tabi',          label: 'TABI',          color: '#34d399' },
+  { page: 'rotation',      label: 'Rotation',      color: '#f59e0b' },
+  { page: 'dcas',          label: 'DCAS',          color: '#ec4899' },
+  { page: 'profit_taking', label: 'Profit Taking', color: '#84cc16' },
+]
+
+const TODAY_DASH = new Date(); TODAY_DASH.setHours(0,0,0,0)
+
+function parseExpiryDash(s: string): Date | null {
+  if (!s) return null
+  if (/^\d{8}$/.test(s)) s = `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d
+}
+
+function isExpiredDash(t: RawTrade): boolean {
+  if (!t.expiry) return false
+  const d = parseExpiryDash(t.expiry)
+  return d !== null && d < TODAY_DASH
+}
+
+function IncomeChannelStrip({ trades, labels }: { trades: RawTrade[]; labels: Record<string, string> }) {
+  const hasLabels = Object.keys(labels).length > 0
+  if (!hasLabels) return null
+
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+      gap: 1,
+      borderBottom: '1px solid var(--border)',
+      background: 'var(--border)',
+      flexShrink: 0,
+    }}>
+      {INCOME_CHANNELS.map(ch => {
+        const chTrades = trades.filter(t => labels[tradeId(t)] === ch.page)
+        if (chTrades.length === 0) return null
+
+        const sells   = chTrades.filter(t => t.quantity < 0)
+        const expired = chTrades.filter(t => isExpiredDash(t))
+        const active  = chTrades.filter(t => !isExpiredDash(t))
+
+        const openPrem  = active.filter(t => t.quantity < 0).reduce((s, t) => s + t.netCash, 0)
+        const realizedPnL = expired.reduce((s, t) => s + t.netCash, 0)
+        // Also add closed-out positions (buy-side on expired groups won't be here, but include any explicit closes)
+        const totalPnL  = chTrades.reduce((s, t) => s + t.netCash, 0)
+        const winRate   = sells.length ? (sells.filter(t => t.netCash > 0).length / sells.length) * 100 : 0
+
+        return (
+          <div key={ch.page} style={{
+            background: 'var(--bg-surface)',
+            padding: '10px 14px',
+            borderLeft: `3px solid ${ch.color}`,
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: ch.color, textTransform: 'uppercase', marginBottom: 6 }}>
+              {ch.label}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Open</span>
+                <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: openPrem >= 0 ? '#10b981' : '#f43f5e' }}>
+                  {fmtDollar(openPrem)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Realized</span>
+                <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: realizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
+                  {fmtDollar(realizedPnL)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Total</span>
+                <span style={{ fontSize: 13, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, color: totalPnL >= 0 ? '#10b981' : '#f43f5e' }}>
+                  {fmtDollar(totalPnL)}
+                </span>
+              </div>
+              {sells.length > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid var(--border)', paddingTop: 3, marginTop: 2 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Win</span>
+                  <span style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: winRate >= 70 ? '#10b981' : winRate >= 50 ? '#f59e0b' : '#f43f5e' }}>
+                    {winRate.toFixed(0)}%
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<string, string> }) {
   const { positions, trades, cashBalance, netLiquidation } = state.sync
 
   const stocks  = positions.filter(p => p.assetClass === 'STK')
@@ -237,6 +339,9 @@ function ActualPortfolio({ state }: { state: AppState }) {
           </div>
         ))}
       </div>
+
+      {/* ── Income channels ── */}
+      <IncomeChannelStrip trades={trades} labels={labels} />
 
       {/* ── Scrollable content ── */}
       <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -390,58 +495,17 @@ function ActualPortfolio({ state }: { state: AppState }) {
 
 // ─── Dashboard View ───────────────────────────────────────────────────────────
 
-type DashTab = 'portfolio' | 'target'
-
-export default function DashboardView({ state }: Props) {
-  const [tab, setTab] = useState<DashTab>('portfolio')
-
-  const TAB_BTN = (t: DashTab): React.CSSProperties => ({
-    padding: '8px 20px',
-    background: 'transparent',
-    border: 'none',
-    borderBottom: `2px solid ${tab === t ? 'var(--accent)' : 'transparent'}`,
-    color: tab === t ? 'var(--accent)' : 'var(--text-4)',
-    fontFamily: 'Inter, sans-serif',
-    fontSize: 12,
-    fontWeight: tab === t ? 700 : 400,
-    cursor: 'pointer',
-    letterSpacing: '0.04em',
-    transition: 'all 0.15s',
-    whiteSpace: 'nowrap' as const,
-  })
-
+export default function DashboardView({ state, tradeLabels }: Props) {
+  const labels = tradeLabels?.labels ?? {}
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-      {/* ── Tab switcher ── */}
-      <div style={{
-        display: 'flex', alignItems: 'center',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--bg-surface)',
-        flexShrink: 0, paddingLeft: 8,
-      }}>
-        <button style={TAB_BTN('portfolio')} onClick={() => setTab('portfolio')}>
-          Actual Portfolio
-        </button>
-        <button style={TAB_BTN('target')} onClick={() => setTab('target')}>
-          $1M Target
-        </button>
-      </div>
-
-      {/* ── Content ── */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-        {tab === 'portfolio' ? (
-          <div className="db-root" style={{ flex: 1 }}>
-            <div className="db-main" style={{ flex: 1, overflow: 'auto' }}>
-              <ActualPortfolio state={state} />
-            </div>
-            <ActionsSidebar state={state} />
+        <div className="db-root" style={{ flex: 1 }}>
+          <div className="db-main" style={{ flex: 1, overflow: 'auto' }}>
+            <ActualPortfolio state={state} labels={labels} />
           </div>
-        ) : (
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <PortfolioView state={state} />
-          </div>
-        )}
+          <ActionsSidebar state={state} />
+        </div>
       </div>
     </div>
   )
