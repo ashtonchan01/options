@@ -5,32 +5,33 @@
 
 :root,
 [data-theme="dark"] {
-  --bg-page:     #0c1018;
-  --bg-surface:  #101520;
-  --bg-card:     #141922;
-  --bg-elevated: #181e28;
-  --bg-active:   #1c2230;
-  --border:       #232b38;
-  --border-light: #2e3848;
-  --text-1: #dde6f0;
-  --text-2: #8496aa;
-  --text-3: #4e5f70;
-  --text-4: #303d4a;
-  --text-5: #1e2830;
-  --scrollbar: #2a3444;
-  --scrollbar-hover: #3a4a5c;
-  --overlay: rgba(8, 12, 20, 0.80);
-  /* Accent — muted teal, not saturated cyan */
-  --accent:      #38bcd4;
-  --accent-dim:  rgba(56, 188, 212, 0.10);
-  --accent-glow: rgba(56, 188, 212, 0.06);
-  /* Loss color — muted rose, not hot pink */
+  /* ── Claude dark theme — warm charcoal backgrounds ── */
+  --bg-page:     #1c1917;
+  --bg-surface:  #221f1b;
+  --bg-card:     #262320;
+  --bg-elevated: #2c2926;
+  --bg-active:   #33302c;
+  --border:       #3d3a36;
+  --border-light: #4a4743;
+  --text-1: #ede8e3;
+  --text-2: #a09890;
+  --text-3: #6b6360;
+  --text-4: #4a4542;
+  --text-5: #2e2b28;
+  --scrollbar: #3d3a36;
+  --scrollbar-hover: #4a4743;
+  --overlay: rgba(12, 10, 8, 0.80);
+  /* Accent — Claude coral/orange */
+  --accent:      #e8956d;
+  --accent-dim:  rgba(232, 149, 109, 0.12);
+  --accent-glow: rgba(232, 149, 109, 0.06);
+  /* Loss color */
   --pink:        #e05070;
   --pink-dim:    rgba(224, 80, 112, 0.10);
   --gold:        #d4a843;
   --gold-dim:    rgba(212, 168, 67, 0.10);
-  /* Neon palette — desaturated */
-  --neon-cyan:   #38bcd4;
+  /* Palette */
+  --neon-cyan:   #e8956d;
   --neon-pink:   #e05070;
   --neon-green:  #34c98a;
   --neon-amber:  #d4a843;
