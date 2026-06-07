@@ -412,25 +412,25 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
                   const isShort   = p.quantity < 0
                   const isCall    = p.putCall === 'C'
                   const typeColor = isCall ? '#3b82f6' : '#f43f5e'
-                  // IBKR-style: "MSTR 19SEP26 160 C"
+                  // IBKR-style: "MSTR Jan18'26 180 CALL"
                   const underlying = p.underlyingSymbol ?? p.symbol
                   const expDesc = (() => {
                     const s = p.expiry ?? ''
                     const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
                     if (!m) return s
-                    const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
-                    return `${parseInt(m[3])}${MONTHS[parseInt(m[2])-1]}${m[1].slice(2)}`
+                    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                    return `${MONTHS[parseInt(m[2])-1]}${parseInt(m[3])}'${m[1].slice(2)}`
                   })()
                   const strikeDesc = p.strike != null
-                    ? (p.strike % 1 === 0 ? p.strike.toFixed(0) : p.strike.toFixed(2))
+                    ? (p.strike % 1 === 0 ? p.strike.toLocaleString() : p.strike.toFixed(2))
                     : '—'
-                  const description = `${underlying} ${expDesc} ${strikeDesc} ${p.putCall ?? ''}`
+                  const description = `${underlying} ${expDesc} ${strikeDesc} ${p.putCall === 'C' ? 'CALL' : p.putCall === 'P' ? 'PUT' : ''}`
                   return (
                     <tr key={i} style={{ background: i % 2 ? 'var(--bg-surface)' : 'transparent' }}>
                       <td style={{ ...TD }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontSize: 10, fontWeight: 700, color: typeColor, background: `${typeColor}18`, border: `1px solid ${typeColor}35`, borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>
-                            {isShort ? '↓' : '↑'} {isCall ? 'C' : 'P'}
+                            {isShort ? '↓' : '↑'} {isCall ? 'CALL' : 'PUT'}
                           </span>
                           <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: 'var(--text-1)', fontSize: 13 }}>{description}</span>
                         </div>
