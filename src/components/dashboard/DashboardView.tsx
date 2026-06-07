@@ -297,12 +297,6 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
 
   const pnlColor = (n: number) => n >= 0 ? '#34c98a' : '#e05070'
 
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  function fmtExpiry(s: string) {
-    const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
-    if (!m) return s
-    return `${parseInt(m[3])} ${MONTHS[parseInt(m[2]) - 1]} '${m[1].slice(2)}`
-  }
 
   const TH: React.CSSProperties = {
     padding: '7px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '1.5px',
@@ -405,10 +399,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th style={{ ...TH, textAlign: 'left' }}>Symbol</th>
-                  <th style={{ ...TH, textAlign: 'left' }}>Type</th>
-                  <th style={{ ...TH, textAlign: 'right' }}>Strike</th>
-                  <th style={{ ...TH, textAlign: 'right' }}>Expiry</th>
+                  <th style={{ ...TH, textAlign: 'left' }}>Description</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Qty</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Mark</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Mkt Value</th>
@@ -418,19 +409,32 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
               </thead>
               <tbody>
                 {options.map((p, i) => {
-                  const isShort = p.quantity < 0
-                  const isCall  = p.putCall === 'C'
+                  const isShort   = p.quantity < 0
+                  const isCall    = p.putCall === 'C'
                   const typeColor = isCall ? '#3b82f6' : '#f43f5e'
+                  // IBKR-style: "MSTR 19SEP26 160 C"
+                  const underlying = p.underlyingSymbol ?? p.symbol
+                  const expDesc = (() => {
+                    const s = p.expiry ?? ''
+                    const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
+                    if (!m) return s
+                    const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+                    return `${parseInt(m[3])}${MONTHS[parseInt(m[2])-1]}${m[1].slice(2)}`
+                  })()
+                  const strikeDesc = p.strike != null
+                    ? (p.strike % 1 === 0 ? p.strike.toFixed(0) : p.strike.toFixed(2))
+                    : '—'
+                  const description = `${underlying} ${expDesc} ${strikeDesc} ${p.putCall ?? ''}`
                   return (
                     <tr key={i} style={{ background: i % 2 ? 'var(--bg-surface)' : 'transparent' }}>
-                      <td style={{ ...TD, fontWeight: 600, color: 'var(--text-2)' }}>{p.underlyingSymbol ?? p.symbol}</td>
                       <td style={{ ...TD }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: typeColor, background: `${typeColor}18`, border: `1px solid ${typeColor}35`, borderRadius: 3, padding: '1px 5px' }}>
-                          {isShort ? '↓' : '↑'} {isCall ? 'CALL' : 'PUT'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: typeColor, background: `${typeColor}18`, border: `1px solid ${typeColor}35`, borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>
+                            {isShort ? '↓' : '↑'} {isCall ? 'C' : 'P'}
+                          </span>
+                          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: 'var(--text-1)', fontSize: 13 }}>{description}</span>
+                        </div>
                       </td>
-                      <td style={{ ...TDR, color: 'var(--text-1)' }}>${p.strike?.toLocaleString()}</td>
-                      <td style={{ ...TDR, color: 'var(--text-3)', fontSize: 12 }}>{p.expiry ? fmtExpiry(p.expiry) : '—'}</td>
                       <td style={{ ...TDR, color: isShort ? '#e05070' : '#34c98a', fontWeight: 600 }}>{p.quantity}</td>
                       <td style={{ ...TDR, color: 'var(--text-2)' }}>${p.markPrice.toFixed(2)}</td>
                       <td style={{ ...TDR, color: p.positionValue >= 0 ? 'var(--text-2)' : '#e05070' }}>{fmtDollar(p.positionValue)}</td>
@@ -441,7 +445,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
                 })}
                 {/* Options totals */}
                 <tr style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
-                  <td colSpan={6} style={{ ...TD, color: 'var(--text-4)' }}>TOTAL OPTIONS</td>
+                  <td colSpan={3} style={{ ...TD, color: 'var(--text-4)' }}>TOTAL OPTIONS</td>
                   <td style={{ ...TDR, fontWeight: 700, color: optionMV >= 0 ? 'var(--text-1)' : '#e05070' }}>{fmtDollar(optionMV)}</td>
                   <td style={TDR}></td>
                   <td style={{ ...TDR, fontWeight: 700, color: pnlColor(options.reduce((s, p) => s + p.unrealizedPnL, 0)) }}>
