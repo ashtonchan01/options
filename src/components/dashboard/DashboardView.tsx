@@ -281,6 +281,34 @@ function IncomeChannelStrip({ trades, labels }: { trades: RawTrade[]; labels: Re
   )
 }
 
+// ─── Strategy meta ────────────────────────────────────────────────────────────
+
+const STRAT_META: Record<string, { label: string; color: string; order: number }> = {
+  covered_call:  { label: 'Covered Call',  color: '#3b82f6', order: 1 },
+  pmcc:          { label: 'PMCC',          color: '#818cf8', order: 2 },
+  risk_reversal: { label: 'Risk Reversal', color: '#38bdf8', order: 3 },
+  put_spread:    { label: 'Put Spread',    color: '#fbbf24', order: 4 },
+  call_spread:   { label: 'Call Spread',   color: '#fb923c', order: 5 },
+  csp:           { label: 'CSP',           color: '#f43f5e', order: 6 },
+  leap:          { label: 'LEAP',          color: '#10b981', order: 7 },
+  other:         { label: 'Other',         color: '#64748b', order: 8 },
+}
+
+function ibkrDesc(p: { underlyingSymbol?: string; symbol: string; expiry?: string; strike?: number; putCall?: string }) {
+  const underlying = p.underlyingSymbol ?? p.symbol
+  const expDesc = (() => {
+    const s = p.expiry ?? ''
+    const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
+    if (!m) return s
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    return `${MONTHS[parseInt(m[2])-1]}${parseInt(m[3])}'${m[1].slice(2)}`
+  })()
+  const strikeDesc = p.strike != null
+    ? (p.strike % 1 === 0 ? p.strike.toLocaleString() : p.strike.toFixed(2))
+    : '—'
+  return `${underlying} ${expDesc} ${strikeDesc} ${p.putCall === 'C' ? 'CALL' : p.putCall === 'P' ? 'PUT' : ''}`
+}
+
 function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<string, string> }) {
   const { positions, trades, cashBalance, netLiquidation } = state.sync
 
@@ -296,6 +324,22 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
   const totalUnrealized = stocks.reduce((s, p) => s + p.unrealizedPnL, 0)
 
   const pnlColor = (n: number) => n >= 0 ? '#34c98a' : '#e05070'
+
+  // Build symbol → strategyType map from classifier output
+  const symbolToStratType = new Map<string, string>()
+  for (const strat of state.strategies) {
+    for (const leg of strat.legs) {
+      symbolToStratType.set(leg.symbol, strat.type)
+    }
+  }
+
+  // Sort options by strategy order then by underlying
+  const stratOrder = (sym: string) => STRAT_META[symbolToStratType.get(sym) ?? 'other']?.order ?? 8
+  const sortedOptions = [...options].sort((a, b) => {
+    const od = stratOrder(a.symbol) - stratOrder(b.symbol)
+    if (od !== 0) return od
+    return (a.underlyingSymbol ?? a.symbol).localeCompare(b.underlyingSymbol ?? b.symbol)
+  })
 
 
   const TH: React.CSSProperties = {
@@ -391,14 +435,15 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
         )}
 
         {/* Options */}
-        {options.length > 0 && (
+        {sortedOptions.length > 0 && (
           <div>
             <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: '#a855f7', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
-              Options · {options.length} legs
+              Options · {sortedOptions.length} legs
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
+                  <th style={{ ...TH, textAlign: 'left' }}>Strategy</th>
                   <th style={{ ...TH, textAlign: 'left' }}>Description</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Qty</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Mark</th>
@@ -408,48 +453,57 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
                 </tr>
               </thead>
               <tbody>
-                {options.map((p, i) => {
-                  const isShort   = p.quantity < 0
-                  const isCall    = p.putCall === 'C'
-                  const typeColor = isCall ? '#3b82f6' : '#f43f5e'
-                  // IBKR-style: "MSTR Jan18'26 180 CALL"
-                  const underlying = p.underlyingSymbol ?? p.symbol
-                  const expDesc = (() => {
-                    const s = p.expiry ?? ''
-                    const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
-                    if (!m) return s
-                    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-                    return `${MONTHS[parseInt(m[2])-1]}${parseInt(m[3])}'${m[1].slice(2)}`
-                  })()
-                  const strikeDesc = p.strike != null
-                    ? (p.strike % 1 === 0 ? p.strike.toLocaleString() : p.strike.toFixed(2))
-                    : '—'
-                  const description = `${underlying} ${expDesc} ${strikeDesc} ${p.putCall === 'C' ? 'CALL' : p.putCall === 'P' ? 'PUT' : ''}`
-                  return (
-                    <tr key={i} style={{ background: i % 2 ? 'var(--bg-surface)' : 'transparent' }}>
-                      <td style={{ ...TD }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: typeColor, background: `${typeColor}18`, border: `1px solid ${typeColor}35`, borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>
-                            {isShort ? '↓' : '↑'} {isCall ? 'CALL' : 'PUT'}
-                          </span>
-                          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: 'var(--text-1)', fontSize: 13 }}>{description}</span>
-                        </div>
-                      </td>
-                      <td style={{ ...TDR, color: isShort ? '#e05070' : '#34c98a', fontWeight: 600 }}>{p.quantity}</td>
-                      <td style={{ ...TDR, color: 'var(--text-2)' }}>${p.markPrice.toFixed(2)}</td>
-                      <td style={{ ...TDR, color: p.positionValue >= 0 ? 'var(--text-2)' : '#e05070' }}>{fmtDollar(p.positionValue)}</td>
-                      <td style={{ ...TDR, color: 'var(--text-3)' }}>{fmtDollar(p.costBasisMoney)}</td>
-                      <td style={{ ...TDR, fontWeight: 600, color: pnlColor(p.unrealizedPnL) }}>{fmtDollar(p.unrealizedPnL)}</td>
-                    </tr>
-                  )
-                })}
+                {(() => {
+                  let lastStratType = ''
+                  return sortedOptions.map((p, i) => {
+                    const stratType = symbolToStratType.get(p.symbol) ?? 'other'
+                    const meta      = STRAT_META[stratType] ?? STRAT_META.other
+                    const isShort   = p.quantity < 0
+                    const isCall    = p.putCall === 'C'
+                    const typeColor = isCall ? '#3b82f6' : '#f43f5e'
+                    const description = ibkrDesc(p)
+                    const showGroupHeader = stratType !== lastStratType
+                    lastStratType = stratType
+                    return (
+                      <>
+                        {showGroupHeader && (
+                          <tr key={`grp-${stratType}-${i}`} style={{ background: `${meta.color}08` }}>
+                            <td colSpan={7} style={{ ...TD, padding: '5px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: meta.color, borderBottom: `1px solid ${meta.color}30` }}>
+                              ── {meta.label.toUpperCase()}
+                            </td>
+                          </tr>
+                        )}
+                        <tr key={p.symbol} style={{ background: i % 2 ? 'var(--bg-surface)' : 'transparent' }}>
+                          <td style={{ ...TD }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: meta.color, background: `${meta.color}14`, border: `1px solid ${meta.color}33`, borderRadius: 3, padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                              {meta.label}
+                            </span>
+                          </td>
+                          <td style={{ ...TD }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: typeColor, background: `${typeColor}18`, border: `1px solid ${typeColor}35`, borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>
+                                {isShort ? '↓' : '↑'} {isCall ? 'CALL' : 'PUT'}
+                              </span>
+                              <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: 'var(--text-1)', fontSize: 13 }}>{description}</span>
+                            </div>
+                          </td>
+                          <td style={{ ...TDR, color: isShort ? '#e05070' : '#34c98a', fontWeight: 600 }}>{p.quantity}</td>
+                          <td style={{ ...TDR, color: 'var(--text-2)' }}>${p.markPrice.toFixed(2)}</td>
+                          <td style={{ ...TDR, color: p.positionValue >= 0 ? 'var(--text-2)' : '#e05070' }}>{fmtDollar(p.positionValue)}</td>
+                          <td style={{ ...TDR, color: 'var(--text-3)' }}>{fmtDollar(p.costBasisMoney)}</td>
+                          <td style={{ ...TDR, fontWeight: 600, color: pnlColor(p.unrealizedPnL) }}>{fmtDollar(p.unrealizedPnL)}</td>
+                        </tr>
+                      </>
+                    )
+                  })
+                })()}
                 {/* Options totals */}
                 <tr style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
-                  <td colSpan={3} style={{ ...TD, color: 'var(--text-4)' }}>TOTAL OPTIONS</td>
+                  <td colSpan={4} style={{ ...TD, color: 'var(--text-4)' }}>TOTAL OPTIONS</td>
                   <td style={{ ...TDR, fontWeight: 700, color: optionMV >= 0 ? 'var(--text-1)' : '#e05070' }}>{fmtDollar(optionMV)}</td>
                   <td style={TDR}></td>
-                  <td style={{ ...TDR, fontWeight: 700, color: pnlColor(options.reduce((s, p) => s + p.unrealizedPnL, 0)) }}>
-                    {fmtDollar(options.reduce((s, p) => s + p.unrealizedPnL, 0))}
+                  <td style={{ ...TDR, fontWeight: 700, color: pnlColor(sortedOptions.reduce((s, p) => s + p.unrealizedPnL, 0)) }}>
+                    {fmtDollar(sortedOptions.reduce((s, p) => s + p.unrealizedPnL, 0))}
                   </td>
                 </tr>
               </tbody>
