@@ -1,139 +1,202 @@
-import { useState } from 'react'
-import { LayoutDashboard, CalendarDays, Layers, Radar, Zap, ClipboardList, FlaskConical, ChevronLeft, ChevronRight } from 'lucide-react'
+/**
+ * Edgewonk-style left sidebar — primary navigation, expandable Strategies
+ * section, sync status + actions in the bottom block. Collapses to a
+ * hamburger drawer on mobile.
+ */
+import { useState, useRef } from 'react'
+import {
+  LayoutDashboard, Briefcase, CalendarDays, Layers, BookOpen, Radar,
+  FlaskConical, ClipboardList, Menu, X, RefreshCw, Upload, Settings,
+  Sun, Moon, ChevronDown, Pencil,
+} from 'lucide-react'
 import type { SyncStatus } from '../../types'
+import { useThemeStore } from '../../store/themeStore'
+import type { StrategyPage } from '../../App'
 
-export const TAB_IDS = ['portfolio', 'calendar', 'strategies', 'scanner', 'actions', 'plan', 'backtest'] as const
+export const TAB_IDS = ['dashboard', 'portfolio', 'calendar', 'strategies', 'journal', 'scanner', 'plan', 'backtest'] as const
 export type TabId = typeof TAB_IDS[number]
 
-const NAV_ITEMS: { id: TabId; label: string; Icon: React.FC<{ size?: number }> }[] = [
-  { id: 'portfolio',     label: 'Portfolio',     Icon: LayoutDashboard },
-  { id: 'calendar',      label: 'Calendar',      Icon: CalendarDays },
-  { id: 'strategies',    label: 'Strategies',    Icon: Layers },
-  { id: 'scanner',       label: 'Scanner',       Icon: Radar },
-  { id: 'actions',       label: 'Actions',       Icon: Zap },
-  { id: 'plan',          label: 'Plan',          Icon: ClipboardList },
-  { id: 'backtest',      label: 'Backtest',      Icon: FlaskConical },
+const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  { id: 'dashboard',  label: 'Dashboard',  icon: <LayoutDashboard size={17} /> },
+  { id: 'portfolio',  label: 'Portfolio',  icon: <Briefcase size={17} /> },
+  { id: 'calendar',   label: 'Calendar',   icon: <CalendarDays size={17} /> },
+  // strategies rendered separately (expandable)
+  { id: 'journal',    label: 'Journal',    icon: <BookOpen size={17} /> },
+  { id: 'scanner',    label: 'Scanner',    icon: <Radar size={17} /> },
+  { id: 'backtest',   label: 'Backtest',   icon: <FlaskConical size={17} /> },
+  { id: 'plan',       label: 'Plan',       icon: <ClipboardList size={17} /> },
 ]
 
-const SYNC_COLOR: Record<SyncStatus, string> = {
-  idle: 'var(--text-5)', loading: '#F0B429', success: '#2bd97c', error: '#ff4655',
+const STRATEGY_ITEMS: { label: string; page: StrategyPage }[] = [
+  { label: 'Covered Calls',     page: 'covered_calls' },
+  { label: 'Cash Secured Puts', page: 'csp'           },
+  { label: 'LEAP',              page: 'leap'          },
+  { label: 'SPX',               page: 'spx'           },
+  { label: 'Rotation Model',    page: 'rotation'      },
+  { label: 'PTOS',              page: 'ptos'          },
+  { label: 'DCAS',              page: 'dcas'          },
+  { label: 'Profit Taking',     page: 'profit_taking' },
+  { label: 'LILO',              page: 'lilo'          },
+  { label: 'ARB Cloud',         page: 'arb_cloud'     },
+  { label: 'TABI',              page: 'tabi'          },
+]
+
+function relativeTime(ms: number): string {
+  const diff = Date.now() - ms
+  if (diff < 60_000) return 'just now'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
+  return `${Math.floor(diff / 3_600_000)}h ago`
 }
 
-interface SidebarProps {
+interface Props {
   activeTab: TabId
+  stratPage: StrategyPage
   onTabChange: (tab: TabId) => void
+  onStrategySelect: (page: StrategyPage) => void
   actionCount: number
   syncStatus: SyncStatus
+  syncError?: string
+  lastSync?: number
+  hasCredentials: boolean
+  onSyncClick: () => void
+  onXmlUpload: (file: File) => void
+  onOpenSettings: () => void
 }
 
-export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatus }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false)
+export default function Sidebar({
+  activeTab, stratPage, onTabChange, onStrategySelect, actionCount,
+  syncStatus, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings,
+}: Props) {
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [stratOpen, setStratOpen]   = useState(activeTab === 'strategies')
+  const fileRef = useRef<HTMLInputElement>(null)
+  const { theme, toggle } = useThemeStore()
+  const isLoading = syncStatus === 'loading'
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) onXmlUpload(file)
+    e.target.value = ''
+  }
+
+  function selectTab(tab: TabId) {
+    onTabChange(tab)
+    setDrawerOpen(false)
+  }
+
+  function selectStrategy(page: StrategyPage) {
+    onStrategySelect(page)
+    setStratOpen(true)
+    setDrawerOpen(false)
+  }
 
   return (
-    <aside className="app-sidebar" style={{
-      width: collapsed ? 58 : 220,
-      transition: 'width 0.2s ease',
-      background: 'var(--bg-surface)',
-      borderRight: '1px solid var(--border)',
-      display: 'flex', flexDirection: 'column', height: '100vh', flexShrink: 0,
-    }}>
-      {/* Logo + toggle */}
-      <div className="sidebar-logo" style={{
-        height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 16px', borderBottom: '1px solid var(--border)', flexShrink: 0,
-      }}>
-        {!collapsed && (
-          <span style={{
-            fontFamily: "'Rajdhani', sans-serif", fontWeight: 700,
-            fontSize: 16, letterSpacing: 3, color: 'var(--accent)',
-          }}>
-            OPTIONS
-          </span>
-        )}
-        <button onClick={() => setCollapsed(c => !c)} style={{
-          marginLeft: collapsed ? 'auto' : 0,
-          background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-4)',
-          cursor: 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center',
-          borderRadius: 4, transition: 'border-color 0.15s, color 0.15s',
-        }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.color = 'var(--text-2)' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-4)' }}
-        >
-          {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-        </button>
-      </div>
+    <>
+      <aside className={`ew-sidebar${drawerOpen ? ' open' : ''}`}>
+        <div className="ew-logo">
+          <div className="ew-logo-mark">O</div>
+          <div>
+            <div className="ew-logo-name">Options</div>
+            <div className="ew-logo-sub">Trading Journal</div>
+          </div>
+        </div>
 
-      {/* Nav */}
-      <nav style={{ flex: 1, padding: '10px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {NAV_ITEMS.map(({ id, label, Icon }) => {
-          const active = activeTab === id
-          return (
-            <button
-              key={id}
-              onClick={() => onTabChange(id)}
-              data-active={active}
-              style={{
-                display: 'flex', alignItems: 'center',
-                gap: collapsed ? 0 : 12,
-                justifyContent: collapsed ? 'center' : 'flex-start',
-                padding: collapsed ? '11px 0' : '9px 16px',
-                background: active ? 'var(--accent-dim)' : 'transparent',
-                border: 'none',
-                borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent',
-                color: active ? 'var(--accent)' : 'var(--text-4)',
-                cursor: 'pointer', fontFamily: "'Share Tech Mono', sans-serif", fontSize: 13,
-                fontWeight: active ? 600 : 400,
-                letterSpacing: active ? '0.5px' : '0',
-                width: '100%', textAlign: 'left',
-                transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => {
-                if (!active) {
-                  (e.currentTarget as HTMLElement).style.color = 'var(--text-2)'
-                  ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'
-                }
-              }}
-              onMouseLeave={e => {
-                if (!active) {
-                  (e.currentTarget as HTMLElement).style.color = 'var(--text-4)'
-                  ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-                }
-              }}
-            >
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <Icon size={17} />
-                {id === 'actions' && actionCount > 0 && (
-                  <span style={{
-                    position: 'absolute', top: -5, right: -5,
-                    background: '#ff4655', color: '#fff',
-                    fontSize: 9, fontWeight: 700,
-                    minWidth: 13, height: 13, borderRadius: '50%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px',
-                  }}>
-                    {actionCount > 9 ? '9+' : actionCount}
-                  </span>
-                )}
-              </div>
-              <span className="nav-label" style={{ display: collapsed ? 'none' : undefined }}>{label}</span>
+        <nav className="ew-nav">
+          {NAV_ITEMS.slice(0, 3).map(item => (
+            <button key={item.id}
+              className={`ew-nav-item${activeTab === item.id ? ' active' : ''}`}
+              onClick={() => selectTab(item.id)}>
+              {item.icon}
+              <span>{item.label}</span>
+              {item.id === 'dashboard' && actionCount > 0 && (
+                <span className="top-nav-badge">{actionCount > 9 ? '9+' : actionCount}</span>
+              )}
             </button>
-          )
-        })}
-      </nav>
+          ))}
 
-      {/* Sync dot */}
-      <div className="sidebar-sync" style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{
-          width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-          background: SYNC_COLOR[syncStatus],
-          animation: syncStatus === 'loading' ? 'pulse 1s ease-in-out infinite' : 'none',
-          boxShadow: syncStatus === 'success' ? '0 0 6px rgba(0,208,132,0.4)' : 'none',
-        }} />
-        {!collapsed && (
-          <span style={{ fontSize: 11, color: 'var(--text-4)', letterSpacing: 1.5, fontWeight: 500 }}>
-            {syncStatus === 'success' ? 'SYNCED' : syncStatus === 'loading' ? 'SYNCING…' : syncStatus === 'error' ? 'ERROR' : 'NO DATA'}
-          </span>
-        )}
+          {/* Strategies — expandable section */}
+          <button
+            className={`ew-nav-item${activeTab === 'strategies' ? ' active' : ''}`}
+            onClick={() => {
+              if (activeTab !== 'strategies') selectStrategy('overview')
+              else setStratOpen(o => !o)
+            }}>
+            <Layers size={17} />
+            <span>Strategies</span>
+            <ChevronDown size={14} className={`ew-chev${stratOpen ? ' open' : ''}`} />
+          </button>
+          {stratOpen && (
+            <div className="ew-nav-sub">
+              <button
+                className={`ew-nav-subitem${activeTab === 'strategies' && stratPage === 'overview' ? ' active' : ''}`}
+                onClick={() => selectStrategy('overview')}>
+                All Strategies
+              </button>
+              <button
+                className={`ew-nav-subitem${activeTab === 'strategies' && stratPage === 'label_trades' ? ' active' : ''}`}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                onClick={() => selectStrategy('label_trades')}>
+                <Pencil size={11} /> Label Trades
+              </button>
+              {STRATEGY_ITEMS.map(item => (
+                <button key={item.page}
+                  className={`ew-nav-subitem${activeTab === 'strategies' && stratPage === item.page ? ' active' : ''}`}
+                  onClick={() => selectStrategy(item.page)}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {NAV_ITEMS.slice(3).map(item => (
+            <button key={item.id}
+              className={`ew-nav-item${activeTab === item.id ? ' active' : ''}`}
+              onClick={() => selectTab(item.id)}>
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="ew-side-bottom">
+          <div className="ew-sync-row">
+            <span className="ew-sync-dot" data-status={syncStatus} />
+            <span>{syncStatus === 'loading' ? 'Syncing…' : lastSync ? `Synced ${relativeTime(lastSync)}` : 'Not synced'}</span>
+          </div>
+          <div className="ew-icon-row">
+            <label className="ew-icon-btn" title="Upload Flex XML">
+              <Upload size={14} />
+              <input ref={fileRef} type="file" accept=".xml" style={{ display: 'none' }} onChange={handleFile} />
+            </label>
+            <button
+              className="ew-icon-btn"
+              onClick={onSyncClick}
+              disabled={isLoading || !hasCredentials}
+              title={!hasCredentials ? 'Configure credentials first' : 'Sync from IBKR'}>
+              <RefreshCw size={14} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
+            </button>
+            <button className="ew-icon-btn" onClick={onOpenSettings} title="Settings"
+              style={{ color: hasCredentials ? '#10b981' : undefined }}>
+              <Settings size={14} />
+            </button>
+            <button className="ew-icon-btn" onClick={toggle} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {drawerOpen && <div className="ew-drawer-overlay" onClick={() => setDrawerOpen(false)} />}
+
+      {/* Fixed mobile top bar — hidden on desktop */}
+      <div className="ew-mobilebar">
+        <button className="ew-burger" onClick={() => setDrawerOpen(o => !o)} aria-label="Menu">
+          {drawerOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
+        <div className="ew-logo-mark" style={{ width: 26, height: 26, fontSize: 13 }}>O</div>
+        <span className="ew-logo-name" style={{ fontSize: 14 }}>Options</span>
+        <span className="ew-sync-dot" data-status={syncStatus} style={{ marginLeft: 'auto' }} />
       </div>
-    </aside>
+    </>
   )
 }

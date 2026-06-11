@@ -114,7 +114,7 @@ function ActionsSidebar({ state }: { state: AppState }) {
                   <div key={a.id} className="db-action-card" style={{ borderLeft: `3px solid ${cfg.color}` }}>
                     {/* Ticker + strategy + action */}
                     <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-1)' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)' }}>
                         {a.underlying}
                       </span>
                       <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', color: sColor, background: `${sColor}14`, border: `1px solid ${sColor}30` }}>
@@ -127,7 +127,7 @@ function ActionsSidebar({ state }: { state: AppState }) {
                     {/* Position identifier — which exact position */}
                     {a.legSummary && (
                       <div style={{
-                        fontSize: 11, fontFamily: 'Share Tech Mono, monospace', fontWeight: 600,
+                        fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600,
                         color: cfg.color, background: `${cfg.color}10`,
                         border: `1px solid ${cfg.color}28`, borderRadius: 4,
                         padding: '2px 6px', marginBottom: 5, display: 'inline-block',
@@ -145,22 +145,22 @@ function ActionsSidebar({ state }: { state: AppState }) {
                     {(a.suggestedStrike || a.suggestedExpiry || a.suggestedDelta || a.estimatedCredit != null) && (
                       <div style={{ display: 'flex', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
                         {a.suggestedStrike && (
-                          <span style={{ fontSize: 10, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-4)' }}>
+                          <span style={{ fontSize: 10, fontFamily: 'Inter, sans-serif', color: 'var(--text-4)' }}>
                             strike <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>${a.suggestedStrike}</span>
                           </span>
                         )}
                         {a.suggestedDelta && (
-                          <span style={{ fontSize: 10, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-4)' }}>
+                          <span style={{ fontSize: 10, fontFamily: 'Inter, sans-serif', color: 'var(--text-4)' }}>
                             δ <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>{a.suggestedDelta.toFixed(2)}</span>
                           </span>
                         )}
                         {a.suggestedExpiry && (
-                          <span style={{ fontSize: 10, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-4)' }}>
+                          <span style={{ fontSize: 10, fontFamily: 'Inter, sans-serif', color: 'var(--text-4)' }}>
                             exp <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>{a.suggestedExpiry}</span>
                           </span>
                         )}
                         {a.estimatedCredit != null && (
-                          <span style={{ fontSize: 10, fontFamily: 'Share Tech Mono, monospace', color: '#10b981', fontWeight: 700 }}>
+                          <span style={{ fontSize: 10, fontFamily: 'Inter, sans-serif', color: '#10b981', fontWeight: 700 }}>
                             est. ${a.estimatedCredit.toFixed(2)}
                           </span>
                         )}
@@ -249,26 +249,26 @@ function IncomeChannelStrip({ trades, labels }: { trades: RawTrade[]; labels: Re
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Open</span>
-                <span style={{ fontSize: 12, fontFamily: 'Share Tech Mono, monospace', fontWeight: 600, color: openPrem >= 0 ? '#10b981' : '#f43f5e' }}>
+                <span style={{ fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, color: openPrem >= 0 ? '#10b981' : '#f43f5e' }}>
                   {fmtDollar(openPrem)}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Realized</span>
-                <span style={{ fontSize: 12, fontFamily: 'Share Tech Mono, monospace', fontWeight: 600, color: realizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
+                <span style={{ fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, color: realizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
                   {fmtDollar(realizedPnL)}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Total</span>
-                <span style={{ fontSize: 13, fontFamily: 'Share Tech Mono, monospace', fontWeight: 700, color: totalPnL >= 0 ? '#10b981' : '#f43f5e' }}>
+                <span style={{ fontSize: 13, fontFamily: 'Inter, sans-serif', fontWeight: 700, color: totalPnL >= 0 ? '#10b981' : '#f43f5e' }}>
                   {fmtDollar(totalPnL)}
                 </span>
               </div>
               {sells.length > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid var(--border)', paddingTop: 3, marginTop: 2 }}>
                   <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Win</span>
-                  <span style={{ fontSize: 11, fontFamily: 'Share Tech Mono, monospace', color: winRate >= 70 ? '#10b981' : winRate >= 50 ? '#f59e0b' : '#f43f5e' }}>
+                  <span style={{ fontSize: 11, fontFamily: 'Inter, sans-serif', color: winRate >= 70 ? '#10b981' : winRate >= 50 ? '#f59e0b' : '#f43f5e' }}>
                     {winRate.toFixed(0)}%
                   </span>
                 </div>
@@ -323,7 +323,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
   const netLiq   = netLiquidation ?? (stockMV + optionMV + cashBalance)
   const totalUnrealized = stocks.reduce((s, p) => s + p.unrealizedPnL, 0)
 
-  const pnlColor = (n: number) => n >= 0 ? '#2bd97c' : '#ff4655'
+  const pnlColor = (n: number) => n >= 0 ? '#10b981' : '#ef4444'
 
   // Build symbol → strategyType map from classifier output
   const symbolToStratType = new Map<string, string>()
@@ -349,7 +349,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
     position: 'sticky', top: 0, zIndex: 2,
   }
   const TD: React.CSSProperties = {
-    padding: '8px 12px', fontSize: 13, fontFamily: 'Share Tech Mono, monospace',
+    padding: '8px 12px', fontSize: 13, fontFamily: 'Inter, sans-serif',
     borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
   }
   const TDR = { ...TD, textAlign: 'right' as const }
@@ -373,7 +373,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
             borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
           }}>
             <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'Rajdhani, sans-serif', color }}>{value}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
           </div>
         ))}
       </div>
@@ -484,12 +484,12 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
                               <span style={{ fontSize: 10, fontWeight: 700, color: typeColor, background: `${typeColor}18`, border: `1px solid ${typeColor}35`, borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>
                                 {isShort ? '↓' : '↑'} {isCall ? 'CALL' : 'PUT'}
                               </span>
-                              <span style={{ fontFamily: 'Share Tech Mono, monospace', fontWeight: 600, color: 'var(--text-1)', fontSize: 13 }}>{description}</span>
+                              <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600, color: 'var(--text-1)', fontSize: 13 }}>{description}</span>
                             </div>
                           </td>
-                          <td style={{ ...TDR, color: isShort ? '#ff4655' : '#2bd97c', fontWeight: 600 }}>{p.quantity}</td>
+                          <td style={{ ...TDR, color: isShort ? '#ef4444' : '#10b981', fontWeight: 600 }}>{p.quantity}</td>
                           <td style={{ ...TDR, color: 'var(--text-2)' }}>${p.markPrice.toFixed(2)}</td>
-                          <td style={{ ...TDR, color: p.positionValue >= 0 ? 'var(--text-2)' : '#ff4655' }}>{fmtDollar(p.positionValue)}</td>
+                          <td style={{ ...TDR, color: p.positionValue >= 0 ? 'var(--text-2)' : '#ef4444' }}>{fmtDollar(p.positionValue)}</td>
                           <td style={{ ...TDR, color: 'var(--text-3)' }}>{fmtDollar(p.costBasisMoney)}</td>
                           <td style={{ ...TDR, fontWeight: 600, color: pnlColor(p.unrealizedPnL) }}>{fmtDollar(p.unrealizedPnL)}</td>
                         </tr>
@@ -500,7 +500,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
                 {/* Options totals */}
                 <tr style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
                   <td colSpan={4} style={{ ...TD, color: 'var(--text-4)' }}>TOTAL OPTIONS</td>
-                  <td style={{ ...TDR, fontWeight: 700, color: optionMV >= 0 ? 'var(--text-1)' : '#ff4655' }}>{fmtDollar(optionMV)}</td>
+                  <td style={{ ...TDR, fontWeight: 700, color: optionMV >= 0 ? 'var(--text-1)' : '#ef4444' }}>{fmtDollar(optionMV)}</td>
                   <td style={TDR}></td>
                   <td style={{ ...TDR, fontWeight: 700, color: pnlColor(sortedOptions.reduce((s, p) => s + p.unrealizedPnL, 0)) }}>
                     {fmtDollar(sortedOptions.reduce((s, p) => s + p.unrealizedPnL, 0))}
@@ -513,14 +513,14 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
 
         {/* Cash */}
         <div>
-          <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: '#2bd97c', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+          <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: '#10b981', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
             Cash
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
               <tr>
                 <td style={{ ...TD, color: 'var(--text-2)', width: 160 }}>Base (USD equiv.)</td>
-                <td style={{ ...TDR, fontWeight: 700, color: '#2bd97c' }}>{fmtDollar(cashBalance)}</td>
+                <td style={{ ...TDR, fontWeight: 700, color: '#10b981' }}>{fmtDollar(cashBalance)}</td>
               </tr>
             </tbody>
           </table>
@@ -536,12 +536,12 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
             ].map(({ label, value }) => (
               <div key={label}>
                 <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
-                <div style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 13, fontWeight: 600, color: value >= 0 ? 'var(--text-2)' : '#ff4655' }}>{fmtDollar(value)}</div>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: value >= 0 ? 'var(--text-2)' : '#ef4444' }}>{fmtDollar(value)}</div>
               </div>
             ))}
             <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
               <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 2 }}>Net Liquidation</div>
-              <div style={{ fontFamily: 'Rajdhani, sans-serif', fontSize: 18, fontWeight: 700, color: 'var(--text-1)' }}>{fmtDollar(netLiq)}</div>
+              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 18, fontWeight: 700, color: 'var(--text-1)' }}>{fmtDollar(netLiq)}</div>
             </div>
           </div>
         </div>

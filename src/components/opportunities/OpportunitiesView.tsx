@@ -110,7 +110,7 @@ const GRID = '18px 1fr 44px 34px 44px 48px 40px 34px'
 function OptionRow({ r, rank }: { r: ScanResult; rank: number }) {
   const ty = tradeYield(r)
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 4, alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Share Tech Mono, monospace' }}
+    <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 4, alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif' }}
       title={`Annualized: ${r.annualizedYield.toFixed(0)}% · OI: ${r.openInterest} · V/OI: ${r.volumeOiRatio.toFixed(2)}`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>${r.strike}</span>
@@ -119,7 +119,7 @@ function OptionRow({ r, rank }: { r: ScanResult; rank: number }) {
       <span style={{ color: deltaColor(r.delta), textAlign: 'right' }}>{r.delta.toFixed(2)}</span>
       <span style={{ color: '#10b981', textAlign: 'right' }}>${r.mid.toFixed(2)}</span>
       <span style={{ color: ty >= 1 ? '#10b981' : 'var(--text-3)', fontWeight: 600, textAlign: 'right' }}>{ty.toFixed(1)}%</span>
-      <span style={{ color: scoreColor(r.score), fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", textAlign: 'right' }}>{r.score}</span>
+      <span style={{ color: scoreColor(r.score), fontWeight: 700, fontFamily: "'Inter', sans-serif", textAlign: 'right' }}>{r.score}</span>
     </div>
   )
 }
@@ -141,10 +141,10 @@ function StrategySection({ label, color, items }: { label: string; color: string
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-        <span style={{ padding: '1px 6px', fontSize: 9, fontWeight: 700, background: `${color}15`, border: `1px solid ${color}40`, color, fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.5px' }}>{label}</span>
-        <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Share Tech Mono, monospace' }}>TOP {items.length}</span>
+        <span style={{ padding: '1px 6px', fontSize: 9, fontWeight: 700, background: `${color}15`, border: `1px solid ${color}40`, color, fontFamily: "'Inter', sans-serif", letterSpacing: '0.5px' }}>{label}</span>
+        <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>TOP {items.length}</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 3 }}>
-          {flags.map(f => <span key={f} style={{ padding: '0 4px', fontSize: 8, fontWeight: 700, background: `${FLAG_COLORS[f]}12`, color: FLAG_COLORS[f], fontFamily: "'Rajdhani', sans-serif" }}>{FLAG_LABELS[f]}</span>)}
+          {flags.map(f => <span key={f} style={{ padding: '0 4px', fontSize: 8, fontWeight: 700, background: `${FLAG_COLORS[f]}12`, color: FLAG_COLORS[f], fontFamily: "'Inter', sans-serif" }}>{FLAG_LABELS[f]}</span>)}
         </div>
       </div>
       <MiniHeader />
@@ -153,8 +153,8 @@ function StrategySection({ label, color, items }: { label: string; color: string
   )
 }
 
-const inputStyle: React.CSSProperties = { width: 54, padding: '3px 6px', fontSize: 11, textAlign: 'right', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Share Tech Mono, monospace', outline: 'none', borderRadius: 3 }
-const labelStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text-3)', fontFamily: 'Share Tech Mono, monospace' }
+const inputStyle: React.CSSProperties = { width: 54, padding: '3px 6px', fontSize: 11, textAlign: 'right', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }
+const labelStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text-3)', fontFamily: 'Inter, sans-serif' }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -232,9 +232,9 @@ export default function OpportunitiesView({ state }: Props) {
         <button onClick={handleScan} disabled={scanning} style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600,
           background: scanning ? 'var(--bg-elevated)' : 'var(--accent-dim)',
-          border: `1px solid ${scanning ? 'var(--border)' : 'rgba(0,229,255,0.25)'}`,
+          border: `1px solid ${scanning ? 'var(--border)' : 'rgba(16,185,129,0.25)'}`,
           color: scanning ? 'var(--text-3)' : 'var(--accent)', cursor: scanning ? 'not-allowed' : 'pointer',
-          fontFamily: "'Rajdhani', sans-serif", letterSpacing: '1px', textTransform: 'uppercase',
+          fontFamily: "'Inter', sans-serif", letterSpacing: '1px', textTransform: 'uppercase',
         }}>
           <Scan size={12} style={{ animation: scanning ? 'spin 1.5s linear infinite' : 'none' }} />
           {scanning ? 'Scanning…' : 'Scan'}
@@ -244,13 +244,13 @@ export default function OpportunitiesView({ state }: Props) {
           onChange={e => setTickerInput(e.target.value.toUpperCase())}
           onKeyDown={e => e.key === 'Enter' && addTicker()}
           placeholder="+ TICKER"
-          style={{ width: 80, padding: '5px 8px', fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Share Tech Mono, monospace', outline: 'none', borderRadius: 3 }}
+          style={{ width: 80, padding: '5px 8px', fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }}
         />
 
-        {scanning && <span style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'Share Tech Mono, monospace', animation: 'pulse 2s infinite' }}>{scanProgress || 'Initializing…'}</span>}
+        {scanning && <span style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'Inter, sans-serif', animation: 'pulse 2s infinite' }}>{scanProgress || 'Initializing…'}</span>}
 
         {scanned && (
-          <span style={{ fontSize: 11, color: 'var(--text-4)', marginLeft: 'auto', fontFamily: 'Share Tech Mono, monospace' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-4)', marginLeft: 'auto', fontFamily: 'Inter, sans-serif' }}>
             {filtered.length} results · {cards.length} tickers{mode !== 'all' ? ` · ${meta.label}` : ''}
           </span>
         )}
@@ -258,7 +258,7 @@ export default function OpportunitiesView({ state }: Props) {
 
       {/* ── PutHouse mode picker ────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 2, fontFamily: "'Rajdhani', sans-serif", marginRight: 2 }}>PUTHOUSE</span>
+        <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 2, fontFamily: "'Inter', sans-serif", marginRight: 2 }}>PUTHOUSE</span>
         {(Object.keys(MODE_META) as PutHouseMode[]).map(id => {
           const m = MODE_META[id]; const active = mode === id
           return (
@@ -266,7 +266,7 @@ export default function OpportunitiesView({ state }: Props) {
               padding: '5px 12px', borderRadius: 4, cursor: 'pointer', textAlign: 'left',
               border: `1px solid ${active ? m.color : 'var(--border)'}`,
               background: active ? `${m.color}18` : 'var(--bg-elevated)',
-              fontFamily: "'Rajdhani', sans-serif", textTransform: 'uppercase',
+              fontFamily: "'Inter', sans-serif", textTransform: 'uppercase',
             }}>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.5px', color: active ? m.color : 'var(--text-3)' }}>{m.label}</div>
               <div style={{ fontSize: 9, marginTop: 1, color: active ? m.color + 'aa' : 'var(--text-5)' }}>{m.sub}</div>
@@ -274,7 +274,7 @@ export default function OpportunitiesView({ state }: Props) {
           )
         })}
         {activeCfg && mode !== 'custom' && (
-          <span style={{ marginLeft: 6, fontSize: 11, color: meta.color, fontFamily: 'Share Tech Mono, monospace', fontWeight: 600 }}>
+          <span style={{ marginLeft: 6, fontSize: 11, color: meta.color, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
             {activeCfg.targetMonthlyPct[0]}–{activeCfg.targetMonthlyPct[1]}%/mo target
           </span>
         )}
@@ -283,7 +283,7 @@ export default function OpportunitiesView({ state }: Props) {
       {/* ── Custom controls ─────────────────────────────────────────────────── */}
       {mode === 'custom' && (
         <div style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid #a855f740', borderRadius: 6, flexShrink: 0, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#a855f7', letterSpacing: 2, fontFamily: "'Rajdhani', sans-serif" }}>PARAMS</span>
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#a855f7', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>PARAMS</span>
           <label style={labelStyle}>Δ min <input type="number" value={customCfg.deltaMin} step={0.01} min={0.01} max={0.49} onChange={e => updateCustom({ deltaMin: +e.target.value })} style={inputStyle} /></label>
           <label style={labelStyle}>Δ max <input type="number" value={customCfg.deltaMax} step={0.01} min={0.02} max={0.55} onChange={e => updateCustom({ deltaMax: +e.target.value })} style={inputStyle} /></label>
           <label style={labelStyle}>DTE min <input type="number" value={customCfg.dteMin} step={1} min={1} max={59} onChange={e => updateCustom({ dteMin: +e.target.value })} style={inputStyle} /></label>
@@ -295,9 +295,9 @@ export default function OpportunitiesView({ state }: Props) {
       {/* ── Custom tickers ──────────────────────────────────────────────────── */}
       {customTickers.length > 0 && (
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flexShrink: 0, alignItems: 'center' }}>
-          <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Rajdhani', sans-serif" }}>CUSTOM:</span>
+          <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif" }}>CUSTOM:</span>
           {customTickers.map(sym => (
-            <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid rgba(0,229,255,0.2)', color: 'var(--accent)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Share Tech Mono, monospace' }}>
+            <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid rgba(16,185,129,0.2)', color: 'var(--accent)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
               {sym} <span style={{ color: 'var(--text-4)', fontSize: 8 }}>&times;</span>
             </button>
           ))}
@@ -311,7 +311,7 @@ export default function OpportunitiesView({ state }: Props) {
       {scanning && !scanned && (
         <div style={{ textAlign: 'center', paddingTop: 60 }}>
           <div className="chakra" style={{ fontSize: 15, color: 'var(--text-2)', letterSpacing: '1px' }}>SCANNING {tickers.length} TICKERS</div>
-          <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 6, fontFamily: 'Share Tech Mono, monospace' }}>Parallel fetch · CBOE delayed quotes</div>
+          <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 6, fontFamily: 'Inter, sans-serif' }}>Parallel fetch · CBOE delayed quotes</div>
           <div style={{ width: 160, height: 3, background: 'var(--border)', borderRadius: 2, margin: '14px auto', overflow: 'hidden' }}>
             <div style={{ height: '100%', background: 'var(--accent)', animation: 'pulse 1.5s ease-in-out infinite', width: '60%', borderRadius: 2 }} />
           </div>
@@ -322,11 +322,11 @@ export default function OpportunitiesView({ state }: Props) {
         <div style={{ textAlign: 'center', paddingTop: 60 }}>
           <Activity size={28} style={{ color: 'var(--text-5)', marginBottom: 10 }} />
           <div className="chakra" style={{ fontSize: 15, color: 'var(--text-2)', letterSpacing: '1px' }}>OPTIONS SCANNER</div>
-          <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 6, fontFamily: 'Share Tech Mono, monospace', lineHeight: 1.8 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 6, fontFamily: 'Inter, sans-serif', lineHeight: 1.8 }}>
             {tickers.length} tickers · CSP &amp; CC · Mode: {meta.label}
           </div>
-          <div style={{ fontSize: 11, color: meta.color, marginTop: 2, fontFamily: 'Share Tech Mono, monospace' }}>{meta.sub}</div>
-          <button onClick={handleScan} style={{ marginTop: 16, padding: '8px 24px', fontSize: 13, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid rgba(0,229,255,0.25)', color: 'var(--accent)', cursor: 'pointer', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: 11, color: meta.color, marginTop: 2, fontFamily: 'Inter, sans-serif' }}>{meta.sub}</div>
+          <button onClick={handleScan} style={{ marginTop: 16, padding: '8px 24px', fontSize: 13, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid rgba(16,185,129,0.25)', color: 'var(--accent)', cursor: 'pointer', fontFamily: "'Inter', sans-serif", letterSpacing: '1.5px', textTransform: 'uppercase' }}>
             START SCAN
           </button>
         </div>
@@ -335,8 +335,8 @@ export default function OpportunitiesView({ state }: Props) {
       {scanned && !scanning && cards.length === 0 && (
         <div style={{ textAlign: 'center', paddingTop: 40 }}>
           <div className="chakra" style={{ fontSize: 13, color: 'var(--text-3)', letterSpacing: '1px' }}>NO RESULTS FOR {meta.label}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 6, fontFamily: 'Share Tech Mono, monospace' }}>{meta.sub}</div>
-          <button onClick={() => saveMode('all')} style={{ marginTop: 12, padding: '5px 14px', fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', fontFamily: "'Rajdhani', sans-serif" }}>
+          <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 6, fontFamily: 'Inter, sans-serif' }}>{meta.sub}</div>
+          <button onClick={() => saveMode('all')} style={{ marginTop: 12, padding: '5px 14px', fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', fontFamily: "'Inter', sans-serif" }}>
             SWITCH TO ALL
           </button>
         </div>
@@ -350,33 +350,33 @@ export default function OpportunitiesView({ state }: Props) {
             const hasData = card.topCsp.length > 0 || card.topCc.length > 0
             const shares = stocksHeld[card.symbol] ?? 0
             return (
-              <div key={card.symbol} style={{ width: CARD_W, minWidth: CARD_W, maxWidth: CARD_W, background: 'var(--bg-card)', border: `1px solid ${idx < 3 && hasData ? 'rgba(0,229,255,0.15)' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+              <div key={card.symbol} style={{ width: CARD_W, minWidth: CARD_W, maxWidth: CARD_W, background: 'var(--bg-card)', border: `1px solid ${idx < 3 && hasData ? 'rgba(16,185,129,0.15)' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
 
                 <div onClick={() => hasData && toggleCollapse(card.symbol)}
                   style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: hasData ? 'pointer' : 'default', background: 'var(--bg-surface)', borderBottom: isCollapsed || !hasData ? 'none' : '1px solid var(--border)', userSelect: 'none' }}>
-                  {hasData && <span style={{ fontSize: 9, fontWeight: 700, color: idx < 3 ? 'var(--accent)' : 'var(--text-5)', fontFamily: "'Rajdhani', sans-serif", minWidth: 16 }}>#{idx + 1}</span>}
-                  <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 15, fontWeight: 700, color: idx === 0 && hasData ? 'var(--accent)' : hasData ? 'var(--text-1)' : 'var(--text-4)', letterSpacing: '1px' }}>{card.symbol}</span>
-                  {card.price > 0 && <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'Share Tech Mono, monospace' }}>${card.price.toFixed(2)}</span>}
-                  {shares > 0 && <span style={{ padding: '1px 5px', fontSize: 9, fontWeight: 700, background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', fontFamily: "'Rajdhani', sans-serif" }}>{shares} SHR</span>}
+                  {hasData && <span style={{ fontSize: 9, fontWeight: 700, color: idx < 3 ? 'var(--accent)' : 'var(--text-5)', fontFamily: "'Inter', sans-serif", minWidth: 16 }}>#{idx + 1}</span>}
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 15, fontWeight: 700, color: idx === 0 && hasData ? 'var(--accent)' : hasData ? 'var(--text-1)' : 'var(--text-4)', letterSpacing: '1px' }}>{card.symbol}</span>
+                  {card.price > 0 && <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'Inter, sans-serif' }}>${card.price.toFixed(2)}</span>}
+                  {shares > 0 && <span style={{ padding: '1px 5px', fontSize: 9, fontWeight: 700, background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', fontFamily: "'Inter', sans-serif" }}>{shares} SHR</span>}
                   <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
                     {hasData ? (
                       <>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 7, color: 'var(--text-4)', letterSpacing: '1px', fontWeight: 600 }}>SCORE</div>
-                          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 14, fontWeight: 700, color: scoreColor(card.bestScore) }}>{card.bestScore}</div>
+                          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 700, color: scoreColor(card.bestScore) }}>{card.bestScore}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 7, color: 'var(--text-4)', letterSpacing: '1px', fontWeight: 600 }}>IV</div>
-                          <div style={{ fontSize: 13, color: 'var(--text-2)', fontFamily: 'Share Tech Mono, monospace' }}>{card.avgIv.toFixed(0)}%</div>
+                          <div style={{ fontSize: 13, color: 'var(--text-2)', fontFamily: 'Inter, sans-serif' }}>{card.avgIv.toFixed(0)}%</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 7, color: 'var(--text-4)', letterSpacing: '1px', fontWeight: 600 }}>OPTS</div>
-                          <div style={{ fontSize: 13, color: 'var(--text-3)', fontFamily: 'Share Tech Mono, monospace' }}>{card.totalContracts}</div>
+                          <div style={{ fontSize: 13, color: 'var(--text-3)', fontFamily: 'Inter, sans-serif' }}>{card.totalContracts}</div>
                         </div>
                         {isCollapsed ? <ChevronDown size={14} style={{ color: 'var(--text-4)' }} /> : <ChevronUp size={14} style={{ color: 'var(--text-4)' }} />}
                       </>
                     ) : (
-                      <span style={{ fontSize: 10, color: 'var(--text-5)', fontFamily: 'Share Tech Mono, monospace' }}>NO DATA</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-5)', fontFamily: 'Inter, sans-serif' }}>NO DATA</span>
                     )}
                   </div>
                 </div>

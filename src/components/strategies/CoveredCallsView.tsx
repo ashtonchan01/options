@@ -203,10 +203,10 @@ function TradeTable({ trades }: { trades: RawTrade[] }) {
                 <td className="mono" style={{ color: 'var(--text-3)', whiteSpace: 'nowrap', fontSize: 12 }}>
                   {fmtDate(t.tradeDate)}
                 </td>
-                <td style={{ fontWeight: 700, color: expired ? 'var(--text-4)' : 'var(--text-1)', fontFamily: 'Share Tech Mono, monospace' }}>
+                <td style={{ fontWeight: 700, color: expired ? 'var(--text-4)' : 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>
                   {t.underlyingSymbol ?? '—'}
                 </td>
-                <td style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 11, color: 'var(--text-4)' }}>
+                <td style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-4)' }}>
                   {t.symbol}
                 </td>
                 <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>

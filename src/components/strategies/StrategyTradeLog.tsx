@@ -417,7 +417,7 @@ function PositionTable({ positions, strategyId }: { positions: Position[]; strat
             return (
               <tr key={p.id}>
                 <td className="mono" style={{ textAlign: 'center', color: 'var(--text-5)', fontSize: 11 }}>{i + 1}</td>
-                <td style={{ fontWeight: 700, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-1)' }}>{p.underlying}</td>
+                <td style={{ fontWeight: 700, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)' }}>{p.underlying}</td>
                 <td className="mono" style={{ color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtDate(p.dateOpen)}</td>
                 <td style={{ textAlign: 'center' }}>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px',

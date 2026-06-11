@@ -66,7 +66,7 @@ function SummaryBar({ actions }: { actions: Action[] }) {
               {cfg.label}
             </span>
             <span style={{
-              fontSize: 15, fontWeight: 700, fontFamily: 'Share Tech Mono, monospace',
+              fontSize: 15, fontWeight: 700, fontFamily: 'Inter, sans-serif',
               color: count > 0 ? cfg.color : 'var(--text-5)',
             }}>
               {count}
@@ -99,7 +99,7 @@ function ActionCard({ a }: { a: Action }) {
       {/* ── Row 1: ticker + strategy + action + urgency ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{
-          fontSize: 17, fontWeight: 800, fontFamily: 'Share Tech Mono, monospace',
+          fontSize: 17, fontWeight: 800, fontFamily: 'Inter, sans-serif',
           color: 'var(--text-1)', marginRight: 2,
         }}>
           {a.underlying}
@@ -142,7 +142,7 @@ function ActionCard({ a }: { a: Action }) {
       {/* ── Row 2: position identifier (which exact position) ── */}
       {a.legSummary && (
         <div style={{
-          fontSize: 12, fontFamily: 'Share Tech Mono, monospace',
+          fontSize: 12, fontFamily: 'Inter, sans-serif',
           fontWeight: 600, color: urg.color,
           background: `${urg.color}0e`,
           border: `1px solid ${urg.color}28`,
@@ -183,25 +183,25 @@ function ActionCard({ a }: { a: Action }) {
           {a.suggestedStrike && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <span style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Suggested Strike</span>
-              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-1)' }}>${a.suggestedStrike}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)' }}>${a.suggestedStrike}</span>
             </div>
           )}
           {a.suggestedDelta && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <span style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Target Delta</span>
-              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-1)' }}>{a.suggestedDelta.toFixed(2)}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)' }}>{a.suggestedDelta.toFixed(2)}</span>
             </div>
           )}
           {a.suggestedExpiry && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <span style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Suggested Expiry</span>
-              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-1)' }}>{a.suggestedExpiry}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)' }}>{a.suggestedExpiry}</span>
             </div>
           )}
           {a.estimatedCredit && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <span style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Est. Credit</span>
-              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'Share Tech Mono, monospace', color: '#10b981' }}>${a.estimatedCredit.toFixed(2)}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: '#10b981' }}>${a.estimatedCredit.toFixed(2)}</span>
             </div>
           )}
         </div>
@@ -224,7 +224,7 @@ function SectionHeader({ urgency, count }: { urgency: UrgencyLevel; count: numbe
         {cfg.label}
       </span>
       <span style={{
-        fontSize: 12, fontWeight: 700, fontFamily: 'Share Tech Mono, monospace',
+        fontSize: 12, fontWeight: 700, fontFamily: 'Inter, sans-serif',
         color: cfg.color, background: `${cfg.color}18`,
         border: `1px solid ${cfg.color}40`,
         borderRadius: 4, padding: '1px 7px',

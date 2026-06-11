@@ -66,13 +66,13 @@ function PieChart({ slices, title, size = 200 }: {
         ))}
         {arcs.filter(a => a.pct >= 0.04).map((a, i) => (
           <text key={`l-${i}`} x={a.lx} y={a.ly} textAnchor="middle" dominantBaseline="middle"
-            fill="#fff" fontSize={9} fontWeight={700} fontFamily="Share Tech Mono, monospace">
+            fill="#fff" fontSize={9} fontWeight={700} fontFamily="Inter, sans-serif">
             {a.label}
           </text>
         ))}
         {arcs.filter(a => a.pct >= 0.04).map((a, i) => (
           <text key={`p-${i}`} x={a.lx} y={a.ly + 11} textAnchor="middle" dominantBaseline="middle"
-            fill="rgba(255,255,255,0.7)" fontSize={8} fontFamily="Share Tech Mono, monospace">
+            fill="rgba(255,255,255,0.7)" fontSize={8} fontFamily="Inter, sans-serif">
             {(a.pct * 100).toFixed(1)}%
           </text>
         ))}
@@ -194,7 +194,7 @@ const sectionTh: React.CSSProperties = {
 
 const tdStyle: React.CSSProperties = {
   padding: '5px 10px', fontSize: 12,
-  fontFamily: 'Share Tech Mono, monospace',
+  fontFamily: 'Inter, sans-serif',
   textAlign: 'right', whiteSpace: 'nowrap',
   borderBottom: '1px solid var(--border-light)',
 }
@@ -259,7 +259,7 @@ export default function PortfolioView({ state }: { state: AppState }) {
             borderRadius: 8, padding: '10px 16px',
           }}>
             <div style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Share Tech Mono, monospace', color }}>{value}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
           </div>
         ))}
       </div>
@@ -431,7 +431,7 @@ export default function PortfolioView({ state }: { state: AppState }) {
                 <div key={a.label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <div style={{ width: 8, height: 8, borderRadius: 2, background: a.color, flexShrink: 0 }} />
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', minWidth: 120 }}>{a.label}</span>
-                  <span style={{ fontSize: 12, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-1)', fontWeight: 700 }}>{a.pct}%</span>
+                  <span style={{ fontSize: 12, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)', fontWeight: 700 }}>{a.pct}%</span>
                 </div>
               ))}
             </div>

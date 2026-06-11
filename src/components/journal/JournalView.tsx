@@ -33,7 +33,7 @@ function fmtMonth(ym: string) {
 }
 
 function pnlCls(n: number) { return n > 0 ? 'pos' : n < 0 ? 'neg' : 'neu' }
-function pnlColor(n: number) { return n > 0 ? '#2bd97c' : n < 0 ? '#ff4655' : 'var(--text-4)' }
+function pnlColor(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'var(--text-4)' }
 
 const LABEL_SHORT: Record<string, string> = {
   covered_calls: 'CC', csp: 'CSP', leap: 'LEAP', spx: 'SPX', rotation: 'ROT',
@@ -42,7 +42,7 @@ const LABEL_SHORT: Record<string, string> = {
 }
 
 const LABEL_COLORS: Record<string, string> = {
-  covered_calls: '#00e5ff', csp: '#2bd97c', leap: '#a78bfa', spx: '#ffb300',
+  covered_calls: '#3b82f6', csp: '#10b981', leap: '#a78bfa', spx: '#f59e0b',
   rotation: '#f472b6', ptos: '#60a5fa', profit_taking: '#34d399',
 }
 
@@ -66,13 +66,13 @@ function KpiStrip({ closed }: { closed: JournalPosition[] }) {
   const cards = [
     { label: 'Net P&L',       value: fmt$(s.netPnl),                 color: pnlColor(s.netPnl) },
     { label: 'Win Rate',      value: s.trades ? `${s.winRate.toFixed(0)}%` : '—',
-      color: s.winRate >= 65 ? '#2bd97c' : s.winRate >= 50 ? '#ffb300' : '#ff4655' },
-    { label: 'Profit Factor', value: s.trades ? pf : '—',            color: s.profitFactor >= 1.5 ? '#2bd97c' : s.profitFactor >= 1 ? '#ffb300' : '#ff4655' },
+      color: s.winRate >= 65 ? '#10b981' : s.winRate >= 50 ? '#f59e0b' : '#ef4444' },
+    { label: 'Profit Factor', value: s.trades ? pf : '—',            color: s.profitFactor >= 1.5 ? '#10b981' : s.profitFactor >= 1 ? '#f59e0b' : '#ef4444' },
     { label: 'Expectancy',    value: fmt$(s.expectancy),             color: pnlColor(s.expectancy) },
-    { label: 'Avg Win',       value: fmt$(s.avgWin),                 color: '#2bd97c' },
-    { label: 'Avg Loss',      value: fmt$(s.avgLoss),                color: '#ff4655' },
+    { label: 'Avg Win',       value: fmt$(s.avgWin),                 color: '#10b981' },
+    { label: 'Avg Loss',      value: fmt$(s.avgLoss),                color: '#ef4444' },
     { label: 'Payoff Ratio',  value: s.payoff ? s.payoff.toFixed(2) : '—', color: 'var(--text-1)' },
-    { label: 'Max Drawdown',  value: fmt$(-s.maxDrawdown),           color: '#ffb300' },
+    { label: 'Max Drawdown',  value: fmt$(-s.maxDrawdown),           color: '#f59e0b' },
   ]
   const minis = [
     { label: 'Closed Trades', value: String(s.trades) },
@@ -127,28 +127,28 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
       <defs>
         <linearGradient id="jr-eq-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#00e5ff" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#00e5ff" stopOpacity="0.02" />
+          <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
         </linearGradient>
       </defs>
       {gridVals.map((v, i) => (
         <g key={i}>
-          <line x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="rgba(0,229,255,0.08)" strokeWidth="1" />
-          <text x={PL - 6} y={y(v) + 3} textAnchor="end" fill="var(--text-4)" fontSize="10" fontFamily="Share Tech Mono, monospace">
+          <line x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="rgba(16,185,129,0.08)" strokeWidth="1" />
+          <text x={PL - 6} y={y(v) + 3} textAnchor="end" fill="var(--text-4)" fontSize="10" fontFamily="Inter, sans-serif">
             {fmt$(v)}
           </text>
         </g>
       ))}
-      {min < 0 && <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="rgba(255,70,85,0.35)" strokeWidth="1" strokeDasharray="4 3" />}
+      {min < 0 && <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="rgba(239,68,68,0.35)" strokeWidth="1" strokeDasharray="4 3" />}
       <path d={area} fill="url(#jr-eq-fill)" />
-      <path d={line} fill="none" stroke="#00e5ff" strokeWidth="1.8" style={{ filter: 'drop-shadow(0 0 6px rgba(0,229,255,0.45))' }} />
-      <circle cx={x(points.length - 1)} cy={y(last.equity)} r="3.5" fill="#00e5ff" />
-      <text x={x(points.length - 1) - 6} y={y(last.equity) - 8} textAnchor="end" fill="#00e5ff" fontSize="11" fontWeight="700" fontFamily="Share Tech Mono, monospace">
+      <path d={line} fill="none" stroke="#10b981" strokeWidth="1.8" style={{ filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.45))' }} />
+      <circle cx={x(points.length - 1)} cy={y(last.equity)} r="3.5" fill="#10b981" />
+      <text x={x(points.length - 1) - 6} y={y(last.equity) - 8} textAnchor="end" fill="#10b981" fontSize="11" fontWeight="700" fontFamily="Inter, sans-serif">
         {fmt$(last.equity)}
       </text>
       {[points[0], mid, last].map((p, i) => (
         <text key={i} x={x(i === 0 ? 0 : i === 1 ? Math.floor(points.length / 2) : points.length - 1)} y={H - 8}
-          textAnchor={i === 0 ? 'start' : i === 1 ? 'middle' : 'end'} fill="var(--text-4)" fontSize="10" fontFamily="Share Tech Mono, monospace">
+          textAnchor={i === 0 ? 'start' : i === 1 ? 'middle' : 'end'} fill="var(--text-4)" fontSize="10" fontFamily="Inter, sans-serif">
           {fmtDate(p.date)}
         </text>
       ))}
@@ -172,9 +172,9 @@ function MonthlyBars({ closed }: { closed: JournalPosition[] }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
-      <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="rgba(0,229,255,0.18)" strokeWidth="1" />
-      <text x={PL - 5} y={y0 - maxAbs * scale + 4} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Share Tech Mono, monospace">{fmt$(maxAbs)}</text>
-      <text x={PL - 5} y={y0 + 3} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Share Tech Mono, monospace">$0</text>
+      <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="rgba(16,185,129,0.18)" strokeWidth="1" />
+      <text x={PL - 5} y={y0 - maxAbs * scale + 4} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">{fmt$(maxAbs)}</text>
+      <text x={PL - 5} y={y0 + 3} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">$0</text>
       {rows.map((r, i) => {
         const h = Math.abs(r.netPnl) * scale
         const bx = PL + i * bw + bw * 0.18
@@ -182,8 +182,8 @@ function MonthlyBars({ closed }: { closed: JournalPosition[] }) {
         return (
           <g key={r.key}>
             <rect x={bx} y={by} width={bw * 0.64} height={Math.max(h, 1)}
-              fill={r.netPnl >= 0 ? 'rgba(43,217,124,0.75)' : 'rgba(255,70,85,0.75)'} />
-            <text x={bx + bw * 0.32} y={H - 8} textAnchor="middle" fill="var(--text-4)" fontSize="8.5" fontFamily="Share Tech Mono, monospace">
+              fill={r.netPnl >= 0 ? 'rgba(16,185,129,0.75)' : 'rgba(239,68,68,0.75)'} />
+            <text x={bx + bw * 0.32} y={H - 8} textAnchor="middle" fill="var(--text-4)" fontSize="8.5" fontFamily="Inter, sans-serif">
               {fmtMonth(r.key)}
             </text>
           </g>
@@ -195,7 +195,7 @@ function MonthlyBars({ closed }: { closed: JournalPosition[] }) {
 
 // ─── Edge Finder panel ────────────────────────────────────────────────────────
 
-const INSIGHT_COLOR = { strength: '#2bd97c', weakness: '#ff4655', info: '#00e5ff' }
+const INSIGHT_COLOR = { strength: '#10b981', weakness: '#ef4444', info: '#10b981' }
 
 function EdgeFinder({ closed, entries }: { closed: JournalPosition[]; entries: Record<string, JournalEntry> }) {
   const insights = useMemo(() => edgeInsights(closed, entries), [closed, entries])
@@ -237,7 +237,7 @@ function BreakTable({ title, rows, keyHeader, fmtKey }: {
               <tr key={r.key}>
                 <td className="mono" style={{ color: 'var(--text-1)', fontWeight: 600 }}>{fmtKey ? fmtKey(r.key) : r.key}</td>
                 <td className="mono" style={{ textAlign: 'right' }}>{r.trades}</td>
-                <td className="mono" style={{ textAlign: 'right', color: r.winRate >= 65 ? '#2bd97c' : r.winRate >= 50 ? '#ffb300' : '#ff4655' }}>
+                <td className="mono" style={{ textAlign: 'right', color: r.winRate >= 65 ? '#10b981' : r.winRate >= 50 ? '#f59e0b' : '#ef4444' }}>
                   {r.winRate.toFixed(0)}%
                 </td>
                 <td className={`mono ${pnlCls(r.netPnl)}`} style={{ textAlign: 'right', fontWeight: 700 }}>{fmt$(r.netPnl)}</td>
@@ -307,8 +307,8 @@ function RatingPicker({ value, onChange }: { value?: number; onChange: (n?: numb
       {[1, 2, 3, 4, 5].map(n => (
         <button key={n} onClick={e => { e.stopPropagation(); onChange(value === n ? undefined : n) }}
           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13,
-            color: (value ?? 0) >= n ? '#00e5ff' : 'var(--text-5)',
-            textShadow: (value ?? 0) >= n ? '0 0 6px rgba(0,229,255,0.6)' : 'none' }}>
+            color: (value ?? 0) >= n ? '#10b981' : 'var(--text-5)',
+            textShadow: (value ?? 0) >= n ? '0 0 6px rgba(16,185,129,0.6)' : 'none' }}>
           ◆
         </button>
       ))}
@@ -358,7 +358,7 @@ function EntryEditor({ pos, entry, updateEntry, setups, addSetup }: {
             const on = mistakes.includes(m)
             return (
               <button key={m} className="tl-filter-chip" onClick={() => toggleMistake(m)}
-                style={on ? { borderColor: '#ff4655', color: '#ff4655', background: 'rgba(255,70,85,0.10)' } : undefined}>
+                style={on ? { borderColor: '#ef4444', color: '#ef4444', background: 'rgba(239,68,68,0.10)' } : undefined}>
                 {m}
               </button>
             )
@@ -467,10 +467,10 @@ function Row({ pos: p, entry: e, open, cols, onToggle, editor }: {
   pos: JournalPosition; entry: JournalEntry; open: boolean; cols: number
   onToggle: () => void; editor: React.ReactNode
 }) {
-  const statusColor = p.status === 'Active' ? '#2bd97c' : p.status === 'Closed' ? '#ffb300' : 'var(--text-4)'
+  const statusColor = p.status === 'Active' ? '#10b981' : p.status === 'Closed' ? '#f59e0b' : 'var(--text-4)'
   return (
     <>
-      <tr onClick={onToggle} style={{ cursor: 'pointer', background: open ? 'rgba(0,229,255,0.05)' : undefined }}>
+      <tr onClick={onToggle} style={{ cursor: 'pointer', background: open ? 'rgba(16,185,129,0.05)' : undefined }}>
         <td className="mono" style={{ whiteSpace: 'nowrap', color: 'var(--text-3)' }}>
           {p.dateClosed ? fmtDate(p.dateClosed) : `opened ${fmtDate(p.dateOpen)}`}
         </td>
@@ -492,16 +492,16 @@ function Row({ pos: p, entry: e, open, cols, onToggle, editor }: {
         <td style={{ fontSize: 11, color: e.setup ? 'var(--text-2)' : 'var(--text-5)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {e.setup ?? '—'}
         </td>
-        <td className="mono" style={{ textAlign: 'center', color: e.rating ? '#00e5ff' : 'var(--text-5)' }}>
+        <td className="mono" style={{ textAlign: 'center', color: e.rating ? '#10b981' : 'var(--text-5)' }}>
           {e.rating ? '◆'.repeat(e.rating) : '—'}
         </td>
-        <td className="mono" style={{ textAlign: 'center', color: (e.mistakes?.length ?? 0) > 0 ? '#ff4655' : 'var(--text-5)' }}>
+        <td className="mono" style={{ textAlign: 'center', color: (e.mistakes?.length ?? 0) > 0 ? '#ef4444' : 'var(--text-5)' }}>
           {e.mistakes?.length || (e.note ? '✎' : '—')}
         </td>
       </tr>
       {open && (
         <tr>
-          <td colSpan={cols} style={{ padding: 0, background: 'rgba(0,229,255,0.03)' }}>
+          <td colSpan={cols} style={{ padding: 0, background: 'rgba(16,185,129,0.03)' }}>
             {editor}
           </td>
         </tr>
@@ -523,21 +523,21 @@ function Tiltmeter({ score }: { score: number | null }) {
   const cx = 130, cy = 120, r = 95
   const angle = score != null ? 180 - score * 1.8 : 90
   const rad = (angle * Math.PI) / 180
-  const zone = score == null ? 'var(--text-4)' : score >= 70 ? '#2bd97c' : score >= 40 ? '#ffb300' : '#ff4655'
+  const zone = score == null ? 'var(--text-4)' : score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444'
   return (
     <svg viewBox="0 0 260 150" style={{ width: '100%', maxWidth: 320, display: 'block', margin: '0 auto' }}>
-      <path d={arcPath(cx, cy, r, 180, 108)} fill="none" stroke="rgba(255,70,85,0.55)" strokeWidth="9" />
-      <path d={arcPath(cx, cy, r, 108, 54)}  fill="none" stroke="rgba(255,179,0,0.55)" strokeWidth="9" />
-      <path d={arcPath(cx, cy, r, 54, 0)}    fill="none" stroke="rgba(43,217,124,0.55)" strokeWidth="9" />
+      <path d={arcPath(cx, cy, r, 180, 108)} fill="none" stroke="rgba(239,68,68,0.55)" strokeWidth="9" />
+      <path d={arcPath(cx, cy, r, 108, 54)}  fill="none" stroke="rgba(245,158,11,0.55)" strokeWidth="9" />
+      <path d={arcPath(cx, cy, r, 54, 0)}    fill="none" stroke="rgba(16,185,129,0.55)" strokeWidth="9" />
       {score != null && (
         <line x1={cx} y1={cy} x2={cx + (r - 16) * Math.cos(rad)} y2={cy - (r - 16) * Math.sin(rad)}
-          stroke="#00e5ff" strokeWidth="2.5" style={{ filter: 'drop-shadow(0 0 5px rgba(0,229,255,0.7))' }} />
+          stroke="#10b981" strokeWidth="2.5" style={{ filter: 'drop-shadow(0 0 5px rgba(16,185,129,0.7))' }} />
       )}
-      <circle cx={cx} cy={cy} r="5" fill="#00e5ff" />
-      <text x={cx} y={cy - 26} textAnchor="middle" fill={zone} fontSize="26" fontWeight="700" fontFamily="Rajdhani, sans-serif">
+      <circle cx={cx} cy={cy} r="5" fill="#10b981" />
+      <text x={cx} y={cy - 26} textAnchor="middle" fill={zone} fontSize="26" fontWeight="700" fontFamily="Inter, sans-serif">
         {score != null ? score.toFixed(0) : '—'}
       </text>
-      <text x={cx} y={cy + 22} textAnchor="middle" fill="var(--text-4)" fontSize="9" letterSpacing="2" fontFamily="Share Tech Mono, monospace">
+      <text x={cx} y={cy + 22} textAnchor="middle" fill="var(--text-4)" fontSize="9" letterSpacing="2" fontFamily="Inter, sans-serif">
         {score == null ? 'RATE TRADES TO CALIBRATE' : score >= 70 ? 'IN CONTROL' : score >= 40 ? 'DRIFTING' : 'ON TILT'}
       </text>
     </svg>
@@ -618,9 +618,9 @@ function PsychTab({ closed, entries }: { closed: JournalPosition[]; entries: Rec
           <div className="panel" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[5, 4, 3, 2, 1].map(r => (
               <div key={r} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 30px', alignItems: 'center', gap: 8 }}>
-                <span className="mono" style={{ fontSize: 11, color: '#00e5ff' }}>{'◆'.repeat(r)}</span>
-                <div style={{ height: 6, background: 'rgba(0,229,255,0.08)' }}>
-                  <div style={{ height: '100%', width: `${(ratingDist[r - 1] / maxDist) * 100}%`, background: 'rgba(0,229,255,0.6)' }} />
+                <span className="mono" style={{ fontSize: 11, color: '#10b981' }}>{'◆'.repeat(r)}</span>
+                <div style={{ height: 6, background: 'rgba(16,185,129,0.08)' }}>
+                  <div style={{ height: '100%', width: `${(ratingDist[r - 1] / maxDist) * 100}%`, background: 'rgba(16,185,129,0.6)' }} />
                 </div>
                 <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)', textAlign: 'right' }}>{ratingDist[r - 1]}</span>
               </div>
@@ -649,7 +649,7 @@ function PsychTab({ closed, entries }: { closed: JournalPosition[]; entries: Rec
               <tbody>
                 {mistakeRows.map(([tag, { n, pnl }]) => (
                   <tr key={tag}>
-                    <td style={{ color: '#ff4655', fontWeight: 600 }}>{tag}</td>
+                    <td style={{ color: '#ef4444', fontWeight: 600 }}>{tag}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{n}</td>
                     <td className={`mono ${pnlCls(pnl)}`} style={{ textAlign: 'right', fontWeight: 700 }}>{fmt$(pnl)}</td>
                     <td className={`mono ${pnlCls(pnl / n)}`} style={{ textAlign: 'right' }}>{fmt$(pnl / n)}</td>
@@ -699,7 +699,7 @@ export default function JournalView({ state, tradeLabels }: { state: AppState; t
       <div className="cc-header">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="cc-title-badge" style={{ color: '#00e5ff', background: '#00e5ff14', border: '1px solid #00e5ff33' }}>JRNL</span>
+            <span className="cc-title-badge" style={{ color: '#10b981', background: '#10b98114', border: '1px solid #10b98133' }}>JRNL</span>
             <h2 className="cc-title">Trade Journal</h2>
           </div>
           <div className="cc-subtitle">Performance analytics · journaling · psychology — built on IBKR Flex data</div>

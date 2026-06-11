@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import TopNav, { type TabId } from './components/layout/TopNav'
+import Sidebar, { type TabId } from './components/layout/Sidebar'
 import FlexSettingsPanel from './components/shared/FlexSettingsPanel'
 import { useAppStore } from './store/appStore'
 import { useSettingsStore } from './store/settingsStore'
@@ -75,9 +75,10 @@ export default function App() {
   }
 
   return (
-    <div className="app-root" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: 'var(--bg-page)', maxWidth: 1920, margin: '0 auto' }}>
-      <TopNav
+    <div className="ew-shell">
+      <Sidebar
         activeTab={activeTab}
+        stratPage={stratPage}
         onTabChange={handleTabChange}
         onStrategySelect={handleStrategySelect}
         actionCount={state.actions.length}
@@ -90,9 +91,11 @@ export default function App() {
         onOpenSettings={() => setShowSettings(true)}
       />
 
-      <main style={{ flex: 1, overflow: 'hidden', background: 'var(--bg-page)' }}>
-        <View state={state} stratPage={stratPage} tradeLabels={tradeLabels} />
-      </main>
+      <div className="ew-main">
+        <main style={{ flex: 1, overflow: 'hidden' }}>
+          <View state={state} stratPage={stratPage} tradeLabels={tradeLabels} />
+        </main>
+      </div>
 
       {showSettings && (
         <FlexSettingsPanel
