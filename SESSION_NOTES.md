@@ -35,7 +35,7 @@ npm run dev
 ## App structure
 - React 19 + TypeScript + Vite 8
 - Default tab: Dashboard
-- Nav: Dashboard | Portfolio | Calendar | Strategies▾ | Journal | Scanner | Backtest | Plan
+- Nav: **left sidebar** (Edgewonk-style) — Dashboard | Portfolio | Calendar | Strategies (expandable: Label Trades + 11 pages) | Journal | Scanner | Backtest | Plan; sync status + upload/sync/settings/theme buttons in sidebar bottom block; mobile = fixed top bar + drawer
 - Strategies▾ dropdown: ✏️ Label Trades + 13 strategy pages
 - Trade labels stored in localStorage via `src/store/tradeLabelsStore.ts`
 - IBKR Flex XML upload + live sync supported
@@ -44,7 +44,7 @@ npm run dev
 | File | Purpose |
 |---|---|
 | `src/App.tsx` | Root — `StrategyPage` type, `TradeLabels` interface, tab routing |
-| `src/components/layout/TopNav.tsx` | Nav bar with Strategies dropdown |
+| `src/components/layout/Sidebar.tsx` | Edgewonk-style left sidebar — exports `TAB_IDS`/`TabId`; expandable Strategies section; mobile drawer (TopNav.tsx deleted) |
 | `src/components/dashboard/DashboardView.tsx` | Dashboard: key metrics, income channel strip, stocks table, options table (strategy-grouped), cash, actions sidebar |
 | `src/components/strategies/StrategiesView.tsx` | Strategy sub-router — all 13 pages incl. covered_calls now use StrategyTradeLog |
 | `src/components/strategies/StrategyTradeLog.tsx` | Main trade log — position-matched rows, spreadsheet-style |
@@ -53,23 +53,21 @@ npm run dev
 | `src/store/tradeLabelsStore.ts` | localStorage label store |
 | `src/engine/classifier.ts` | Classifies open positions → Strategy[] (spread → CC → PMCC → RR → CSP → LEAP → other) |
 | `src/engine/actions.ts` | Generates action recommendations |
-| `src/index.css` | All CSS — JARVIS HUD theme (navy glass + cyan signal) |
+| `src/index.css` | All CSS — Edgewonk theme (dark slate + emerald) |
 | `src/engine/journal.ts` | Journal engine — position matching (same semantics as StrategyTradeLog), KPI stats, equity curve, breakdowns, Edge Finder insights |
 | `src/store/journalStore.ts` | localStorage journal entries (setup/mistakes/rating/note per position) + custom setups |
 | `src/components/journal/JournalView.tsx` | Journal tab — Overview / Trade Journal / Psych Lab sub-views |
 
 ---
 
-## Theme — JARVIS HUD (WorldView-style)
-- Background: `#04080f` deep navy + faint cyan blueprint grid + top radial glow
-- Accent: `#00e5ff` cyan (UI chrome / friendly); loss red `#ff4655`; warning amber `#ffb300`; gain green `#2bd97c`
-- Text: `#e6f7ff` cyan-tinted white
-- Fonts: **Share Tech Mono** (body/data) + **Rajdhani** (headings) — loaded via `<link>` in `index.html` (NOT CSS `@import` — Tailwind/lightningcss drops it)
-- Cards: translucent navy glass (`rgba(8,17,30,0.72)`), 1px cyan border, 2px radius, **corner brackets** via `::before` (top-left) / `::after` (bottom-right) on `.stat-card .panel .db-*-card .cc-summary-card` etc.
-- Full-screen FX: scanlines + vignette via `body::after` (dark theme only, `z-index: 9999`, pointer-events none)
-- Top nav: glass blur strip, glowing OPTIONS logo + `PORTFOLIO COMMAND` designation, live LOCAL/NY clocks (`HudClocks` in `TopNav.tsx`, hidden < 900px)
-- All in CSS variables in `src/index.css` `:root` block; HUD chrome section at bottom of file
-- Light theme variables kept as fallback (scanlines/grid gated to `[data-theme="dark"]`)
+## Theme — Edgewonk (dark slate + emerald), since 2026-06-12
+- Dark (default, matches Edgewonk app): page `#0f172a`, sidebar `#0c1424`, cards `#1a2438`, slate borders/text ramp
+- Accent: emerald `#10b981` (Edgewonk brand, scraped from edgewonk.com: #059669/#047857/#10b981); loss `#ef4444`; warn `#f59e0b`; secondary blue `#3b82f6`
+- Light mode: edgewonk.com marketing palette (white surfaces, `#f8fafc` page, `#059669` accent)
+- Font: **Inter** only — loaded via `<link>` in `index.html` (NOT CSS `@import` — Tailwind/lightningcss drops it); `.mono` = Inter + `font-variant-numeric: tabular-nums`
+- Cards: 12px radius, 1px slate border; no glass/glow/bracket effects (all JARVIS HUD chrome removed)
+- Layout: `.ew-shell` (flex row) = `Sidebar` + `.ew-main`; sidebar 230px, `--bg-sidebar`, expandable Strategies, bottom block (sync dot + icon buttons); mobile: `.ew-mobilebar` fixed top + drawer (`.ew-sidebar.open`)
+- All in CSS variables in `src/index.css` `:root` block; Edgewonk shell CSS at bottom of file
 
 ---
 
