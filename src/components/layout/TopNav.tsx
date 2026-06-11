@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { LayoutDashboard, CalendarDays, Layers, Radar, ClipboardList, FlaskConical, Menu, X, RefreshCw, Upload, Settings, Sun, Moon, ChevronDown } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Layers, Radar, ClipboardList, FlaskConical, BookOpen, Menu, X, RefreshCw, Upload, Settings, Sun, Moon, ChevronDown } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
 import type { StrategyPage } from '../../App'
 
-export const TAB_IDS = ['dashboard', 'portfolio', 'calendar', 'strategies', 'scanner', 'plan', 'backtest'] as const
+export const TAB_IDS = ['dashboard', 'portfolio', 'calendar', 'strategies', 'journal', 'scanner', 'plan', 'backtest'] as const
 export type TabId = typeof TAB_IDS[number]
 
 const STRATEGY_ITEMS: { label: string; page: StrategyPage }[] = [
@@ -161,6 +161,15 @@ export default function TopNav({ activeTab, onTabChange, onStrategySelect, actio
             )}
           </div>
 
+          {/* Journal */}
+          <button
+            className={`top-nav-tab${activeTab === 'journal' ? ' active' : ''}`}
+            onClick={() => selectTab('journal')}
+          >
+            <BookOpen size={15} />
+            <span>Journal</span>
+          </button>
+
           {/* Scanner */}
           <button
             className={`top-nav-tab${activeTab === 'scanner' ? ' active' : ''}`}
@@ -225,12 +234,13 @@ export default function TopNav({ activeTab, onTabChange, onStrategySelect, actio
       {menuOpen && (
         <div className="mobile-menu-overlay" onClick={() => setMenuOpen(false)}>
           <div className="mobile-menu" onClick={e => e.stopPropagation()}>
-            {(['dashboard', 'portfolio', 'calendar', 'strategies', 'scanner', 'backtest', 'plan'] as TabId[]).map(id => {
+            {(['dashboard', 'portfolio', 'calendar', 'strategies', 'journal', 'scanner', 'backtest', 'plan'] as TabId[]).map(id => {
               const iconMap: Record<TabId, React.ReactNode> = {
                 dashboard:  <LayoutDashboard size={18} />,
                 portfolio:  <LayoutDashboard size={18} />,
                 calendar:   <CalendarDays size={18} />,
                 strategies: <Layers size={18} />,
+                journal:    <BookOpen size={18} />,
                 scanner:    <Radar size={18} />,
                 backtest:   <FlaskConical size={18} />,
                 plan:       <ClipboardList size={18} />,
@@ -240,6 +250,7 @@ export default function TopNav({ activeTab, onTabChange, onStrategySelect, actio
                 portfolio:  'Portfolio',
                 calendar:   'Calendar',
                 strategies: 'Strategies',
+                journal:    'Journal',
                 scanner:    'Scanner',
                 backtest:   'Backtest',
                 plan:       'Plan',

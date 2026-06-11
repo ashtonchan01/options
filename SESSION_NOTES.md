@@ -35,7 +35,7 @@ npm run dev
 ## App structure
 - React 19 + TypeScript + Vite 8
 - Default tab: Dashboard
-- Nav: Dashboard | Portfolio | Calendar | Strategies▾ | Scanner | Backtest | Plan
+- Nav: Dashboard | Portfolio | Calendar | Strategies▾ | Journal | Scanner | Backtest | Plan
 - Strategies▾ dropdown: ✏️ Label Trades + 13 strategy pages
 - Trade labels stored in localStorage via `src/store/tradeLabelsStore.ts`
 - IBKR Flex XML upload + live sync supported
@@ -54,6 +54,9 @@ npm run dev
 | `src/engine/classifier.ts` | Classifies open positions → Strategy[] (spread → CC → PMCC → RR → CSP → LEAP → other) |
 | `src/engine/actions.ts` | Generates action recommendations |
 | `src/index.css` | All CSS — JARVIS HUD theme (navy glass + cyan signal) |
+| `src/engine/journal.ts` | Journal engine — position matching (same semantics as StrategyTradeLog), KPI stats, equity curve, breakdowns, Edge Finder insights |
+| `src/store/journalStore.ts` | localStorage journal entries (setup/mistakes/rating/note per position) + custom setups |
+| `src/components/journal/JournalView.tsx` | Journal tab — Overview / Trade Journal / Psych Lab sub-views |
 
 ---
 
@@ -67,6 +70,16 @@ npm run dev
 - Top nav: glass blur strip, glowing OPTIONS logo + `PORTFOLIO COMMAND` designation, live LOCAL/NY clocks (`HudClocks` in `TopNav.tsx`, hidden < 900px)
 - All in CSS variables in `src/index.css` `:root` block; HUD chrome section at bottom of file
 - Light theme variables kept as fallback (scanlines/grid gated to `[data-theme="dark"]`)
+
+---
+
+## Journal tab (Edgewonk-style, added 2026-06-12)
+Three sub-views, all driven by Flex-synced trades (OPT only, premium-selling semantics):
+1. **Overview** — KPI strip (Net P&L, Win Rate, Profit Factor, Expectancy, Avg Win/Loss, Payoff, Max Drawdown), streak/fees mini-strip, equity curve SVG, monthly P&L bars, **Edge Finder** (auto-generated strengths/weaknesses), breakdown tables (underlying / strategy label / entry weekday / entry DTE / hold time)
+2. **Trade Journal** — filterable position list (All/Wins/Losses/Active/Unreviewed); click row to expand editor: setup (select + custom add), mistake chips, 1–5 execution grade (◆), notes. Persisted to localStorage `options:journal` keyed by position id `${tradeDate}|${expiry}|${underlying}` (stable across re-syncs)
+3. **Psych Lab** — Tiltmeter gauge (last 10 graded trades: avg grade − 9/mistake → 0-100), Discipline Edge cards (avg P&L grade≥4 vs ≤2), grade distribution, mistake cost table
+- Closed-trade timeline uses `dateClosed` (expiry date for expired positions)
+- Strategy attribution comes from trade labels (Label Trades page) via opening-leg trade ids
 
 ---
 

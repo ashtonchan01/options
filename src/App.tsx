@@ -11,6 +11,7 @@ import StrategiesView from './components/strategies/StrategiesView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import PlanView from './components/plan/PlanView'
 import BacktestView from './components/backtest/BacktestView'
+import JournalView from './components/journal/JournalView'
 import type { AppState } from './types'
 import type { TradeLabel } from './store/tradeLabelsStore'
 
@@ -48,6 +49,7 @@ const VIEWS: Record<TabId, ViewComponent> = {
   scanner:    OpportunitiesView as ViewComponent,
   plan:       PlanView as ViewComponent,
   backtest:   BacktestView as ViewComponent,
+  journal:    JournalView as ViewComponent,
 }
 
 export default function App() {
