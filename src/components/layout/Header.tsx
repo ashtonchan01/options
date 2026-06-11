@@ -36,7 +36,7 @@ const btn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   padding: '6px 12px', fontSize: 11, letterSpacing: '0.5px', fontWeight: 500,
   border: '1px solid var(--border)', background: 'transparent',
-  color: 'var(--text-3)', cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+  color: 'var(--text-3)', cursor: 'pointer', fontFamily: "'Share Tech Mono', sans-serif",
   transition: 'all 0.15s', borderRadius: 4,
 }
 
@@ -62,18 +62,18 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
         <h1 style={{
           margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-1)',
-          fontFamily: "'Chakra Petch', sans-serif", letterSpacing: 2,
+          fontFamily: "'Rajdhani', sans-serif", letterSpacing: 2,
           whiteSpace: 'nowrap',
         }}>
           {TAB_LABELS[activeTab].toUpperCase()}
         </h1>
         {lastSync && (
-          <span className="header-sync-time" style={{ fontSize: 11, color: 'var(--text-4)', fontFamily: 'IBM Plex Mono, monospace' }}>
+          <span className="header-sync-time" style={{ fontSize: 11, color: 'var(--text-4)', fontFamily: 'Share Tech Mono, monospace' }}>
             {relativeTime(lastSync)}
           </span>
         )}
         {syncStatus === 'error' && (
-          <span className="header-sync-error" title={syncError} style={{ fontSize: 11, color: '#FF4757', fontFamily: 'IBM Plex Mono, monospace', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
+          <span className="header-sync-error" title={syncError} style={{ fontSize: 11, color: '#ff4655', fontFamily: 'Share Tech Mono, monospace', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
             {syncError ?? 'sync failed'}
           </span>
         )}
@@ -113,8 +113,8 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
         <span style={{
           width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
           animation: isLoading ? 'pulse 1s ease-in-out infinite' : 'none',
-          background: syncStatus === 'success' ? '#00D084'
-            : syncStatus === 'error'   ? '#FF4757'
+          background: syncStatus === 'success' ? '#2bd97c'
+            : syncStatus === 'error'   ? '#ff4655'
             : syncStatus === 'loading' ? '#F0B429'
             : 'var(--border)',
           boxShadow: syncStatus === 'success' ? '0 0 8px rgba(0,208,132,0.4)' : 'none',
@@ -126,7 +126,7 @@ export default function Header({ activeTab, syncStatus, syncError, lastSync, has
         <button
           onClick={onOpenSettings}
           title="IBKR Flex credentials"
-          style={{ ...btn, padding: '6px 8px', color: hasCredentials ? '#00D084' : 'var(--text-4)' }}
+          style={{ ...btn, padding: '6px 8px', color: hasCredentials ? '#2bd97c' : 'var(--text-4)' }}
         >
           <Settings size={13} />
         </button>

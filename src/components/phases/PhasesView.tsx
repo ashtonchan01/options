@@ -208,13 +208,13 @@ export default function PhasesView({ state }: Props) {
               <div style={{ fontSize: 11, color: phase.color, letterSpacing: 3, fontWeight: 700, marginBottom: 2 }}>
                 {phase.label}: {phase.sublabel.toUpperCase()}
               </div>
-              <div style={{ fontSize: 30, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace' }}>
+              <div style={{ fontSize: 30, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Share Tech Mono, monospace' }}>
                 {fmt$(capital)}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: 2, marginBottom: 2 }}>TO NEXT</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: phase.color, fontFamily: 'IBM Plex Mono, monospace' }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: phase.color, fontFamily: 'Share Tech Mono, monospace' }}>
                 {fmtK(Math.max(toNext, 0))}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-3)' }}>{phasePct.toFixed(0)}%</div>
@@ -309,7 +309,7 @@ export default function PhasesView({ state }: Props) {
               return (
                 <div key={p.label} style={{ ...tile, padding: '12px 14px' }}>
                   <div style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: 2, marginBottom: 4 }}>{p.label} ({p.rate})</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: p.color, fontFamily: 'IBM Plex Mono, monospace', marginBottom: 2 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: p.color, fontFamily: 'Share Tech Mono, monospace', marginBottom: 2 }}>
                     {fmtK(final.capital)}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 8 }}>5yr · Phase {final.phase}</div>
@@ -332,11 +332,11 @@ export default function PhasesView({ state }: Props) {
                     <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{data.count}</span>
                     <div style={{ flex: 1 }} />
                     <span style={{ fontSize: 11, color: 'var(--text-3)' }}>Prem</span>
-                    <span style={{ fontSize: 13, fontFamily: 'IBM Plex Mono, monospace', color: data.premium >= 0 ? '#10b981' : '#f43f5e', minWidth: 60, textAlign: 'right' }}>
+                    <span style={{ fontSize: 13, fontFamily: 'Share Tech Mono, monospace', color: data.premium >= 0 ? '#10b981' : '#f43f5e', minWidth: 60, textAlign: 'right' }}>
                       {fmt$(data.premium)}
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-3)' }}>P&L</span>
-                    <span style={{ fontSize: 13, fontFamily: 'IBM Plex Mono, monospace', color: data.pnl >= 0 ? '#10b981' : '#f43f5e', minWidth: 60, textAlign: 'right' }}>
+                    <span style={{ fontSize: 13, fontFamily: 'Share Tech Mono, monospace', color: data.pnl >= 0 ? '#10b981' : '#f43f5e', minWidth: 60, textAlign: 'right' }}>
                       {fmt$(data.pnl)}
                     </span>
                   </div>

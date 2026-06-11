@@ -401,10 +401,10 @@ export default function TradeLabellerView({ state, labels, setLabel, setMany, cl
                     <td className="mono" style={{ color: 'var(--text-3)', fontSize: 12, whiteSpace: 'nowrap' }}>
                       {fmtDate(t.tradeDate)}
                     </td>
-                    <td style={{ fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-1)' }}>
+                    <td style={{ fontWeight: 700, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-1)' }}>
                       {t.underlyingSymbol ?? '—'}
                     </td>
-                    <td style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, color: 'var(--text-3)' }}>
+                    <td style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 11, color: 'var(--text-3)' }}>
                       {t.symbol}
                     </td>
                     <td style={{ textAlign: 'center' }}>

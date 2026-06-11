@@ -268,7 +268,7 @@ const CLOSE_SPAN  = COLS.filter(c => c.section === 'close').length
 // ─── Cell renderers ─────────────────────────────────────────────────────────
 
 function renderCell(col: typeof COLS[number], e: TradeLogEntry): React.ReactNode {
-  const mono: React.CSSProperties = { fontFamily: 'IBM Plex Mono, monospace' }
+  const mono: React.CSSProperties = { fontFamily: 'Share Tech Mono, monospace' }
 
   switch (col.key) {
     case 'week':
@@ -453,16 +453,16 @@ export default function TradeLog({ trades }: { trades: RawTrade[] }) {
       }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em' }}>TRADE LOG</span>
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-3)' }}>
+        <span style={{ fontSize: 12, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-3)' }}>
           {entries.length} trades
         </span>
-        <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-3)' }}>
+        <span style={{ fontSize: 12, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-3)' }}>
           Win rate: <span style={{ color: winRate >= 60 ? '#10b981' : '#f59e0b', fontWeight: 600 }}>{winRate.toFixed(0)}%</span>
         </span>
-        <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-3)' }}>
+        <span style={{ fontSize: 12, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-3)' }}>
           Premium: <span style={{ color: totalPrem >= 0 ? '#10b981' : '#f43f5e', fontWeight: 600 }}>{fmt$(totalPrem, 0)}</span>
         </span>
-        <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-3)' }}>
+        <span style={{ fontSize: 12, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-3)' }}>
           P&L: <span style={{ color: totalPnL >= 0 ? '#10b981' : '#f43f5e', fontWeight: 700 }}>{fmt$(totalPnL, 0)}</span>
         </span>
       </div>

@@ -215,7 +215,7 @@ function DayCell({
         <span style={{
           fontSize: 13, fontWeight: isToday ? 700 : 400,
           color: isToday ? '#3b82f6' : isHoliday ? '#f43f5e' : hasActivity ? 'var(--text-1)' : 'var(--text-3)',
-          fontFamily: 'IBM Plex Mono, monospace',
+          fontFamily: 'Share Tech Mono, monospace',
           background: isToday ? '#3b82f614' : 'transparent',
           borderRadius: 2, padding: isToday ? '0 3px' : 0,
         }}>
@@ -223,7 +223,7 @@ function DayCell({
         </span>
         {hasPnL && (
           <span style={{
-            fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600,
+            fontSize: 11, fontFamily: 'Share Tech Mono, monospace', fontWeight: 600,
             color: trades.netCash >= 0 ? '#10b981' : '#f43f5e',
           }}>
             {trades.netCash >= 0 ? '+' : ''}{Math.round(trades.netCash)}
@@ -252,13 +252,13 @@ function DayCell({
               color: '#F0B429', background: '#F0B42914',
               padding: '1px 4px', borderRadius: 3,
               border: '1px solid #F0B42930',
-              fontFamily: 'IBM Plex Mono, monospace',
+              fontFamily: 'Share Tech Mono, monospace',
             }}>
               ER {t}
             </span>
           ))}
           {earnings.length > 3 && (
-            <span style={{ fontSize: 9, color: '#F0B429', fontFamily: 'IBM Plex Mono, monospace' }}>
+            <span style={{ fontSize: 9, color: '#F0B429', fontFamily: 'Share Tech Mono, monospace' }}>
               +{earnings.length - 3}
             </span>
           )}
@@ -267,7 +267,7 @@ function DayCell({
 
       {trades && trades.tradeCount > 0 && (
         <div style={{
-          fontSize: 10, fontFamily: 'IBM Plex Mono, monospace',
+          fontSize: 10, fontFamily: 'Share Tech Mono, monospace',
           color: trades.netCash >= 0 ? '#10b981' : '#f43f5e',
           background: trades.netCash >= 0 ? '#10b98110' : '#f43f5e10',
           padding: '1px 4px', borderRadius: 3, marginBottom: 2,
@@ -286,7 +286,7 @@ function DayCell({
             background: `${color}14`, border: `1px solid ${color}30`,
             fontSize: 11, lineHeight: 1.3, borderRadius: 3,
           }}>
-            <span style={{ fontWeight: 700, color, fontFamily: 'IBM Plex Mono, monospace', flexShrink: 0 }}>
+            <span style={{ fontWeight: 700, color, fontFamily: 'Share Tech Mono, monospace', flexShrink: 0 }}>
               {ev.underlying}
             </span>
             <span style={{ color: 'var(--text-2)', flexShrink: 0 }}>{STRAT_LABEL[ev.strategyType]}</span>
@@ -294,7 +294,7 @@ function DayCell({
         )
       })}
       {events.length > 2 && (
-        <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'IBM Plex Mono, monospace' }}>
+        <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'Share Tech Mono, monospace' }}>
           +{events.length - 2}
         </div>
       )}
@@ -336,7 +336,7 @@ function WeekPnLCell({
       {weekPnL !== 0 ? (
         <span style={{
           fontSize: 14, fontWeight: 700,
-          fontFamily: 'IBM Plex Mono, monospace',
+          fontFamily: 'Share Tech Mono, monospace',
           color: weekPnL >= 0 ? '#10b981' : '#f43f5e',
         }}>
           {weekPnL >= 0 ? '+' : ''}{Math.round(weekPnL).toLocaleString()}
@@ -345,7 +345,7 @@ function WeekPnLCell({
         <span style={{ fontSize: 11, color: 'var(--text-4)' }}>—</span>
       )}
       {tradeCount > 0 && (
-        <span style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'IBM Plex Mono, monospace' }}>
+        <span style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'Share Tech Mono, monospace' }}>
           {tradeCount} trade{tradeCount !== 1 ? 's' : ''}
         </span>
       )}
@@ -418,7 +418,7 @@ function ActivitySidebar({
           return (
             <div key={date} style={{ borderBottom: '1px solid var(--border-light)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'var(--bg-elevated)' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', fontFamily: 'IBM Plex Mono, monospace' }}>{label}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', fontFamily: 'Share Tech Mono, monospace' }}>{label}</span>
                 <div style={{ flex: 1 }} />
                 {dayHoliday && (
                   <span style={{ fontSize: 10, fontWeight: 700, color: '#f43f5e', background: '#f43f5e14', padding: '1px 6px', borderRadius: 3, border: '1px solid #f43f5e30' }}>
@@ -426,7 +426,7 @@ function ActivitySidebar({
                   </span>
                 )}
                 {dayPnL !== 0 && (
-                  <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: dayPnL >= 0 ? '#10b981' : '#f43f5e' }}>
+                  <span style={{ fontSize: 12, fontFamily: 'Share Tech Mono, monospace', fontWeight: 600, color: dayPnL >= 0 ? '#10b981' : '#f43f5e' }}>
                     {fmt$(dayPnL)}
                   </span>
                 )}
@@ -444,7 +444,7 @@ function ActivitySidebar({
               {dayEarnings.map(ticker => (
                 <div key={`er-${ticker}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderTop: '1px solid var(--border-light)', fontSize: 13 }}>
                   <div style={{ width: 3, height: 24, background: '#F0B429', flexShrink: 0, borderRadius: 1 }} />
-                  <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }}>{ticker}</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Share Tech Mono, monospace', fontSize: 13 }}>{ticker}</span>
                   <span style={{ fontSize: 10, fontWeight: 700, color: '#F0B429', background: '#F0B42914', padding: '1px 6px', borderRadius: 3, border: '1px solid #F0B42930' }}>EARNINGS</span>
                 </div>
               ))}
@@ -458,18 +458,18 @@ function ActivitySidebar({
                   <div style={{ width: 3, height: 24, background: t.netCash >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0, borderRadius: 1 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }}>
+                      <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Share Tech Mono, monospace', fontSize: 13 }}>
                         {t.underlyingSymbol ?? t.symbol}
                       </span>
                       <span style={{ fontSize: 10, padding: '1px 4px', border: '1px solid var(--border)', color: 'var(--text-3)', borderRadius: 3 }}>
                         {t.assetClass === 'OPT' ? `${t.putCall} ${t.strike}` : t.assetClass}
                       </span>
-                      <span style={{ fontSize: 11, color: t.quantity > 0 ? '#10b981' : '#f43f5e', fontFamily: 'IBM Plex Mono, monospace' }}>
+                      <span style={{ fontSize: 11, color: t.quantity > 0 ? '#10b981' : '#f43f5e', fontFamily: 'Share Tech Mono, monospace' }}>
                         {t.quantity > 0 ? '+' : ''}{t.quantity}
                       </span>
                     </div>
                   </div>
-                  <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: t.netCash >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0 }}>
+                  <span style={{ fontSize: 12, fontFamily: 'Share Tech Mono, monospace', fontWeight: 600, color: t.netCash >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0 }}>
                     {fmt$(t.netCash)}
                   </span>
                 </div>
@@ -486,7 +486,7 @@ function ActivitySidebar({
                     <div style={{ width: 3, height: 24, background: color, flexShrink: 0, borderRadius: 1 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Share Tech Mono, monospace', fontSize: 13 }}>
                           {ev.underlying}
                         </span>
                         <span style={{ padding: '1px 4px', fontSize: 10, fontWeight: 700, color, background: `${color}14`, border: `1px solid ${color}30`, borderRadius: 3 }}>
@@ -495,7 +495,7 @@ function ActivitySidebar({
                         <span style={{ fontSize: 10, color: 'var(--text-3)' }}>EXP</span>
                       </div>
                     </div>
-                    <span style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: ev.unrealizedPnL >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0 }}>
+                    <span style={{ fontSize: 12, fontFamily: 'Share Tech Mono, monospace', color: ev.unrealizedPnL >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0 }}>
                       {fmt$(ev.unrealizedPnL)}
                     </span>
                   </div>
@@ -589,7 +589,7 @@ export default function CalendarView({ state }: Props) {
             <div style={{ flex: 1 }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{monthTradeCount} trades</span>
-              <span style={{ fontSize: 15, fontWeight: 600, fontFamily: 'IBM Plex Mono, monospace', color: monthTradePnL >= 0 ? '#10b981' : '#f43f5e' }}>
+              <span style={{ fontSize: 15, fontWeight: 600, fontFamily: 'Share Tech Mono, monospace', color: monthTradePnL >= 0 ? '#10b981' : '#f43f5e' }}>
                 {monthTradePnL >= 0 ? '+' : ''}{Math.round(monthTradePnL).toLocaleString()}
               </span>
             </div>

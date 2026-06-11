@@ -111,7 +111,7 @@ function BarChart({ months }: { months: MonthData[] }) {
                 <div style={{ width: '100%', height: barH, background: '#f43f5e', borderRadius: '1px 1px 0 0', opacity: 0.85, alignSelf: 'flex-start', marginTop: 'auto' }} />
               )}
             </div>
-            <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 11, color: 'var(--text-3)', fontFamily: 'IBM Plex Mono, monospace', whiteSpace: 'nowrap' }}>
+            <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 11, color: 'var(--text-3)', fontFamily: 'Share Tech Mono, monospace', whiteSpace: 'nowrap' }}>
               {m.label}
             </div>
           </div>
@@ -148,7 +148,7 @@ function WheelTracker({ state }: { state: AppState }) {
 
         return (
           <div key={sym} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
-            <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 14, minWidth: 50 }}>
+            <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Share Tech Mono, monospace', fontSize: 14, minWidth: 50 }}>
               {sym}
             </span>
             <span style={{
@@ -161,12 +161,12 @@ function WheelTracker({ state }: { state: AppState }) {
             <span style={{ fontSize: 12, color: 'var(--text-3)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cfg.desc}</span>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               {stk && (
-                <div style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-3)' }}>
+                <div style={{ fontSize: 12, fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-3)' }}>
                   {stk.quantity} sh
                 </div>
               )}
               {active && (
-                <div style={{ fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', color: active.unrealizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
+                <div style={{ fontSize: 12, fontFamily: 'Share Tech Mono, monospace', color: active.unrealizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
                   {active.unrealizedPnL >= 0 ? '+' : ''}{fmt$(active.unrealizedPnL)}
                 </div>
               )}
@@ -255,27 +255,27 @@ export default function GrowthView({ state }: Props) {
               <tbody>
                 {[...months].reverse().map((m, i) => (
                   <tr key={m.key} style={{ borderBottom: '1px solid var(--border-light)', background: i % 2 ? 'var(--bg-page)' : 'transparent' }}>
-                    <td style={{ padding: '10px 16px', fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-3)' }}>{m.label}</td>
-                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: m.optionPnL >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.optionPnL)}</td>
-                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: m.stockPnL >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.stockPnL)}</td>
-                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: m.total >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.total)}</td>
-                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-5)' }}>{m.tradeCount}</td>
+                    <td style={{ padding: '10px 16px', fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-3)' }}>{m.label}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'Share Tech Mono, monospace', color: m.optionPnL >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.optionPnL)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'Share Tech Mono, monospace', color: m.stockPnL >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.stockPnL)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'Share Tech Mono, monospace', fontWeight: 600, color: m.total >= 0 ? '#10b981' : '#f43f5e' }}>{fmt$(m.total)}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-5)' }}>{m.tradeCount}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr style={{ borderTop: '1px solid var(--border)' }}>
-                  <td style={{ padding: '10px 16px', fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-4)', fontWeight: 700 }}>TOTAL</td>
-                  <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: months.reduce((s,m)=>s+m.optionPnL,0) >= 0 ? '#10b981' : '#f43f5e' }}>
+                  <td style={{ padding: '10px 16px', fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-4)', fontWeight: 700 }}>TOTAL</td>
+                  <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'Share Tech Mono, monospace', fontWeight: 600, color: months.reduce((s,m)=>s+m.optionPnL,0) >= 0 ? '#10b981' : '#f43f5e' }}>
                     {fmt$(months.reduce((s,m)=>s+m.optionPnL,0))}
                   </td>
-                  <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, color: months.reduce((s,m)=>s+m.stockPnL,0) >= 0 ? '#10b981' : '#f43f5e' }}>
+                  <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'Share Tech Mono, monospace', fontWeight: 600, color: months.reduce((s,m)=>s+m.stockPnL,0) >= 0 ? '#10b981' : '#f43f5e' }}>
                     {fmt$(months.reduce((s,m)=>s+m.stockPnL,0))}
                   </td>
-                  <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, color: totalRealizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
+                  <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'Share Tech Mono, monospace', fontWeight: 700, color: totalRealizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
                     {fmt$(totalRealizedPnL)}
                   </td>
-                  <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-4)' }}>
+                  <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'Share Tech Mono, monospace', color: 'var(--text-4)' }}>
                     {months.reduce((s,m)=>s+m.tradeCount,0)}
                   </td>
                 </tr>

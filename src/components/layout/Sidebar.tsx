@@ -16,7 +16,7 @@ const NAV_ITEMS: { id: TabId; label: string; Icon: React.FC<{ size?: number }> }
 ]
 
 const SYNC_COLOR: Record<SyncStatus, string> = {
-  idle: 'var(--text-5)', loading: '#F0B429', success: '#00D084', error: '#FF4757',
+  idle: 'var(--text-5)', loading: '#F0B429', success: '#2bd97c', error: '#ff4655',
 }
 
 interface SidebarProps {
@@ -44,7 +44,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
       }}>
         {!collapsed && (
           <span style={{
-            fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700,
+            fontFamily: "'Rajdhani', sans-serif", fontWeight: 700,
             fontSize: 16, letterSpacing: 3, color: 'var(--accent)',
           }}>
             OPTIONS
@@ -81,7 +81,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
                 border: 'none',
                 borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent',
                 color: active ? 'var(--accent)' : 'var(--text-4)',
-                cursor: 'pointer', fontFamily: "'Inter', sans-serif", fontSize: 13,
+                cursor: 'pointer', fontFamily: "'Share Tech Mono', sans-serif", fontSize: 13,
                 fontWeight: active ? 600 : 400,
                 letterSpacing: active ? '0.5px' : '0',
                 width: '100%', textAlign: 'left',
@@ -105,7 +105,7 @@ export default function Sidebar({ activeTab, onTabChange, actionCount, syncStatu
                 {id === 'actions' && actionCount > 0 && (
                   <span style={{
                     position: 'absolute', top: -5, right: -5,
-                    background: '#FF4757', color: '#fff',
+                    background: '#ff4655', color: '#fff',
                     fontSize: 9, fontWeight: 700,
                     minWidth: 13, height: 13, borderRadius: '50%',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px',

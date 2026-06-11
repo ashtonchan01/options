@@ -15,7 +15,7 @@ const inputStyle: React.CSSProperties = {
   color: 'var(--text-1)',
   padding: '10px 14px',
   fontSize: 13,
-  fontFamily: 'IBM Plex Mono, monospace',
+  fontFamily: 'Share Tech Mono, monospace',
   outline: 'none',
   borderRadius: 6,
 }
@@ -81,7 +81,7 @@ export default function FlexSettingsPanel({ settings, onSave, onClose }: Props) 
               background: p.id === activeId ? 'var(--accent-dim)' : 'transparent',
               border: `1px solid ${p.id === activeId ? 'var(--accent)' : 'var(--border)'}`,
               color: p.id === activeId ? 'var(--accent)' : 'var(--text-3)',
-              cursor: 'pointer', borderRadius: 4, fontFamily: "'Inter', sans-serif",
+              cursor: 'pointer', borderRadius: 4, fontFamily: "'Share Tech Mono', sans-serif",
               transition: 'all 0.15s',
             }}>
               {p.name || 'Unnamed'}
@@ -117,8 +117,8 @@ export default function FlexSettingsPanel({ settings, onSave, onClose }: Props) 
               <button onClick={deleteProfile} style={{
                 alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6,
                 background: 'transparent', border: '1px solid rgba(255,71,87,0.3)',
-                borderRadius: 4, color: '#FF4757', padding: '5px 12px',
-                fontSize: 11, cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+                borderRadius: 4, color: '#ff4655', padding: '5px 12px',
+                fontSize: 11, cursor: 'pointer', fontFamily: "'Share Tech Mono', sans-serif",
               }}>
                 <Trash2 size={11} /> Remove &ldquo;{current.name}&rdquo;
               </button>

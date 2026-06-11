@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { LayoutDashboard, CalendarDays, Layers, Radar, ClipboardList, FlaskConical, Menu, X, RefreshCw, Upload, Settings, Sun, Moon, ChevronDown } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
@@ -21,6 +21,22 @@ const STRATEGY_ITEMS: { label: string; page: StrategyPage }[] = [
   { label: 'TABI',             page: 'tabi'           },
 ]
 
+
+function HudClocks() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const fmt = (tz?: string) =>
+    now.toLocaleTimeString('en-GB', { hour12: false, ...(tz ? { timeZone: tz } : {}) })
+  return (
+    <div className="top-nav-clocks">
+      <span className="hud-clock"><span className="hud-clock-label">LOCAL</span>{fmt()}</span>
+      <span className="hud-clock"><span className="hud-clock-label">NY</span>{fmt('America/New_York')}</span>
+    </div>
+  )
+}
 
 function relativeTime(ms: number): string {
   const diff = Date.now() - ms
@@ -77,6 +93,7 @@ export default function TopNav({ activeTab, onTabChange, onStrategySelect, actio
       <nav className="top-nav">
         <div className="top-nav-brand">
           <span className="top-nav-logo">OPTIONS</span>
+          <span className="top-nav-designation">PORTFOLIO COMMAND</span>
           <span className="top-nav-sync-dot" data-status={syncStatus} />
           {lastSync && <span className="top-nav-sync-time">{relativeTime(lastSync)}</span>}
         </div>
@@ -172,6 +189,8 @@ export default function TopNav({ activeTab, onTabChange, onStrategySelect, actio
           </button>
         </div>
 
+        <HudClocks />
+
         <div className="top-nav-actions">
           <label className="top-nav-btn" title="Upload Flex XML">
             <Upload size={13} />
@@ -189,7 +208,7 @@ export default function TopNav({ activeTab, onTabChange, onStrategySelect, actio
             className="top-nav-btn"
             onClick={onOpenSettings}
             title="Settings"
-            style={{ color: hasCredentials ? '#00D084' : undefined }}
+            style={{ color: hasCredentials ? '#2bd97c' : undefined }}
           >
             <Settings size={13} />
           </button>

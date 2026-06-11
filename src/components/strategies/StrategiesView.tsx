@@ -109,7 +109,7 @@ function fmtExpiry(s: string) {
   return `${parseInt(m[3])} ${MONTHS[parseInt(m[2]) - 1]} '${m[1].slice(2)}`
 }
 
-function pnlColor(n: number) { return n > 0 ? '#34c98a' : n < 0 ? '#e05070' : 'var(--text-4)' }
+function pnlColor(n: number) { return n > 0 ? '#2bd97c' : n < 0 ? '#ff4655' : 'var(--text-4)' }
 
 /** Option-legs-only P&L — excludes stock position which distorts the ratio */
 function optionPnl(s: Strategy): number {
@@ -123,21 +123,21 @@ function optionPnl(s: Strategy): number {
 function statusOf(s: Strategy, actions: Action[]): { label: string; color: string } {
   // Use actions engine output (has live price ITM detection)
   const related = actions.find(a => a.relatedStrategyId === s.id)
-  if (related?.urgency === 'urgent') return { label: 'URGENT', color: '#e05070' }
+  if (related?.urgency === 'urgent') return { label: 'URGENT', color: '#ff4655' }
   // WATCH means OTM + expiring soon — goal achieved, show OK not MANAGE
-  if (related?.urgency === 'watch') return { label: 'OK', color: '#34c98a' }
+  if (related?.urgency === 'watch') return { label: 'OK', color: '#2bd97c' }
   if (related?.urgency === 'manage') {
     const pnl  = optionPnl(s)
     const prem = Math.abs(s.netPremiumReceived)
     const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : Infinity
     // Expiring worthless (high profit + very low DTE) → OK
     if (prem > 0 && pnl / prem >= 0.75 && minDte <= 7)
-      return { label: 'OK', color: '#34c98a' }
+      return { label: 'OK', color: '#2bd97c' }
     // Profit-only MANAGE (no ITM risk per live price) → OK
     // e.g. $180C +57% with stock at $148 (21% OTM) — no real action needed
     if (pnl > 0 && related.actionType === 'close' && related.reason.includes('profit'))
-      return { label: 'OK', color: '#34c98a' }
-    return { label: 'MANAGE', color: '#d4a843' }
+      return { label: 'OK', color: '#2bd97c' }
+    return { label: 'MANAGE', color: '#ffb300' }
   }
 
   // Heuristic fallback (no live-price action available yet)
@@ -146,15 +146,15 @@ function statusOf(s: Strategy, actions: Action[]): { label: string; color: strin
   const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : Infinity
   const lossPct = premium > 0 ? Math.abs(pnl) / premium : 0
 
-  if (pnl < 0 && lossPct > 0.5) return { label: 'URGENT', color: '#e05070' }
+  if (pnl < 0 && lossPct > 0.5) return { label: 'URGENT', color: '#ff4655' }
   // Long DTE (>90d) with no big loss = no immediate risk → OK
-  if (minDte > 90) return { label: 'OK', color: '#34c98a' }
+  if (minDte > 90) return { label: 'OK', color: '#2bd97c' }
   // High profit + expiring soon = goal achieved → OK (not MANAGE)
-  if (premium > 0 && pnl / premium >= 0.75 && minDte <= 7) return { label: 'OK', color: '#34c98a' }
+  if (premium > 0 && pnl / premium >= 0.75 && minDte <= 7) return { label: 'OK', color: '#2bd97c' }
   if (minDte <= 21 || (premium > 0 && pnl / premium >= 0.5) || (pnl < 0 && lossPct > 0.25))
-    return { label: 'MANAGE', color: '#d4a843' }
+    return { label: 'MANAGE', color: '#ffb300' }
 
-  return { label: 'OK', color: '#34c98a' }
+  return { label: 'OK', color: '#2bd97c' }
 }
 
 
@@ -211,15 +211,15 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
   const pct    = s.netPremiumReceived > 0 ? Math.min(Math.max(opPnl / s.netPremiumReceived, -1), 1) : null
   const minDte = s.legs.length ? Math.min(...s.legs.map(l => l.dte)) : null
   const dteColor = minDte === null ? 'var(--text-4)'
-    : minDte <= 7  ? '#e05070'
-    : minDte <= 21 ? '#d4a843'
+    : minDte <= 7  ? '#ff4655'
+    : minDte <= 21 ? '#ffb300'
     : 'var(--text-3)'
 
   return (
     <tr style={{ borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
       {/* Ticker */}
       <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
-        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, fontSize: 13, color: 'var(--text-1)' }}>
+        <span style={{ fontFamily: 'Share Tech Mono, monospace', fontWeight: 700, fontSize: 13, color: 'var(--text-1)' }}>
           {s.underlying}
         </span>
         {s.shares && (
@@ -254,7 +254,7 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
 
       {/* Short legs */}
       <td style={{ padding: '9px 8px' }}>
-        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, color: 'var(--text-2)' }}>
+        <span style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 12, color: 'var(--text-2)' }}>
           {legLine(s)}
         </span>
       </td>
@@ -262,7 +262,7 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
       {/* DTE */}
       <td style={{ padding: '9px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
         {minDte !== null && (
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, fontWeight: 600, color: dteColor }}>
+          <span style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 12, fontWeight: 600, color: dteColor }}>
             {minDte}d
           </span>
         )}
@@ -283,7 +283,7 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
                   {credit > 0 && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '0.05em' }}>REC</span>
-                      <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, color: '#34c98a' }}>
+                      <span style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 12, color: '#2bd97c' }}>
                         {fmt$(credit)}
                       </span>
                     </div>
@@ -291,7 +291,7 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
                   {debit > 0 && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '0.05em' }}>PAID</span>
-                      <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, color: '#e05070' }}>
+                      <span style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 12, color: '#ff4655' }}>
                         {fmt$(debit)}
                       </span>
                     </div>
@@ -299,7 +299,7 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
                   {s.netPremiumReceived !== 0 && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderTop: '1px solid var(--border)', paddingTop: 2, marginTop: 1 }}>
                       <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '0.05em' }}>NET</span>
-                      <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, color: s.netPremiumReceived >= 0 ? '#34c98a' : '#e05070' }}>
+                      <span style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 11, color: s.netPremiumReceived >= 0 ? '#2bd97c' : '#ff4655' }}>
                         {s.netPremiumReceived >= 0 ? '+' : ''}{fmt$(s.netPremiumReceived)}
                       </span>
                     </div>
@@ -310,7 +310,7 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
           </div>
         ) : (
           s.netPremiumReceived > 0 && (
-            <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, color: 'var(--text-3)' }}>
+            <span style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 12, color: 'var(--text-3)' }}>
               {fmt$(s.netPremiumReceived)}
             </span>
           )
@@ -320,16 +320,16 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
       {/* P&L — option legs only (from last sync — may be stale if price moved) */}
       <td style={{ padding: '9px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, fontWeight: 600, color: pnlColor(opPnl) }}>
+          <span style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 13, fontWeight: 600, color: pnlColor(opPnl) }}>
             {fmt$(opPnl)}
           </span>
           {stale && (
-            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: '#d4a843' }}>
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', color: '#ffb300' }}>
               ⚠ STALE — RE-SYNC
             </span>
           )}
           {!stale && status.label === 'URGENT' && (
-            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#e05070' }}>
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#ff4655' }}>
               ITM RISK
             </span>
           )}
@@ -339,18 +339,18 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
       {/* Assignment risk */}
       <td style={{ padding: '9px 8px', textAlign: 'center' }}>
         {assignment === 'yes' ? (
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#e05070', background: '#e0507018', border: '1px solid #e0507040', borderRadius: 3, padding: '2px 7px' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#ff4655', background: '#ff465518', border: '1px solid #ff465540', borderRadius: 3, padding: '2px 7px' }}>
             YES
           </span>
         ) : assignment === 'near' ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#d4a843', background: '#d4a84318', border: '1px solid #d4a84340', borderRadius: 3, padding: '2px 7px' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#ffb300', background: '#ffb30018', border: '1px solid #ffb30040', borderRadius: 3, padding: '2px 7px' }}>
               NEAR
             </span>
             <span style={{ fontSize: 9, color: 'var(--text-4)' }}>&lt;2% from strike</span>
           </div>
         ) : assignment === 'no' ? (
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#34c98a', background: '#34c98a14', border: '1px solid #34c98a35', borderRadius: 3, padding: '2px 7px' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#2bd97c', background: '#2bd97c14', border: '1px solid #2bd97c35', borderRadius: 3, padding: '2px 7px' }}>
             NO
           </span>
         ) : (
@@ -365,13 +365,13 @@ function StratRow({ s, isLast, actions, livePrices }: { s: Strategy; isLast: boo
             <div style={{ flex: 1, height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden', minWidth: 40 }}>
               <div style={{
                 height: '100%', width: `${Math.abs(pct) * 100}%`,
-                background: pct >= 0 ? (pct >= 0.5 ? '#34c98a' : '#38bcd4') : '#e05070',
+                background: pct >= 0 ? (pct >= 0.5 ? '#2bd97c' : '#00e5ff') : '#ff4655',
                 borderRadius: 2,
               }} />
             </div>
             <span style={{
-              fontFamily: 'IBM Plex Mono, monospace', fontSize: 10,
-              color: pct >= 0 ? '#34c98a' : '#e05070',
+              fontFamily: 'Share Tech Mono, monospace', fontSize: 10,
+              color: pct >= 0 ? '#2bd97c' : '#ff4655',
               minWidth: 36, textAlign: 'right',
             }}>
               {pct < 0 ? '-' : '+'}{(Math.abs(pct) * 100).toFixed(0)}%
@@ -411,11 +411,11 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
   if (!strategies.length) {
     return (
       <div style={{ padding: '20px 24px' }}>
-        <div style={{ color: '#d4a843', fontWeight: 600, marginBottom: 12, fontSize: 13 }}>
+        <div style={{ color: '#ffb300', fontWeight: 600, marginBottom: 12, fontSize: 13 }}>
           No strategies classified — raw positions:
         </div>
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'IBM Plex Mono, monospace' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'Share Tech Mono, monospace' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
                 {['SYMBOL','CLASS','P/C','STRIKE','EXPIRY','UNDERLYING','QTY','VALUE'].map(h => (
@@ -468,8 +468,8 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
           { label: 'POSITIONS',     value: String(strategies.length), color: 'var(--text-1)' },
           { label: 'PREMIUM',       value: fmt$(totalPremium),        color: 'var(--text-1)' },
           { label: 'OPTIONS P&L',    value: fmt$(totalPnL),            color: pnlColor(totalPnL) },
-          { label: 'MANAGE',        value: String(manage),            color: manage > 0 ? '#d4a843' : 'var(--text-4)' },
-          { label: 'URGENT',        value: String(urgent),            color: urgent > 0 ? '#e05070' : 'var(--text-4)' },
+          { label: 'MANAGE',        value: String(manage),            color: manage > 0 ? '#ffb300' : 'var(--text-4)' },
+          { label: 'URGENT',        value: String(urgent),            color: urgent > 0 ? '#ff4655' : 'var(--text-4)' },
         ].map(({ label, value, color }, i, arr) => (
           <div key={label} style={{
             flex: 1, padding: '10px 16px',
@@ -478,7 +478,7 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
             <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 3 }}>
               {label}
             </div>
-            <div style={{ fontFamily: 'Chakra Petch, sans-serif', fontSize: 16, fontWeight: 700, color }}>
+            <div style={{ fontFamily: 'Rajdhani, sans-serif', fontSize: 16, fontWeight: 700, color }}>
               {value}
             </div>
           </div>
@@ -517,7 +517,7 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
                           {STRAT_LABEL[type]}
                         </span>
                         <span style={{
-                          fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700,
+                          fontSize: 10, fontFamily: 'Share Tech Mono, monospace', fontWeight: 700,
                           color, background: `${color}18`, border: `1px solid ${color}30`,
                           borderRadius: 3, padding: '0px 5px',
                         }}>
@@ -526,7 +526,7 @@ export default function StrategiesView({ state, stratPage = 'overview', tradeLab
                       </div>
                     </td>
                     <td colSpan={2} style={{ padding: '5px 14px', textAlign: 'right' }}>
-                      <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, fontWeight: 600, color: pnlColor(groupPnl) }}>
+                      <span style={{ fontFamily: 'Share Tech Mono, monospace', fontSize: 12, fontWeight: 600, color: pnlColor(groupPnl) }}>
                         {fmt$(groupPnl)}
                       </span>
                     </td>
@@ -553,6 +553,6 @@ const TH: React.CSSProperties = {
   letterSpacing: '1.5px',
   textTransform: 'uppercase',
   color: 'var(--text-4)',
-  fontFamily: 'Inter, sans-serif',
+  fontFamily: 'Share Tech Mono, monospace',
   whiteSpace: 'nowrap',
 }

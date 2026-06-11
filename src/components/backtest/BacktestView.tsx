@@ -59,8 +59,8 @@ const RF = 0.045, MULTIPLIER = 100, SLIPPAGE = 0.15, COMMISSION = 0.50
 
 const C = {
   cyan: '#00E5FF', cyanDim: 'rgba(0,229,255,0.12)', cyanGlow: 'rgba(0,229,255,0.06)',
-  green: '#00D084', greenDim: 'rgba(0,208,132,0.12)',
-  red: '#FF4757', redDim: 'rgba(255,71,87,0.12)',
+  green: '#2bd97c', greenDim: 'rgba(0,208,132,0.12)',
+  red: '#ff4655', redDim: 'rgba(255,71,87,0.12)',
   gold: '#F0B429', goldDim: 'rgba(240,180,41,0.12)',
   blue: '#3B9EFF', purple: '#A855F7',
 }
@@ -294,7 +294,7 @@ const tileHdr: React.CSSProperties = {
 const selectS: React.CSSProperties = {
   background: 'var(--bg-elevated)', border: '1px solid var(--border-light)',
   color: 'var(--text-1)', padding: '7px 10px', fontSize: 12, width: '100%',
-  fontFamily: "'IBM Plex Mono', monospace", outline: 'none', cursor: 'pointer',
+  fontFamily: "'Share Tech Mono', monospace", outline: 'none', cursor: 'pointer',
   borderRadius: 3, transition: 'border-color 0.15s',
 }
 const thS: React.CSSProperties = {
@@ -340,7 +340,7 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
       background: active ? C.cyanDim : 'transparent',
       border: `1px solid ${active ? C.cyan : 'var(--border)'}`,
       color: active ? C.cyan : 'var(--text-3)', cursor: 'pointer', borderRadius: 3,
-      fontFamily: "'Inter', sans-serif", transition: 'all 0.15s', letterSpacing: active ? 0.5 : 0,
+      fontFamily: "'Share Tech Mono', sans-serif", transition: 'all 0.15s', letterSpacing: active ? 0.5 : 0,
     }}>{label}</button>
   )
 }
@@ -410,7 +410,7 @@ function CapitalGrowthChart({ trades, startingCapital }: { trades: Trade[]; star
       {gridLines.map((g, i) => (
         <g key={i}>
           <line x1={PL} y1={g.y} x2={W - PR} y2={g.y} stroke="var(--border)" strokeWidth="0.5" />
-          <text x={PL - 4} y={g.y + 2.5} fill="var(--text-4)" fontSize="6.5" textAnchor="end" fontFamily="IBM Plex Mono, monospace">{g.label}</text>
+          <text x={PL - 4} y={g.y + 2.5} fill="var(--text-4)" fontSize="6.5" textAnchor="end" fontFamily="Share Tech Mono, monospace">{g.label}</text>
         </g>
       ))}
       <line x1={PL} y1={capY} x2={W - PR} y2={capY} stroke={C.green} strokeWidth="0.7" strokeDasharray="4 3" opacity="0.4" />
@@ -421,15 +421,15 @@ function CapitalGrowthChart({ trades, startingCapital }: { trades: Trade[]; star
           fill={p.won ? C.green : C.red} opacity={p.won ? 0.6 : 0.8} />
       ))}
       {dateLabels.map((d, i) => (
-        <text key={i} x={d.x} y={H - 5} fill="var(--text-4)" fontSize="6.5" textAnchor="middle" fontFamily="IBM Plex Mono, monospace">{d.label}</text>
+        <text key={i} x={d.x} y={H - 5} fill="var(--text-4)" fontSize="6.5" textAnchor="middle" fontFamily="Share Tech Mono, monospace">{d.label}</text>
       ))}
       {/* Legend */}
       <line x1={W - PR - 130} y1={10} x2={W - PR - 118} y2={10} stroke={C.green} strokeWidth="1.5" />
-      <text x={W - PR - 115} y={12.5} fill="var(--text-3)" fontSize="6.5" fontFamily="Inter, sans-serif">Capital</text>
+      <text x={W - PR - 115} y={12.5} fill="var(--text-3)" fontSize="6.5" fontFamily="Share Tech Mono, monospace">Capital</text>
       <circle cx={W - PR - 72} cy={10} r="2.5" fill={C.green} />
-      <text x={W - PR - 67} y={12.5} fill="var(--text-3)" fontSize="6.5" fontFamily="Inter, sans-serif">Win</text>
+      <text x={W - PR - 67} y={12.5} fill="var(--text-3)" fontSize="6.5" fontFamily="Share Tech Mono, monospace">Win</text>
       <circle cx={W - PR - 38} cy={10} r="2.5" fill={C.red} />
-      <text x={W - PR - 33} y={12.5} fill="var(--text-3)" fontSize="6.5" fontFamily="Inter, sans-serif">Loss</text>
+      <text x={W - PR - 33} y={12.5} fill="var(--text-3)" fontSize="6.5" fontFamily="Share Tech Mono, monospace">Loss</text>
     </svg>
   )
 }
@@ -471,16 +471,16 @@ function EquityCurve({ trades }: { trades: Trade[] }) {
       {gridLines.map((g, i) => (
         <g key={i}>
           <line x1={PL} y1={g.y} x2={W - PR} y2={g.y} stroke="var(--border)" strokeWidth="0.5" strokeDasharray="2 4" />
-          <text x={PL - 4} y={g.y + 3} fill="var(--text-4)" fontSize="7" textAnchor="end" fontFamily="IBM Plex Mono, monospace">{g.label}</text>
+          <text x={PL - 4} y={g.y + 3} fill="var(--text-4)" fontSize="7" textAnchor="end" fontFamily="Share Tech Mono, monospace">{g.label}</text>
         </g>
       ))}
       <line x1={PL} y1={scaleY(0)} x2={W - PR} y2={scaleY(0)} stroke="var(--border-light)" strokeWidth="1" />
       <path d={areaPath} fill="url(#eqGrad)" />
       <path d={linePath} fill="none" stroke={lineColor} strokeWidth="1.5" strokeLinejoin="round" />
       {points.map((p, i) => !p.won && <circle key={i} cx={scaleX(i)} cy={scaleY(p.cum)} r="2" fill={C.red} opacity="0.6" />)}
-      <text x={PL} y={H - 4} fill="var(--text-4)" fontSize="7" fontFamily="IBM Plex Mono, monospace">{points[0].date.slice(2, 7)}</text>
-      <text x={W - PR} y={H - 4} fill="var(--text-4)" fontSize="7" textAnchor="end" fontFamily="IBM Plex Mono, monospace">{points[points.length - 1].date.slice(2, 7)}</text>
-      <text x={W - PR + 4} y={scaleY(finalPnl) + 3} fill={lineColor} fontSize="9" fontWeight="700" fontFamily="Chakra Petch, sans-serif">{fmt$(finalPnl)}</text>
+      <text x={PL} y={H - 4} fill="var(--text-4)" fontSize="7" fontFamily="Share Tech Mono, monospace">{points[0].date.slice(2, 7)}</text>
+      <text x={W - PR} y={H - 4} fill="var(--text-4)" fontSize="7" textAnchor="end" fontFamily="Share Tech Mono, monospace">{points[points.length - 1].date.slice(2, 7)}</text>
+      <text x={W - PR + 4} y={scaleY(finalPnl) + 3} fill={lineColor} fontSize="9" fontWeight="700" fontFamily="Rajdhani, sans-serif">{fmt$(finalPnl)}</text>
     </svg>
   )
 }
@@ -503,7 +503,7 @@ function MonthlyTable({ trades }: { trades: Trade[] }) {
   }, [trades])
 
   const mTh: React.CSSProperties = { ...thS, textAlign: 'center', padding: '7px 6px' }
-  const mTd: React.CSSProperties = { ...tdS, textAlign: 'center', padding: '5px 6px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }
+  const mTd: React.CSSProperties = { ...tdS, textAlign: 'center', padding: '5px 6px', fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }
 
   return (
     <div style={{ overflow: 'auto', flex: 1 }}>
@@ -519,7 +519,7 @@ function MonthlyTable({ trades }: { trades: Trade[] }) {
         <tbody>
           {months.map(m => (
             <tr key={m.label}>
-              <td style={{ ...mTd, textAlign: 'left', color: 'var(--text-2)', fontFamily: "'Inter', sans-serif", fontWeight: 500 }}>{m.label}</td>
+              <td style={{ ...mTd, textAlign: 'left', color: 'var(--text-2)', fontFamily: "'Share Tech Mono', sans-serif", fontWeight: 500 }}>{m.label}</td>
               <td style={{ ...mTd, fontWeight: 600, color: m.pnl >= 0 ? C.green : C.red }}>{fmt$(m.pnl)}</td>
               <td style={{ ...mTd, color: C.green }}>{m.wins}</td>
               <td style={{ ...mTd, color: C.red }}>{m.losses}</td>
@@ -557,7 +557,7 @@ function DayBreakdown({ trades }: { trades: Trade[] }) {
   }, [trades])
 
   const dTh: React.CSSProperties = { ...thS, textAlign: 'center', padding: '7px 8px' }
-  const dTd: React.CSSProperties = { ...tdS, textAlign: 'center', padding: '8px 8px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }
+  const dTd: React.CSSProperties = { ...tdS, textAlign: 'center', padding: '8px 8px', fontFamily: "'Share Tech Mono', monospace", fontSize: 12 }
 
   return (
     <div style={{ overflow: 'auto', flex: 1 }}>
@@ -649,13 +649,13 @@ export default function BacktestView({ }: { state: AppState }) {
         <div className="config-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: 2, marginBottom: 2 }}>STRATEGY</div>
-            <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 18, fontWeight: 700, color: 'var(--text-1)', letterSpacing: 1 }}>
+            <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 18, fontWeight: 700, color: 'var(--text-1)', letterSpacing: 1 }}>
               SPX BULL PUT SPREAD
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: 2, marginBottom: 2 }}>DATA RANGE</div>
-            <div style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: "'IBM Plex Mono', monospace" }}>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: "'Share Tech Mono', monospace" }}>
               {SPX_DAILY[0][0]} → {SPX_DAILY[SPX_DAILY.length - 1][0]} · {SPX_DAILY.length} bars
             </div>
           </div>
@@ -725,14 +725,14 @@ export default function BacktestView({ }: { state: AppState }) {
               border: `1px solid ${running ? 'var(--border-light)' : C.cyan}`, borderRadius: 3,
               color: running ? 'var(--text-3)' : '#0a0e14', fontSize: 10, fontWeight: 700,
               letterSpacing: 1, cursor: running ? 'wait' : 'pointer',
-              fontFamily: "'Inter', sans-serif", transition: 'all 0.15s',
+              fontFamily: "'Share Tech Mono', sans-serif", transition: 'all 0.15s',
             }}>
               <Play size={10} style={{ animation: running ? 'spin 1s linear infinite' : 'none' }} />RUN
             </button>
             <button onClick={handleRunSweep} disabled={running} title="Sweep all day/week/exit combos" style={{
               padding: '8px 10px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 3,
               color: running ? 'var(--text-5)' : C.gold, fontSize: 10, fontWeight: 700,
-              cursor: running ? 'wait' : 'pointer', fontFamily: "'Inter', sans-serif", transition: 'all 0.15s',
+              cursor: running ? 'wait' : 'pointer', fontFamily: "'Share Tech Mono', sans-serif", transition: 'all 0.15s',
             }}>SWEEP</button>
             {activeView !== 'none' && (
               <button onClick={handleReset} style={{
@@ -783,7 +783,7 @@ export default function BacktestView({ }: { state: AppState }) {
                   padding: '8px 4px', textAlign: 'center',
                 }}>
                   <div style={{ fontSize: 8, color: 'var(--text-4)', letterSpacing: 1, marginBottom: 2, lineHeight: 1 }}>{s.label}</div>
-                  <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 16, fontWeight: 700, color: s.color, lineHeight: 1.1 }}>{s.value}</div>
+                  <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 16, fontWeight: 700, color: s.color, lineHeight: 1.1 }}>{s.value}</div>
                 </div>
               ))}
             </div>
@@ -824,17 +824,17 @@ export default function BacktestView({ }: { state: AppState }) {
                           <td style={{ ...tdS, color: C.cyan, fontWeight: 600, fontSize: 11 }}>{dayName}</td>
                           <td style={{ ...tdS, fontSize: 11, color: 'var(--text-2)' }}>{t.entryDate}</td>
                           <td style={{ ...tdS, fontSize: 11, color: 'var(--text-3)' }}>{t.exitDate}</td>
-                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.blue }}>{t.holdDays}</td>
-                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>{t.entrySpx.toFixed(0)}</td>
-                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: 'var(--text-3)' }}>{t.shortK}/{t.longK}</td>
-                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.green }}>${t.netCredit.toFixed(2)}</td>
-                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>{t.exitSpx.toFixed(0)}</td>
+                          <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: C.blue }}>{t.holdDays}</td>
+                          <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>{t.entrySpx.toFixed(0)}</td>
+                          <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: 'var(--text-3)' }}>{t.shortK}/{t.longK}</td>
+                          <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: C.green }}>${t.netCredit.toFixed(2)}</td>
+                          <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>{t.exitSpx.toFixed(0)}</td>
                           <td style={{ ...tdS, fontSize: 10, fontWeight: 700, color: t.won ? C.green : t.pnl <= maxLoss * 0.95 ? '#FF6B6B' : C.red }}>
                             {t.won ? (t.exitReason.includes('Profit') ? t.exitReason : 'WIN') : (t.pnl <= maxLoss * 0.95 ? 'MAX LOSS' : 'LOSS')}
                           </td>
-                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: 'var(--text-3)' }}>{t.contracts}</td>
-                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700, color: t.pnl >= 0 ? C.green : C.red }}>{fmt$(t.pnl)}</td>
-                          <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: 'var(--text-2)' }}>{fmt$(t.equityAfter)}</td>
+                          <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: 'var(--text-3)' }}>{t.contracts}</td>
+                          <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, fontWeight: 700, color: t.pnl >= 0 ? C.green : C.red }}>{fmt$(t.pnl)}</td>
+                          <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: 'var(--text-2)' }}>{fmt$(t.equityAfter)}</td>
                         </tr>
                       )
                     })}
@@ -849,7 +849,7 @@ export default function BacktestView({ }: { state: AppState }) {
       {activeView === 'single' && singleResult && singleResult.numTrades === 0 && (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center', color: 'var(--text-3)', fontSize: 14 }}>
-            <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 20, fontWeight: 700, color: 'var(--text-1)', marginBottom: 8 }}>NO TRADES FOUND</div>
+            <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 20, fontWeight: 700, color: 'var(--text-1)', marginBottom: 8 }}>NO TRADES FOUND</div>
             <div>Try relaxing your filters (entry day, week, or DTE range).</div>
           </div>
         </div>
@@ -874,7 +874,7 @@ export default function BacktestView({ }: { state: AppState }) {
                 padding: '8px 6px', textAlign: 'center',
               }}>
                 <div style={{ fontSize: 8, color: 'var(--text-4)', letterSpacing: 1, marginBottom: 2 }}>{s.label}</div>
-                <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 16, fontWeight: 700, color: s.color, lineHeight: 1.1 }}>{s.value}</div>
+                <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 16, fontWeight: 700, color: s.color, lineHeight: 1.1 }}>{s.value}</div>
               </div>
             ))}
           </div>
@@ -912,7 +912,7 @@ export default function BacktestView({ }: { state: AppState }) {
                           <td style={tdS}>{r.dayLabel}</td><td style={tdS}>{r.weekLabel}</td>
                           <td style={{ ...tdS, fontSize: 10 }}>{r.exitLabel}</td>
                           {COLUMNS.map(c => (
-                            <td key={c.key} style={{ ...tdS, color: cellColor(c.key, r[c.key] as number), fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
+                            <td key={c.key} style={{ ...tdS, color: cellColor(c.key, r[c.key] as number), fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>
                               {c.fmt(r[c.key] as number)}
                             </td>
                           ))}
@@ -941,12 +941,12 @@ export default function BacktestView({ }: { state: AppState }) {
                       <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-surface)' }}>
                         <td style={{ ...tdS, fontSize: 10, color: 'var(--text-3)' }}>{t.entryDate.slice(5)}</td>
                         <td style={{ ...tdS, fontSize: 10, color: 'var(--text-3)' }}>{t.exitDate.slice(5)}</td>
-                        <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>{t.entrySpx.toFixed(0)}→{t.exitSpx.toFixed(0)}</td>
-                        <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: 'var(--text-3)' }}>{t.shortK}/{t.longK}</td>
-                        <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.green }}>{t.netCredit.toFixed(2)}</td>
-                        <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.gold }}>{t.exitCost.toFixed(2)}</td>
-                        <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700, color: t.pnl >= 0 ? C.green : C.red }}>{fmt$(t.pnl)}</td>
-                        <td style={{ ...tdS, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: 'var(--text-4)' }}>{t.holdDays}</td>
+                        <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>{t.entrySpx.toFixed(0)}→{t.exitSpx.toFixed(0)}</td>
+                        <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: 'var(--text-3)' }}>{t.shortK}/{t.longK}</td>
+                        <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: C.green }}>{t.netCredit.toFixed(2)}</td>
+                        <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: C.gold }}>{t.exitCost.toFixed(2)}</td>
+                        <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, fontWeight: 700, color: t.pnl >= 0 ? C.green : C.red }}>{fmt$(t.pnl)}</td>
+                        <td style={{ ...tdS, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: 'var(--text-4)' }}>{t.holdDays}</td>
                         <td style={{ ...tdS, fontSize: 10, color: t.exitReason.includes('Profit') ? C.green : t.exitReason === 'Expiry' ? C.blue : C.gold }}>{t.exitReason}</td>
                       </tr>
                     ))}
@@ -962,7 +962,7 @@ export default function BacktestView({ }: { state: AppState }) {
       {activeView === 'none' && !running && (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center', maxWidth: 520 }}>
-            <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 22, fontWeight: 700, color: 'var(--text-1)', letterSpacing: 1, marginBottom: 8 }}>
+            <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 22, fontWeight: 700, color: 'var(--text-1)', letterSpacing: 1, marginBottom: 8 }}>
               SPX BULL PUT SPREAD BACKTEST
             </div>
             <div style={{ fontSize: 13, lineHeight: 1.8, color: 'var(--text-3)' }}>
@@ -980,7 +980,7 @@ export default function BacktestView({ }: { state: AppState }) {
               <button onClick={handleRunSingle} style={{
                 padding: '10px 24px', background: C.cyan, border: `1px solid ${C.cyan}`,
                 borderRadius: 3, color: '#0a0e14', fontSize: 12, fontWeight: 700, letterSpacing: 1.5,
-                cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+                cursor: 'pointer', fontFamily: "'Share Tech Mono', sans-serif",
                 display: 'inline-flex', alignItems: 'center', gap: 8,
                 boxShadow: `0 0 20px ${C.cyanGlow}`, transition: 'all 0.15s',
               }}
@@ -990,7 +990,7 @@ export default function BacktestView({ }: { state: AppState }) {
               <button onClick={handleRunSweep} style={{
                 padding: '10px 24px', background: 'transparent', border: `1px solid ${C.gold}`,
                 borderRadius: 3, color: C.gold, fontSize: 12, fontWeight: 700, letterSpacing: 1.5,
-                cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+                cursor: 'pointer', fontFamily: "'Share Tech Mono', sans-serif",
                 display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'all 0.15s',
               }}
                 onMouseEnter={e => { e.currentTarget.style.background = C.goldDim }}
@@ -1003,7 +1003,7 @@ export default function BacktestView({ }: { state: AppState }) {
 
       {running && (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 18, fontWeight: 700, color: C.cyan, animation: 'pulse 1s ease-in-out infinite' }}>COMPUTING…</div>
+          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 18, fontWeight: 700, color: C.cyan, animation: 'pulse 1s ease-in-out infinite' }}>COMPUTING…</div>
         </div>
       )}
     </div>

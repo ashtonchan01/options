@@ -1,40 +1,43 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Chakra+Petch:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap');
+/* Fonts (Rajdhani + Share Tech Mono) are loaded via <link> in index.html */
 
-/* ─── Theme variables (scanner-matched) ───────────────────────────────────── */
+/* ─── Theme variables — JARVIS HUD (navy glass + cyan signal) ─────────────── */
 
 :root,
 [data-theme="dark"] {
-  /* ── Claude dark theme — warm charcoal backgrounds ── */
-  --bg-page:     #1c1917;
-  --bg-surface:  #221f1b;
-  --bg-card:     #262320;
-  --bg-elevated: #2c2926;
-  --bg-active:   #33302c;
-  --border:       #3d3a36;
-  --border-light: #4a4743;
-  --text-1: #ede8e3;
-  --text-2: #a09890;
-  --text-3: #6b6360;
-  --text-4: #4a4542;
-  --text-5: #2e2b28;
-  --scrollbar: #3d3a36;
-  --scrollbar-hover: #4a4743;
-  --overlay: rgba(12, 10, 8, 0.80);
-  /* Accent — Claude coral/orange */
-  --accent:      #e8956d;
-  --accent-dim:  rgba(232, 149, 109, 0.12);
-  --accent-glow: rgba(232, 149, 109, 0.06);
+  /* ── Deep navy base ── */
+  --bg-page:     #04080f;
+  --bg-surface:  #060d18;
+  --bg-card:     rgba(8, 17, 30, 0.72);
+  --bg-elevated: #0a1626;
+  --bg-active:   #0e1f33;
+  --border:       rgba(0, 229, 255, 0.14);
+  --border-light: rgba(0, 229, 255, 0.30);
+  --text-1: #e6f7ff;
+  --text-2: #9db8c8;
+  --text-3: #64829a;
+  --text-4: #45607a;
+  --text-5: #263b50;
+  --scrollbar: rgba(0, 229, 255, 0.18);
+  --scrollbar-hover: rgba(0, 229, 255, 0.35);
+  --overlay: rgba(2, 6, 12, 0.82);
+  /* Accent — HUD cyan */
+  --accent:      #00e5ff;
+  --accent-dim:  rgba(0, 229, 255, 0.12);
+  --accent-glow: rgba(0, 229, 255, 0.06);
   /* Loss color */
-  --pink:        #e05070;
-  --pink-dim:    rgba(224, 80, 112, 0.10);
-  --gold:        #d4a843;
-  --gold-dim:    rgba(212, 168, 67, 0.10);
+  --pink:        #ff4655;
+  --pink-dim:    rgba(255, 70, 85, 0.10);
+  --gold:        #ffb300;
+  --gold-dim:    rgba(255, 179, 0, 0.10);
   /* Palette */
-  --neon-cyan:   #e8956d;
-  --neon-pink:   #e05070;
-  --neon-green:  #34c98a;
-  --neon-amber:  #d4a843;
+  --neon-cyan:   #00e5ff;
+  --neon-pink:   #ff4655;
+  --neon-green:  #2bd97c;
+  --neon-amber:  #ffb300;
+  /* HUD chrome */
+  --bracket: rgba(0, 229, 255, 0.55);
+  --glow-cyan: 0 0 14px rgba(0, 229, 255, 0.12);
 }
 
 [data-theme="light"] {
@@ -68,16 +71,40 @@ html, body, #root { height: 100%; }
 body {
   background: var(--bg-page);
   color: var(--text-2);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Share Tech Mono', monospace;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* No background pattern — clean dark surface */
 }
+
+/* HUD blueprint grid + top glow (dark theme) */
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -12%, rgba(0, 229, 255, 0.07), transparent 65%),
+    linear-gradient(rgba(0, 229, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.025) 1px, transparent 1px),
+    var(--bg-page);
+  background-size: auto, 44px 44px, 44px 44px, auto;
+  background-attachment: fixed;
+}
+
+/* Full-screen FX overlay — scanlines + vignette */
+:root[data-theme="dark"] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.13) 0px, rgba(0, 0, 0, 0.13) 1px, transparent 1px, transparent 3px),
+    radial-gradient(ellipse 130% 105% at 50% 50%, transparent 62%, rgba(0, 0, 0, 0.34) 100%);
+}
+
+::selection { background: rgba(0, 229, 255, 0.28); color: #eaffff; }
 
 /* ─── Utility classes ──────────────────────────────────────────────────────── */
 
-.chakra { font-family: 'Chakra Petch', sans-serif; }
+.chakra { font-family: 'Rajdhani', sans-serif; }
 
 /* Stat card */
 .stat-card {
@@ -95,7 +122,7 @@ body {
   text-transform: uppercase; margin-bottom: 6px; font-weight: 600;
 }
 .stat-value {
-  font-family: 'Chakra Petch', sans-serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 24px; font-weight: 700; color: var(--text-1);
 }
 
@@ -117,18 +144,19 @@ body {
 .label { font-size: 10px; color: var(--text-4); letter-spacing: 2px; text-transform: uppercase; }
 
 /* P&L */
-.pos { color: #34c98a; }
-.neg { color: #e05070; }
+.pos { color: #2bd97c; }
+.neg { color: #ff4655; }
 .neu { color: var(--text-2); }
 
 /* Fonts */
-.mono    { font-family: 'IBM Plex Mono', monospace; }
-.display { font-family: 'Chakra Petch', sans-serif; }
+.mono    { font-family: 'Share Tech Mono', monospace; }
+.display { font-family: 'Rajdhani', sans-serif; }
 
 /* Animations */
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
 @keyframes spin  { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
-@keyframes glowPulse { 0%,100% { box-shadow: 0 0 8px rgba(56,188,212,0.1); } 50% { box-shadow: 0 0 20px rgba(56,188,212,0.2); } }
+@keyframes glowPulse { 0%,100% { box-shadow: 0 0 8px rgba(0,229,255,0.1); } 50% { box-shadow: 0 0 20px rgba(0,229,255,0.25); } }
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.25; } }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -160,7 +188,7 @@ body {
 }
 
 .top-nav-logo {
-  font-family: 'Chakra Petch', sans-serif;
+  font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   font-size: 14px;
   letter-spacing: 3px;
@@ -173,14 +201,14 @@ body {
   border-radius: 50%;
   background: var(--border);
 }
-.top-nav-sync-dot[data-status="success"] { background: #00D084; box-shadow: 0 0 6px rgba(0,208,132,0.4); }
+.top-nav-sync-dot[data-status="success"] { background: #2bd97c; box-shadow: 0 0 6px rgba(0,208,132,0.4); }
 .top-nav-sync-dot[data-status="loading"] { background: #F0B429; animation: pulse 1s ease-in-out infinite; }
-.top-nav-sync-dot[data-status="error"]   { background: #FF4757; }
+.top-nav-sync-dot[data-status="error"]   { background: #ff4655; }
 
 .top-nav-sync-time {
   font-size: 11px;
   color: var(--text-4);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Share Tech Mono', monospace;
 }
 
 .top-nav-tabs {
@@ -200,7 +228,7 @@ body {
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--text-4);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Share Tech Mono', sans-serif;
   font-size: 12px;
   font-weight: 400;
   cursor: pointer;
@@ -217,7 +245,7 @@ body {
 }
 
 .top-nav-badge {
-  background: #FF4757;
+  background: #ff4655;
   color: #fff;
   font-size: 9px;
   font-weight: 700;
@@ -289,7 +317,7 @@ body {
   background: transparent;
   border: none;
   color: var(--text-3);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Share Tech Mono', sans-serif;
   font-size: 15px;
   cursor: pointer;
   text-align: left;
@@ -321,7 +349,7 @@ body {
   background: transparent;
   border: none;
   color: var(--text-3);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Share Tech Mono', sans-serif;
   font-size: 14px;
   cursor: pointer;
   text-align: left;
@@ -467,7 +495,7 @@ body {
   background: transparent;
   border: none;
   color: var(--text-3);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Share Tech Mono', sans-serif;
   font-size: 13px;
   cursor: pointer;
   transition: all 0.12s;
@@ -522,7 +550,7 @@ body {
 .db-pnl-card:hover { border-color: var(--border-light); }
 
 .db-pnl-value {
-  font-family: 'Chakra Petch', sans-serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 20px;
   font-weight: 700;
   color: var(--text-1);
@@ -758,7 +786,7 @@ body {
 }
 
 .cc-title {
-  font-family: 'Chakra Petch', sans-serif;
+  font-family: 'Rajdhani', sans-serif;
   font-size: 22px;
   font-weight: 700;
   color: var(--text-1);
@@ -798,7 +826,7 @@ body {
   border: 1px solid var(--border-light);
   border-radius: 6px;
   color: var(--text-2);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Share Tech Mono', sans-serif;
   font-size: 13px;
   padding: 7px 10px;
   cursor: pointer;
@@ -852,7 +880,7 @@ body {
   font-size: 11px;
   font-weight: 700;
   color: var(--text-3);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Share Tech Mono', monospace;
   text-align: right;
   padding-right: 4px;
 }
@@ -872,7 +900,7 @@ body {
 
 .cc-fy-bar-val {
   font-size: 12px;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Share Tech Mono', monospace;
   font-weight: 600;
   text-align: right;
 }
@@ -956,7 +984,7 @@ body {
 .tl-progress-text {
   font-size: 11px;
   color: var(--text-4);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Share Tech Mono', monospace;
 }
 
 .tl-toolbar {
@@ -1013,7 +1041,7 @@ body {
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Share Tech Mono', sans-serif;
 }
 .tl-btn:hover { border-color: var(--border-light); color: var(--text-1); background: var(--bg-elevated); }
 .tl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -1071,7 +1099,7 @@ body {
   border: 1px solid var(--border-light);
   border-radius: 5px;
   color: var(--text-2);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Share Tech Mono', sans-serif;
   font-size: 12px;
   padding: 4px 8px;
   cursor: pointer;
@@ -1113,7 +1141,7 @@ body {
   font-weight: 600;
   padding: 6px 12px;
   cursor: pointer;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Share Tech Mono', sans-serif;
   transition: all 0.15s;
 }
 .tl-auto-toggle:hover { background: var(--accent-dim); }
@@ -1151,5 +1179,127 @@ body {
 .tl-auto-rule-count {
   font-size: 11px;
   color: var(--text-4);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+/* ─── JARVIS HUD chrome ───────────────────────────────────────────────────── */
+
+/* Angular cards — kill the soft radii */
+.stat-card, .panel, .panel-alt, .db-pnl-card, .db-channel-card, .db-snapshot-card,
+.db-bottom-panel, .db-action-card, .cc-summary-card, .cc-table-section, .tl-table-wrap,
+.strat-dropdown-menu, .tl-bulk-bar, .tl-auto-rules, .cc-label-nudge {
+  border-radius: 2px;
+}
+.top-nav-btn, .tl-btn, .cc-select, .tl-strat-select, .tl-auto-toggle { border-radius: 2px; }
+
+/* Corner brackets on primary panels */
+.stat-card, .panel, .panel-alt, .db-pnl-card, .db-channel-card, .db-snapshot-card,
+.db-bottom-panel, .cc-summary-card, .cc-table-section {
+  position: relative;
+}
+.stat-card::before, .panel::before, .panel-alt::before, .db-pnl-card::before,
+.db-channel-card::before, .db-snapshot-card::before, .db-bottom-panel::before,
+.cc-summary-card::before, .cc-table-section::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 11px; height: 11px;
+  border-top: 2px solid var(--bracket);
+  border-left: 2px solid var(--bracket);
+  pointer-events: none;
+  z-index: 1;
+}
+.stat-card::after, .panel::after, .panel-alt::after, .db-pnl-card::after,
+.db-channel-card::after, .db-snapshot-card::after, .db-bottom-panel::after,
+.cc-summary-card::after, .cc-table-section::after {
+  content: '';
+  position: absolute;
+  bottom: 0; right: 0;
+  width: 11px; height: 11px;
+  border-bottom: 2px solid var(--bracket);
+  border-right: 2px solid var(--bracket);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Hover — cyan glow instead of plain border shift */
+.stat-card:hover, .db-pnl-card:hover, .db-channel-card:hover,
+.db-snapshot-card:hover, .cc-summary-card:hover, .db-action-card:hover {
+  border-color: var(--border-light);
+  box-shadow: var(--glow-cyan), inset 0 0 18px rgba(0, 229, 255, 0.04);
+}
+
+/* Top bar — glass HUD strip */
+:root[data-theme="dark"] .top-nav {
+  background: rgba(4, 10, 18, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border-light);
+  box-shadow: 0 1px 18px rgba(0, 229, 255, 0.08);
+}
+.top-nav-logo {
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 5px;
+  text-shadow: 0 0 12px rgba(0, 229, 255, 0.55);
+}
+.top-nav-designation {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text-4);
+  border-left: 1px solid var(--border-light);
+  padding-left: 8px;
+  white-space: nowrap;
+}
+.top-nav-tab { font-family: 'Share Tech Mono', monospace; text-transform: uppercase; letter-spacing: 1px; font-size: 11px; }
+.top-nav-tab.active { text-shadow: 0 0 9px rgba(0, 229, 255, 0.5); }
+.top-nav-sync-dot[data-status="success"] { background: #2bd97c; box-shadow: 0 0 7px rgba(43, 217, 124, 0.6); animation: blink 2.4s ease-in-out infinite; }
+
+/* Live clocks */
+.top-nav-clocks {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+.hud-clock {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: var(--text-2);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.hud-clock-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  opacity: 0.75;
+  margin-right: 5px;
+}
+
+/* Tables — HUD readout */
+.trade-table th {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  background: rgba(0, 229, 255, 0.05);
+  border-bottom: 1px solid var(--border-light);
+}
+.trade-table tr:hover td { background: rgba(0, 229, 255, 0.05); }
+
+/* Headings glow */
+.stat-value, .db-pnl-value, .cc-title { text-shadow: 0 0 16px rgba(0, 229, 255, 0.18); }
+
+/* Dropdown — glass */
+:root[data-theme="dark"] .strat-dropdown-menu {
+  background: rgba(6, 13, 24, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 0 18px rgba(0, 229, 255, 0.10);
+}
+
+@media (max-width: 900px) {
+  .top-nav-clocks { display: none; }
+  .top-nav-designation { display: none; }
 }

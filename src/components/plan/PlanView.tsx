@@ -125,7 +125,7 @@ const tileHdr: React.CSSProperties = {
   padding: '10px 16px', borderBottom: '1px solid var(--border)',
   fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.1em', flexShrink: 0,
 }
-const mono: React.CSSProperties = { fontFamily: 'IBM Plex Mono, monospace' }
+const mono: React.CSSProperties = { fontFamily: 'Share Tech Mono, monospace' }
 
 // ─── Monthly data ─────────────────────────────────────────────────────────────
 
