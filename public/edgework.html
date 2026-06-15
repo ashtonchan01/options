@@ -1880,19 +1880,24 @@ async function syncIBKR(){
     // Step 3: parse net liquidation / account value from Flex XML
     var doc=new DOMParser().parseFromString(xml,'application/xml');
     var netLiq=0;
-    // Try EquitySummaryInBase (requires Equity Summary section in Flex query)
+    // 1. Equity Summary in Base (best — add "Equity Summary in Base" to Flex query)
     var eqBase=doc.querySelector('EquitySummaryInBase')||doc.querySelector('EquitySummaryByReportDateInBase');
     if(eqBase) netLiq=parseFloat(eqBase.getAttribute('netLiquidation')||'0');
-    // Fallback: CashReportCurrency BASE_SUMMARY endingCash
+    // 2. Net Asset Value in Base (add "Net Asset Value (NAV) in Base" to Flex query)
+    if(!netLiq){
+      var nav=doc.querySelector('NetAssetValueInBase');
+      if(nav) netLiq=parseFloat(nav.getAttribute('total')||nav.getAttribute('netAssetValue')||'0');
+    }
+    // 3. Mark-to-Market Performance Summary (already enabled in your Flex query)
+    if(!netLiq){
+      var mtm=doc.querySelector('MarkToMarketPerformanceSummaryInBase')||doc.querySelector('MarkToMarketPerformanceSummary');
+      if(mtm) netLiq=parseFloat(mtm.getAttribute('endingValue')||mtm.getAttribute('total')||'0');
+    }
+    // 4. Cash Report BASE_SUMMARY endingCash (cash only, not positions — rough fallback)
     if(!netLiq){
       var cashRows=Array.from(doc.querySelectorAll('CashReportCurrency'));
-      var base=cashRows.find(function(el){return el.getAttribute('currency')==='BASE_SUMMARY';});
-      if(base) netLiq=parseFloat(base.getAttribute('endingCash')||'0');
-    }
-    // Fallback 2: AccountInformation totalCashValue
-    if(!netLiq){
-      var acctInfo=doc.querySelector('AccountInformation');
-      if(acctInfo) netLiq=parseFloat(acctInfo.getAttribute('netLiquidation')||acctInfo.getAttribute('totalCashValue')||'0');
+      var baseCash=cashRows.find(function(el){return el.getAttribute('currency')==='BASE_SUMMARY';});
+      if(baseCash) netLiq=parseFloat(baseCash.getAttribute('endingCash')||'0');
     }
     if(netLiq) localStorage.setItem('ew_net_liq',String(netLiq));
     // Step 4: parse trades
