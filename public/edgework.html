@@ -1070,27 +1070,15 @@ async function syncIBKR(){
   if(btn){btn.textContent='⏳ Syncing…';btn.disabled=true;}
   try{
     // Step 1: request statement
-    var initUrl='https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest?t='+encodeURIComponent(creds.flexToken)+'&q='+encodeURIComponent(creds.queryId)+'&v=3';
-    var initRes=await fetch(initUrl);
-    var initXml=await initRes.text();
-    var refMatch=initXml.match(/<ReferenceCode>(.*?)<\/ReferenceCode>/);
-    if(!refMatch) throw new Error('No reference code returned. Check token & query ID.');
-    var refCode=refMatch[1];
-    // Step 2: poll for statement
-    var xml=null;
-    for(var i=0;i<12;i++){
-      await new Promise(function(r){setTimeout(r,5000);});
-      if(btn) btn.textContent='⏳ Polling ('+(i+1)+'/12)…';
-      var pollUrl='https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement?t='+encodeURIComponent(creds.flexToken)+'&q='+encodeURIComponent(refCode)+'&v=3';
-      var pollRes=await fetch(pollUrl);
-      var pollText=await pollRes.text();
-      if(pollText.includes('<FlexQueryResponse')){xml=pollText;break;}
-      if(pollText.includes('Statement generation in progress')) continue;
-      // Error response
-      var errMatch=pollText.match(/<ErrorMessage>(.*?)<\/ErrorMessage>/);
-      if(errMatch) throw new Error(errMatch[1]);
+    // Use the same Vercel proxy as the options dashboard (avoids CORS)
+    if(btn) btn.textContent='⏳ Requesting…';
+    var proxyUrl='/api/flex-sync?token='+encodeURIComponent(creds.flexToken)+'&query='+encodeURIComponent(creds.queryId);
+    var proxyRes=await fetch(proxyUrl);
+    var xml=await proxyRes.text();
+    if(!proxyRes.ok){
+      var errObj=null;try{errObj=JSON.parse(xml);}catch(e){}
+      throw new Error(errObj&&errObj.error?errObj.error:'Proxy error '+proxyRes.status+': '+xml.slice(0,120));
     }
-    if(!xml) throw new Error('Timeout: statement not ready after 60s. Try again.');
     // Step 3: parse via existing parseXML
     var parsed=parseXML(xml);
     if(!parsed||!parsed.length) throw new Error('No trades found in statement.');
