@@ -8,7 +8,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",sans-serif;height:100vh;overflow:hidden}
 :root{--bg:#F6F8FA;--sur:#FFF;--sur2:#F0F2F4;--bdr:#E1E4E8;--txt:#1A1A2E;--mut:#6B7280;--grn:#16A34A;--red:#DC2626;--amb:#B45309;--blu:#2563EB}
-body.dark{--bg:#0D1117;--sur:#161B22;--sur2:#1C2128;--bdr:#30363D;--txt:#E6EDF3;--mut:#7D8590}
+body.dark{--bg:#0D1117;--sur:#161B22;--sur2:#1C2128;--bdr:#30363D;--txt:#E6EDF3;--mut:#7D8590;--grn:#22c55e;--red:#f87171;--amb:#fbbf24;--blu:#60a5fa}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-thumb{background:rgba(128,128,128,.3);border-radius:3px}
 input,select,button,textarea{font-family:inherit;color:var(--txt)}
@@ -159,8 +159,8 @@ input[type=file]{color:var(--txt);font-size:13px;margin-top:6px}
   <div class="logo"><div class="li">EW</div><span class="lt">edgework</span></div>
   <div id="ns"></div>
   <div class="sbal">
-    <div class="sbL">Account Balance (USD)</div>
-    <div class="sbn" id="sbn">US$317,982.07</div>
+    <div class="sbL" style="display:flex;align-items:center;justify-content:space-between">Account Balance (USD) <span onclick="promptBalance()" style="cursor:pointer;font-size:10px;color:var(--mut)" title="Set manually">✏️</span></div>
+    <div class="sbn" id="sbn">—</div>
   </div>
 </nav>
 <div id="mn">
@@ -457,17 +457,7 @@ function buildCal(year,month,dm){
 /* ========== PAGES ========== */
 function pHome(){
   var s=stats();
-  var netLiq=parseFloat(localStorage.getItem('ew_net_liq')||'0');
-  var balEl=document.getElementById('sbn');
-  if(balEl){
-    if(netLiq){
-      balEl.textContent='US$'+netLiq.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-    } else {
-      balEl.textContent='Sync IBKR to load';
-      balEl.style.fontSize='11px';
-      balEl.style.color='var(--mut)';
-    }
-  }
+  updateBalanceDisplay();
   // Calendar data
   var yr=2026,mo=5,dm={};
   s.closed.forEach(function(t){
@@ -1790,6 +1780,27 @@ function doImport(){
   pending=[];cM('IBKR');pg='Journal';sub='';buildNav();render();
 }
 
+/* ========== BALANCE DISPLAY ========== */
+function updateBalanceDisplay(){
+  var netLiq=parseFloat(localStorage.getItem('ew_net_liq')||'0');
+  var balEl=document.getElementById('sbn');
+  if(!balEl) return;
+  if(netLiq){
+    balEl.style.fontSize='';balEl.style.color='';
+    balEl.textContent='US$'+netLiq.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  } else {
+    balEl.style.fontSize='11px';balEl.style.color='var(--mut)';
+    balEl.textContent='Set manually ✏️';
+  }
+}
+function promptBalance(){
+  var cur=localStorage.getItem('ew_net_liq')||'';
+  var val=prompt('Enter your current IBKR account value in USD:',cur);
+  if(val===null) return;
+  var n=parseFloat(val.replace(/[^0-9.]/g,''));
+  if(n>0){localStorage.setItem('ew_net_liq',String(n));updateBalanceDisplay();}
+}
+
 /* ========== IBKR FLEX LIVE SYNC ========== */
 function loadFlexCreds(){
   try{
@@ -1866,10 +1877,23 @@ async function syncIBKR(){
       var errObj=null;try{errObj=JSON.parse(xml);}catch(e){}
       throw new Error(errObj&&errObj.error?errObj.error:'Proxy error '+proxyRes.status+': '+xml.slice(0,120));
     }
-    // Step 3: parse net liquidation value (real account value from IBKR)
+    // Step 3: parse net liquidation / account value from Flex XML
     var doc=new DOMParser().parseFromString(xml,'application/xml');
+    var netLiq=0;
+    // Try EquitySummaryInBase (requires Equity Summary section in Flex query)
     var eqBase=doc.querySelector('EquitySummaryInBase')||doc.querySelector('EquitySummaryByReportDateInBase');
-    var netLiq=eqBase?parseFloat(eqBase.getAttribute('netLiquidation')||'0'):0;
+    if(eqBase) netLiq=parseFloat(eqBase.getAttribute('netLiquidation')||'0');
+    // Fallback: CashReportCurrency BASE_SUMMARY endingCash
+    if(!netLiq){
+      var cashRows=Array.from(doc.querySelectorAll('CashReportCurrency'));
+      var base=cashRows.find(function(el){return el.getAttribute('currency')==='BASE_SUMMARY';});
+      if(base) netLiq=parseFloat(base.getAttribute('endingCash')||'0');
+    }
+    // Fallback 2: AccountInformation totalCashValue
+    if(!netLiq){
+      var acctInfo=doc.querySelector('AccountInformation');
+      if(acctInfo) netLiq=parseFloat(acctInfo.getAttribute('netLiquidation')||acctInfo.getAttribute('totalCashValue')||'0');
+    }
     if(netLiq) localStorage.setItem('ew_net_liq',String(netLiq));
     // Step 4: parse trades
     var parsed=parseXML(xml);
@@ -1895,6 +1919,7 @@ async function syncIBKR(){
 buildNav();
 render();
 initFlexBtn();
+updateBalanceDisplay();
 </script>
 </body>
 </html>
