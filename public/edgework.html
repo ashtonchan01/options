@@ -555,7 +555,44 @@ function pHome(){
     +'</div></div>';
 }
 
+// All available journal columns: [key, label, always-visible]
+var JCols=[
+  {k:'eD',   lbl:'Entry Date',   always:true},
+  {k:'xD',   lbl:'Exit Date',    always:false},
+  {k:'inst', lbl:'Instrument',   always:true},
+  {k:'tt',   lbl:'Trade Type',   always:false},
+  {k:'opt',  lbl:'Option',       always:false},
+  {k:'setup',lbl:'Setup',        always:false},
+  {k:'dir',  lbl:'Direction',    always:false},
+  {k:'qty',  lbl:'Qty',          always:false},
+  {k:'ep',   lbl:'Entry Price',  always:false},
+  {k:'xp',   lbl:'Exit Price',   always:false},
+  {k:'fee',  lbl:'Fees ($)',     always:false},
+  {k:'ret',  lbl:'Return ($)',   always:true},
+  {k:'pct',  lbl:'Return (%)',   always:false},
+  {k:'acct', lbl:'Account Size', always:false},
+  {k:'rrr',  lbl:'RRR',         always:false},
+];
+function jColVisible(k){
+  try{var v=JSON.parse(localStorage.getItem('ew_jcols')||'null');if(v)return !!v[k];}catch(e){}
+  // Defaults: most columns on
+  var defaults={eD:1,xD:1,inst:1,tt:1,opt:1,setup:1,dir:1,qty:1,ep:1,xp:1,fee:1,ret:1,pct:1,acct:0,rrr:0};
+  return !!defaults[k];
+}
+function toggleJCol(k){
+  var v={};JCols.forEach(function(c){v[c.k]=jColVisible(c.k);});
+  v[k]=!v[k];
+  localStorage.setItem('ew_jcols',JSON.stringify(v));
+  render();
+}
+function toggleJColPicker(){
+  var el=document.getElementById('jcp');
+  if(el) el.style.display=el.style.display==='none'?'block':'none';
+}
+
 function pJournal(){
+  var vis=JCols.filter(function(c){return c.always||jColVisible(c.k);});
+  var visKeys=vis.map(function(c){return c.k;});
   var start=(jp-1)*PS;
   var paged=TR.slice(start,start+PS);
   var tot=Math.ceil(TR.length/PS);
@@ -568,27 +605,37 @@ function pJournal(){
     var pctStr=isC?(isW?'+':'')+t.pct.toFixed(2)+'%':'';
     var acctStr=isC&&t.acct?t.acct.toLocaleString('en-US',{maximumFractionDigits:2}):'&mdash;';
     var xpStr=isC&&t.xp!==null?t.xp.toFixed(2):'';
+    var cells={
+      eD:'<td class="'+rc+'">'+esc(fD(t.eD))+'</td>',
+      xD:'<td class="'+rc+'">'+(isC?esc(fD(t.xD)):'')+'</td>',
+      inst:'<td class="'+rc+'" style="font-weight:600">'+esc(t.inst)+(t.imp?' <span style="font-size:9px;color:var(--blu)">IBKR</span>':'')+'</td>',
+      tt:'<td><span class="bdg">'+esc(t.tt)+'</span></td>',
+      opt:'<td>'+(t.opt?'<span class="bdg">'+esc(t.opt)+'</span>':'')+'</td>',
+      setup:'<td class="'+rc+'">'+esc(t.setup)+'</td>',
+      dir:'<td class="'+rc+'">'+esc(t.dir)+'</td>',
+      qty:'<td>'+t.qty.toFixed(2)+'</td>',
+      ep:'<td class="'+rc+'">'+t.ep.toFixed(2)+'</td>',
+      xp:'<td class="'+rc+'">'+xpStr+'</td>',
+      fee:'<td>'+t.fee.toFixed(2)+'</td>',
+      ret:'<td class="'+rc+'" style="font-weight:600">'+esc(retStr)+'</td>',
+      pct:'<td class="'+rc+'">'+esc(pctStr)+'</td>',
+      acct:'<td>'+acctStr+'</td>',
+      rrr:'<td>'+(t.rrr?t.rrr.toFixed(2):'&mdash;')+'</td>',
+    };
     rows+='<tr class="'+cls+'">'
       +'<td><input type="checkbox"/></td>'
       +'<td style="cursor:pointer;color:'+(t.star?'var(--amb)':'var(--bdr)')+'" onclick="stTR('+t.id+')">&#x2605;</td>'
-      +'<td class="'+rc+'">'+esc(fD(t.eD))+'</td>'
-      +'<td class="'+rc+'">'+(isC?esc(fD(t.xD)):'')+'</td>'
-      +'<td class="'+rc+'" style="font-weight:600">'+esc(t.inst)+(t.imp?' <span style="font-size:9px;color:var(--blu)">IBKR</span>':'')+'</td>'
-      +'<td><span class="bdg">'+esc(t.tt)+'</span></td>'
-      +'<td>'+(t.opt?'<span class="bdg">'+esc(t.opt)+'</span>':'')+'</td>'
-      +'<td class="'+rc+'">'+esc(t.setup)+'</td>'
-      +'<td class="'+rc+'">'+esc(t.dir)+'</td>'
-      +'<td>'+t.qty.toFixed(2)+'</td>'
-      +'<td class="'+rc+'">'+t.ep.toFixed(2)+'</td>'
-      +'<td class="'+rc+'">'+xpStr+'</td>'
-      +'<td>'+t.fee.toFixed(2)+'</td>'
-      +'<td class="'+rc+'" style="font-weight:600">'+esc(retStr)+'</td>'
-      +'<td class="'+rc+'">'+esc(pctStr)+'</td>'
-      +'<td>'+acctStr+'</td>'
-      +'<td>'+(t.rrr?t.rrr.toFixed(2):'&mdash;')+'</td>'
+      +visKeys.map(function(k){return cells[k]||'';}).join('')
       +'</tr>';
   });
   var ibkrCnt=TR.filter(function(t){return t.imp;}).length;
+  // Column picker dropdown HTML
+  var pickerItems=JCols.filter(function(c){return !c.always;}).map(function(c){
+    var on=jColVisible(c.k);
+    return '<label style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-size:12px;white-space:nowrap">'
+      +'<input type="checkbox" '+(on?'checked':'')+' onchange="toggleJCol(\''+c.k+'\')" style="width:auto"> '+esc(c.lbl)+'</label>';
+  }).join('');
+
   return '<div class="page">'
     +'<div class="bg">'
     +'<button class="btn bp" onclick="oM(\'add\')">Add Trade</button>'
@@ -597,15 +644,17 @@ function pJournal(){
     +'<button class="btn">Duplicate</button>'
     +'<button class="btn">Delete (0)</button>'
     +'<button class="btn">&#x1F4C5; Adjust Trade Time</button>'
-    +(ibkrCnt?'<span style="margin-left:auto;font-size:12px;color:var(--mut)">'+ibkrCnt+' IBKR trades</span>':'')
+    +'<div style="position:relative;margin-left:auto">'
+    +'<button class="btn" onclick="toggleJColPicker()" style="font-size:12px">Columns &#x25BE;</button>'
+    +'<div id="jcp" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--sur);border:1px solid var(--bdr);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:50;min-width:160px;padding:4px 0">'
+    +pickerItems
+    +'</div></div>'
+    +(ibkrCnt?'<span style="font-size:12px;color:var(--mut)">'+ibkrCnt+' IBKR trades</span>':'')
     +'</div>'
     +'<div class="card tw" style="max-height:calc(100vh - 195px)">'
     +'<table><thead><tr>'
     +'<th style="width:32px"><input type="checkbox"/></th><th style="width:24px"></th>'
-    +'<th>Entry Date</th><th>Exit Date</th><th>Instrument</th><th>Trade Type</th>'
-    +'<th>Option</th><th>Setup</th><th>Direction</th><th>Qty</th>'
-    +'<th>Entry Price</th><th>Exit Price</th><th>Fees ($)</th>'
-    +'<th>Return ($)</th><th>Return (%)</th><th>Account Size</th><th>RRR</th>'
+    +vis.map(function(c){return '<th>'+esc(c.lbl)+'</th>';}).join('')
     +'</tr></thead><tbody>'+rows+'</tbody></table>'
     +'</div>'
     +'<div class="pag">'
