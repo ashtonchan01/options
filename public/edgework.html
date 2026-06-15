@@ -159,8 +159,8 @@ input[type=file]{color:var(--txt);font-size:13px;margin-top:6px}
   <div class="logo"><div class="li">EW</div><span class="lt">edgework</span></div>
   <div id="ns"></div>
   <div class="sbal">
-    <div class="sbL">Account Balance</div>
-    <div class="sbn" id="sbn">$317,982.07</div>
+    <div class="sbL">Account Balance (USD)</div>
+    <div class="sbn" id="sbn">US$317,982.07</div>
   </div>
 </nav>
 <div id="mn">
@@ -278,9 +278,19 @@ var TR=genTrades();
 var pending=[];
 
 /* ========== HELPERS ========== */
+// Trades & P&L are in USD (US stocks, IBKR base currency)
 function f$(v){
   var abs=Math.abs(v);
-  return (v<0?'-$':'$')+abs.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return (v<0?'-US$':'US$')+abs.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+// Deposits/withdrawals are in AUD (funded from AUD account)
+function fAUD(v){
+  var abs=Math.abs(v);
+  return (v<0?'-A$':'A$')+abs.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+// Format with explicit currency symbol
+function fCCY(v,ccy){
+  return (ccy==='AUD')?fAUD(v):f$(v);
 }
 function fD(d){
   if(!d) return '';
@@ -448,7 +458,7 @@ function buildCal(year,month,dm){
 function pHome(){
   var s=stats();
   var bal=TR[0]&&TR[0].acct?TR[0].acct:317982.07;
-  document.getElementById('sbn').textContent='$'+bal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('sbn').textContent='US$'+bal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   // Calendar data
   var yr=2026,mo=5,dm={};
   s.closed.forEach(function(t){
@@ -1188,19 +1198,30 @@ var ewDeposits=JSON.parse(localStorage.getItem('ew_deposits')||'[]');
 function saveDeposits(){localStorage.setItem('ew_deposits',JSON.stringify(ewDeposits));}
 function pSTDeposits(){
   var rows=ewDeposits.map(function(d){
-    return '<tr><td>'+esc(d.date)+'</td><td class="'+(d.amount>=0?'wn':'ls')+'">'+f$(d.amount)+'</td><td>'+f$(d.balance)+'</td><td>'+esc(d.reason)+'</td></tr>';
+    var ccy=d.currency||'AUD';
+    return '<tr>'
+      +'<td>'+esc(d.date)+'</td>'
+      +'<td class="'+(d.amount>=0?'wn':'ls')+'">'+fCCY(d.amount,ccy)+'</td>'
+      +'<td><span style="font-size:10px;color:var(--mut);margin-right:3px">'+ccy+'</span>'+fCCY(d.balance,ccy)+'</td>'
+      +'<td>'+esc(d.reason)+'</td>'
+      +'<td><span class="bdg" style="font-size:10px">'+esc(d.type||'Deposit/Withdrawal')+'</span></td>'
+      +'<td style="cursor:pointer;color:var(--mut)" onclick="delDeposit('+d.id+')">🗑</td>'
+      +'</tr>';
   }).join('');
   return '<div class="page">'
+    +'<div style="font-size:12px;color:var(--mut);margin-bottom:10px">Deposits and withdrawals are in <b>AUD</b> (your funding currency). Trade P&amp;L is in <b>USD</b> (US stocks).</div>'
     +'<div class="bg"><button class="btn bp" onclick="openDepModal()">+ Add More</button></div>'
     +'<div class="card tw">'
-    +'<table><thead><tr><th>Date</th><th>Amount</th><th>New Balance</th><th>Reason</th></tr></thead>'
-    +'<tbody>'+rows+'</tbody></table></div>'
+    +'<table><thead><tr><th>Date</th><th>Amount</th><th>Running Balance</th><th>Reason</th><th>Type</th><th></th></tr></thead>'
+    +'<tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;color:var(--mut);padding:20px">No entries yet — sync IBKR or add manually</td></tr>')+'</tbody></table></div>'
     +'<div class="mo" id="mDep"><div class="md">'
     +'<div class="mt">New Entry</div>'
     +'<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">'
     +'<div class="fi"><label>Date</label><input type="date" id="depDate"/></div>'
-    +'<div class="fi"><label>Amount (negative for withdrawal)</label><input type="number" id="depAmt" placeholder="0.00" step="0.01"/></div>'
-    +'<div class="fi"><label>Reason</label><input type="text" id="depReason" placeholder="Deposit / Withdrawal..."/></div>'
+    +'<div class="fi"><label>Currency</label><select id="depCcy"><option value="AUD">AUD (Australian Dollar)</option><option value="USD">USD (US Dollar)</option></select></div>'
+    +'<div class="fi"><label>Amount (negative = withdrawal)</label><input type="number" id="depAmt" placeholder="0.00" step="0.01"/></div>'
+    +'<div class="fi"><label>Type</label><select id="depType"><option>Deposit/Withdrawal</option><option>FX Conversion</option><option>Loan</option><option>Other</option></select></div>'
+    +'<div class="fi"><label>Reason / Description</label><input type="text" id="depReason" placeholder="e.g. Bank transfer..."/></div>'
     +'</div>'
     +'<div style="display:flex;gap:8px">'
     +'<button class="btn" style="flex:1" onclick="closeDepModal()">Cancel</button>'
@@ -1212,9 +1233,19 @@ function openDepModal(){var m=document.getElementById('mDep');if(m)m.classList.a
 function closeDepModal(){var m=document.getElementById('mDep');if(m)m.classList.remove('open');}
 function saveDeposit(){
   var amt=parseFloat(document.getElementById('depAmt').value)||0;
-  var lastBal=ewDeposits.length?ewDeposits[ewDeposits.length-1].balance:0;
-  ewDeposits.push({id:Date.now(),date:document.getElementById('depDate').value,amount:amt,balance:Math.round((lastBal+amt)*100)/100,reason:document.getElementById('depReason').value});
+  var ccy=document.getElementById('depCcy').value||'AUD';
+  var date=document.getElementById('depDate').value;
+  var type=document.getElementById('depType').value;
+  var reason=document.getElementById('depReason').value;
+  // Recalculate balance per currency group
+  var lastBal=ewDeposits.filter(function(d){return (d.currency||'AUD')===ccy;}).reduce(function(a,d){return a+d.amount;},0);
+  ewDeposits.push({id:Date.now(),date:date,amount:amt,balance:Math.round((lastBal+amt)*100)/100,currency:ccy,type:type,reason:reason});
+  ewDeposits.sort(function(a,b){return a.date.localeCompare(b.date);});
   saveDeposits();closeDepModal();render();
+}
+function delDeposit(id){
+  ewDeposits=ewDeposits.filter(function(d){return d.id!==id;});
+  saveDeposits();render();
 }
 function pSTImport(){
   return '<div class="page">'
@@ -1781,21 +1812,22 @@ function parseCashTransactions(xmlTxt){
   var existingKeys=new Set(ewDeposits.map(function(d){return d.date+'|'+d.amount;}));
   els.forEach(function(el){
     var type=el.getAttribute('type')||'';
-    // Only import actual deposits/withdrawals, skip dividends, fees, etc.
-    if(type.indexOf('Deposit')<0&&type.indexOf('Withdrawal')<0) return;
+    var isDepWith=type.indexOf('Deposit')>=0||type.indexOf('Withdrawal')>=0;
+    var isFX=type.indexOf('FX')>=0||type.indexOf('Forex')>=0||type.indexOf('Currency')>=0;
+    if(!isDepWith&&!isFX) return;
     var amt=parseFloat(el.getAttribute('amount')||'0');
     if(amt===0) return;
+    var ccy=(el.getAttribute('currency')||'AUD').toUpperCase();
     var rawDate=el.getAttribute('dateTime')||el.getAttribute('reportDate')||'';
-    // IBKR format: 20260613 or 20260613;123456
     var dp=rawDate.replace(/[;,\s].*/,'');
     var date=dp.length>=8?dp.slice(0,4)+'-'+dp.slice(4,6)+'-'+dp.slice(6,8):rawDate.slice(0,10);
     var desc=el.getAttribute('description')||type;
-    var key=date+'|'+amt;
+    var entryType=isFX?'FX Conversion':'Deposit/Withdrawal';
+    var key=date+'|'+amt+'|'+ccy;
     if(existingKeys.has(key)) return;
     existingKeys.add(key);
-    // Recalculate running balance
-    var lastBal=ewDeposits.length?ewDeposits[ewDeposits.length-1].balance:0;
-    ewDeposits.push({id:Date.now()+imported,date:date,amount:amt,balance:Math.round((lastBal+amt)*100)/100,reason:desc});
+    var lastBal=ewDeposits.filter(function(d){return (d.currency||'AUD')===ccy;}).reduce(function(a,d){return a+d.amount;},0);
+    ewDeposits.push({id:Date.now()+imported,date:date,amount:amt,balance:Math.round((lastBal+amt)*100)/100,currency:ccy,type:entryType,reason:desc});
     imported++;
   });
   if(imported>0){
