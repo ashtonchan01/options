@@ -1184,7 +1184,7 @@ function pSTJournal(){
     +'<button class="btn">Reset</button>'
     +'</div></div></div>';
 }
-var ewDeposits=JSON.parse(localStorage.getItem('ew_deposits')||'[{"id":1,"date":"2025-01-10","amount":291097.39,"balance":291097.39,"reason":"Initial deposit"},{"id":2,"date":"2025-06-01","amount":5000,"balance":296097.39,"reason":"Additional capital"},{"id":3,"date":"2026-01-15","amount":-2000,"balance":294097.39,"reason":"Withdrawal"}]');
+var ewDeposits=JSON.parse(localStorage.getItem('ew_deposits')||'[]');
 function saveDeposits(){localStorage.setItem('ew_deposits',JSON.stringify(ewDeposits));}
 function pSTDeposits(){
   var rows=ewDeposits.map(function(d){
