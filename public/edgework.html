@@ -1975,12 +1975,7 @@ function pEF(){
     if(!groups[sym]) groups[sym]=[];
     groups[sym].push(item);
   });
-  // Sort groups: highest-priority item in group first, then group by ticker alpha
-  var groupKeys=Object.keys(groups).sort(function(a,b){
-    var pa=Math.min.apply(null,groups[a].map(function(i){return priorityOrder[i.r.priority]||2;}));
-    var pb=Math.min.apply(null,groups[b].map(function(i){return priorityOrder[i.r.priority]||2;}));
-    return pa!==pb?pa-pb:a.localeCompare(b);
-  });
+  var groupKeys=Object.keys(groups).sort(function(a,b){return a.localeCompare(b);});
   // Within each group sort by DTE ascending
   groupKeys.forEach(function(sym){
     groups[sym].sort(function(a,b){
@@ -1995,23 +1990,18 @@ function pEF(){
     +'<div style="font-weight:700;font-size:17px">Edge Finder</div>'
     +(syncDate?'<div style="font-size:11px;color:var(--mut)">Last synced '+syncDate+'</div>':'')
     +'</div>'
-    +'<div style="font-size:13px;color:var(--mut);margin-bottom:20px">Recommendations grouped by ticker, ranked by urgency.</div>';
+    +'<div style="font-size:13px;color:var(--mut);margin-bottom:20px">Open positions grouped by ticker with closing recommendations.</div>';
 
   groupKeys.forEach(function(sym){
     var items=groups[sym];
     // Group-level summary: total unrealized P&L for this ticker
     var totalPnl=items.reduce(function(a,i){return a+i.p.unrealPnl;},0);
-    var topPriority=items.reduce(function(best,i){
-      return (priorityOrder[i.r.priority]||2)<(priorityOrder[best]||2)?i.r.priority:best;
-    },'low');
-    var groupBorderCol=topPriority==='high'?'var(--red)':topPriority==='med'?'var(--amb)':'var(--bdr)';
     var totalPnlCol=totalPnl>=0?'var(--grn)':'var(--red)';
 
     h+='<div style="margin-bottom:22px">'
       // Ticker header
       +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
       +'<div style="display:flex;align-items:center;gap:8px">'
-      +'<div style="width:4px;height:18px;border-radius:2px;background:'+groupBorderCol+'"></div>'
       +'<span style="font-weight:800;font-size:16px;letter-spacing:-.3px">'+esc(sym)+'</span>'
       +'<span style="font-size:12px;color:var(--mut)">'+items.length+' position'+(items.length>1?'s':'')+'</span>'
       +'</div>'
@@ -2022,7 +2012,7 @@ function pEF(){
       var p=item.p,r=item.r;
       var isOpt=p.ac==='OPT';
       var pnlCol=p.unrealPnl>=0?'var(--grn)':'var(--red)';
-      var priorityBg=r.priority==='high'?'rgba(220,38,38,.06)':r.priority==='med'?'rgba(180,83,9,.06)':'var(--sur)';
+      var priorityBg='var(--sur)';
       var dirLabel=p.qty<0?'Short':'Long';
       var qtyLabel=isOpt
         ?(Math.abs(p.qty)+' contract'+(Math.abs(p.qty)!==1?'s':''))
