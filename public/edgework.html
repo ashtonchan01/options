@@ -2002,7 +2002,8 @@ function pEF(){
     +'<div style="font-weight:700;font-size:17px">Edge Finder</div>'
     +(syncDate?'<div style="font-size:11px;color:var(--mut)">Last synced '+syncDate+'</div>':'')
     +'</div>'
-    +'<div style="font-size:13px;color:var(--mut);margin-bottom:20px">Open positions grouped by ticker with closing recommendations.</div>';
+    +'<div style="font-size:13px;color:var(--mut);margin-bottom:20px">Open positions grouped by ticker with closing recommendations.</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-items:start">';
 
   groupKeys.forEach(function(key){
     var items=groups[key];
@@ -2011,7 +2012,7 @@ function pEF(){
     var posCount=items.length;
 
     // One card per ticker group
-    h+='<div class="card" style="margin-bottom:16px;overflow:hidden">'
+    h+='<div class="card" style="overflow:hidden">'
       // ── Ticker header bar ──
       +'<div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;background:var(--sur2);border-bottom:1px solid var(--bdr)">'
       +'<div style="display:flex;align-items:center;gap:10px">'
@@ -2064,7 +2065,7 @@ function pEF(){
     h+='</div>';
   });
 
-  h+='<div style="font-size:11px;color:var(--mut);margin-top:4px;text-align:center">Heuristics based on DTE &amp; P&amp;L from last IBKR sync. Not financial advice.</div>';
+  h+='</div><div style="font-size:11px;color:var(--mut);margin-top:12px;text-align:center">Heuristics based on DTE &amp; P&amp;L from last IBKR sync. Not financial advice.</div>';
   h+='</div>';
   return h;
 }
