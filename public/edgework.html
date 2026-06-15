@@ -1986,7 +1986,11 @@ function pEF(){
     if(!groups[key]) groups[key]=[];
     groups[key].push(item);
   });
-  var groupKeys=Object.keys(groups).sort(function(a,b){return a.localeCompare(b);});
+  var groupKeys=Object.keys(groups).sort(function(a,b){
+    var pa=groups[a].reduce(function(s,i){return s+i.p.unrealPnl;},0);
+    var pb=groups[b].reduce(function(s,i){return s+i.p.unrealPnl;},0);
+    return pa-pb;
+  });
   // Within each group: stocks first, then options by DTE ascending
   groupKeys.forEach(function(key){
     groups[key].sort(function(a,b){
