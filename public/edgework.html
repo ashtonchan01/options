@@ -1773,6 +1773,42 @@ function initFlexBtn(){
   if(btn) btn.style.display=creds?'':'none';
 }
 
+function parseCashTransactions(xmlTxt){
+  var doc=new DOMParser().parseFromString(xmlTxt,'application/xml');
+  var els=Array.from(doc.querySelectorAll('CashTransaction'));
+  var imported=0;
+  // Build set of existing entry keys to avoid duplicates
+  var existingKeys=new Set(ewDeposits.map(function(d){return d.date+'|'+d.amount;}));
+  els.forEach(function(el){
+    var type=el.getAttribute('type')||'';
+    // Only import actual deposits/withdrawals, skip dividends, fees, etc.
+    if(type.indexOf('Deposit')<0&&type.indexOf('Withdrawal')<0) return;
+    var amt=parseFloat(el.getAttribute('amount')||'0');
+    if(amt===0) return;
+    var rawDate=el.getAttribute('dateTime')||el.getAttribute('reportDate')||'';
+    // IBKR format: 20260613 or 20260613;123456
+    var dp=rawDate.replace(/[;,\s].*/,'');
+    var date=dp.length>=8?dp.slice(0,4)+'-'+dp.slice(4,6)+'-'+dp.slice(6,8):rawDate.slice(0,10);
+    var desc=el.getAttribute('description')||type;
+    var key=date+'|'+amt;
+    if(existingKeys.has(key)) return;
+    existingKeys.add(key);
+    // Recalculate running balance
+    var lastBal=ewDeposits.length?ewDeposits[ewDeposits.length-1].balance:0;
+    ewDeposits.push({id:Date.now()+imported,date:date,amount:amt,balance:Math.round((lastBal+amt)*100)/100,reason:desc});
+    imported++;
+  });
+  if(imported>0){
+    // Sort by date ascending before saving
+    ewDeposits.sort(function(a,b){return a.date.localeCompare(b.date);});
+    // Recalculate balances in order
+    var bal=0;
+    ewDeposits.forEach(function(d){bal=Math.round((bal+d.amount)*100)/100;d.balance=bal;});
+    saveDeposits();
+  }
+  return imported;
+}
+
 async function syncIBKR(){
   var creds=loadFlexCreds();
   if(!creds){alert('No IBKR Flex credentials found.\n\nGo to options-jade.vercel.app and save your Flex token + Query ID there first — Edgework reads them automatically from the same origin.');return;}
@@ -1789,15 +1825,18 @@ async function syncIBKR(){
       var errObj=null;try{errObj=JSON.parse(xml);}catch(e){}
       throw new Error(errObj&&errObj.error?errObj.error:'Proxy error '+proxyRes.status+': '+xml.slice(0,120));
     }
-    // Step 3: parse via existing parseXML
+    // Step 3: parse trades
     var parsed=parseXML(xml);
-    if(!parsed||!parsed.length) throw new Error('No trades found in statement.');
-    // Deduplicate by instrument+date (avoid double-importing)
+    // Deduplicate trades by instrument+date
     var existing=new Set(TR.filter(function(t){return t.imp;}).map(function(t){return t.inst+'|'+t.eD.getTime();}));
     var fresh=parsed.filter(function(t){return !existing.has(t.inst+'|'+t.eD.getTime());});
-    TR=fresh.concat(TR);
+    if(fresh.length) TR=fresh.concat(TR);
+    // Step 4: parse cash transactions (deposits/withdrawals)
+    var cashImported=parseCashTransactions(xml);
+    var msg='✅ '+fresh.length+' trades';
+    if(cashImported>0) msg+=' + '+cashImported+' cash entries';
     pg='Journal';sub='';buildNav();render();
-    if(btn){btn.textContent='✅ '+fresh.length+' imported';}
+    if(btn){btn.textContent=msg;}
     setTimeout(function(){if(btn){btn.textContent='🔄 Sync IBKR';btn.disabled=false;}},3000);
   }catch(e){
     if(btn){btn.textContent='❌ '+e.message;btn.disabled=false;}
