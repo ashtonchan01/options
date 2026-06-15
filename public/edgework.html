@@ -1,1354 +1,1047 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Edgework — Trading Journal</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Edgework</title>
 <style>
-:root {
-  --bg: #0f172a;
-  --surface: #1e293b;
-  --surface2: #273344;
-  --border: #334155;
-  --text: #e2e8f0;
-  --text-muted: #94a3b8;
-  --accent: #10b981;
-  --accent2: #6366f1;
-  --red: #ef4444;
-  --yellow: #f59e0b;
-  --sidebar-w: 220px;
-  --header-h: 56px;
-}
-[data-theme="light"] {
-  --bg: #f1f5f9;
-  --surface: #ffffff;
-  --surface2: #f8fafc;
-  --border: #e2e8f0;
-  --text: #0f172a;
-  --text-muted: #64748b;
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; font-size: 14px; }
-
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",sans-serif;height:100vh;overflow:hidden}
+:root{--bg:#F6F8FA;--sur:#FFF;--sur2:#F0F2F4;--bdr:#E1E4E8;--txt:#1A1A2E;--mut:#6B7280;--grn:#16A34A;--red:#DC2626;--amb:#B45309;--blu:#2563EB}
+body.dark{--bg:#0D1117;--sur:#161B22;--sur2:#1C2128;--bdr:#30363D;--txt:#E6EDF3;--mut:#7D8590}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:rgba(128,128,128,.3);border-radius:3px}
+input,select,button,textarea{font-family:inherit;color:var(--txt)}
+select,input[type=text],input[type=number],input[type=datetime-local]{
+  background:var(--sur2);border:1px solid var(--bdr);border-radius:6px;
+  padding:6px 10px;font-size:13px;outline:none;color:var(--txt);width:100%}
+/* Layout */
+#app{display:flex;height:100vh}
+#sb{width:200px;min-width:200px;background:var(--sur);border-right:1px solid var(--bdr);
+    display:flex;flex-direction:column;transition:width .2s;overflow:hidden}
+#sb.col{width:60px;min-width:60px}
+#mn{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+#hdr{background:var(--sur);border-bottom:1px solid var(--bdr);padding:10px 20px;
+     display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap}
+#pg{flex:1;overflow-y:auto;background:var(--bg)}
 /* Sidebar */
-#sidebar {
-  width: var(--sidebar-w);
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  top: 0; left: 0; bottom: 0;
-  z-index: 100;
-  transition: width .2s;
-  overflow: hidden;
-}
-#sidebar.collapsed { width: 56px; }
-#sidebar .logo {
-  height: var(--header-h);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 16px;
-  font-weight: 700;
-  font-size: 16px;
-  color: var(--accent);
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-#sidebar .logo span { transition: opacity .2s; }
-#sidebar.collapsed .logo span { opacity: 0; width: 0; overflow: hidden; }
-#sidebar nav { flex: 1; overflow-y: auto; padding: 8px 0; }
-#sidebar nav a {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  color: var(--text-muted);
-  text-decoration: none;
-  white-space: nowrap;
-  border-radius: 6px;
-  margin: 2px 8px;
-  transition: background .15s, color .15s;
-  cursor: pointer;
-}
-#sidebar nav a:hover, #sidebar nav a.active {
-  background: var(--surface2);
-  color: var(--text);
-}
-#sidebar nav a.active { color: var(--accent); }
-#sidebar nav a .nav-icon { font-size: 18px; flex-shrink: 0; width: 22px; text-align: center; }
-#sidebar nav a .nav-label { transition: opacity .2s; }
-#sidebar.collapsed nav a .nav-label { opacity: 0; width: 0; overflow: hidden; }
-#sidebar .sidebar-footer {
-  padding: 8px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  gap: 6px;
-}
-#sidebar .sidebar-footer button {
-  flex: 1;
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  border-radius: 6px;
-  padding: 7px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: background .15s;
-}
-#sidebar .sidebar-footer button:hover { background: var(--surface2); color: var(--text); }
-#sidebar.collapsed .sidebar-footer { flex-direction: column; }
-
-/* Main */
-#main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; transition: margin-left .2s; }
-#sidebar.collapsed ~ #main { margin-left: 56px; }
-
+.logo{padding:14px 16px;display:flex;align-items:center;gap:10px;
+      border-bottom:1px solid var(--bdr);flex-shrink:0;white-space:nowrap}
+.li{width:32px;height:32px;border-radius:8px;background:var(--txt);
+    color:var(--bg);font-size:12px;font-weight:800;display:flex;align-items:center;
+    justify-content:center;flex-shrink:0}
+.lt{font-weight:800;font-size:15px;letter-spacing:-.5px;color:var(--txt)}
+#ns{flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 0}
+.ni{display:flex;align-items:center;gap:9px;padding:7px 14px;cursor:pointer;
+    border-radius:6px;margin:1px 5px;color:var(--mut);font-size:13px;white-space:nowrap;
+    user-select:none}
+.ni:hover{background:var(--sur2)}
+.ni.act{background:var(--sur2);color:var(--txt);font-weight:600}
+.ni .ico{font-size:14px;flex-shrink:0;width:18px;text-align:center}
+.nt{flex:1;overflow:hidden;text-overflow:ellipsis}
+.na{font-size:11px;margin-left:auto;flex-shrink:0}
+.nsub{padding-left:28px}
+.nsi{padding:5px 10px;font-size:12px;cursor:pointer;border-radius:4px;margin:1px 5px;
+     color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nsi:hover,.nsi.act{background:var(--sur2);color:var(--txt)}
+.ndiv{height:1px;background:var(--bdr);margin:6px 10px}
+#sb.col .lt,#sb.col .nt,#sb.col .na,#sb.col .nsub{display:none}
+.sbal{padding:10px 14px;border-top:1px solid var(--bdr);flex-shrink:0}
+.sbn{font-size:15px;font-weight:700;color:var(--txt);white-space:nowrap}
+.sbL{font-size:11px;color:var(--mut);margin-bottom:3px}
+#sb.col .sbn,#sb.col .sbL{display:none}
 /* Header */
-#header {
-  height: var(--header-h);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  position: sticky;
-  top: 0;
-  z-index: 50;
-}
-#header h1 { font-size: 18px; font-weight: 600; }
-#header .header-actions { display: flex; align-items: center; gap: 10px; }
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 7px;
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  transition: background .15s;
-  white-space: nowrap;
-}
-.btn:hover { background: var(--border); }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn-primary:hover { opacity: .9; }
-.btn-danger { background: var(--red); border-color: var(--red); color: #fff; }
-
-/* Content */
-#content { flex: 1; padding: 24px; overflow-y: auto; }
-.page { display: none; }
-.page.active { display: block; }
-
+.hf{display:flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--bdr);
+    border-radius:6px;color:var(--mut);font-size:12px;cursor:pointer;background:var(--sur2)}
+.hr{margin-left:auto;display:flex;align-items:center;gap:8px}
+.hs{display:flex;align-items:center;gap:6px;padding:5px 12px;background:var(--sur2);
+    border:1px solid var(--bdr);border-radius:6px;color:var(--mut);font-size:12px}
+.hk{background:var(--bdr);border-radius:3px;padding:1px 5px;font-size:10px}
+.hj{display:flex;align-items:center;gap:5px;padding:5px 12px;background:var(--sur2);
+    border:1px solid var(--bdr);border-radius:6px;font-size:12px;font-weight:500;
+    cursor:pointer;color:var(--txt)}
+.hib{padding:5px 10px;background:var(--sur2);border:1px solid var(--bdr);
+     border-radius:6px;font-size:15px;cursor:pointer}
 /* Cards */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 20px;
-}
-.card-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
-
-/* Stats row */
-.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
-.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
-.stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
-.stat-value { font-size: 26px; font-weight: 700; margin-top: 4px; }
-.stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-.pos { color: var(--accent); }
-.neg { color: var(--red); }
-.neu { color: var(--text); }
-
-/* Grid helpers */
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
-
-/* Calendar */
-.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-.cal-header { text-align: center; font-size: 11px; color: var(--text-muted); padding: 4px 0; }
-.cal-day {
-  aspect-ratio: 1;
-  border-radius: 5px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  font-size: 11px;
-  cursor: default;
-  border: 1px solid transparent;
-  position: relative;
-}
-.cal-day .day-num { font-size: 10px; color: var(--text-muted); }
-.cal-day .day-pnl { font-size: 12px; font-weight: 600; }
-.cal-day.win { background: rgba(16,185,129,.15); border-color: rgba(16,185,129,.3); }
-.cal-day.loss { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.25); }
-.cal-day.empty { background: var(--surface2); }
-.cal-week-total { background: var(--surface2); border-radius: 5px; padding: 4px 6px; font-size: 11px; text-align: right; font-weight: 600; }
-
+.card{background:var(--sur);border:1px solid var(--bdr);border-radius:8px}
+/* Stats */
+.sr{display:flex;gap:10px;margin-bottom:18px}
+.sc{padding:14px 18px;flex:1;min-width:0;overflow:hidden}
+.sl{font-size:11px;color:var(--mut);margin-bottom:5px}
+.sv{font-size:20px;font-weight:700;color:var(--txt)}
+.sg{color:var(--grn)!important}
+.sr2{color:var(--red)!important}
+/* Page */
+.page{padding:22px 24px 80px}
 /* Table */
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
-td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
-tr:last-child td { border-bottom: none; }
-tr:hover td { background: var(--surface2); }
-
-/* Gauge */
-.gauge-wrap { position: relative; width: 120px; height: 70px; margin: 0 auto; }
-.gauge-wrap svg { overflow: visible; }
-
-/* Badge */
-.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-.badge-green { background: rgba(16,185,129,.15); color: var(--accent); }
-.badge-red { background: rgba(239,68,68,.12); color: var(--red); }
-.badge-blue { background: rgba(99,102,241,.15); color: var(--accent2); }
-.badge-yellow { background: rgba(245,158,11,.15); color: var(--yellow); }
-
+.tw{overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:8px 10px;text-align:left;color:var(--mut);font-weight:500;
+   background:var(--sur2);border-bottom:1px solid var(--bdr);
+   position:sticky;top:0;z-index:2;white-space:nowrap}
+td{padding:5px 10px;border-bottom:1px solid var(--bdr);white-space:nowrap}
+tr:hover td{background:var(--sur2)}
+.bdg{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;
+     font-weight:500;background:var(--sur2);color:var(--mut)}
+.wr td{background:rgba(22,163,74,.04)}
+.lr td{background:rgba(220,38,38,.04)}
+.wn{color:var(--grn)!important}
+.ls{color:var(--red)!important}
+/* Calendar */
+.cg{display:grid;grid-template-columns:repeat(8,1fr);gap:3px}
+.ch{font-size:11px;color:var(--mut);text-align:center;padding:0 0 5px}
+.cc{min-height:56px;border-radius:5px;padding:4px 5px;font-size:11px;
+    border:1px solid var(--bdr)}
+.cc.tod{border:2px solid var(--txt)}
+.cc.prf{background:rgba(22,163,74,.1);border-color:rgba(22,163,74,.2)}
+.cc.lsd{background:rgba(220,38,38,.09);border-color:rgba(220,38,38,.2)}
+.cc.emt{background:repeating-linear-gradient(-45deg,transparent,transparent 4px,
+         var(--sur2) 4px,var(--sur2) 5px);border-color:var(--bdr)}
+.cc.wkt{background:var(--sur2)}
+.cd{color:var(--mut);font-size:10px;margin-bottom:2px}
+.cp{font-weight:600;font-size:10px;line-height:1.3}
+.ck{color:var(--mut);font-size:9px}
+/* Buttons */
+.btn{padding:7px 14px;border-radius:6px;border:1px solid var(--bdr);font-size:13px;
+     cursor:pointer;font-weight:500;background:transparent;color:var(--txt)}
+.btn:hover{background:var(--sur2)}
+.bp{background:var(--txt);color:var(--bg);border:none;font-weight:600}
+.bp:hover{opacity:.9}
+.bg{display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap}
+/* FAB */
+#fab{position:fixed;bottom:24px;left:216px;z-index:100;transition:left .2s}
+.fb{padding:10px 20px;background:var(--txt);color:var(--bg);border:none;
+    border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;
+    box-shadow:0 4px 16px rgba(0,0,0,.2)}
 /* Modal */
-.modal-overlay {
-  display: none;
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.6);
-  z-index: 200;
-  align-items: center;
-  justify-content: center;
-}
-.modal-overlay.open { display: flex; }
-.modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 24px;
-  width: 480px;
-  max-width: 95vw;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-.modal h2 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
-.form-row { margin-bottom: 14px; }
-.form-row label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; }
-.form-row input, .form-row select, .form-row textarea {
-  width: 100%;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 9px 12px;
-  color: var(--text);
-  font-size: 14px;
-  outline: none;
-}
-.form-row input:focus, .form-row select:focus { border-color: var(--accent); }
-.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-
-/* Chart container */
-.chart-box { position: relative; height: 280px; }
-.chart-box-sm { position: relative; height: 180px; }
-
+.mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;
+    align-items:center;justify-content:center}
+.mo.open{display:flex}
+.md{background:var(--sur);border-radius:12px;padding:28px;width:460px;
+    border:1px solid var(--bdr);max-height:90vh;overflow-y:auto}
+.mt{font-size:17px;font-weight:700;color:var(--txt);margin-bottom:18px}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fi{display:flex;flex-direction:column;gap:4px}
+.fi label{font-size:11px;color:var(--mut)}
+/* Chart */
+.ch2{position:relative}
+/* Eval */
+.er{display:flex;justify-content:space-between;align-items:center;
+    padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid var(--bdr)}
+.el{font-size:12px;color:var(--mut)}
+.ev{font-size:12px;font-weight:600;color:var(--txt)}
+/* Gauge */
+.gw{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.gn{display:flex;gap:10px;font-size:11px;margin-top:-4px}
 /* Pagination */
-.pagination { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
-.pagination button {
-  padding: 5px 10px;
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-}
-.pagination button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-.pagination button:disabled { opacity: .4; cursor: default; }
-
-/* Slider */
-.slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.slider-row label { width: 160px; font-size: 12px; color: var(--text-muted); }
-.slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
-.slider-row .val { width: 50px; text-align: right; font-size: 13px; font-weight: 600; }
-
-/* Score ring */
-.score-ring { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.score-ring svg { width: 80px; height: 80px; }
-
-/* Toast */
-#toast {
-  position: fixed;
-  bottom: 24px; right: 24px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px 18px;
-  font-size: 13px;
-  z-index: 999;
-  display: none;
-  gap: 8px;
-  align-items: center;
-  box-shadow: 0 8px 32px rgba(0,0,0,.3);
-}
-#toast.show { display: flex; }
-
-/* Progress bar */
-.progress-bar { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
-.progress-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width .3s; }
-
-/* Consistency bars */
-.consistency-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.consistency-item .ci-label { width: 80px; font-size: 12px; color: var(--text-muted); }
-.consistency-item .ci-bar { flex: 1; }
-.consistency-item .ci-val { width: 40px; text-align: right; font-size: 12px; font-weight: 600; }
-
-/* Settings cards */
-.settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.setting-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
-.setting-card h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
-.setting-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.setting-row label { font-size: 12px; color: var(--text-muted); }
-.toggle { position: relative; width: 36px; height: 20px; }
-.toggle input { opacity: 0; width: 0; height: 0; }
-.toggle-slider {
-  position: absolute; inset: 0;
-  background: var(--border);
-  border-radius: 20px;
-  cursor: pointer;
-  transition: background .2s;
-}
-.toggle input:checked + .toggle-slider { background: var(--accent); }
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  width: 14px; height: 14px;
-  left: 3px; top: 3px;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform .2s;
-}
-.toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
-
-/* IBKR panel */
-.ibkr-panel { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 12px; }
-.ibkr-status { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; }
-.status-dot.green { background: var(--accent); }
-.status-dot.red { background: var(--red); }
-.status-dot.yellow { background: var(--yellow); animation: pulse 1s infinite; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-/* Evaluation panel */
-.eval-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
-.eval-item:last-child { border-bottom: none; }
-.eval-label { font-size: 13px; }
-.eval-value { font-size: 13px; font-weight: 600; }
+.pag{display:flex;align-items:center;gap:10px;justify-content:flex-end;
+     margin-top:10px;font-size:12px;color:var(--mut)}
+.pb{background:none;border:none;cursor:pointer;color:var(--mut);font-size:14px;padding:0 4px}
+.pb:disabled{opacity:.3;cursor:default}
+/* Streaks */
+.sw{color:var(--grn);font-weight:700;font-size:11px}
+.sl2{color:var(--red);font-weight:700;font-size:11px}
+/* Two-col */
+.tc{display:flex;gap:16px}
+.ac{padding:10px 14px;border-left:3px solid var(--grn)}
+.ac.r{border-left-color:var(--red)}
+/* IBKR banner */
+.ibkrb{background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.25);
+       border-radius:8px;padding:14px 18px;margin-bottom:14px;font-size:13px;color:var(--txt)}
+input[type=range]{width:100%;accent-color:var(--grn);cursor:pointer}
+input[type=checkbox]{accent-color:var(--grn);cursor:pointer}
+input[type=file]{color:var(--txt);font-size:13px;margin-top:6px}
 </style>
 </head>
 <body>
-
-<!-- Sidebar -->
-<div id="sidebar">
-  <div class="logo">
-    <span style="font-size:20px">📈</span>
-    <span>Edgework</span>
+<div id="app">
+<nav id="sb">
+  <div class="logo"><div class="li">EW</div><span class="lt">edgework</span></div>
+  <div id="ns"></div>
+  <div class="sbal">
+    <div class="sbL">Account Balance</div>
+    <div class="sbn" id="sbn">$317,982.07</div>
   </div>
-  <nav id="nav">
-    <a class="active" data-page="home"><span class="nav-icon">🏠</span><span class="nav-label">Home</span></a>
-    <a data-page="portfolio"><span class="nav-icon">💼</span><span class="nav-label">Portfolio</span></a>
-    <a data-page="journal"><span class="nav-icon">📋</span><span class="nav-label">Journal</span></a>
-    <a data-page="equity"><span class="nav-icon">📈</span><span class="nav-label">Equity Graph</span></a>
-    <a data-page="chartlab"><span class="nav-icon">🔬</span><span class="nav-label">Chart Lab</span></a>
-    <a data-page="reports"><span class="nav-icon">📊</span><span class="nav-label">Reports</span></a>
-    <a data-page="stratlab"><span class="nav-icon">🎲</span><span class="nav-label">Strategy Lab</span></a>
-    <a data-page="settings"><span class="nav-icon">⚙️</span><span class="nav-label">Settings</span></a>
-    <a id="theme-toggle"><span class="nav-icon">🌙</span><span class="nav-label">Dark Mode</span></a>
-  </nav>
-  <div class="sidebar-footer">
-    <button id="collapse-btn" title="Collapse sidebar">◀</button>
+</nav>
+<div id="mn">
+  <div id="hdr">
+    <div class="hf">&#x203A; Basic Filters</div>
+    <div class="hf">&#x203A; Advanced Filters</div>
+    <div class="hr">
+      <div class="hs">&#x1F50D; Search or jump <span class="hk">Cmd+K</span></div>
+      <div class="hj">CADD Trading Journal &#x25BE;</div>
+      <div class="hib">&#x1F514;</div>
+      <div class="hib">&#x1F464;</div>
+    </div>
   </div>
+  <div id="pg"></div>
 </div>
-
-<!-- Main -->
-<div id="main">
-  <div id="header">
-    <h1 id="page-title">Home</h1>
-    <div class="header-actions">
-      <button class="btn btn-primary" id="sync-ibkr-btn">🔄 Sync IBKR</button>
-      <button class="btn" id="add-trade-btn">+ Add Trade</button>
-    </div>
-  </div>
-  <div id="content">
-
-    <!-- HOME PAGE -->
-    <div class="page active" id="page-home">
-      <div class="stats-row" id="home-stats"></div>
-      <div class="grid-2" style="margin-bottom:16px">
-        <div class="card">
-          <div class="card-title">Profit Calendar — June 2026</div>
-          <div id="calendar-grid"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">EW Score Breakdown</div>
-          <div id="eval-panel"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- PORTFOLIO PAGE -->
-    <div class="page" id="page-portfolio">
-      <div class="card" style="margin-bottom:16px">
-        <div class="card-title">Journal Comparison</div>
-        <div class="table-wrap">
-          <table id="portfolio-table">
-            <thead><tr>
-              <th>Journal</th><th>Trades</th><th>Net P&L</th><th>Winrate</th><th>Profit Factor</th><th>Avg Trade</th><th>Status</th>
-            </tr></thead>
-            <tbody id="portfolio-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Portfolio Equity</div>
-        <div class="chart-box"><canvas id="portfolio-chart"></canvas></div>
-      </div>
-    </div>
-
-    <!-- JOURNAL PAGE -->
-    <div class="page" id="page-journal">
-      <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-          <div style="display:flex;gap:8px;align-items:center">
-            <span class="badge badge-blue">265 Trades</span>
-            <span class="badge badge-green">IBKR Synced</span>
-          </div>
-          <div style="display:flex;gap:8px">
-            <input type="text" id="journal-search" placeholder="Search symbol, setup…" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 12px;color:var(--text);font-size:13px;outline:none;width:200px">
-            <select id="journal-filter" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 12px;color:var(--text);font-size:13px;outline:none">
-              <option value="">All</option>
-              <option value="win">Winners</option>
-              <option value="loss">Losers</option>
-              <option value="covered_call">Covered Calls</option>
-              <option value="put">Cash-Secured Puts</option>
-            </select>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr>
-              <th>#</th><th>Date</th><th>Symbol</th><th>Type</th><th>Strike</th><th>Expiry</th><th>Qty</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Return%</th><th>DTE</th><th>Setup</th><th>Result</th>
-            </tr></thead>
-            <tbody id="journal-tbody"></tbody>
-          </table>
-        </div>
-        <div class="pagination" id="journal-pagination"></div>
-      </div>
-    </div>
-
-    <!-- EQUITY GRAPH PAGE -->
-    <div class="page" id="page-equity">
-      <div class="card" style="margin-bottom:16px">
-        <div class="card-title">Cumulative Equity</div>
-        <div class="chart-box"><canvas id="equity-chart"></canvas></div>
-      </div>
-      <div class="grid-3">
-        <div class="card">
-          <div class="card-title">Performance Snapshot</div>
-          <div id="perf-snapshot"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Consistency Score</div>
-          <div id="consistency-panel"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Drawdown</div>
-          <div class="chart-box-sm"><canvas id="dd-mini-chart"></canvas></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- CHART LAB PAGE -->
-    <div class="page" id="page-chartlab">
-      <div class="grid-2" style="margin-bottom:16px">
-        <div class="card">
-          <div class="card-title">Drawdown Curve</div>
-          <div class="chart-box"><canvas id="dd-chart"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Performance by Day</div>
-          <div class="chart-box"><canvas id="day-chart"></canvas></div>
-        </div>
-      </div>
-      <div class="grid-2" style="margin-bottom:16px">
-        <div class="card">
-          <div class="card-title">Performance by Instrument</div>
-          <div class="chart-box"><canvas id="inst-chart"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Performance by Setup</div>
-          <div class="chart-box"><canvas id="setup-chart"></canvas></div>
-        </div>
-      </div>
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-title">Consecutive Wins / Losses</div>
-          <div id="streak-panel"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Holding Time Distribution</div>
-          <div class="chart-box-sm"><canvas id="hold-chart"></canvas></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- REPORTS PAGE -->
-    <div class="page" id="page-reports">
-      <div class="grid-2" style="margin-bottom:16px">
-        <div class="card">
-          <div class="card-title">Trade Analytics</div>
-          <div class="table-wrap">
-            <table id="analytics-table">
-              <thead><tr><th>Criteria</th><th>Value</th><th>Rank</th></tr></thead>
-              <tbody id="analytics-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-title">Monthly P&L Report</div>
-          <div class="chart-box"><canvas id="monthly-chart"></canvas></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Monthly Breakdown</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Month</th><th>Trades</th><th>Net P&L</th><th>Winrate</th><th>Best Trade</th><th>Worst Trade</th><th>Avg Hold</th></tr></thead>
-            <tbody id="monthly-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- STRATEGY LAB PAGE -->
-    <div class="page" id="page-stratlab">
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-title">Monte Carlo Simulator</div>
-          <div class="chart-box" style="margin-bottom:14px"><canvas id="mc-chart"></canvas></div>
-          <div class="slider-row">
-            <label>Simulations</label>
-            <input type="range" min="10" max="500" value="100" id="mc-sims">
-            <span class="val" id="mc-sims-val">100</span>
-          </div>
-          <div class="slider-row">
-            <label>Trades per run</label>
-            <input type="range" min="20" max="500" value="100" id="mc-trades">
-            <span class="val" id="mc-trades-val">100</span>
-          </div>
-          <button class="btn btn-primary" id="mc-run" style="margin-top:8px;width:100%">▶ Run Simulation</button>
-          <div id="mc-results" style="margin-top:12px;font-size:13px;color:var(--text-muted)"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Backtester</div>
-          <div class="chart-box" style="margin-bottom:14px"><canvas id="bt-chart"></canvas></div>
-          <div class="slider-row">
-            <label>Delta Filter ≤</label>
-            <input type="range" min="10" max="50" value="30" id="bt-delta">
-            <span class="val" id="bt-delta-val">.30</span>
-          </div>
-          <div class="slider-row">
-            <label>DTE Min</label>
-            <input type="range" min="7" max="60" value="21" id="bt-dte">
-            <span class="val" id="bt-dte-val">21</span>
-          </div>
-          <div class="slider-row">
-            <label>Exit at % profit</label>
-            <input type="range" min="25" max="90" value="50" id="bt-exit">
-            <span class="val" id="bt-exit-val">50%</span>
-          </div>
-          <button class="btn btn-primary" id="bt-run" style="margin-top:8px;width:100%">▶ Backtest</button>
-          <div id="bt-results" style="margin-top:12px;font-size:13px;color:var(--text-muted)"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- SETTINGS PAGE -->
-    <div class="page" id="page-settings">
-      <div class="settings-grid" id="settings-grid"></div>
-      <div class="card" style="margin-top:16px">
-        <div class="card-title">IBKR Flex Connection</div>
-        <div class="ibkr-panel">
-          <div class="ibkr-status" id="ibkr-status">
-            <div class="status-dot red" id="ibkr-dot"></div>
-            <span id="ibkr-status-text">Not connected — no credentials found</span>
-          </div>
-          <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
-            <div class="form-row" style="margin:0">
-              <label>Flex Token</label>
-              <input type="password" id="ibkr-token" placeholder="Your IBKR Flex token">
-            </div>
-            <div class="form-row" style="margin:0">
-              <label>Query ID</label>
-              <input type="text" id="ibkr-query" placeholder="Query ID">
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:12px">
-            <button class="btn btn-primary" id="ibkr-save">Save Credentials</button>
-            <button class="btn" id="ibkr-test">Test Connection</button>
-            <button class="btn btn-danger" id="ibkr-clear">Clear</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  </div><!-- /content -->
-</div><!-- /main -->
-
+</div>
+<div id="fab"><button class="fb" onclick="oM('add')">Add New Trade</button></div>
 <!-- Add Trade Modal -->
-<div class="modal-overlay" id="add-trade-modal">
-  <div class="modal">
-    <h2>Add Trade</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="form-row"><label>Date</label><input type="date" id="t-date"></div>
-      <div class="form-row"><label>Symbol</label><input type="text" id="t-symbol" placeholder="AAPL"></div>
-      <div class="form-row"><label>Type</label>
-        <select id="t-type">
-          <option>Covered Call</option>
-          <option>Cash-Secured Put</option>
-          <option>Long Call</option>
-          <option>Long Put</option>
-          <option>Stock</option>
-        </select>
-      </div>
-      <div class="form-row"><label>Strike</label><input type="number" id="t-strike" placeholder="150"></div>
-      <div class="form-row"><label>Expiry</label><input type="date" id="t-expiry"></div>
-      <div class="form-row"><label>Qty (contracts)</label><input type="number" id="t-qty" value="1"></div>
-      <div class="form-row"><label>Entry Price</label><input type="number" id="t-entry" step="0.01" placeholder="2.50"></div>
-      <div class="form-row"><label>Exit Price</label><input type="number" id="t-exit" step="0.01" placeholder="1.25"></div>
-      <div class="form-row"><label>Setup</label>
-        <select id="t-setup">
-          <option>Wheel</option>
-          <option>Momentum</option>
-          <option>Earnings Play</option>
-          <option>Hedge</option>
-          <option>Other</option>
-        </select>
-      </div>
-      <div class="form-row"><label>Notes</label><input type="text" id="t-notes" placeholder="Optional"></div>
-    </div>
-    <div class="form-actions">
-      <button class="btn" id="modal-cancel">Cancel</button>
-      <button class="btn btn-primary" id="modal-save">Save Trade</button>
-    </div>
+<div class="mo" id="mAdd">
+<div class="md">
+  <div class="mt">Add New Trade</div>
+  <div class="fg">
+    <div class="fi"><label>Instrument</label><input type="text" id="fI" placeholder="e.g. NVDA"/></div>
+    <div class="fi"><label>Direction</label><select id="fD"><option>Long</option><option>Short</option></select></div>
+    <div class="fi"><label>Trade Type</label><select id="fT"><option>Option</option><option>Spot</option><option>Futures</option></select></div>
+    <div class="fi"><label>Option Type</label><select id="fO"><option>CALL</option><option>PUT</option><option>N/A</option></select></div>
+    <div class="fi"><label>Entry Price ($)</label><input type="number" id="fEP" placeholder="0.00" step="0.01"/></div>
+    <div class="fi"><label>Exit Price (blank=open)</label><input type="number" id="fXP" placeholder="0.00" step="0.01"/></div>
+    <div class="fi"><label>Quantity</label><input type="number" id="fQ" value="1" min="0.01" step="0.01"/></div>
+    <div class="fi"><label>Fees ($)</label><input type="number" id="fF" value="0.50" step="0.01"/></div>
+    <div class="fi"><label>Setup</label><select id="fS"><option>Default Setup</option><option>Momentum Break</option><option>Reversal</option><option>Gap Fill</option></select></div>
+    <div class="fi"><label>Entry Date/Time</label><input type="datetime-local" id="fED"/></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:18px">
+    <button class="btn" style="flex:1" onclick="cM('add')">Cancel</button>
+    <button class="btn bp" style="flex:1" onclick="subTrade()">Add Trade</button>
   </div>
 </div>
-
-<div id="toast"></div>
-
+</div>
+<!-- IBKR Modal -->
+<div class="mo" id="mIBKR">
+<div class="md">
+  <div class="mt">Import from IBKR Flex</div>
+  <div class="ibkrb">
+    <b>How to get your Flex file:</b><br>
+    1. Log into <b>Client Portal &#x2192; Reports &#x2192; Flex Queries</b><br>
+    2. Create a query with <b>Trades</b> section, format <b>XML</b><br>
+    3. Run and download the <b>.xml</b> file &mdash; or use Activity Statement <b>CSV</b>
+  </div>
+  <div class="fi" style="margin-bottom:14px">
+    <label>Select IBKR Flex XML or Activity CSV</label>
+    <input type="file" id="ibkrF" accept=".xml,.csv,.txt"/>
+  </div>
+  <div id="ibkrPrev" style="display:none;margin-bottom:14px">
+    <div style="font-size:12px;color:var(--mut);margin-bottom:6px">Preview (<span id="ibkrCnt">0</span> trades found)</div>
+    <div class="tw" style="max-height:180px;border:1px solid var(--bdr);border-radius:6px">
+      <table><thead><tr><th>Date</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Price</th><th>P&amp;L</th></tr></thead>
+      <tbody id="ibkrTB"></tbody></table>
+    </div>
+  </div>
+  <div id="ibkrErr" style="display:none;color:var(--red);font-size:12px;margin-bottom:10px"></div>
+  <div style="display:flex;gap:8px">
+    <button class="btn" style="flex:1" onclick="cM('IBKR')">Cancel</button>
+    <button class="btn bp" style="flex:1" id="ibkrBtn" onclick="doImport()" disabled>Import Trades</button>
+  </div>
+</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-// ─── Data ───────────────────────────────────────────────────────────────────
+/* ========== DATA ========== */
+var INST=['MSTR','NVDA','GOOGL','AVGO','PLTR','ALAB','MRVL','ARM','AMD','TSLA','META','SPCX'];
+var SETUPS=['Default Setup','Momentum Break','Reversal','Gap Fill','Trend Follow'];
+var DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-const STORAGE_KEY = 'edgework_trades';
-const IBKR_KEY = 'options:flex';
+function seed(n){var x=Math.sin(n+1)*10000;return x-Math.floor(x)}
 
-function loadTrades() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || generateSampleTrades(); }
-  catch { return generateSampleTrades(); }
-}
-function saveTrades(t) { localStorage.setItem(STORAGE_KEY, JSON.stringify(t)); }
-
-function generateSampleTrades() {
-  const symbols = ['AAPL','MSFT','NVDA','TSLA','AMD','AMZN','META','GOOGL','SPY','QQQ'];
-  const setups = ['Wheel','Wheel','Wheel','Momentum','Earnings Play','Hedge'];
-  const types = ['Covered Call','Cash-Secured Put','Covered Call','Cash-Secured Put'];
-  const trades = [];
-  let date = new Date('2026-01-02');
-  for (let i = 0; i < 265; i++) {
-    const sym = symbols[Math.floor(Math.random()*symbols.length)];
-    const type = types[Math.floor(Math.random()*types.length)];
-    const entry = +(Math.random()*4+0.5).toFixed(2);
-    const win = Math.random() > 0.35;
-    const exit = win ? +(entry*(Math.random()*0.5+0.1)).toFixed(2) : +(entry*(1+Math.random()*0.8)).toFixed(2);
-    const qty = Math.ceil(Math.random()*5);
-    const pnl = win ? +(( entry - exit )*100*qty).toFixed(2) : +((exit - entry)*100*qty*-1).toFixed(2);
-    const expDate = new Date(date); expDate.setDate(expDate.getDate()+21+Math.floor(Math.random()*14));
-    trades.push({
-      id: i+1,
-      date: date.toISOString().slice(0,10),
-      symbol: sym,
-      type,
-      strike: Math.round(Math.random()*200+50),
-      expiry: expDate.toISOString().slice(0,10),
-      qty,
-      entry,
-      exit,
-      pnl,
-      dte: 21+Math.floor(Math.random()*14),
-      setup: setups[Math.floor(Math.random()*setups.length)],
-      result: win ? 'win' : 'loss'
-    });
-    date.setDate(date.getDate()+Math.ceil(Math.random()*3));
-  }
-  saveTrades(trades);
-  return trades;
-}
-
-let trades = loadTrades();
-
-// ─── Stats helpers ──────────────────────────────────────────────────────────
-function calcStats(t) {
-  const wins = t.filter(x=>x.result==='win');
-  const netPnl = t.reduce((a,x)=>a+x.pnl,0);
-  const winrate = t.length ? wins.length/t.length : 0;
-  const avgPnl = t.length ? netPnl/t.length : 0;
-  const grossWin = wins.reduce((a,x)=>a+x.pnl,0);
-  const grossLoss = Math.abs(t.filter(x=>x.result==='loss').reduce((a,x)=>a+x.pnl,0));
-  const pf = grossLoss ? grossWin/grossLoss : 0;
-  const ewScore = Math.min(100, Math.round(winrate*50 + Math.min(pf,3)/3*30 + Math.min(t.length/265,1)*20));
-  return { netPnl, winrate, avgPnl, pf, ewScore, wins: wins.length, total: t.length };
-}
-
-// ─── Navigation ─────────────────────────────────────────────────────────────
-const pages = {
-  home: 'Home', portfolio: 'Portfolio', journal: 'Journal',
-  equity: 'Equity Graph', chartlab: 'Chart Lab', reports: 'Reports',
-  stratlab: 'Strategy Lab', settings: 'Settings'
-};
-
-document.querySelectorAll('#nav a[data-page]').forEach(a => {
-  a.addEventListener('click', () => {
-    const pg = a.dataset.page;
-    document.querySelectorAll('#nav a').forEach(x=>x.classList.remove('active'));
-    a.classList.add('active');
-    document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
-    document.getElementById('page-'+pg).classList.add('active');
-    document.getElementById('page-title').textContent = pages[pg];
-    renderPage(pg);
-  });
-});
-
-document.getElementById('theme-toggle').addEventListener('click', () => {
-  const html = document.documentElement;
-  const isDark = html.dataset.theme === 'dark';
-  html.dataset.theme = isDark ? 'light' : 'dark';
-  document.querySelector('#theme-toggle .nav-icon').textContent = isDark ? '🌙' : '☀️';
-  document.querySelector('#theme-toggle .nav-label').textContent = isDark ? 'Dark Mode' : 'Light Mode';
-  rerenderCharts();
-});
-
-document.getElementById('collapse-btn').addEventListener('click', () => {
-  document.getElementById('sidebar').classList.toggle('collapsed');
-  document.getElementById('collapse-btn').textContent =
-    document.getElementById('sidebar').classList.contains('collapsed') ? '▶' : '◀';
-});
-
-// ─── Toast ───────────────────────────────────────────────────────────────────
-function toast(msg, type='info') {
-  const el = document.getElementById('toast');
-  el.innerHTML = (type==='ok'?'✅':type==='err'?'❌':'ℹ️') + ' ' + msg;
-  el.classList.add('show');
-  setTimeout(()=>el.classList.remove('show'), 3000);
-}
-
-// ─── Add Trade Modal ─────────────────────────────────────────────────────────
-document.getElementById('add-trade-btn').addEventListener('click', ()=>{
-  document.getElementById('add-trade-modal').classList.add('open');
-  document.getElementById('t-date').value = new Date().toISOString().slice(0,10);
-});
-document.getElementById('modal-cancel').addEventListener('click', ()=>{
-  document.getElementById('add-trade-modal').classList.remove('open');
-});
-document.getElementById('modal-save').addEventListener('click', ()=>{
-  const entry = +document.getElementById('t-entry').value;
-  const exit = +document.getElementById('t-exit').value;
-  const qty = +document.getElementById('t-qty').value || 1;
-  const type = document.getElementById('t-type').value;
-  const isSell = type.includes('Covered') || type.includes('Put');
-  const pnl = isSell ? (entry-exit)*100*qty : (exit-entry)*100*qty;
-  const trade = {
-    id: Date.now(),
-    date: document.getElementById('t-date').value,
-    symbol: document.getElementById('t-symbol').value.toUpperCase() || 'UNKN',
-    type,
-    strike: +document.getElementById('t-strike').value,
-    expiry: document.getElementById('t-expiry').value,
-    qty,
-    entry,
-    exit,
-    pnl: +pnl.toFixed(2),
-    dte: +document.getElementById('t-expiry').value ? Math.round((new Date(document.getElementById('t-expiry').value)-new Date(document.getElementById('t-date').value))/(864e5)) : 0,
-    setup: document.getElementById('t-setup').value,
-    result: pnl >= 0 ? 'win' : 'loss',
-    notes: document.getElementById('t-notes').value
-  };
-  trades.unshift(trade);
-  saveTrades(trades);
-  document.getElementById('add-trade-modal').classList.remove('open');
-  toast('Trade added', 'ok');
-  renderPage('journal');
-});
-
-// ─── IBKR Sync ───────────────────────────────────────────────────────────────
-function loadIbkrCreds() {
-  try {
-    const raw = localStorage.getItem(IBKR_KEY);
-    if (!raw) return null;
-    const d = JSON.parse(raw);
-    return d.flexToken && d.queryId ? d : null;
-  } catch { return null; }
-}
-
-function updateIbkrStatus() {
-  const creds = loadIbkrCreds();
-  const dot = document.getElementById('ibkr-dot');
-  const text = document.getElementById('ibkr-status-text');
-  if (!dot) return;
-  if (creds) {
-    dot.className = 'status-dot green';
-    text.textContent = `Connected — token •••${creds.flexToken.slice(-4)}, query ${creds.queryId}`;
-    document.getElementById('ibkr-token').value = creds.flexToken;
-    document.getElementById('ibkr-query').value = creds.queryId;
-  } else {
-    dot.className = 'status-dot red';
-    text.textContent = 'Not connected — no credentials found';
-  }
-}
-
-document.getElementById('ibkr-save').addEventListener('click', ()=>{
-  const token = document.getElementById('ibkr-token').value.trim();
-  const qid = document.getElementById('ibkr-query').value.trim();
-  if (!token || !qid) { toast('Enter token and query ID', 'err'); return; }
-  const existing = JSON.parse(localStorage.getItem(IBKR_KEY) || '{}');
-  localStorage.setItem(IBKR_KEY, JSON.stringify({...existing, flexToken: token, queryId: qid}));
-  updateIbkrStatus();
-  toast('Credentials saved', 'ok');
-});
-
-document.getElementById('ibkr-clear').addEventListener('click', ()=>{
-  const existing = JSON.parse(localStorage.getItem(IBKR_KEY) || '{}');
-  delete existing.flexToken; delete existing.queryId;
-  localStorage.setItem(IBKR_KEY, JSON.stringify(existing));
-  document.getElementById('ibkr-token').value = '';
-  document.getElementById('ibkr-query').value = '';
-  updateIbkrStatus();
-  toast('Credentials cleared');
-});
-
-document.getElementById('ibkr-test').addEventListener('click', ()=>{
-  const creds = loadIbkrCreds();
-  if (!creds) { toast('No credentials saved', 'err'); return; }
-  toast('Testing connection…');
-  const dot = document.getElementById('ibkr-dot');
-  dot.className = 'status-dot yellow';
-  setTimeout(()=>{
-    dot.className = 'status-dot green';
-    document.getElementById('ibkr-status-text').textContent = `Connected — token •••${creds.flexToken.slice(-4)}, query ${creds.queryId}`;
-    toast('Connection successful', 'ok');
-  }, 1500);
-});
-
-async function syncIBKR() {
-  const creds = loadIbkrCreds();
-  if (!creds) { toast('No IBKR credentials — check Settings', 'err'); return; }
-  const btn = document.getElementById('sync-ibkr-btn');
-  btn.textContent = '⏳ Syncing…';
-  btn.disabled = true;
-  try {
-    // Request statement
-    const initUrl = `https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest?t=${creds.flexToken}&q=${creds.queryId}&v=3`;
-    const initRes = await fetch(initUrl);
-    const initXml = await initRes.text();
-    const refMatch = initXml.match(/<ReferenceCode>(.*?)<\/ReferenceCode>/);
-    if (!refMatch) throw new Error('No reference code in response');
-    const refCode = refMatch[1];
-    // Poll
-    let xml = null;
-    for (let i = 0; i < 12; i++) {
-      await new Promise(r=>setTimeout(r,5000));
-      const pollUrl = `https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement?t=${creds.flexToken}&q=${refCode}&v=3`;
-      const pollRes = await fetch(pollUrl);
-      const pollText = await pollRes.text();
-      if (pollText.includes('<FlexQueryResponse')) { xml = pollText; break; }
+function genTrades(){
+  var tr=[],ac=291097.39,ts=new Date('2025-01-10').getTime();
+  for(var i=0;i<265;i++){
+    var r=seed(i*13+7),r2=seed(i*7+3),r3=seed(i*17+11);
+    ts+=Math.round((r*2.5+0.5)*86400000);
+    var isW=r2<0.6885,isC=i<263;
+    var dir=r3<0.45?'Long':'Short';
+    var inst=INST[Math.floor(r*INST.length)];
+    var tt=r2>0.15?'Option':(r3>0.5?'Spot':'Futures');
+    var opt=tt==='Option'?(r3>0.5?'CALL':'PUT'):'';
+    var qty=Math.floor(r*4)+1;
+    var ep=Math.round((r*100+1)*100)/100;
+    var fee=Math.round((r2*2.5+0.5)*100)/100;
+    var ret=0,xp=null,xts=null;
+    if(isC){
+      ret=isW?Math.round((r3*2000+50)*100)/100:-Math.round((r*3000+100)*100)/100;
+      xp=Math.round((ep+(ret/qty)*(dir==='Long'?1:-1))*100)/100;
+      xts=ts+Math.round((r2*7+0.5)*86400000);
     }
-    if (!xml) throw new Error('Timeout waiting for statement');
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(xml, 'text/xml');
-    const rows = [...doc.querySelectorAll('Trade')];
-    let imported = 0;
-    rows.forEach(r => {
-      const sym = r.getAttribute('symbol');
-      const pnl = parseFloat(r.getAttribute('fifoPnlRealized') || '0');
-      const date = r.getAttribute('tradeDate');
-      if (!sym) return;
-      trades.push({
-        id: Date.now()+imported,
-        date: date ? date.slice(0,4)+'-'+date.slice(4,6)+'-'+date.slice(6,8) : new Date().toISOString().slice(0,10),
-        symbol: sym,
-        type: 'IBKR Import',
-        pnl,
-        qty: parseFloat(r.getAttribute('quantity') || '1'),
-        entry: parseFloat(r.getAttribute('tradePrice') || '0'),
-        exit: 0,
-        dte: 0,
-        setup: 'IBKR',
-        result: pnl >= 0 ? 'win' : 'loss'
+    var prev=ac;
+    if(isC) ac=Math.round((ac+ret-fee)*100)/100;
+    tr.push({
+      id:i+1,eD:new Date(ts),xD:isC?new Date(xts):null,
+      inst:inst,tt:tt,opt:opt,
+      setup:SETUPS[Math.floor(r2*SETUPS.length)],dir:dir,
+      qty:qty,ep:ep,xp:isC?xp:null,
+      fee:fee,ret:isC?ret:0,
+      pct:isC?Math.round((ret/prev)*10000)/100:0,
+      acct:isC?ac:prev,
+      rrr:Math.round((r*1.8+0.3)*100)/100,
+      star:false,imp:false
+    });
+  }
+  return tr.reverse();
+}
+
+var TR=genTrades();
+var pending=[];
+
+/* ========== HELPERS ========== */
+function f$(v){
+  var abs=Math.abs(v);
+  return (v<0?'-$':'$')+abs.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function fD(d){
+  if(!d) return '';
+  return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+function fDs(d){
+  if(!d) return '';
+  return d.getDate()+'/'+(d.getMonth()+1)+'/'+String(d.getFullYear()).slice(2);
+}
+function esc(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function stats(){
+  var closed=TR.filter(function(t){return !!t.xD;});
+  var wins=closed.filter(function(t){return t.ret>0;});
+  var loss=closed.filter(function(t){return t.ret<0;});
+  var net=closed.reduce(function(s,t){return s+t.ret-t.fee;},0);
+  var wr=closed.length?wins.length/closed.length*100:0;
+  var aw=wins.length?wins.reduce(function(s,t){return s+t.ret;},0)/wins.length:0;
+  var al=loss.length?Math.abs(loss.reduce(function(s,t){return s+t.ret;},0)/loss.length):1;
+  var pf=(loss.length&&al>0)?wins.reduce(function(s,t){return s+t.ret;},0)/Math.abs(loss.reduce(function(s,t){return s+t.ret;},0)):0;
+  return {closed:closed,wins:wins,loss:loss,net:net,wr:wr,aw:aw,al:al,pf:pf};
+}
+
+/* ========== STATE ========== */
+var dark=false,col=false,pg='Home',sub='',jp=1;
+var PS=50;
+var charts=[];
+var exp={ChartLab:true,Reports:true,StrategyLab:true};
+
+/* ========== NAV ========== */
+var NAV=[
+  {id:'Home',ico:'&#x2302;',pg:'Home'},
+  {id:'Portfolio',ico:'&#x25C8;',pg:'Portfolio'},
+  {id:'Journal',ico:'&#x2630;',pg:'Journal'},
+  {id:'Equity Graph',ico:'&#x1F4C8;',pg:'EQ'},
+  {id:'Edge Finder',ico:'&#x2726;',pg:'EF'},
+  {id:'Advanced Journaling',ico:'&#x270F;',pg:'AJ',kids:['Trading Plans','Missed Trades']},
+  {id:'Diary',ico:'&#x1F4D3;',pg:'DR',kids:['Notebook','Sessions']},
+  {id:'Chart Lab',ico:'&#x1F9EA;',pg:'CL',kids:[
+    'Checklist Performance','Consecutive W/L','Custom Statistics','Drawdown',
+    'Efficiency','Exit Analysis','Holding Time','Performance by Instrument',
+    'Performance by Setup','Performance by Time','Performance by Day',
+    'Performance Ratio','Risk Distribution','Trade Comments','Trade Management']},
+  {id:'Reports',ico:'&#x1F4CA;',pg:'RP',kids:['Trade Analytics','Calendar','Monthly Reports','Chartbook']},
+  {id:'Strategy Lab',ico:'&#x1F52C;',pg:'SL',kids:['Alternative Strategies','Backtester','Simulator']},
+  {id:'Settings',ico:'&#x2699;',pg:'ST',kids:['Account','Journal Settings','Deposits & Withdrawals',
+    'Import History','Instruments','Setups & Checklists','Trade Comments','Sessions','Custom Statistics']},
+  {id:'divider'},
+  {id:'Use Dark Mode',ico:'&#x1F319;',pg:'_dk'},
+  {id:'Collapse Sidebar',ico:'&#x25C4;',pg:'_cl'},
+];
+
+function buildNav(){
+  var ns=document.getElementById('ns');
+  ns.innerHTML='';
+  NAV.forEach(function(item){
+    if(item.id==='divider'){
+      var d=document.createElement('div');d.className='ndiv';ns.appendChild(d);return;
+    }
+    if(item.pg==='_dk') item.id=dark?'Use Light Mode':'Use Dark Mode';
+    if(item.pg==='_cl') item.id=col?'Expand Sidebar':'Collapse Sidebar';
+    var isAct=pg===item.pg&&!sub&&item.pg!=='_dk'&&item.pg!=='_cl';
+    var hasKids=!!(item.kids&&item.kids.length);
+    var isExp=!!exp[item.pg];
+    var el=document.createElement('div');
+    el.className='ni'+(isAct?' act':'');
+    el.innerHTML='<span class="ico">'+item.ico+'</span><span class="nt">'+item.id+'</span>'+(hasKids?'<span class="na">'+(isExp?'&#x25BE;':'&#x203A;')+'</span>':'');
+    (function(it,hk,ie){
+      el.onclick=function(){
+        if(it.pg==='_dk'){dark=!dark;document.body.classList.toggle('dark',dark);buildNav();kCharts();setTimeout(mountCharts,50);return;}
+        if(it.pg==='_cl'){col=!col;document.getElementById('sb').classList.toggle('col',col);document.getElementById('fab').style.left=col?'76px':'216px';buildNav();return;}
+        if(hk){exp[it.pg]=!ie;pg=it.pg;}
+        else{pg=it.pg;sub='';}
+        buildNav();render();
+      };
+    })(item,hasKids,isExp);
+    ns.appendChild(el);
+    if(hasKids&&isExp&&!col){
+      var ss=document.createElement('div');ss.className='nsub';
+      item.kids.forEach(function(kid){
+        var si=document.createElement('div');
+        si.className='nsi'+(sub===kid&&pg===item.pg?' act':'');
+        si.textContent=kid;
+        (function(k,ip){si.onclick=function(e){e.stopPropagation();pg=ip;sub=k;buildNav();render();}})(kid,item.pg);
+        ss.appendChild(si);
       });
-      imported++;
+      ns.appendChild(ss);
+    }
+  });
+}
+
+/* ========== CHARTS ========== */
+function kCharts(){charts.forEach(function(c){try{c.destroy();}catch(e){}});charts=[];}
+function mkC(id,cfg){
+  var cv=document.getElementById(id);if(!cv)return null;
+  var gc=dark?'rgba(255,255,255,.07)':'rgba(0,0,0,.07)';
+  var tc=dark?'#7D8590':'#6B7280';
+  if(cfg.options&&cfg.options.scales){
+    Object.keys(cfg.options.scales).forEach(function(k){
+      var ax=cfg.options.scales[k];
+      if(!ax.grid) ax.grid={};ax.grid.color=gc;
+      if(!ax.ticks) ax.ticks={};ax.ticks.color=tc;
     });
-    saveTrades(trades);
-    toast(`Imported ${imported} trades`, 'ok');
-    renderPage('journal');
-  } catch(e) {
-    toast('Sync failed: ' + e.message, 'err');
-  } finally {
-    btn.textContent = '🔄 Sync IBKR';
-    btn.disabled = false;
+  }
+  var c=new Chart(cv.getContext('2d'),cfg);charts.push(c);return c;
+}
+
+/* ========== GAUGE ========== */
+function gauge(wr,wins,losses){
+  var ang=-90+(wr/100)*180,rad=function(a){return a*Math.PI/180;};
+  var x=(50+30*Math.cos(rad(ang))).toFixed(1),y=(50+30*Math.sin(rad(ang))).toFixed(1);
+  var tc=dark?'#E6EDF3':'#1A1A2E';
+  var arc=(wr/100*125.6).toFixed(1);
+  return '<div class="gw"><svg width="92" height="54" viewBox="0 0 100 58">'
+    +'<path d="M10,50 A40,40,0,0,1,90,50" fill="none" stroke="#DC2626" stroke-width="7" stroke-linecap="round"/>'
+    +'<path d="M10,50 A40,40,0,0,1,90,50" fill="none" stroke="#16A34A" stroke-width="7" stroke-linecap="round" stroke-dasharray="'+arc+' 125.6"/>'
+    +'<line x1="50" y1="50" x2="'+x+'" y2="'+y+'" stroke="'+tc+'" stroke-width="2" stroke-linecap="round"/>'
+    +'<circle cx="50" cy="50" r="3" fill="'+tc+'"/>'
+    +'</svg>'
+    +'<div class="gn"><span class="wn">'+wins+'</span><span style="color:var(--mut)">0</span><span class="ls">'+losses+'</span></div></div>';
+}
+
+/* ========== CALENDAR ========== */
+function buildCal(year,month,dm){
+  var firstDow=(new Date(year,month,1).getDay()+6)%7;
+  var lastDay=new Date(year,month+1,0).getDate();
+  var h='';
+  var hds=['Mon','Tue','Wed','Thu','Fri','Sat','Sun','Total'];
+  for(var i=0;i<8;i++) h+='<div class="ch">'+hds[i]+'</div>';
+  // Leading empties
+  for(var i=0;i<firstDow;i++) h+='<div class="cc emt"></div>';
+  var wPnl=0,wCnt=0,c2=firstDow;
+  for(var d=1;d<=lastDay;d++){
+    var data=dm[d]||{pnl:0,count:0};
+    var hasD=data.count>0;
+    var isT=(year===2026&&month===5&&d===13);
+    var cls='cc'+(hasD?(data.pnl>=0?' prf':' lsd'):'')+(isT?' tod':'');
+    var ps=hasD?((data.pnl>=0?'+':'')+f$(data.pnl)):'';
+    h+='<div class="'+cls+'"><div class="cd">'+d+'</div>';
+    if(hasD) h+='<div class="cp '+(data.pnl>=0?'wn':'ls')+'">'+esc(ps)+'</div><div class="ck">'+data.count+' trade'+(data.count>1?'s':'')+'</div>';
+    h+='</div>';
+    wPnl+=data.pnl;wCnt+=data.count;c2++;
+    if(c2===7){
+      var ws=wCnt>0?((wPnl>=0?'+':'')+f$(wPnl)):'&mdash;';
+      var wc=wCnt>0?(wPnl>=0?'wn':'ls'):'';
+      h+='<div class="cc wkt"><div class="cd" style="font-size:9px">Wk</div>';
+      if(wCnt>0) h+='<div class="cp '+wc+'">'+ws+'</div><div class="ck">'+wCnt+' tr</div>';
+      h+='</div>';
+      wPnl=0;wCnt=0;c2=0;
+    }
+  }
+  if(c2>0){
+    for(var i=c2;i<7;i++) h+='<div class="cc emt"></div>';
+    var ws=wCnt>0?((wPnl>=0?'+':'')+f$(wPnl)):'&mdash;';
+    var wc=wCnt>0?(wPnl>=0?'wn':'ls'):'';
+    h+='<div class="cc wkt"><div class="cd" style="font-size:9px">Wk</div>';
+    if(wCnt>0) h+='<div class="cp '+wc+'">'+ws+'</div><div class="ck">'+wCnt+' tr</div>';
+    h+='</div>';
+  }
+  return h;
+}
+
+/* ========== PAGES ========== */
+function pHome(){
+  var s=stats();
+  var bal=TR[0]&&TR[0].acct?TR[0].acct:317982.07;
+  document.getElementById('sbn').textContent='$'+bal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  // Calendar data
+  var yr=2026,mo=5,dm={};
+  s.closed.forEach(function(t){
+    if(!t.xD) return;
+    var d=t.xD;
+    if(d.getFullYear()!==yr||d.getMonth()!==mo) return;
+    var k=d.getDate();
+    if(!dm[k]) dm[k]={pnl:0,count:0};
+    dm[k].pnl+=t.ret-t.fee;dm[k].count++;
+  });
+  var big=s.closed.length?Math.max.apply(null,s.closed.map(function(t){return t.ret;})):0;
+  var wst=s.closed.length?Math.min.apply(null,s.closed.map(function(t){return t.ret;})):0;
+  var tFee=s.closed.reduce(function(a,t){return a+t.fee;},0);
+  var avgPL=s.closed.length?s.net/s.closed.length:0;
+  var evalRows=[
+    ['Total Number of Trades',s.closed.length,''],
+    ['Avg. Profit per Trading Day',f$(avgPL),''],
+    ['Biggest Winner',f$(big),'wn'],
+    ['Biggest Loser',f$(wst),'ls'],
+    ['Total Fees',f$(tFee),''],
+    ['Avg. Hold Time (Days)','6.9d',''],
+    ['Winrate w/o BE',s.wr.toFixed(2)+'%',''],
+    ['ROI','22.50%',''],
+    ['Max Drawdown','8.08%','ls'],
+    ['Winning / Losing Days',s.wins.length+' / '+s.loss.length,''],
+    ['Trades Per Day / Week','2.65 / 6.00',''],
+  ];
+  var eH='';
+  evalRows.forEach(function(r){
+    eH+='<div class="er"><span class="el">'+r[0]+'</span><span class="ev '+r[2]+'">'+r[1]+'</span></div>';
+  });
+  var netC=s.net>=0?'sg':'sr2';
+  var netStr=s.net.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  var pfDots='';
+  for(var i=1;i<=5;i++) pfDots+='<div style="width:8px;height:16px;border-radius:2px;background:'+(i<=Math.round(s.pf)?'var(--amb)':'var(--bdr)')+'"></div>';
+  var ewArc=(0.52*113).toFixed(1);
+  return '<div class="page">'
+    +'<div style="display:flex;gap:2px;margin-bottom:16px">'
+    +'<button class="btn bp" style="font-size:13px;padding:5px 13px">Australian Dollar (AUD)</button>'
+    +'<button class="btn" style="font-size:13px;padding:5px 13px">Return (%)</button>'
+    +'<button class="btn" style="font-size:13px;padding:5px 13px">R Multiple</button>'
+    +'</div>'
+    // Stats row
+    +'<div class="sr">'
+    +'<div class="card sc"><div class="sl">Net Return ($)</div>'
+    +'<div style="display:flex;align-items:flex-end;justify-content:space-between">'
+    +'<div class="sv '+netC+'">'+netStr+'</div>'
+    +'<div style="width:80px;height:38px;flex-shrink:0"><canvas id="spk" width="80" height="38"></canvas></div>'
+    +'</div></div>'
+    +'<div class="card sc"><div class="sl">Winrate</div>'
+    +'<div style="display:flex;align-items:center;gap:10px">'
+    +'<div class="sv">'+s.wr.toFixed(2)+'%</div>'+gauge(s.wr,s.wins.length,s.loss.length)
+    +'</div></div>'
+    +'<div class="card sc"><div class="sl">Avg P&amp;L ($)</div>'
+    +'<div style="display:flex;align-items:flex-end;justify-content:space-between">'
+    +'<div class="sv">'+avgPL.toFixed(2)+'</div>'
+    +'<div style="text-align:right;font-size:11px;flex-shrink:0">'
+    +'<div style="color:var(--mut)">'+(s.aw/s.al).toFixed(2)+':1</div>'
+    +'<div><span class="wn">$'+s.aw.toFixed(0)+'</span> &middot; <span class="ls">-$'+s.al.toFixed(0)+'</span></div>'
+    +'</div></div></div>'
+    +'<div class="card sc"><div class="sl">Profit Factor</div>'
+    +'<div style="display:flex;align-items:center;gap:10px">'
+    +'<div class="sv">'+s.pf.toFixed(2)+'</div>'
+    +'<div style="display:flex;gap:3px;flex-shrink:0">'+pfDots+'</div>'
+    +'</div></div>'
+    +'<div class="card sc"><div class="sl">EW Score &#x24D8;</div>'
+    +'<div style="display:flex;align-items:center;gap:10px">'
+    +'<div class="sv">51.57</div>'
+    +'<svg width="44" height="44" viewBox="0 0 48 48" style="flex-shrink:0">'
+    +'<circle cx="24" cy="24" r="18" fill="none" stroke="var(--bdr)" stroke-width="6"/>'
+    +'<circle cx="24" cy="24" r="18" fill="none" stroke="var(--amb)" stroke-width="6" stroke-dasharray="'+ewArc+' 113" stroke-dashoffset="28" transform="rotate(-90 24 24)"/>'
+    +'</svg></div></div>'
+    +'</div>'
+    // Calendar + Eval
+    +'<div style="display:flex;gap:16px;align-items:flex-start">'
+    +'<div class="card" style="flex:1;padding:20px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+    +'<span style="font-weight:600;font-size:15px;color:var(--txt)">Profit Calendar</span>'
+    +'<div style="display:flex;align-items:center;gap:8px">'
+    +'<button class="btn" style="padding:2px 8px">&#x2039;</button>'
+    +'<span style="font-size:13px;color:var(--txt);min-width:100px;text-align:center">June 2026</span>'
+    +'<button class="btn" style="padding:2px 8px">&#x203A;</button>'
+    +'</div></div>'
+    +'<div class="cg">'+buildCal(yr,mo,dm)+'</div>'
+    +'</div>'
+    +'<div class="card" style="width:265px;padding:20px;flex-shrink:0">'
+    +'<div style="font-weight:600;font-size:15px;color:var(--txt);margin-bottom:12px">Evaluation</div>'
+    +eH
+    +'<div style="display:flex;justify-content:space-between;align-items:center">'
+    +'<span class="el">Current Streak</span>'
+    +'<span style="display:flex;gap:4px">'
+    +'<span class="sl2">L</span><span class="sl2">L</span><span class="sl2">L</span><span class="sw">W</span><span class="sw">W</span>'
+    +'</span></div>'
+    +'</div>'
+    +'</div></div>';
+}
+
+function pJournal(){
+  var start=(jp-1)*PS;
+  var paged=TR.slice(start,start+PS);
+  var tot=Math.ceil(TR.length/PS);
+  var rows='';
+  paged.forEach(function(t){
+    var isC=!!t.xD,isW=t.ret>0;
+    var cls=isC?(isW?'wr':'lr'):'';
+    var rc=isC?(isW?'wn':'ls'):'';
+    var retStr=isC?(isW?'+':'')+t.ret.toFixed(2):'';
+    var pctStr=isC?(isW?'+':'')+t.pct.toFixed(2)+'%':'';
+    var acctStr=isC&&t.acct?t.acct.toLocaleString('en-US',{maximumFractionDigits:2}):'&mdash;';
+    var xpStr=isC&&t.xp!==null?t.xp.toFixed(2):'';
+    rows+='<tr class="'+cls+'">'
+      +'<td><input type="checkbox"/></td>'
+      +'<td style="cursor:pointer;color:'+(t.star?'var(--amb)':'var(--bdr)')+'" onclick="stTR('+t.id+')">&#x2605;</td>'
+      +'<td class="'+rc+'">'+esc(fD(t.eD))+'</td>'
+      +'<td class="'+rc+'">'+(isC?esc(fD(t.xD)):'')+'</td>'
+      +'<td class="'+rc+'" style="font-weight:600">'+esc(t.inst)+(t.imp?' <span style="font-size:9px;color:var(--blu)">IBKR</span>':'')+'</td>'
+      +'<td><span class="bdg">'+esc(t.tt)+'</span></td>'
+      +'<td>'+(t.opt?'<span class="bdg">'+esc(t.opt)+'</span>':'')+'</td>'
+      +'<td class="'+rc+'">'+esc(t.setup)+'</td>'
+      +'<td class="'+rc+'">'+esc(t.dir)+'</td>'
+      +'<td>'+t.qty.toFixed(2)+'</td>'
+      +'<td class="'+rc+'">'+t.ep.toFixed(2)+'</td>'
+      +'<td class="'+rc+'">'+xpStr+'</td>'
+      +'<td>'+t.fee.toFixed(2)+'</td>'
+      +'<td class="'+rc+'" style="font-weight:600">'+esc(retStr)+'</td>'
+      +'<td class="'+rc+'">'+esc(pctStr)+'</td>'
+      +'<td>'+acctStr+'</td>'
+      +'<td>'+(t.rrr?t.rrr.toFixed(2):'&mdash;')+'</td>'
+      +'</tr>';
+  });
+  var ibkrCnt=TR.filter(function(t){return t.imp;}).length;
+  return '<div class="page">'
+    +'<div class="bg">'
+    +'<button class="btn bp" onclick="oM(\'add\')">Add Trade</button>'
+    +'<button class="btn" onclick="oM(\'IBKR\')">&#x1F517; Import from IBKR Flex</button>'
+    +'<button class="btn">Merge</button>'
+    +'<button class="btn">Duplicate</button>'
+    +'<button class="btn">Delete (0)</button>'
+    +'<button class="btn">&#x1F4C5; Adjust Trade Time</button>'
+    +(ibkrCnt?'<span style="margin-left:auto;font-size:12px;color:var(--mut)">'+ibkrCnt+' IBKR trades</span>':'')
+    +'</div>'
+    +'<div class="card tw" style="max-height:calc(100vh - 195px)">'
+    +'<table><thead><tr>'
+    +'<th style="width:32px"><input type="checkbox"/></th><th style="width:24px"></th>'
+    +'<th>Entry Date</th><th>Exit Date</th><th>Instrument</th><th>Trade Type</th>'
+    +'<th>Option</th><th>Setup</th><th>Direction</th><th>Qty</th>'
+    +'<th>Entry Price</th><th>Exit Price</th><th>Fees ($)</th>'
+    +'<th>Return ($)</th><th>Return (%)</th><th>Account Size</th><th>RRR</th>'
+    +'</tr></thead><tbody>'+rows+'</tbody></table>'
+    +'</div>'
+    +'<div class="pag">'
+    +'<span>Page Size: '+PS+'</span>'
+    +'<span>'+(start+1)+'&ndash;'+Math.min(start+PS,TR.length)+' of '+TR.length+'</span>'
+    +'<button class="pb" onclick="jp=1;render()" '+(jp===1?'disabled':'')+'>&#x21E4;</button>'
+    +'<button class="pb" onclick="jp=Math.max(1,jp-1);render()" '+(jp===1?'disabled':'')+'>&#x2039;</button>'
+    +'<button class="pb" onclick="jp=Math.min('+tot+',jp+1);render()" '+(jp===tot?'disabled':'')+'>&#x203A;</button>'
+    +'<button class="pb" onclick="jp='+tot+';render()" '+(jp===tot?'disabled':'')+'>&#x21E5;</button>'
+    +'<span>Page '+jp+' of '+tot+'</span>'
+    +'</div></div>';
+}
+
+function stTR(id){
+  for(var i=0;i<TR.length;i++) if(TR[i].id===id){TR[i].star=!TR[i].star;break;}
+  render();
+}
+
+function pEQ(){
+  return '<div class="page">'
+    +'<div style="display:flex;gap:20px">'
+    +'<div style="flex:1;min-width:0">'
+    +'<div style="display:flex;gap:10px;margin-bottom:14px">'
+    +'<select style="width:auto"><option>Return ($)</option><option>Return (%)</option><option>R-Multiple</option></select>'
+    +'<select style="width:auto"><option>Options</option></select>'
+    +'</div>'
+    +'<div class="card" style="padding:20px">'
+    +'<div style="font-size:12px;color:var(--mut);margin-bottom:8px">Return ($)</div>'
+    +'<div style="height:400px"><canvas id="eqC"></canvas></div>'
+    +'</div></div>'
+    +'<div style="width:278px;flex-shrink:0;display:flex;flex-direction:column;gap:12px">'
+    +'<div class="card" style="padding:18px"><div style="font-weight:700;font-size:14px;color:var(--txt);margin-bottom:5px">Equity Curve Stats</div>'
+    +'<div style="font-size:12px;color:var(--mut)">Review return, consistency and recent performance.</div></div>'
+    +'<div class="card" style="padding:18px" id="snap"></div>'
+    +'<div class="card" style="padding:18px" id="con"></div>'
+    +'</div></div></div>';
+}
+
+function pPortfolio(){
+  var s=stats();
+  return '<div class="page">'
+    +'<div style="display:flex;gap:2px;margin-bottom:16px">'
+    +'<button class="btn bp" style="font-size:13px;padding:5px 13px">Return (%)</button>'
+    +'<button class="btn" style="font-size:13px;padding:5px 13px">R Multiple</button>'
+    +'</div>'
+    +'<div class="sr">'
+    +'<div class="card sc"><div class="sl">Net Return</div><div class="sv sg">22.01%</div></div>'
+    +'<div class="card sc"><div class="sl">Winrate</div><div style="display:flex;align-items:center;gap:8px"><div class="sv">'+s.wr.toFixed(2)+'%</div>'+gauge(s.wr,s.wins.length,s.loss.length)+'</div></div>'
+    +'<div class="card sc"><div class="sl">Avg P&amp;L</div><div class="sv">'+(s.net/s.closed.length).toFixed(2)+'</div></div>'
+    +'<div class="card sc"><div class="sl">Profit Factor</div><div class="sv">'+s.pf.toFixed(2)+'</div></div>'
+    +'<div class="card sc"><div class="sl">EW Score</div><div class="sv">51.57</div></div>'
+    +'</div>'
+    +'<div class="card" style="padding:20px;margin-bottom:16px">'
+    +'<div style="font-weight:600;font-size:15px;color:var(--txt);margin-bottom:12px">Journals</div>'
+    +'<table><thead><tr><th>Name</th><th>Balance</th><th>Return (%)</th><th>Avg. P&L</th><th>Profit Factor</th><th>Winrate</th><th>Trades #</th><th>EW Score</th></tr></thead>'
+    +'<tbody><tr><td class="wn" style="font-weight:600">CADD Trading Journal</td><td>$317,982.07</td><td class="wn">22.01%</td><td class="wn">'+f$(s.net/s.closed.length)+'</td><td class="wn">'+s.pf.toFixed(2)+'</td><td class="wn">'+s.wr.toFixed(2)+'%</td><td>'+s.closed.length+'</td><td>51.57</td></tr></tbody></table>'
+    +'</div>'
+    +'<div class="card" style="padding:20px"><div style="font-weight:600;font-size:15px;color:var(--txt);margin-bottom:12px">Equity Graph</div><div style="height:280px"><canvas id="portC"></canvas></div></div>'
+    +'</div>';
+}
+
+function pDD(){
+  return '<div class="page">'
+    +'<div style="margin-bottom:14px"><select style="width:auto"><option>Return ($)</option></select></div>'
+    +'<div class="card" style="padding:20px;margin-bottom:14px"><div style="height:300px"><canvas id="ddC"></canvas></div></div>'
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap" id="ddS"></div></div>';
+}
+function pDay(){return '<div class="page"><div class="card" style="padding:20px"><div style="font-size:12px;color:var(--mut);margin-bottom:12px">P&L by Day of Week</div><div style="height:300px"><canvas id="dayC"></canvas></div></div></div>';}
+function pInstr(){return '<div class="page"><div class="card" style="padding:20px"><div style="font-size:12px;color:var(--mut);margin-bottom:12px">P&L by Instrument</div><div style="height:460px"><canvas id="instrC"></canvas></div></div></div>';}
+function pCons(){return '<div class="page"><div class="card" style="padding:20px;margin-bottom:14px"><div style="height:280px"><canvas id="consC"></canvas></div></div><div style="display:flex;gap:12px" id="consS"></div></div>';}
+function pSetup(){return '<div class="page"><div class="card" style="padding:20px"><div style="height:300px"><canvas id="setupC"></canvas></div></div></div>';}
+function pSim(){
+  var s=stats();
+  return '<div class="page" style="display:flex;gap:20px">'
+    +'<div style="width:268px;flex-shrink:0"><div class="card" style="padding:20px">'
+    +'<div style="font-weight:600;color:var(--txt);margin-bottom:14px">Edit Data</div>'
+    +'<div class="fi" style="margin-bottom:10px"><label>Number of Simulations</label><input type="number" id="simN" value="3" min="1" max="10"/></div>'
+    +'<div class="fi" style="margin-bottom:10px"><label>Number of Trades</label><input type="number" id="simT" value="500"/></div>'
+    +'<div class="fi" style="margin-bottom:10px"><label>Win Rate (%)</label><input type="number" id="simW" value="'+s.wr.toFixed(2)+'" step="0.01"/></div>'
+    +'<div class="fi" style="margin-bottom:10px"><label>Avg. Gain ($)</label><input type="number" id="simA" value="'+s.aw.toFixed(2)+'" step="0.01"/></div>'
+    +'<div class="fi" style="margin-bottom:10px"><label>Avg. Loss ($)</label><input type="number" id="simL" value="'+s.al.toFixed(2)+'" step="0.01"/></div>'
+    +'<div class="fi" style="margin-bottom:14px"><label>Start Balance ($)</label><input type="number" id="simB" value="100000" step="100"/></div>'
+    +'<button class="btn bp" style="width:100%" onclick="runSim()">Start Simulation</button>'
+    +'</div></div>'
+    +'<div style="flex:1;min-width:0"><div class="card" style="padding:20px;height:460px"><div style="height:100%"><canvas id="simC"></canvas></div></div></div>'
+    +'</div>';
+}
+function pBT(){
+  return '<div class="page" style="display:flex;gap:20px">'
+    +'<div class="card" style="width:268px;flex-shrink:0;padding:20px;align-self:flex-start">'
+    +'<div style="font-weight:600;color:var(--txt);margin-bottom:14px">Parameters</div>'
+    +'<div class="fi" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between"><label>Win Rate (%)</label><span id="bwL" style="font-size:12px;font-weight:600;color:var(--txt)">60</span></div><input type="range" id="bW" min="1" max="99" value="60" oninput="document.getElementById(\'bwL\').textContent=this.value;uBT()"/></div>'
+    +'<div class="fi" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between"><label>Risk/Reward</label><span id="brrL" style="font-size:12px;font-weight:600;color:var(--txt)">1.5</span></div><input type="range" id="bR" min="1" max="50" value="15" oninput="document.getElementById(\'brrL\').textContent=(this.value/10).toFixed(1);uBT()"/></div>'
+    +'<div class="fi"><div style="display:flex;justify-content:space-between"><label>Trades</label><span id="btL" style="font-size:12px;font-weight:600;color:var(--txt)">100</span></div><input type="range" id="bT" min="10" max="500" value="100" step="10" oninput="document.getElementById(\'btL\').textContent=this.value;uBT()"/></div>'
+    +'</div>'
+    +'<div style="flex:1;min-width:0"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px" id="btC"></div><div class="card" style="padding:16px" id="btI"></div></div>'
+    +'</div>';
+}
+function pMR(){
+  var s=stats();
+  var rows='';
+  for(var i=0;i<6;i++){
+    var d=new Date(2026,5-i,1);
+    var mt=s.closed.filter(function(t){return t.xD.getFullYear()===d.getFullYear()&&t.xD.getMonth()===d.getMonth();});
+    var w=mt.filter(function(t){return t.ret>0;});
+    var net=Math.round(mt.reduce(function(a,t){return a+t.ret-t.fee;},0));
+    var wr=mt.length?Math.round(w.length/mt.length*100):0;
+    var lbl=d.toLocaleString('default',{month:'long',year:'numeric'});
+    rows+='<tr><td style="font-weight:500;color:var(--txt)">'+lbl+'</td><td style="color:var(--mut)">'+mt.length+'</td><td style="color:var(--mut)">'+w.length+'</td><td class="'+(wr>=50?'wn':'ls')+'">'+wr+'%</td><td class="'+(net>=0?'wn':'ls')+'" style="font-weight:600">'+f$(net)+'</td></tr>';
+  }
+  return '<div class="page"><div class="card" style="padding:0;overflow:hidden"><table><thead><tr><th>Month</th><th>Trades</th><th>Wins</th><th>Winrate</th><th>Net P&L</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+function pTA(){
+  var s=stats();
+  var crit=['Entry Comments','Trade Management','Exit Comments','Setup','Instrument','Weekday','Outcome','Direction'];
+  var cH='';crit.forEach(function(c){cH+='<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--bdr);cursor:pointer;color:var(--mut);font-size:13px"><span>'+c+'</span><span style="color:var(--grn);font-size:16px">+</span></div>';});
+  return '<div class="page" style="display:flex;gap:16px">'
+    +'<div style="width:240px;flex-shrink:0">'
+    +'<div style="font-weight:600;font-size:15px;color:var(--txt);margin-bottom:6px">Ordering</div>'
+    +'<div style="font-size:12px;color:var(--mut);margin-bottom:14px">Drag and drop criteria to analyze.</div>'
+    +'<div class="card" style="padding:16px"><div style="font-weight:500;font-size:13px;color:var(--txt);margin-bottom:10px">Add Ordering Criteria</div>'+cH+'</div>'
+    +'</div>'
+    +'<div style="flex:1;min-width:0"><div class="card" style="padding:0;overflow:hidden"><table><thead><tr><th>Group</th><th>Amount</th><th>Avg. Qty.</th><th>Winrate (%)</th><th>Avg. P&L ($)</th><th>Sum. Gain ($)</th><th>Profit Factor</th><th>Avg. R</th></tr></thead>'
+    +'<tbody><tr><td class="wn" style="font-weight:600">Overall</td><td class="wn">'+s.closed.length+'</td><td class="wn">2.75</td><td class="wn">'+s.wr.toFixed(2)+'</td><td class="wn">'+f$(s.net/s.closed.length)+'</td><td class="wn">'+Math.round(s.net).toLocaleString()+'</td><td class="wn">'+s.pf.toFixed(2)+'</td><td class="wn">0.53</td></tr></tbody></table></div></div>'
+    +'</div>';
+}
+function pSettings(){
+  var secs=[
+    {id:'Account',ico:'&#x1F464;',desc:'Email, password, subscription'},
+    {id:'Journal Settings',ico:'&#x1F4D3;',desc:'Name, currency, account size'},
+    {id:'Deposits &amp; Withdrawals',ico:'&#x1F4B0;',desc:'Track external cash flows'},
+    {id:'Import History',ico:'&#x1F4E5;',desc:'View past import operations'},
+    {id:'Instruments',ico:'&#x1F4CA;',desc:'Manage tradeable instruments'},
+    {id:'Setups &amp; Checklists',ico:'&#x2705;',desc:'Configure trade setups'},
+    {id:'Trade Comments',ico:'&#x1F4AC;',desc:'Manage comment templates'},
+    {id:'Sessions',ico:'&#x23F0;',desc:'Define trading sessions'},
+    {id:'Custom Statistics',ico:'&#x1F4D0;',desc:'Create custom metrics'},
+  ];
+  var h='<div class="page"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;max-width:780px">';
+  secs.forEach(function(s){
+    h+='<div class="card" style="padding:16px 20px;cursor:pointer;display:flex;align-items:center;gap:14px">'
+      +'<div style="width:40px;height:40px;border-radius:8px;background:var(--sur2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">'+s.ico+'</div>'
+      +'<div><div style="font-weight:600;font-size:14px;color:var(--txt)">'+s.id+'</div><div style="font-size:11px;color:var(--mut);margin-top:2px">'+s.desc+'</div></div>'
+      +'</div>';
+  });
+  return h+'</div></div>';
+}
+
+/* ========== RENDER ========== */
+function render(){
+  kCharts();
+  var html='';
+  try{
+    if(pg==='Home')     html=pHome();
+    else if(pg==='Journal')  html=pJournal();
+    else if(pg==='EQ')  html=pEQ();
+    else if(pg==='Portfolio') html=pPortfolio();
+    else if(pg==='Settings') html=pSettings();
+    else if(pg==='CL'){
+      if(!sub||sub==='Drawdown') html=pDD();
+      else if(sub==='Performance by Day') html=pDay();
+      else if(sub==='Performance by Instrument') html=pInstr();
+      else if(sub==='Consecutive W/L') html=pCons();
+      else if(sub==='Performance by Setup') html=pSetup();
+      else html=pDD();
+    }
+    else if(pg==='RP'){
+      if(!sub||sub==='Calendar'||sub==='Monthly Reports') html=pMR();
+      else if(sub==='Trade Analytics') html=pTA();
+      else html=pTA();
+    }
+    else if(pg==='SL'){
+      if(sub==='Backtester') html=pBT();
+      else html=pSim();
+    }
+    else html='<div class="page" style="color:var(--mut);font-size:14px;padding-top:40px;text-align:center">'+esc(pg)+(sub?' &mdash; '+esc(sub):'')+' &middot; coming soon</div>';
+  }catch(e){
+    html='<div style="padding:24px;color:var(--red);font-family:monospace;font-size:12px"><b>Render error on '+esc(pg)+': </b>'+esc(e.message)+'<br><pre style="margin-top:8px;white-space:pre-wrap">'+esc(e.stack)+'</pre></div>';
+  }
+  document.getElementById('pg').innerHTML=html;
+  buildNav();
+  requestAnimationFrame(mountCharts);
+}
+
+/* ========== MOUNT CHARTS ========== */
+function mountCharts(){
+  var s=stats();
+  // Sparkline
+  if(document.getElementById('spk')){
+    var pts=s.closed.slice(-20).map(function(t){return t.acct;});
+    mkC('spk',{type:'line',data:{labels:pts.map(function(_,i){return i;}),datasets:[{data:pts,borderColor:'#16A34A',backgroundColor:'rgba(22,163,74,.15)',fill:true,pointRadius:0,borderWidth:1.5,tension:.4}]},options:{plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}},responsive:true,maintainAspectRatio:false,animation:false}});
+  }
+  // Equity
+  if(document.getElementById('eqC')){
+    var run=291097,eq=[];
+    var rev=s.closed.slice().reverse();
+    rev.forEach(function(t,i){run+=t.ret-t.fee;eq.push({x:i+1,y:Math.round(run)});});
+    var peak=0,mdd=0;eq.forEach(function(d){if(d.y>peak)peak=d.y;var dd=peak-d.y;if(dd>mdd)mdd=dd;});
+    var snap=document.getElementById('snap');
+    if(snap) snap.innerHTML='<div style="font-weight:600;font-size:13px;color:var(--txt);margin-bottom:12px">Performance Snapshot</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+      +[['Return',f$(s.net)],['Winrate',s.wr.toFixed(1)+'%'],['Avg RRR',(s.aw/s.al).toFixed(2)+':1'],['Avg Win/Loss','$'+s.aw.toFixed(0)+' / -$'+s.al.toFixed(0)],['Profit Factor',s.pf.toFixed(2)],['Max Drawdown',f$(mdd)]].map(function(r){return '<div style="border-bottom:1px solid var(--bdr);padding-bottom:10px"><div style="font-size:11px;color:var(--mut)">'+r[0]+'</div><div style="font-size:15px;font-weight:600;color:var(--txt)">'+r[1]+'</div></div>';}).join('')
+      +'</div>';
+    var con=document.getElementById('con');
+    if(con) con.innerHTML='<div style="font-weight:600;font-size:13px;color:var(--txt);margin-bottom:10px">Consistency</div>'
+      +[['Profitable Days','80.4%'],['Profitable Weeks','80.5%'],['Profitable Months','85.0%']].map(function(r){return '<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:12px;color:var(--mut)">'+r[0]+'</span><span style="font-size:12px;font-weight:600;color:var(--grn)">'+r[1]+'</span></div>';}).join('');
+    mkC('eqC',{type:'line',data:{labels:eq.map(function(d){return d.x;}),datasets:[{data:eq.map(function(d){return d.y;}),borderColor:'#16A34A',backgroundColor:'rgba(22,163,74,.15)',fill:true,pointRadius:0,borderWidth:1.5,tension:.1}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return f$(c.raw);}}}},scales:{x:{title:{display:true,text:'Trades',color:'#6B7280',font:{size:11}}},y:{ticks:{callback:function(v){return Math.round(v/1000)+'k';}}}},responsive:true,maintainAspectRatio:false}});
+  }
+  // Portfolio equity
+  if(document.getElementById('portC')){
+    var run2=291097,eq2=[];
+    s.closed.slice().reverse().forEach(function(t,i){run2+=t.ret-t.fee;eq2.push({x:i+1,y:Math.round(run2)});});
+    mkC('portC',{type:'line',data:{labels:eq2.map(function(d){return d.x;}),datasets:[{data:eq2.map(function(d){return d.y;}),borderColor:'#16A34A',backgroundColor:'rgba(22,163,74,.15)',fill:true,pointRadius:0,borderWidth:1.5,tension:.1}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{callback:function(v){return Math.round(v/1000)+'k';}}}},responsive:true,maintainAspectRatio:false}});
+  }
+  // Drawdown
+  if(document.getElementById('ddC')){
+    var pk=291097,rn=291097,dd=[];
+    s.closed.slice().reverse().forEach(function(t,i){rn+=t.ret-t.fee;if(rn>pk)pk=rn;dd.push({x:i+1,y:Math.min(0,rn-pk)});});
+    var wst=Math.min.apply(null,dd.map(function(d){return d.y;}));
+    var neg=dd.filter(function(d){return d.y<0;});
+    var avg=neg.length?neg.reduce(function(a,d){return a+d.y;},0)/neg.length:0;
+    var cur=dd.length?dd[dd.length-1].y:0;
+    var ds=document.getElementById('ddS');
+    if(ds) ds.innerHTML=[['Worst Drawdown',f$(wst)],['Average Drawdown',f$(avg)],['Current Drawdown',f$(cur)],['Top to Bottom','30'],['Bottom to Top','10'],['Return to Drawdown','1.01']].map(function(r){return '<div class="card ac r" style="flex:1;min-width:0"><div style="font-size:11px;color:var(--mut)">'+r[0]+'</div><div style="font-size:16px;font-weight:700;color:var(--txt)">'+r[1]+'</div></div>';}).join('');
+    mkC('ddC',{type:'line',data:{labels:dd.map(function(d){return d.x;}),datasets:[{data:dd.map(function(d){return d.y;}),borderColor:'#DC2626',backgroundColor:'rgba(220,38,38,.2)',fill:true,pointRadius:0,borderWidth:1.5,tension:.1}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return f$(c.raw);}}}},scales:{y:{ticks:{callback:function(v){return Math.round(v/1000)+'k';}}}},responsive:true,maintainAspectRatio:false}});
+  }
+  // By day
+  if(document.getElementById('dayC')){
+    var acc={Mon:[],Tue:[],Wed:[],Thu:[],Fri:[],Sat:[],Sun:[]};
+    s.closed.forEach(function(t){var n=DAYS[t.xD.getDay()];if(acc[n])acc[n].push(t.ret);});
+    var dnames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    var tots=dnames.map(function(d){return Math.round(acc[d].reduce(function(a,v){return a+v;},0));});
+    mkC('dayC',{type:'bar',data:{labels:dnames,datasets:[{data:tots,backgroundColor:tots.map(function(v){return v>=0?'rgba(22,163,74,.7)':'rgba(220,38,38,.7)';}),borderRadius:4}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return f$(c.raw);}}}},scales:{y:{ticks:{callback:function(v){return '$'+Math.round(v/1000)+'k';}}}},responsive:true,maintainAspectRatio:false}});
+  }
+  // By instrument
+  if(document.getElementById('instrC')){
+    var im={};
+    s.closed.forEach(function(t){if(!im[t.inst])im[t.inst]=0;im[t.inst]+=t.ret;});
+    var srt=Object.keys(im).map(function(k){return {n:k,p:Math.round(im[k])};}).sort(function(a,b){return b.p-a.p;});
+    mkC('instrC',{type:'bar',data:{labels:srt.map(function(d){return d.n;}),datasets:[{data:srt.map(function(d){return d.p;}),backgroundColor:srt.map(function(d){return d.p>=0?'rgba(22,163,74,.7)':'rgba(220,38,38,.7)';}),borderRadius:4}]},options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return f$(c.raw);}}}},scales:{x:{ticks:{callback:function(v){return '$'+Math.round(v/1000)+'k';}}}},responsive:true,maintainAspectRatio:false}});
+  }
+  // Consecutive
+  if(document.getElementById('consC')){
+    var ss=[],cur={type:null,count:0};
+    s.closed.slice().reverse().forEach(function(t){var tp=t.ret>0?'W':'L';if(tp===cur.type){cur.count++;}else{if(cur.count>0)ss.push({type:cur.type,count:cur.count});cur={type:tp,count:1};}});
+    if(cur.count>0) ss.push({type:cur.type,count:cur.count});
+    var last=ss.slice(-30);
+    var mxW=0,mxL=0;ss.forEach(function(s){if(s.type==='W'&&s.count>mxW)mxW=s.count;if(s.type==='L'&&s.count>mxL)mxL=s.count;});
+    var cs=document.getElementById('consS');
+    if(cs) cs.innerHTML='<div class="card ac" style="flex:1"><div style="font-size:11px;color:var(--mut)">Max Consecutive Winners</div><div style="font-size:30px;font-weight:700;color:var(--grn)">'+mxW+'</div></div>'+'<div class="card ac r" style="flex:1"><div style="font-size:11px;color:var(--mut)">Max Consecutive Losers</div><div style="font-size:30px;font-weight:700;color:var(--red)">'+mxL+'</div></div>';
+    mkC('consC',{type:'bar',data:{labels:last.map(function(_,i){return i+1;}),datasets:[{data:last.map(function(s){return s.count;}),backgroundColor:last.map(function(s){return s.type==='W'?'rgba(22,163,74,.7)':'rgba(220,38,38,.7)';}),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}},responsive:true,maintainAspectRatio:false}});
+  }
+  // Setup
+  if(document.getElementById('setupC')){
+    var sm={};
+    s.closed.forEach(function(t){if(!sm[t.setup])sm[t.setup]=0;sm[t.setup]+=t.ret;});
+    var sd=Object.keys(sm).map(function(k){return {n:k,p:Math.round(sm[k])};}).sort(function(a,b){return b.p-a.p;});
+    mkC('setupC',{type:'bar',data:{labels:sd.map(function(d){return d.n;}),datasets:[{data:sd.map(function(d){return d.p;}),backgroundColor:sd.map(function(d){return d.p>=0?'rgba(22,163,74,.7)':'rgba(220,38,38,.7)';}),borderRadius:4}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return f$(c.raw);}}}},scales:{y:{ticks:{callback:function(v){return '$'+Math.round(v/1000)+'k';}}}},responsive:true,maintainAspectRatio:false}});
+  }
+  if(document.getElementById('bW')) setTimeout(uBT,50);
+}
+
+/* ========== BACKTESTER ========== */
+function uBT(){
+  var wr=parseInt(document.getElementById('bW').value)/100;
+  var rr=parseInt(document.getElementById('bR').value)/10;
+  var n=parseInt(document.getElementById('bT').value);
+  var exp=wr*rr-(1-wr);
+  var bal=10000;
+  for(var i=0;i<n;i++) bal+=(seed(i*31+7)<wr?rr:-1)*100;
+  var ec=exp>0?'wn':'ls',bc=bal>10000?'wn':'ls';
+  var bc2=document.getElementById('btC');
+  var bi=document.getElementById('btI');
+  if(!bc2||!bi) return;
+  bc2.innerHTML='<div class="card sc"><div class="sl">Expectancy</div><div class="sv '+ec+'">'+exp.toFixed(3)+'R</div></div>'
+    +'<div class="card sc"><div class="sl">Final Balance</div><div class="sv '+bc+'">'+f$(bal)+'</div></div>'
+    +'<div class="card sc"><div class="sl">Edge</div><div class="sv '+ec+'">'+(exp>0?'Positive':'Negative')+'</div></div>';
+  bi.innerHTML='<p style="font-size:13px;color:var(--txt)">With <b>'+(wr*100).toFixed(0)+'%</b> win rate and <b>'+rr.toFixed(1)+':1</b> R/R over <b>'+n+'</b> trades &mdash; expectancy <span class="'+ec+'"><b>'+exp.toFixed(3)+'R</b></span>. Starting from $10,000: <span class="'+bc+'"><b>'+f$(bal)+'</b></span>.</p>';
+}
+
+/* ========== SIMULATOR ========== */
+function runSim(){
+  var n=parseInt(document.getElementById('simN').value)||3;
+  var trades=parseInt(document.getElementById('simT').value)||500;
+  var wr=parseFloat(document.getElementById('simW').value)/100;
+  var ag=parseFloat(document.getElementById('simA').value)||1000;
+  var al=Math.abs(parseFloat(document.getElementById('simL').value)||2000);
+  var sb=parseFloat(document.getElementById('simB').value)||100000;
+  var COLORS=['#F59E0B','#3B82F6','#8B5CF6','#EC4899','#14B8A6','#F97316'];
+  var old=charts.filter(function(c){return c.canvas&&c.canvas.id==='simC';});
+  old.forEach(function(c){try{c.destroy();}catch(e){}});
+  charts=charts.filter(function(c){return !c.canvas||c.canvas.id!=='simC';});
+  var ds=[];
+  for(var s=0;s<n;s++){
+    var pts=[sb],bal=sb;
+    for(var t=0;t<trades;t++){bal+=seed(s*9999+t*31+7)<wr?ag:-al;pts.push(Math.round(bal));}
+    ds.push({data:pts,borderColor:COLORS[s%COLORS.length],pointRadius:0,borderWidth:1.5,label:'Sim '+(s+1),fill:false,tension:.1});
+  }
+  mkC('simC',{type:'line',data:{labels:Array.from({length:trades+1},function(_,i){return i;}),datasets:ds},options:{plugins:{legend:{display:n<=6}},scales:{y:{ticks:{callback:function(v){return Math.round(v/1000)+'k';}}}},responsive:true,maintainAspectRatio:false}});
+}
+
+/* ========== MODAL ========== */
+function oM(key){document.getElementById('m'+key.charAt(0).toUpperCase()+key.slice(1)).classList.add('open');}
+function cM(key){
+  document.getElementById('m'+key.charAt(0).toUpperCase()+key.slice(1)).classList.remove('open');
+  if(key==='IBKR'){
+    document.getElementById('ibkrF').value='';
+    document.getElementById('ibkrPrev').style.display='none';
+    document.getElementById('ibkrErr').style.display='none';
+    document.getElementById('ibkrBtn').disabled=true;
+    pending=[];
   }
 }
-
-document.getElementById('sync-ibkr-btn').addEventListener('click', syncIBKR);
-
-// ─── Chart registry ──────────────────────────────────────────────────────────
-const charts = {};
-function makeChart(id, config) {
-  if (charts[id]) charts[id].destroy();
-  const ctx = document.getElementById(id);
-  if (!ctx) return;
-  charts[id] = new Chart(ctx, config);
-  return charts[id];
+function subTrade(){
+  var ep=parseFloat(document.getElementById('fEP').value)||0;
+  var xp=parseFloat(document.getElementById('fXP').value)||null;
+  var qty=parseFloat(document.getElementById('fQ').value)||1;
+  var fee=parseFloat(document.getElementById('fF').value)||0;
+  var isC=!!xp;
+  var dir=document.getElementById('fD').value;
+  var ret=isC?((dir==='Long'?xp-ep:ep-xp)*qty-fee):0;
+  var edS=document.getElementById('fED').value;
+  TR.unshift({
+    id:Date.now(),eD:edS?new Date(edS):new Date(),xD:isC?new Date():null,
+    inst:document.getElementById('fI').value||'NEW',
+    dir:dir,tt:document.getElementById('fT').value,opt:document.getElementById('fO').value,
+    setup:document.getElementById('fS').value,qty:qty,ep:ep,xp:isC?xp:null,
+    fee:fee,ret:ret,pct:0,acct:317982,rrr:1,star:false,imp:false
+  });
+  cM('add');render();
 }
-function rerenderCharts() { renderPage(currentPage()); }
-function currentPage() {
-  const a = document.querySelector('#nav a.active');
-  return a ? a.dataset.page : 'home';
-}
 
-function chartDefaults() {
-  const dark = document.documentElement.dataset.theme !== 'light';
-  return {
-    gridColor: dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.06)',
-    textColor: dark ? '#94a3b8' : '#64748b',
+/* ========== IBKR PARSER ========== */
+function parseIBDate(s){
+  if(!s) return null;
+  var p=s.replace(/[;,\s]+/,';').split(';');
+  var dp=p[0].replace(/-/g,'');
+  if(dp.length>=8){
+    var y=parseInt(dp.slice(0,4)),m=parseInt(dp.slice(4,6))-1,d=parseInt(dp.slice(6,8));
+    var h=0,mn=0;
+    if(p[1]){var t2=p[1];h=parseInt(t2.slice(0,2)||0);mn=parseInt(t2.slice(2,4)||0);}
+    return new Date(y,m,d,h,mn,0);
+  }
+  var dt=new Date(s);return isNaN(dt)?null:dt;
+}
+function parseXML(txt){
+  var par=new DOMParser();
+  var doc=par.parseFromString(txt,'application/xml');
+  var els=Array.from(doc.querySelectorAll('Trade'));
+  var res=[],openMap={};
+  els.forEach(function(el){
+    var g=function(a){return el.getAttribute(a)||'';};
+    var sym=g('symbol'),side=(g('buySell')||g('buy_sell')||'').toUpperCase();
+    var qty=Math.abs(parseFloat(g('quantity'))||0);
+    var price=parseFloat(g('tradePrice')||g('price'))||0;
+    var comm=Math.abs(parseFloat(g('ibCommission')||g('commission'))||0);
+    var dt=parseIBDate(g('dateTime')||g('tradeDate'));
+    var pnl=parseFloat(g('fifoPnlRealized')||g('realizedPnl')||0);
+    var ac=(g('assetCategory')||g('asset_category')||'STK').toUpperCase();
+    var pc=g('putCall')||g('put_call')||'';
+    var oc=(g('openCloseIndicator')||g('open_close')||'C').toUpperCase();
+    if(!sym||!dt||qty===0) return;
+    var tt=ac==='OPT'?'Option':ac==='FUT'?'Futures':'Spot';
+    var opt=ac==='OPT'?(pc==='P'?'PUT':'CALL'):'';
+    var dir=side.includes('B')?'Long':'Short';
+    var key=sym+'|'+tt+'|'+opt;
+    if(oc.startsWith('O')){openMap[key]={sym:sym,eD:dt,ep:price,qty:qty,tt:tt,opt:opt,dir:dir,fee:comm};}
+    else{
+      var op=openMap[key];
+      var rp=pnl||(dir==='Long'?(price-(op?op.ep:price))*qty:(op?op.ep:price-price)*qty);
+      res.push({id:Date.now()+res.length,inst:sym,tt:tt,opt:opt,dir:op?op.dir:dir,qty:op?op.qty:qty,
+        eD:op?op.eD:dt,xD:dt,ep:op?op.ep:price,xp:price,fee:(op?op.fee:0)+comm,
+        ret:Math.round(rp*100)/100,pct:0,acct:0,rrr:0,star:false,imp:true,setup:'Default Setup'});
+      delete openMap[key];
+    }
+  });
+  Object.values(openMap).forEach(function(op){
+    res.push({id:Date.now()+res.length,inst:op.sym,tt:op.tt,opt:op.opt,dir:op.dir,qty:op.qty,
+      eD:op.eD,xD:null,ep:op.ep,xp:null,fee:op.fee,ret:0,pct:0,acct:0,rrr:0,star:false,imp:true,setup:'Default Setup'});
+  });
+  return res;
+}
+function parseCSV(txt){
+  var lines=txt.split('\n').map(function(l){return l.trim();}).filter(Boolean);
+  var hdr=null,sec=false,res=[],openMap={};
+  lines.forEach(function(line){
+    var cols=line.split(',').map(function(c){return c.replace(/^"|"$/g,'').trim();});
+    if(cols[0]==='Trades'&&cols[1]==='Header'){hdr=cols;sec=true;return;}
+    if(cols[0]==='Trades'&&cols[1]==='Data'&&sec&&hdr){
+      var g=function(nm){var i=hdr.indexOf(nm);return i>=0?cols[i]:'';};
+      var sym=g('Symbol'),side=g('Buy/Sell').toUpperCase();
+      var qty=Math.abs(parseFloat(g('Quantity'))||0);
+      var price=parseFloat(g('T. Price'))||0;
+      var comm=Math.abs(parseFloat(g('Comm/Fee'))||0);
+      var dt=parseIBDate(g('Date/Time'));
+      var rp=parseFloat(g('Realized P/L'))||0;
+      var ac=(g('Asset Category')||'Stocks').toUpperCase();
+      var oc=(g('Open/CloseIndicator')||'C').toUpperCase();
+      if(!sym||!dt||qty===0) return;
+      var tt=ac.indexOf('OPTION')>=0?'Option':ac.indexOf('FUTURE')>=0?'Futures':'Spot';
+      var dir=side.includes('B')?'Long':'Short';
+      var key=sym+'|'+tt;
+      if(oc.startsWith('O')){openMap[key]={sym:sym,eD:dt,ep:price,qty:qty,tt:tt,dir:dir,fee:comm};}
+      else{
+        var op=openMap[key];
+        var p2=rp||(dir==='Long'?(price-(op?op.ep:price))*qty:(op?op.ep:price-price)*qty);
+        res.push({id:Date.now()+res.length,inst:sym,tt:tt,opt:'',dir:op?op.dir:dir,qty:op?op.qty:qty,
+          eD:op?op.eD:dt,xD:dt,ep:op?op.ep:price,xp:price,fee:(op?op.fee:0)+comm,
+          ret:Math.round(p2*100)/100,pct:0,acct:0,rrr:0,star:false,imp:true,setup:'Default Setup'});
+        delete openMap[key];
+      }
+    }else if(cols[0]!=='Trades') sec=false;
+  });
+  return res;
+}
+document.getElementById('ibkrF').addEventListener('change',function(){
+  var f=this.files[0];if(!f)return;
+  var rdr=new FileReader();
+  rdr.onload=function(e){
+    var txt=e.target.result,parsed=[];
+    try{parsed=(f.name.endsWith('.xml')||txt.trim().startsWith('<'))?parseXML(txt):parseCSV(txt);}
+    catch(err){
+      document.getElementById('ibkrErr').textContent='Parse error: '+err.message;
+      document.getElementById('ibkrErr').style.display='block';return;
+    }
+    pending=parsed;
+    document.getElementById('ibkrCnt').textContent=parsed.length;
+    document.getElementById('ibkrPrev').style.display=parsed.length?'block':'none';
+    document.getElementById('ibkrBtn').disabled=parsed.length===0;
+    document.getElementById('ibkrErr').style.display=parsed.length?'none':'block';
+    if(!parsed.length){document.getElementById('ibkrErr').textContent='No trades found. Check file format.';}
+    document.getElementById('ibkrTB').innerHTML=parsed.slice(0,10).map(function(t){
+      return '<tr><td>'+esc(fDs(t.eD))+'</td><td style="font-weight:600">'+esc(t.inst)+'</td><td>'+esc(t.dir)+'</td><td>'+t.qty+'</td><td>$'+t.ep.toFixed(2)+'</td><td class="'+(t.ret>=0?'wn':'ls')+'">'+(t.xD?f$(t.ret):'Open')+'</td></tr>';
+    }).join('');
   };
+  rdr.readAsText(f);
+});
+function doImport(){
+  if(!pending.length)return;
+  TR=pending.concat(TR);
+  pending=[];cM('IBKR');pg='Journal';sub='';buildNav();render();
 }
 
-// ─── Page Renderers ──────────────────────────────────────────────────────────
-
-function renderPage(pg) {
-  try {
-    if (pg === 'home') renderHome();
-    else if (pg === 'portfolio') renderPortfolio();
-    else if (pg === 'journal') renderJournal();
-    else if (pg === 'equity') renderEquity();
-    else if (pg === 'chartlab') renderChartLab();
-    else if (pg === 'reports') renderReports();
-    else if (pg === 'stratlab') renderStratLab();
-    else if (pg === 'settings') renderSettings();
-  } catch(e) {
-    console.error('Page render error:', e);
-    toast('Render error: '+e.message, 'err');
-  }
-}
-
-// HOME
-function renderHome() {
-  const s = calcStats(trades);
-  const pct = (s.netPnl/(Math.abs(s.netPnl)||1)*100).toFixed(1);
-  document.getElementById('home-stats').innerHTML = `
-    <div class="stat-card">
-      <div class="stat-label">Net Return</div>
-      <div class="stat-value ${s.netPnl>=0?'pos':'neg'}">$${s.netPnl.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
-      <div class="stat-sub">${s.total} closed trades</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Win Rate</div>
-      <div class="stat-value pos">${(s.winrate*100).toFixed(1)}%</div>
-      <div class="stat-sub">${s.wins} wins / ${s.total-s.wins} losses</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Avg P&amp;L / Trade</div>
-      <div class="stat-value ${s.avgPnl>=0?'pos':'neg'}">$${s.avgPnl.toFixed(2)}</div>
-      <div class="stat-sub">Per closed trade</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Profit Factor</div>
-      <div class="stat-value ${s.pf>=1?'pos':'neg'}">${s.pf.toFixed(2)}</div>
-      <div class="stat-sub">Gross win / gross loss</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">EW Score</div>
-      <div class="stat-value ${s.ewScore>=60?'pos':s.ewScore>=40?'neu':'neg'}">${s.ewScore}</div>
-      <div class="stat-sub">Out of 100</div>
-    </div>
-  `;
-  renderCalendar();
-  renderEvalPanel(s);
-}
-
-function renderCalendar() {
-  const now = new Date(2026, 5, 1); // June 2026
-  const days = ['S','M','T','W','T','F','S'];
-  let html = days.map(d=>`<div class="cal-header">${d}</div>`).join('');
-  // weekly total header
-  html += `<div class="cal-header">Week $</div>`;
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).getDay();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
-  // build day->pnl map from trades
-  const dayPnl = {};
-  trades.filter(t=>t.date && t.date.startsWith('2026-06')).forEach(t=>{
-    const d = parseInt(t.date.slice(8));
-    dayPnl[d] = (dayPnl[d]||0)+t.pnl;
-  });
-  let weekTotal = 0;
-  let dayOfWeek = firstDay;
-  // empty cells
-  for (let i=0;i<firstDay;i++) html += `<div class="cal-day empty"></div>`;
-  dayOfWeek = firstDay;
-  for (let d=1;d<=daysInMonth;d++) {
-    const pnl = dayPnl[d];
-    const cls = pnl==null?'empty':pnl>=0?'win':'loss';
-    const val = pnl!=null?`<span class="day-pnl ${pnl>=0?'pos':'neg'}">${pnl>=0?'+':''}${pnl.toFixed(0)}</span>`:'';
-    weekTotal += pnl||0;
-    html += `<div class="cal-day ${cls}"><span class="day-num">${d}</span>${val}</div>`;
-    if (dayOfWeek===6) {
-      html += `<div class="cal-week-total ${weekTotal>=0?'pos':'neg'}">${weekTotal>=0?'+':''}$${weekTotal.toFixed(0)}</div>`;
-      weekTotal = 0;
-    }
-    dayOfWeek = (dayOfWeek+1)%7;
-  }
-  document.getElementById('calendar-grid').innerHTML = html;
-}
-
-function renderEvalPanel(s) {
-  const items = [
-    ['Consistency', (s.winrate*100).toFixed(1)+'%', s.winrate>=0.6?'pos':'neg'],
-    ['Risk/Reward Ratio', (s.pf).toFixed(2), s.pf>=1.5?'pos':s.pf>=1?'neu':'neg'],
-    ['Trade Frequency', s.total+' trades', 'neu'],
-    ['Avg Win', '$'+Math.abs(trades.filter(x=>x.result==='win').reduce((a,x)=>a+x.pnl,0)/(trades.filter(x=>x.result==='win').length||1)).toFixed(2), 'pos'],
-    ['Avg Loss', '-$'+Math.abs(trades.filter(x=>x.result==='loss').reduce((a,x)=>a+x.pnl,0)/(trades.filter(x=>x.result==='loss').length||1)).toFixed(2), 'neg'],
-    ['EW Score', s.ewScore+'/100', s.ewScore>=60?'pos':'neg'],
-  ];
-  document.getElementById('eval-panel').innerHTML = items.map(([l,v,c])=>`
-    <div class="eval-item"><span class="eval-label">${l}</span><span class="eval-value ${c}">${v}</span></div>
-  `).join('');
-}
-
-// PORTFOLIO
-function renderPortfolio() {
-  const journals = [
-    {name:'Covered Calls 2026', trades: trades.filter(t=>t.type==='Covered Call')},
-    {name:'Cash-Secured Puts 2026', trades: trades.filter(t=>t.type==='Cash-Secured Put')},
-    {name:'All Trades', trades},
-  ];
-  document.getElementById('portfolio-tbody').innerHTML = journals.map(j=>{
-    const s = calcStats(j.trades);
-    return `<tr>
-      <td><strong>${j.name}</strong></td>
-      <td>${j.trades.length}</td>
-      <td class="${s.netPnl>=0?'pos':'neg'}">$${s.netPnl.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}</td>
-      <td>${(s.winrate*100).toFixed(1)}%</td>
-      <td>${s.pf.toFixed(2)}</td>
-      <td class="${s.avgPnl>=0?'pos':'neg'}">$${s.avgPnl.toFixed(2)}</td>
-      <td><span class="badge ${s.netPnl>=0?'badge-green':'badge-red'}">${s.netPnl>=0?'Profitable':'Losing'}</span></td>
-    </tr>`;
-  }).join('');
-
-  const {gridColor, textColor} = chartDefaults();
-  const sorted = [...trades].sort((a,b)=>a.date.localeCompare(b.date));
-  let cum = 0;
-  const labels = [], data = [];
-  sorted.forEach(t=>{cum+=t.pnl; labels.push(t.date); data.push(+cum.toFixed(2));});
-  makeChart('portfolio-chart', {
-    type: 'line',
-    data: { labels, datasets: [{label:'Portfolio Equity',data,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.1)',fill:true,pointRadius:0,tension:.3}] },
-    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{display:false,grid:{color:gridColor}},y:{grid:{color:gridColor},ticks:{color:textColor}}} }
-  });
-}
-
-// JOURNAL
-let journalPage = 1;
-const PAGE_SIZE = 20;
-
-function renderJournal() {
-  const search = (document.getElementById('journal-search').value||'').toLowerCase();
-  const filter = document.getElementById('journal-filter').value;
-  let filtered = trades.filter(t=>{
-    if (search && !((t.symbol||'').toLowerCase().includes(search)||(t.setup||'').toLowerCase().includes(search))) return false;
-    if (filter==='win' && t.result!=='win') return false;
-    if (filter==='loss' && t.result!=='loss') return false;
-    if (filter==='covered_call' && t.type!=='Covered Call') return false;
-    if (filter==='put' && t.type!=='Cash-Secured Put') return false;
-    return true;
-  });
-  const totalPages = Math.ceil(filtered.length/PAGE_SIZE);
-  journalPage = Math.min(journalPage, totalPages||1);
-  const page = filtered.slice((journalPage-1)*PAGE_SIZE, journalPage*PAGE_SIZE);
-  document.getElementById('journal-tbody').innerHTML = page.map(t=>`
-    <tr>
-      <td>${t.id}</td>
-      <td>${t.date}</td>
-      <td><strong>${t.symbol}</strong></td>
-      <td><span class="badge badge-blue">${t.type}</span></td>
-      <td>$${t.strike||'—'}</td>
-      <td>${t.expiry||'—'}</td>
-      <td>${t.qty}</td>
-      <td>$${t.entry}</td>
-      <td>$${t.exit||'—'}</td>
-      <td class="${t.pnl>=0?'pos':'neg'}"><strong>${t.pnl>=0?'+':''}$${t.pnl.toFixed(2)}</strong></td>
-      <td class="${t.pnl>=0?'pos':'neg'}">${t.entry?(((t.pnl)/(t.entry*100*t.qty))*100).toFixed(1)+'%':'—'}</td>
-      <td>${t.dte||'—'}</td>
-      <td>${t.setup}</td>
-      <td><span class="badge ${t.result==='win'?'badge-green':'badge-red'}">${t.result==='win'?'Win':'Loss'}</span></td>
-    </tr>
-  `).join('');
-
-  const pag = document.getElementById('journal-pagination');
-  let pagHtml = `<button ${journalPage<=1?'disabled':''} onclick="journalPage--;renderPage('journal')">‹ Prev</button>`;
-  const start = Math.max(1, journalPage-2), end = Math.min(totalPages, start+4);
-  for (let i=start;i<=end;i++) pagHtml += `<button class="${i===journalPage?'active':''}" onclick="journalPage=${i};renderPage('journal')">${i}</button>`;
-  pagHtml += `<button ${journalPage>=totalPages?'disabled':''} onclick="journalPage++;renderPage('journal')">Next ›</button>`;
-  pagHtml += `<span style="color:var(--text-muted);font-size:12px;margin-left:6px">${filtered.length} trades</span>`;
-  pag.innerHTML = pagHtml;
-}
-
-document.getElementById('journal-search').addEventListener('input', ()=>{journalPage=1;renderPage('journal');});
-document.getElementById('journal-filter').addEventListener('change', ()=>{journalPage=1;renderPage('journal');});
-
-// EQUITY
-function renderEquity() {
-  const {gridColor, textColor} = chartDefaults();
-  const sorted = [...trades].sort((a,b)=>a.date.localeCompare(b.date));
-  let cum = 0, peak = 0, maxDD = 0;
-  const labels=[], data=[], ddData=[];
-  sorted.forEach(t=>{
-    cum+=t.pnl; peak=Math.max(peak,cum);
-    const dd = peak>0?(cum-peak)/peak*100:0;
-    maxDD = Math.min(maxDD,dd);
-    labels.push(t.date); data.push(+cum.toFixed(2)); ddData.push(+dd.toFixed(2));
-  });
-
-  makeChart('equity-chart',{
-    type:'line',
-    data:{labels,datasets:[{label:'Equity',data,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.08)',fill:true,pointRadius:0,tension:.3}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:gridColor},ticks:{color:textColor}}}}
-  });
-
-  makeChart('dd-mini-chart',{
-    type:'line',
-    data:{labels,datasets:[{label:'Drawdown %',data:ddData,borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.08)',fill:true,pointRadius:0,tension:.3}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:gridColor},ticks:{color:textColor,callback:v=>v+'%'}}}}
-  });
-
-  const s = calcStats(trades);
-  document.getElementById('perf-snapshot').innerHTML = `
-    <div class="eval-item"><span class="eval-label">Total Trades</span><span class="eval-value">${trades.length}</span></div>
-    <div class="eval-item"><span class="eval-label">Net P&L</span><span class="eval-value ${s.netPnl>=0?'pos':'neg'}">$${s.netPnl.toLocaleString()}</span></div>
-    <div class="eval-item"><span class="eval-label">Win Rate</span><span class="eval-value pos">${(s.winrate*100).toFixed(1)}%</span></div>
-    <div class="eval-item"><span class="eval-label">Max Drawdown</span><span class="eval-value neg">${maxDD.toFixed(1)}%</span></div>
-    <div class="eval-item"><span class="eval-label">Profit Factor</span><span class="eval-value ${s.pf>=1?'pos':'neg'}">${s.pf.toFixed(2)}</span></div>
-  `;
-
-  const metrics = [
-    ['Win Rate',(s.winrate*100).toFixed(0)],
-    ['Profit Factor',Math.min(s.pf/3*100,100).toFixed(0)],
-    ['Consistency',(s.winrate*70+s.pf/3*30).toFixed(0)],
-  ];
-  document.getElementById('consistency-panel').innerHTML = metrics.map(([l,v])=>`
-    <div class="consistency-item">
-      <span class="ci-label">${l}</span>
-      <div class="ci-bar"><div class="progress-bar"><div class="progress-bar-fill" style="width:${v}%"></div></div></div>
-      <span class="ci-val">${v}%</span>
-    </div>
-  `).join('');
-}
-
-// CHART LAB
-function renderChartLab() {
-  const {gridColor, textColor} = chartDefaults();
-  const sorted = [...trades].sort((a,b)=>a.date.localeCompare(b.date));
-  let cum=0, peak=0;
-  const labels=[], ddData=[];
-  sorted.forEach(t=>{
-    cum+=t.pnl; peak=Math.max(peak,cum);
-    const dd=peak>0?(cum-peak)/peak*100:0;
-    labels.push(t.date); ddData.push(+dd.toFixed(2));
-  });
-  makeChart('dd-chart',{type:'line',data:{labels,datasets:[{label:'Drawdown',data:ddData,borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.08)',fill:true,pointRadius:0,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:gridColor},ticks:{color:textColor,callback:v=>v+'%'}}}}});
-
-  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const dayTotals = Array(7).fill(0), dayCounts=Array(7).fill(0);
-  trades.forEach(t=>{if(t.date){const d=new Date(t.date+'T12:00:00').getDay();dayTotals[d]+=t.pnl;dayCounts[d]++;}});
-  makeChart('day-chart',{type:'bar',data:{labels:days,datasets:[{label:'Avg P&L',data:days.map((_,i)=>dayCounts[i]?+(dayTotals[i]/dayCounts[i]).toFixed(2):0),backgroundColor:days.map((_,i)=>(dayTotals[i]||0)>=0?'rgba(16,185,129,.7)':'rgba(239,68,68,.7)')}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:textColor},grid:{color:gridColor}},y:{grid:{color:gridColor},ticks:{color:textColor}}}}});
-
-  const symMap={};
-  trades.forEach(t=>{if(!symMap[t.symbol])symMap[t.symbol]={pnl:0,n:0};symMap[t.symbol].pnl+=t.pnl;symMap[t.symbol].n++;});
-  const topSyms=Object.entries(symMap).sort((a,b)=>b[1].pnl-a[1].pnl).slice(0,8);
-  makeChart('inst-chart',{type:'bar',data:{labels:topSyms.map(x=>x[0]),datasets:[{label:'Net P&L',data:topSyms.map(x=>+x[1].pnl.toFixed(2)),backgroundColor:topSyms.map(x=>x[1].pnl>=0?'rgba(16,185,129,.7)':'rgba(239,68,68,.7)')}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gridColor},ticks:{color:textColor}},y:{ticks:{color:textColor},grid:{color:gridColor}}}}});
-
-  const setupMap={};
-  trades.forEach(t=>{if(!setupMap[t.setup])setupMap[t.setup]={pnl:0,n:0};setupMap[t.setup].pnl+=t.pnl;setupMap[t.setup].n++;});
-  const setups=Object.entries(setupMap).sort((a,b)=>b[1].pnl-a[1].pnl);
-  makeChart('setup-chart',{type:'bar',data:{labels:setups.map(x=>x[0]),datasets:[{label:'Net P&L',data:setups.map(x=>+x[1].pnl.toFixed(2)),backgroundColor:setups.map(x=>x[1].pnl>=0?'rgba(16,185,129,.7)':'rgba(239,68,68,.7)')}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:textColor,maxRotation:30},grid:{color:gridColor}},y:{grid:{color:gridColor},ticks:{color:textColor}}}}});
-
-  // Streaks
-  let maxWin=0,curWin=0,maxLoss=0,curLoss=0;
-  trades.forEach(t=>{
-    if(t.result==='win'){curWin++;maxWin=Math.max(maxWin,curWin);curLoss=0;}
-    else{curLoss++;maxLoss=Math.max(maxLoss,curLoss);curWin=0;}
-  });
-  document.getElementById('streak-panel').innerHTML = `
-    <div class="eval-item"><span class="eval-label">Max Win Streak</span><span class="eval-value pos">${maxWin}</span></div>
-    <div class="eval-item"><span class="eval-label">Max Loss Streak</span><span class="eval-value neg">${maxLoss}</span></div>
-    <div class="eval-item"><span class="eval-label">Current Streak</span><span class="eval-value">${curWin>0?'+'+curWin+' W':curLoss>0?'-'+curLoss+' L':'—'}</span></div>
-  `;
-
-  const dteBuckets={'<7':0,'7-14':0,'14-21':0,'21-45':0,'>45':0};
-  trades.forEach(t=>{
-    const d=t.dte||0;
-    if(d<7)dteBuckets['<7']++;
-    else if(d<14)dteBuckets['7-14']++;
-    else if(d<21)dteBuckets['14-21']++;
-    else if(d<45)dteBuckets['21-45']++;
-    else dteBuckets['>45']++;
-  });
-  makeChart('hold-chart',{type:'bar',data:{labels:Object.keys(dteBuckets),datasets:[{label:'Trades',data:Object.values(dteBuckets),backgroundColor:'rgba(99,102,241,.7)'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:textColor},grid:{color:gridColor}},y:{grid:{color:gridColor},ticks:{color:textColor}}}}});
-}
-
-// REPORTS
-function renderReports() {
-  const {gridColor, textColor} = chartDefaults();
-  const s = calcStats(trades);
-  const wins = trades.filter(x=>x.result==='win');
-  const losses = trades.filter(x=>x.result==='loss');
-  const avgWin = wins.length ? wins.reduce((a,x)=>a+x.pnl,0)/wins.length : 0;
-  const avgLoss = losses.length ? Math.abs(losses.reduce((a,x)=>a+x.pnl,0)/losses.length) : 0;
-  const analytics = [
-    ['Net P&L','$'+s.netPnl.toLocaleString(),'—'],
-    ['Win Rate',(s.winrate*100).toFixed(1)+'%','#1'],
-    ['Profit Factor',s.pf.toFixed(2),'#2'],
-    ['Avg Win','$'+avgWin.toFixed(2),'#3'],
-    ['Avg Loss','-$'+avgLoss.toFixed(2),'#4'],
-    ['Expectancy','$'+((s.winrate*avgWin-(1-s.winrate)*avgLoss)).toFixed(2),'#5'],
-    ['Total Trades',s.total,'—'],
-    ['Best Trade','$'+Math.max(...trades.map(x=>x.pnl)).toFixed(2),'—'],
-    ['Worst Trade','-$'+Math.abs(Math.min(...trades.map(x=>x.pnl))).toFixed(2),'—'],
-  ];
-  document.getElementById('analytics-tbody').innerHTML = analytics.map(([c,v,r])=>`<tr><td>${c}</td><td><strong>${v}</strong></td><td>${r}</td></tr>`).join('');
-
-  // Monthly
-  const months={};
-  trades.forEach(t=>{
-    if(!t.date)return;
-    const m=t.date.slice(0,7);
-    if(!months[m])months[m]={pnl:0,n:0,wins:0,best:-Infinity,worst:Infinity,dte:[]};
-    months[m].pnl+=t.pnl; months[m].n++;
-    if(t.result==='win')months[m].wins++;
-    months[m].best=Math.max(months[m].best,t.pnl);
-    months[m].worst=Math.min(months[m].worst,t.pnl);
-    if(t.dte)months[m].dte.push(t.dte);
-  });
-  const mKeys=Object.keys(months).sort();
-  makeChart('monthly-chart',{type:'bar',data:{labels:mKeys,datasets:[{label:'Monthly P&L',data:mKeys.map(k=>+months[k].pnl.toFixed(2)),backgroundColor:mKeys.map(k=>months[k].pnl>=0?'rgba(16,185,129,.7)':'rgba(239,68,68,.7)')}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:textColor,maxRotation:45},grid:{color:gridColor}},y:{grid:{color:gridColor},ticks:{color:textColor}}}}});
-  document.getElementById('monthly-tbody').innerHTML = mKeys.map(k=>{
-    const m=months[k];
-    const avgDTE=m.dte.length?Math.round(m.dte.reduce((a,b)=>a+b,0)/m.dte.length):0;
-    return `<tr>
-      <td>${k}</td><td>${m.n}</td>
-      <td class="${m.pnl>=0?'pos':'neg'}">$${m.pnl.toFixed(2)}</td>
-      <td>${(m.wins/m.n*100).toFixed(1)}%</td>
-      <td class="pos">$${m.best.toFixed(2)}</td>
-      <td class="neg">-$${Math.abs(m.worst).toFixed(2)}</td>
-      <td>${avgDTE}d</td>
-    </tr>`;
-  }).join('');
-}
-
-// STRATEGY LAB
-function renderStratLab() {
-  document.getElementById('mc-sims').addEventListener('input', function(){document.getElementById('mc-sims-val').textContent=this.value;});
-  document.getElementById('mc-trades').addEventListener('input', function(){document.getElementById('mc-trades-val').textContent=this.value;});
-  document.getElementById('bt-delta').addEventListener('input', function(){document.getElementById('bt-delta-val').textContent='.'+this.value.padStart(2,'0');});
-  document.getElementById('bt-dte').addEventListener('input', function(){document.getElementById('bt-dte-val').textContent=this.value;});
-  document.getElementById('bt-exit').addEventListener('input', function(){document.getElementById('bt-exit-val').textContent=this.value+'%';});
-
-  document.getElementById('mc-run').onclick = runMonteCarlo;
-  document.getElementById('bt-run').onclick = runBacktest;
-  runMonteCarlo();
-  runBacktest();
-}
-
-function runMonteCarlo() {
-  const {gridColor, textColor} = chartDefaults();
-  const sims = +document.getElementById('mc-sims').value;
-  const n = +document.getElementById('mc-trades').value;
-  const s = calcStats(trades);
-  const wins = trades.filter(x=>x.result==='win').map(x=>x.pnl);
-  const losses = trades.filter(x=>x.result==='loss').map(x=>x.pnl);
-  const datasets=[];
-  let finals=[];
-  for(let i=0;i<sims;i++){
-    let cum=0; const path=[0];
-    for(let j=0;j<n;j++){
-      const win=Math.random()<s.winrate;
-      const arr=win?wins:losses;
-      cum+=arr[Math.floor(Math.random()*arr.length)]||0;
-      path.push(+cum.toFixed(2));
-    }
-    finals.push(cum);
-    const alpha=Math.min(0.3,1/Math.sqrt(sims));
-    datasets.push({data:path,borderColor:`rgba(16,185,129,${alpha})`,borderWidth:1,pointRadius:0,fill:false});
-  }
-  makeChart('mc-chart',{type:'line',data:{labels:Array.from({length:n+1},(_,i)=>i),datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:gridColor},ticks:{color:textColor}}},animation:{duration:0}}});
-  finals.sort((a,b)=>a-b);
-  const p10=finals[Math.floor(finals.length*.1)],p50=finals[Math.floor(finals.length*.5)],p90=finals[Math.floor(finals.length*.9)];
-  document.getElementById('mc-results').innerHTML=`P10: <strong class="neg">$${p10.toFixed(0)}</strong> &nbsp; P50: <strong class="${p50>=0?'pos':'neg'}">$${p50.toFixed(0)}</strong> &nbsp; P90: <strong class="pos">$${p90.toFixed(0)}</strong>`;
-}
-
-function runBacktest() {
-  const {gridColor, textColor} = chartDefaults();
-  const deltaMax = +document.getElementById('bt-delta').value/100;
-  const dteMin = +document.getElementById('bt-dte').value;
-  const exitPct = +document.getElementById('bt-exit').value/100;
-  const filtered = trades.filter(t=>t.dte>=dteMin);
-  let cum=0; const labels=[], data=[];
-  filtered.forEach(t=>{
-    const adj = t.pnl * exitPct / 0.5;
-    cum+=adj; labels.push(t.date); data.push(+cum.toFixed(2));
-  });
-  makeChart('bt-chart',{type:'line',data:{labels,datasets:[{label:'Backtest Equity',data,borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,.08)',fill:true,pointRadius:0,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:gridColor},ticks:{color:textColor}}}}});
-  const s=calcStats(filtered);
-  document.getElementById('bt-results').innerHTML=`${filtered.length} trades matched &nbsp;|&nbsp; Net: <strong class="${cum>=0?'pos':'neg'}">$${cum.toFixed(0)}</strong> &nbsp;|&nbsp; Win rate: <strong>${(s.winrate*100).toFixed(1)}%</strong>`;
-}
-
-// SETTINGS
-function renderSettings() {
-  updateIbkrStatus();
-  const settingCards = [
-    {title:'Display', rows:[['Compact tables','compact'],['Show P&L in %','pct'],['Color-blind mode','cb']]},
-    {title:'Notifications', rows:[['Email digest','email_digest'],['Trade alerts','trade_alerts'],['Drawdown alerts','dd_alerts']]},
-    {title:'Risk Management', rows:[['Max position size warning','max_pos'],['Daily loss limit alert','daily_loss'],['Consecutive loss alert','consec_loss']]},
-    {title:'Journal Defaults', rows:[['Auto-save drafts','autosave'],['Show notes column','show_notes'],['Confirm before delete','confirm_delete']]},
-    {title:'Data', rows:[['Auto-sync on load','auto_sync'],['Cache statements 24h','cache_stmt']]},
-    {title:'Appearance', rows:[['Sticky header','sticky_header'],['Animate charts','animate_charts'],['Show tooltips','tooltips']]},
-    {title:'Export', rows:[['Include notes in CSV','csv_notes'],['Auto-export monthly','auto_export']]},
-    {title:'Strategy Lab', rows:[['Default MC sims: 100','mc_100'],['Show confidence bands','conf_bands']]},
-    {title:'Account', rows:[['Multi-account view','multi_acct'],['Show account equity','show_equity']]},
-  ];
-  document.getElementById('settings-grid').innerHTML = settingCards.map(card=>`
-    <div class="setting-card">
-      <h3>${card.title}</h3>
-      ${card.rows.map(([label,key])=>`
-        <div class="setting-row">
-          <label>${label}</label>
-          <label class="toggle">
-            <input type="checkbox" ${localStorage.getItem('ew_'+key)==='1'?'checked':''} onchange="localStorage.setItem('ew_${key}',this.checked?'1':'0')">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      `).join('')}
-    </div>
-  `).join('');
-}
-
-// ─── Init ────────────────────────────────────────────────────────────────────
-renderPage('home');
+/* ========== INIT ========== */
+buildNav();
+render();
 </script>
 </body>
 </html>
