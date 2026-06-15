@@ -172,6 +172,7 @@ input[type=file]{color:var(--txt);font-size:13px;margin-top:6px}
       <div class="hj">CADD Trading Journal &#x25BE;</div>
       <div class="hib">&#x1F514;</div>
       <div class="hib">&#x1F464;</div>
+      <button class="hib" id="ibkrSyncBtn" onclick="syncIBKR()" title="Sync IBKR Flex" style="font-size:13px;font-weight:600;padding:5px 11px;display:none">🔄 Sync IBKR</button>
     </div>
   </div>
   <div id="pg"></div>
@@ -1039,9 +1040,70 @@ function doImport(){
   pending=[];cM('IBKR');pg='Journal';sub='';buildNav();render();
 }
 
+/* ========== IBKR FLEX LIVE SYNC ========== */
+function loadFlexCreds(){
+  try{
+    var raw=localStorage.getItem('options:flex');
+    if(!raw) return null;
+    var d=JSON.parse(raw);
+    return (d.flexToken&&d.queryId)?d:null;
+  }catch(e){return null;}
+}
+
+function initFlexBtn(){
+  var creds=loadFlexCreds();
+  var btn=document.getElementById('ibkrSyncBtn');
+  if(btn) btn.style.display=creds?'':'none';
+}
+
+async function syncIBKR(){
+  var creds=loadFlexCreds();
+  if(!creds){alert('No IBKR Flex credentials found.\n\nGo to options-jade.vercel.app and save your Flex token + Query ID there first — Edgework reads them automatically from the same origin.');return;}
+  var btn=document.getElementById('ibkrSyncBtn');
+  if(btn){btn.textContent='⏳ Syncing…';btn.disabled=true;}
+  try{
+    // Step 1: request statement
+    var initUrl='https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest?t='+encodeURIComponent(creds.flexToken)+'&q='+encodeURIComponent(creds.queryId)+'&v=3';
+    var initRes=await fetch(initUrl);
+    var initXml=await initRes.text();
+    var refMatch=initXml.match(/<ReferenceCode>(.*?)<\/ReferenceCode>/);
+    if(!refMatch) throw new Error('No reference code returned. Check token & query ID.');
+    var refCode=refMatch[1];
+    // Step 2: poll for statement
+    var xml=null;
+    for(var i=0;i<12;i++){
+      await new Promise(function(r){setTimeout(r,5000);});
+      if(btn) btn.textContent='⏳ Polling ('+(i+1)+'/12)…';
+      var pollUrl='https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement?t='+encodeURIComponent(creds.flexToken)+'&q='+encodeURIComponent(refCode)+'&v=3';
+      var pollRes=await fetch(pollUrl);
+      var pollText=await pollRes.text();
+      if(pollText.includes('<FlexQueryResponse')){xml=pollText;break;}
+      if(pollText.includes('Statement generation in progress')) continue;
+      // Error response
+      var errMatch=pollText.match(/<ErrorMessage>(.*?)<\/ErrorMessage>/);
+      if(errMatch) throw new Error(errMatch[1]);
+    }
+    if(!xml) throw new Error('Timeout: statement not ready after 60s. Try again.');
+    // Step 3: parse via existing parseXML
+    var parsed=parseXML(xml);
+    if(!parsed||!parsed.length) throw new Error('No trades found in statement.');
+    // Deduplicate by instrument+date (avoid double-importing)
+    var existing=new Set(TR.filter(function(t){return t.imp;}).map(function(t){return t.inst+'|'+t.eD.getTime();}));
+    var fresh=parsed.filter(function(t){return !existing.has(t.inst+'|'+t.eD.getTime());});
+    TR=fresh.concat(TR);
+    pg='Journal';sub='';buildNav();render();
+    if(btn){btn.textContent='✅ '+fresh.length+' imported';}
+    setTimeout(function(){if(btn){btn.textContent='🔄 Sync IBKR';btn.disabled=false;}},3000);
+  }catch(e){
+    if(btn){btn.textContent='❌ '+e.message;btn.disabled=false;}
+    setTimeout(function(){if(btn){btn.textContent='🔄 Sync IBKR';}},5000);
+  }
+}
+
 /* ========== INIT ========== */
 buildNav();
 render();
+initFlexBtn();
 </script>
 </body>
 </html>
