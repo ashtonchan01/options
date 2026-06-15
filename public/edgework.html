@@ -457,8 +457,17 @@ function buildCal(year,month,dm){
 /* ========== PAGES ========== */
 function pHome(){
   var s=stats();
-  var bal=TR[0]&&TR[0].acct?TR[0].acct:317982.07;
-  document.getElementById('sbn').textContent='US$'+bal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  var netLiq=parseFloat(localStorage.getItem('ew_net_liq')||'0');
+  var balEl=document.getElementById('sbn');
+  if(balEl){
+    if(netLiq){
+      balEl.textContent='US$'+netLiq.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    } else {
+      balEl.textContent='Sync IBKR to load';
+      balEl.style.fontSize='11px';
+      balEl.style.color='var(--mut)';
+    }
+  }
   // Calendar data
   var yr=2026,mo=5,dm={};
   s.closed.forEach(function(t){
@@ -1498,7 +1507,7 @@ function mountCharts(){
   }
   // Equity
   if(document.getElementById('eqC')){
-    var run=291097,eq=[];
+    var run=0,eq=[];
     var rev=s.closed.slice().reverse();
     rev.forEach(function(t,i){run+=t.ret-t.fee;eq.push({x:i+1,y:Math.round(run)});});
     var peak=0,mdd=0;eq.forEach(function(d){if(d.y>peak)peak=d.y;var dd=peak-d.y;if(dd>mdd)mdd=dd;});
@@ -1514,13 +1523,13 @@ function mountCharts(){
   }
   // Portfolio equity
   if(document.getElementById('portC')){
-    var run2=291097,eq2=[];
+    var run2=0,eq2=[];
     s.closed.slice().reverse().forEach(function(t,i){run2+=t.ret-t.fee;eq2.push({x:i+1,y:Math.round(run2)});});
     mkC('portC',{type:'line',data:{labels:eq2.map(function(d){return d.x;}),datasets:[{data:eq2.map(function(d){return d.y;}),borderColor:'#16A34A',backgroundColor:'rgba(22,163,74,.15)',fill:true,pointRadius:0,borderWidth:1.5,tension:.1}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{callback:function(v){return Math.round(v/1000)+'k';}}}},responsive:true,maintainAspectRatio:false}});
   }
   // Drawdown
   if(document.getElementById('ddC')){
-    var pk=291097,rn=291097,dd=[];
+    var pk=0,rn=0,dd=[];
     s.closed.slice().reverse().forEach(function(t,i){rn+=t.ret-t.fee;if(rn>pk)pk=rn;dd.push({x:i+1,y:Math.min(0,rn-pk)});});
     var wst=Math.min.apply(null,dd.map(function(d){return d.y;}));
     var neg=dd.filter(function(d){return d.y<0;});
@@ -1857,15 +1866,21 @@ async function syncIBKR(){
       var errObj=null;try{errObj=JSON.parse(xml);}catch(e){}
       throw new Error(errObj&&errObj.error?errObj.error:'Proxy error '+proxyRes.status+': '+xml.slice(0,120));
     }
-    // Step 3: parse trades
+    // Step 3: parse net liquidation value (real account value from IBKR)
+    var doc=new DOMParser().parseFromString(xml,'application/xml');
+    var eqBase=doc.querySelector('EquitySummaryInBase')||doc.querySelector('EquitySummaryByReportDateInBase');
+    var netLiq=eqBase?parseFloat(eqBase.getAttribute('netLiquidation')||'0'):0;
+    if(netLiq) localStorage.setItem('ew_net_liq',String(netLiq));
+    // Step 4: parse trades
     var parsed=parseXML(xml);
     // Deduplicate trades by instrument+date
     var existing=new Set(TR.filter(function(t){return t.imp;}).map(function(t){return t.inst+'|'+t.eD.getTime();}));
     var fresh=parsed.filter(function(t){return !existing.has(t.inst+'|'+t.eD.getTime());});
     if(fresh.length) TR=fresh.concat(TR);
-    // Step 4: parse cash transactions (deposits/withdrawals)
+    // Step 5: parse cash transactions (deposits/withdrawals)
     var cashImported=parseCashTransactions(xml);
     var msg='✅ '+fresh.length+' trades';
+    if(netLiq) msg+=' · Net Liq US$'+netLiq.toLocaleString('en-US',{maximumFractionDigits:0});
     if(cashImported>0) msg+=' + '+cashImported+' cash entries';
     pg='Journal';sub='';buildNav();render();
     if(btn){btn.textContent=msg;}
