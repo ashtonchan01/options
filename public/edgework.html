@@ -318,7 +318,7 @@ var NAV=[
   {id:'Journal',ico:'&#x2630;',pg:'Journal'},
   {id:'Equity Graph',ico:'&#x1F4C8;',pg:'EQ'},
   {id:'Edge Finder',ico:'&#x2726;',pg:'EF'},
-  {id:'Advanced Journaling',ico:'&#x270F;',pg:'AJ',kids:['Trading Plans','Missed Trades']},
+  {id:'Advanced Journaling',ico:'&#x270F;',pg:'AJ',kids:['Trading Plans','Missed Trades','Missed Trades - Analysis']},
   {id:'Diary',ico:'&#x1F4D3;',pg:'DR',kids:['Notebook','Sessions']},
   {id:'Chart Lab',ico:'&#x1F9EA;',pg:'CL',kids:[
     'Checklist Performance','Consecutive W/L','Custom Statistics','Drawdown',
@@ -723,6 +723,646 @@ function pTA(){
     +'<tbody><tr><td class="wn" style="font-weight:600">Overall</td><td class="wn">'+s.closed.length+'</td><td class="wn">2.75</td><td class="wn">'+s.wr.toFixed(2)+'</td><td class="wn">'+f$(s.net/s.closed.length)+'</td><td class="wn">'+Math.round(s.net).toLocaleString()+'</td><td class="wn">'+s.pf.toFixed(2)+'</td><td class="wn">0.53</td></tr></tbody></table></div></div>'
     +'</div>';
 }
+/* ========== ADVANCED JOURNALING ========== */
+function pAJPlans(){
+  return '<div class="page">'
+    +'<div class="bg">'
+    +'<button class="btn bp">Add Trade</button>'
+    +'<button class="btn">Duplicate</button>'
+    +'<button class="btn">Delete (0)</button>'
+    +'</div>'
+    +'<div class="card tw" style="max-height:calc(100vh - 195px)">'
+    +'<table><thead><tr>'
+    +'<th style="width:32px"><input type="checkbox"/></th>'
+    +'<th>Transfer</th><th>Entry Date (AET)</th><th>Instrument</th><th>Trade Type</th>'
+    +'<th>Option Type</th><th>Setup</th><th>Setup Checklist</th><th>Direction</th>'
+    +'<th>Entry Price</th><th>Quantity</th>'
+    +'</tr></thead><tbody>'
+    +'<tr><td colspan="11" style="text-align:center;color:var(--mut);padding:40px">No trading plans found.</td></tr>'
+    +'</tbody></table>'
+    +'</div>'
+    +'<div class="pag"><span>Page Size: 50</span><span>0 to 0 of 0</span>'
+    +'<button class="pb" disabled>&#x21E4;</button><button class="pb" disabled>&#x2039;</button>'
+    +'<button class="pb" disabled>&#x203A;</button><button class="pb" disabled>&#x21E5;</button>'
+    +'</div></div>';
+}
+function pAJMissed(){
+  return '<div class="page">'
+    +'<div class="bg">'
+    +'<button class="btn bp">Add Trade</button>'
+    +'<button class="btn">Duplicate</button>'
+    +'<button class="btn">Delete (0)</button>'
+    +'</div>'
+    +'<div class="card tw" style="max-height:calc(100vh - 195px)">'
+    +'<table><thead><tr>'
+    +'<th style="width:32px"><input type="checkbox"/></th>'
+    +'<th>Entry Date (AET)</th><th>Instrument</th><th>Trade Type</th>'
+    +'<th>Option Type</th><th>Setup</th><th>Setup Checklist</th><th>Direction</th>'
+    +'<th>Entry Price</th><th>Quantity</th><th>TP Price</th>'
+    +'</tr></thead><tbody>'
+    +'<tr><td colspan="11" style="text-align:center;color:var(--mut);padding:40px">No missed trades found.</td></tr>'
+    +'</tbody></table>'
+    +'</div>'
+    +'<div class="pag"><span>Page Size: 50</span><span>0 to 0 of 0</span>'
+    +'<button class="pb" disabled>&#x21E4;</button><button class="pb" disabled>&#x2039;</button>'
+    +'<button class="pb" disabled>&#x203A;</button><button class="pb" disabled>&#x21E5;</button>'
+    +'</div></div>';
+}
+function pAJMissedAnalysis(){
+  var compRows=[
+    'Avg. RRR Planned','Avg. R-Multiple','Sum. R-Multiple','Avg. P&amp;L (Avg Trade)',
+    'Avg. Winner','Avg. Loser Performance','Return','Max. Drawdown','Profit Factor'
+  ].map(function(r){
+    return '<tr><td style="font-weight:500;color:var(--txt)">'+r+'</td><td style="color:var(--mut)">—</td><td style="color:var(--mut)">—</td><td style="color:var(--mut)">—</td></tr>';
+  }).join('');
+  return '<div class="page">'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
+    // Top-left
+    +'<div class="card" style="padding:20px">'
+    +'<div style="font-weight:600;font-size:14px;color:var(--txt);margin-bottom:14px">Performance By Missed Trades</div>'
+    +'<div style="height:220px;display:flex;align-items:center;justify-content:center"><canvas id="ajMissedC"></canvas></div>'
+    +'<div style="text-align:center;color:var(--mut);font-size:12px;margin-top:8px">Graph data will appear after you enter trades.</div>'
+    +'</div>'
+    // Top-right
+    +'<div class="card" style="padding:20px">'
+    +'<div style="font-weight:600;font-size:14px;color:var(--txt);margin-bottom:14px">Missed vs Real Performance</div>'
+    +'<div style="height:220px"><canvas id="ajMissedBar"></canvas></div>'
+    +'</div>'
+    // Bottom-left
+    +'<div class="card" style="padding:20px">'
+    +'<div style="font-weight:600;font-size:14px;color:var(--txt);margin-bottom:14px">Missed Trades Custom Stats</div>'
+    +'<div style="color:var(--mut);font-size:12px;padding:40px 0;text-align:center">There is not enough data to calculate chart</div>'
+    +'</div>'
+    // Bottom-right
+    +'<div class="card" style="padding:20px">'
+    +'<div style="font-weight:600;font-size:14px;color:var(--txt);margin-bottom:14px">Missed vs. Real Comparison</div>'
+    +'<table><thead><tr><th></th><th>Missed</th><th>Real</th><th>Combined</th></tr></thead>'
+    +'<tbody>'+compRows+'</tbody></table>'
+    +'</div>'
+    +'</div></div>';
+}
+
+/* ========== DIARY ========== */
+var ewNotes=JSON.parse(localStorage.getItem('ew_notes')||'[]');
+if(!ewNotes.length){ewNotes=[{id:1,title:'New Note',body:'Edit Your Content Here!',ts:Date.now()-36000000,folder:'My Notes'}];localStorage.setItem('ew_notes',JSON.stringify(ewNotes));}
+var ewNoteActive=ewNotes[0].id;
+function saveNotes(){localStorage.setItem('ew_notes',JSON.stringify(ewNotes));}
+function pDRNotebook(){
+  var noteList=ewNotes.map(function(n){
+    return '<div onclick="ewNoteActive='+n.id+';render()" style="padding:8px 10px;border-radius:6px;cursor:pointer;background:'+(n.id===ewNoteActive?'var(--sur2)':'transparent')+';border-bottom:1px solid var(--bdr)">'
+      +'<div style="font-size:13px;font-weight:500;color:var(--txt)">'+esc(n.title)+'</div>'
+      +'<div style="font-size:11px;color:var(--mut);margin-top:2px">'+(new Date(n.ts)).toLocaleString()+'</div>'
+      +'</div>';
+  }).join('');
+  var active=ewNotes.find(function(n){return n.id===ewNoteActive;})||ewNotes[0];
+  var ago=Math.round((Date.now()-active.ts)/3600000);
+  var agoStr=ago<24?(ago+' hours ago'):Math.round(ago/24)+' days ago';
+  return '<div class="page" style="padding:0;display:flex;height:100%">'
+    // Left panel
+    +'<div style="width:300px;flex-shrink:0;border-right:1px solid var(--bdr);background:var(--sur);display:flex;flex-direction:column;height:100%">'
+    +'<div style="padding:12px 14px;border-bottom:1px solid var(--bdr)">'
+    +'<button class="btn bp" style="width:100%;margin-bottom:8px" onclick="addNote()">+ Add Note</button>'
+    +'<input type="text" placeholder="&#x1F50D; Search notes..." style="margin-bottom:8px"/>'
+    +'<select style="font-size:12px"><option>Sort notes: Newest first</option><option>Sort notes: Oldest first</option></select>'
+    +'</div>'
+    +'<div style="padding:10px 14px;border-bottom:1px solid var(--bdr)">'
+    +'<div style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--txt);cursor:pointer">'
+    +'<span>&#x25BC;</span><span>&#x1F4C1;</span><span>('+ewNotes.length+') My Notes</span>'
+    +'</div>'
+    +'<div style="padding-left:20px;margin-top:4px">'+noteList+'</div>'
+    +'</div>'
+    +'<div style="padding:10px 14px"><div style="font-size:12px;color:var(--blu);cursor:pointer">+ New Folder</div></div>'
+    +'</div>'
+    // Right panel
+    +'<div style="flex:1;background:var(--sur);display:flex;flex-direction:column;min-width:0">'
+    +'<div style="padding:16px 20px;border-bottom:1px solid var(--bdr)">'
+    +'<input type="text" id="noteTitle" value="'+esc(active.title)+'" style="font-size:22px;font-weight:700;border:none;background:transparent;padding:0;margin-bottom:4px" oninput="updateNoteTitle(this.value)"/>'
+    +'<div style="font-size:12px;color:var(--mut)">'+agoStr+'</div>'
+    +'</div>'
+    +'<div style="padding:8px 14px;border-bottom:1px solid var(--bdr);display:flex;gap:4px;flex-wrap:wrap">'
+    +'<button class="btn" style="padding:3px 9px;font-weight:700" onclick="document.execCommand(\'bold\')">B</button>'
+    +'<button class="btn" style="padding:3px 9px;font-style:italic" onclick="document.execCommand(\'italic\')">I</button>'
+    +'<button class="btn" style="padding:3px 9px;text-decoration:underline" onclick="document.execCommand(\'underline\')">U</button>'
+    +'<button class="btn" style="padding:3px 9px;font-size:11px">AI</button>'
+    +'<button class="btn" style="padding:3px 9px;font-size:11px">&#x2263;</button>'
+    +'<button class="btn" style="padding:3px 9px;font-size:11px">&#x201C;</button>'
+    +'<button class="btn" style="padding:3px 9px;font-size:11px">&#x1F517;</button>'
+    +'<button class="btn" style="padding:3px 9px;font-size:11px">&#x1F5BC;</button>'
+    +'<button class="btn" style="padding:3px 9px;font-size:11px">+</button>'
+    +'<button class="btn" style="padding:3px 9px;font-size:11px">&#x2026;</button>'
+    +'</div>'
+    +'<div id="noteBody" contenteditable="true" oninput="updateNoteBody(this.innerHTML)" style="flex:1;padding:20px;font-size:14px;color:var(--txt);outline:none;overflow-y:auto">'+active.body+'</div>'
+    +'</div>'
+    +'</div>';
+}
+function addNote(){
+  ewNotes.unshift({id:Date.now(),title:'New Note',body:'Edit Your Content Here!',ts:Date.now(),folder:'My Notes'});
+  ewNoteActive=ewNotes[0].id;
+  saveNotes();render();
+}
+function updateNoteTitle(v){var n=ewNotes.find(function(x){return x.id===ewNoteActive;});if(n){n.title=v;n.ts=Date.now();saveNotes();}}
+function updateNoteBody(v){var n=ewNotes.find(function(x){return x.id===ewNoteActive;});if(n){n.body=v;n.ts=Date.now();saveNotes();}}
+
+var ewSessions=JSON.parse(localStorage.getItem('ew_sessions')||'[]');
+function saveSessions(){localStorage.setItem('ew_sessions',JSON.stringify(ewSessions));}
+function pDRSessions(){
+  var rows=ewSessions.map(function(s,i){
+    return '<tr><td>'+esc(s.name)+'</td>'
+      +'<td>'+esc((s.cats||[]).join(', '))+'</td>'
+      +'<td>'+esc(s.period||'')+'</td>'
+      +'<td>'+('★'.repeat(s.rating||0))+'</td>'
+      +'</tr>';
+  }).join('');
+  var stats2=['TRADES','WINNERS','LOSERS','BREAK EVEN','WINRATE','GAIN','GAIN%','AVG P/L','R-MULTIPLE','TILTMETER'];
+  var statsH=stats2.map(function(l){return '<div class="card sc" style="min-width:90px"><div class="sl">'+l+'</div><div class="sv">—</div></div>';}).join('');
+  return '<div class="page">'
+    +'<div class="bg">'
+    +'<button class="btn bp" onclick="openSessionModal()">+ Add More</button>'
+    +'<button class="btn">Delete</button>'
+    +'<input type="text" placeholder="Date range..." style="width:200px;margin-left:auto"/>'
+    +'</div>'
+    +'<div class="card tw" style="margin-bottom:14px">'
+    +'<table><thead><tr><th><input type="checkbox"/></th><th>Name</th><th>Categories</th><th>Period</th><th>Rating</th></tr></thead>'
+    +'<tbody>'+(rows||'<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:30px">No sessions yet. Click + Add More to create one.</td></tr>')+'</tbody>'
+    +'</table></div>'
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap">'+statsH+'</div>'
+    +'<div class="mo" id="mSession"><div class="md" style="width:560px">'
+    +'<div class="mt">Unnamed Session</div>'
+    +'<div class="fg" style="margin-bottom:12px">'
+    +'<div class="fi"><label>Rating</label><div id="sessStars" style="display:flex;gap:4px;font-size:22px;cursor:pointer">'+[1,2,3,4,5].map(function(i){return '<span onclick="setSessRating('+i+')" style="color:var(--bdr)">&#x2605;</span>';}).join('')+'</div></div>'
+    +'<div class="fi"><label>Period</label><input type="text" id="sessPeriod" placeholder="Date range..."/></div>'
+    +'</div>'
+    +'<div class="fi" style="margin-bottom:12px"><label>Session Category</label>'
+    +'<select id="sessCategory" multiple style="height:100px">'+['Risk Management','Discipline','Emotions','Trade Management','Missed Trades'].map(function(c){return '<option>'+c+'</option>';}).join('')+'</select>'
+    +'</div>'
+    +'<div class="fi" style="margin-bottom:12px"><label>Notes</label>'
+    +'<div contenteditable="true" style="min-height:80px;border:1px solid var(--bdr);border-radius:6px;padding:8px;font-size:13px;color:var(--txt)" id="sessBody">Add session notes...</div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;margin-top:14px">'
+    +'<button class="btn" style="flex:1" onclick="closeSessionModal()">Cancel</button>'
+    +'<button class="btn bp" style="flex:1" onclick="saveSession()">Save Session</button>'
+    +'</div></div></div>'
+    +'</div>';
+}
+var sessRating=0;
+function setSessRating(r){sessRating=r;var stars=document.getElementById('sessStars');if(stars){stars.querySelectorAll('span').forEach(function(s,i){s.style.color=i<r?'var(--amb)':'var(--bdr)';});}}
+function openSessionModal(){sessRating=0;var m=document.getElementById('mSession');if(m)m.classList.add('open');}
+function closeSessionModal(){var m=document.getElementById('mSession');if(m)m.classList.remove('open');}
+function saveSession(){
+  var cats=Array.from(document.getElementById('sessCategory').selectedOptions).map(function(o){return o.value;});
+  ewSessions.push({id:Date.now(),name:'Session '+(ewSessions.length+1),rating:sessRating,period:document.getElementById('sessPeriod').value,cats:cats,body:document.getElementById('sessBody').innerHTML});
+  saveSessions();closeSessionModal();render();
+}
+
+/* ========== CHART LAB EXTRAS ========== */
+function pCLChecklist(){
+  var rows=[
+    ['All Criteria','0','0','0.00','0.00'],
+    ['All Mandatory','0','0','0.00','0.00'],
+    ['At least 1 Mandatory','0','0','0.00','0.00'],
+    ['None','0','0','0.00','0.00'],
+  ].map(function(r){return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td><td>'+r[4]+'</td></tr>';}).join('');
+  return '<div class="page">'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px">'
+    +'<select style="width:auto"><option>Return ($)</option></select>'
+    +'<select style="width:auto"><option>All setups</option></select>'
+    +'</div>'
+    +'<div class="card" style="padding:20px;margin-bottom:14px;min-height:200px;display:flex;align-items:center;justify-content:center">'
+    +'<div style="color:var(--mut);font-size:13px">Add trades with checklist data to see chart.</div>'
+    +'</div>'
+    +'<div class="card tw"><table><thead><tr>'
+    +'<th>Trading Rules</th><th>Trades</th><th>Followed (%)</th><th>Winrate (%)</th><th>Gain ($)</th><th>Profit Factor</th>'
+    +'</tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +'</div>';
+}
+function pCLEfficiency(){
+  return '<div class="page">'
+    +'<div class="card" style="padding:20px">'
+    +'<div style="font-weight:600;font-size:14px;color:var(--txt);margin-bottom:4px">Your Efficiency</div>'
+    +'<div style="height:320px;position:relative">'
+    +'<canvas id="effC"></canvas>'
+    +'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">'
+    +'<div style="text-align:center;color:var(--mut);font-size:13px;max-width:320px">Graph data will appear after you enter 10 trades with at least one trade comment.</div>'
+    +'</div></div>'
+    +'</div></div>';
+}
+function pCLExit(){
+  return '<div class="page">'
+    +'<div style="margin-bottom:14px"><select style="width:auto"><option>Percentage</option></select></div>'
+    +'<div class="card" style="padding:20px">'
+    +'<div style="display:flex;gap:16px;margin-bottom:12px">'
+    +'<span style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:var(--grn);display:inline-block"></span>Updraw</span>'
+    +'<span style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:var(--red);display:inline-block"></span>Drawdown</span>'
+    +'</div>'
+    +'<div style="height:280px;display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:13px;text-align:center;padding:20px">'
+    +'Your graph will appear after you provide trades with Take Profit, Stop Loss, Highest Price, and Lowest Price.'
+    +'</div>'
+    +'</div></div>';
+}
+function pCLHolding(){
+  var s=stats();
+  var buckets={'<1h':0,'1-4h':0,'4-8h':0,'1d':0,'2-3d':0,'4-7d':0,'>1w':0};
+  s.closed.forEach(function(t){
+    var h=(t.xD-t.eD)/3600000;
+    if(h<1)buckets['<1h']++;
+    else if(h<4)buckets['1-4h']++;
+    else if(h<8)buckets['4-8h']++;
+    else if(h<24)buckets['1d']++;
+    else if(h<72)buckets['2-3d']++;
+    else if(h<168)buckets['4-7d']++;
+    else buckets['>1w']++;
+  });
+  var bk=Object.keys(buckets),bv=bk.map(function(k){return buckets[k];});
+  return '<div class="page">'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px">'
+    +'<button class="btn bp" style="font-size:12px;padding:5px 12px">All Trades</button>'
+    +'<button class="btn" style="font-size:12px;padding:5px 12px">Winning Trades</button>'
+    +'<button class="btn" style="font-size:12px;padding:5px 12px">Losing Trades</button>'
+    +'<button class="btn" style="font-size:12px;padding:5px 12px">Break Even</button>'
+    +'</div>'
+    +'<div class="card" style="padding:20px;margin-bottom:14px"><div style="height:260px"><canvas id="holdC"></canvas></div></div>'
+    +'<div class="card tw"><table><thead><tr><th>Day/Range</th><th>Trades</th><th>Winrate</th><th>Avg P&amp;L</th><th>Total Gain</th></tr></thead>'
+    +'<tbody>'+bk.map(function(k){var cnt=buckets[k];return '<tr><td>'+k+'</td><td>'+cnt+'</td><td>—</td><td>—</td><td>—</td></tr>';}).join('')+'</tbody></table></div>'
+    +'</div>';
+}
+function pCLPerfTime(){
+  var s=stats();
+  var dnames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  var acc={};dnames.forEach(function(d){acc[d]=[];});
+  s.closed.forEach(function(t){var n=DAYS[t.xD.getDay()];if(acc[n])acc[n].push(t.ret);});
+  var tots=dnames.map(function(d){return Math.round(acc[d].reduce(function(a,v){return a+v;},0));});
+  var rows=dnames.map(function(d,i){
+    var wl=acc[d].filter(function(v){return v>0;});
+    var wr=acc[d].length?Math.round(wl.length/acc[d].length*100):0;
+    var avg=acc[d].length?Math.round(acc[d].reduce(function(a,v){return a+v;},0)/acc[d].length):0;
+    return '<tr><td>'+d+'</td><td>'+acc[d].length+'</td><td>'+wr+'%</td><td class="'+(avg>=0?'wn':'ls')+'">'+f$(avg)+'</td><td class="'+(tots[i]>=0?'wn':'ls')+'">'+f$(tots[i])+'</td></tr>';
+  }).join('');
+  return '<div class="page">'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px">'
+    +'<select style="width:auto"><option>Return ($)</option></select>'
+    +'<select style="width:auto"><option>Entry Date</option></select>'
+    +'<select style="width:auto"><option>Weekday</option></select>'
+    +'</div>'
+    +'<div class="card" style="padding:20px;margin-bottom:14px"><div style="height:260px"><canvas id="ptimeC"></canvas></div></div>'
+    +'<div class="card tw" style="margin-bottom:14px"><table><thead><tr><th>Day</th><th>Trades</th><th>Winrate (%)</th><th>Avg P&amp;L ($)</th><th>Total Gain ($)</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table></div>'
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+    +[['Best Day','$15,038.14'],['Worst Day','-$6,315.27'],['Trades per Day','35.14'],['Avg Day P&L','$3,840.67']].map(function(r){return '<div class="card sc" style="flex:1;min-width:130px"><div class="sl">'+r[0]+'</div><div class="sv">'+r[1]+'</div></div>';}).join('')
+    +'</div></div>';
+}
+function pCLRatio(){
+  return '<div class="page">'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px">'
+    +'<select style="width:auto"><option>Sharpe Ratio</option><option>Sortino Ratio</option></select>'
+    +'<select style="width:auto"><option>All setups</option></select>'
+    +'</div>'
+    +'<div class="card" style="padding:20px;margin-bottom:14px"><div style="height:260px"><canvas id="ratioC"></canvas></div></div>'
+    +'<div class="card tw"><table><thead><tr><th>Overall</th><th>Sharpe Ratio</th><th>Rating</th><th>Summary</th></tr></thead>'
+    +'<tbody><tr><td style="color:var(--mut)">All Trades</td><td>0.08</td><td class="ls">Poor</td><td style="color:var(--mut);font-size:12px">Returns are not compensating for the total volatility in your strategy.</td></tr></tbody>'
+    +'</table></div></div>';
+}
+function pCLRisk(){
+  var s=stats();
+  var buckets={};
+  s.closed.forEach(function(t){var p=Math.round(t.pct*2)/2;var k=p.toFixed(1)+'%';if(!buckets[k])buckets[k]=0;buckets[k]++;});
+  var keys=Object.keys(buckets).sort(function(a,b){return parseFloat(a)-parseFloat(b);});
+  var vals=keys.map(function(k){return buckets[k];});
+  var colors=keys.map(function(k){return parseFloat(k)>=0?'rgba(22,163,74,.7)':'rgba(220,38,38,.7)';});
+  var avgR=(s.closed.reduce(function(a,t){return a+t.pct;},0)/s.closed.length).toFixed(2);
+  var totR=s.closed.reduce(function(a,t){return a+t.pct;},0).toFixed(2);
+  var avgW=(s.wins.reduce(function(a,t){return a+t.pct;},0)/(s.wins.length||1)).toFixed(2);
+  var avgL=(s.loss.reduce(function(a,t){return a+t.pct;},0)/(s.loss.length||1)).toFixed(2);
+  return '<div class="page">'
+    +'<div style="margin-bottom:14px"><select style="width:auto"><option>Return (%)</option></select></div>'
+    +'<div class="card" style="padding:20px;margin-bottom:14px"><div style="height:260px"><canvas id="riskC" data-keys="'+esc(JSON.stringify(keys))+'" data-vals="'+esc(JSON.stringify(vals))+'" data-colors="'+esc(JSON.stringify(colors))+'"></canvas></div></div>'
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+    +[['Avg Return (%)',''+avgR+'%'],['Total Return (%)',''+totR+'%'],['Avg Return (%) Winner',''+avgW+'%'],['Avg Return (%) Loser',''+avgL+'%']].map(function(r){return '<div class="card sc" style="flex:1;min-width:130px"><div class="sl">'+r[0]+'</div><div class="sv">'+r[1]+'</div></div>';}).join('')
+    +'</div></div>';
+}
+function pCLComments(){
+  return '<div class="page">'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px">'
+    +'<select style="width:auto"><option>Return ($)</option></select>'
+    +'<select style="width:auto"><option>By Value</option><option>Alphabetical</option></select>'
+    +'<select style="width:auto"><option>All Trade Comments</option></select>'
+    +'</div>'
+    +'<div class="card" style="padding:60px;text-align:center;color:var(--mut);font-size:13px">'
+    +'Trade comments have not been added to any trade.'
+    +'</div></div>';
+}
+function pCLMgmt(){
+  return '<div class="page">'
+    +'<div class="card" style="padding:20px">'
+    +'<div style="display:flex;gap:16px;margin-bottom:12px">'
+    +'<span style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:2px;background:var(--grn);display:inline-block"></span>Actual Performance</span>'
+    +'<span style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:2px;background:var(--blu);display:inline-block"></span>R Gained by Managing</span>'
+    +'<span style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:2px;background:var(--amb);display:inline-block"></span>Potential Performance</span>'
+    +'</div>'
+    +'<div style="height:280px;display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:13px;text-align:center;padding:20px">'
+    +'Your graph will appear once you\'ve entered trades with Take Profit prices and ticked the OTP field.'
+    +'</div>'
+    +'</div></div>';
+}
+
+/* ========== REPORTS ========== */
+function pRPCal(){
+  var s=stats();
+  var yr=2026,mo=5,dm={};
+  s.closed.forEach(function(t){
+    if(!t.xD) return;
+    var d=t.xD;
+    if(d.getFullYear()!==yr||d.getMonth()!==mo) return;
+    var k=d.getDate();if(!dm[k])dm[k]={pnl:0,count:0};
+    dm[k].pnl+=t.ret-t.fee;dm[k].count++;
+  });
+  var mt=s.closed.filter(function(t){return t.xD&&t.xD.getFullYear()===yr&&t.xD.getMonth()===mo;});
+  var mw=mt.filter(function(t){return t.ret>0;});
+  var mNet=Math.round(mt.reduce(function(a,t){return a+t.ret-t.fee;},0));
+  var mWinDays=Object.values(dm).filter(function(d){return d.pnl>0;}).length;
+  var mLossDays=Object.values(dm).filter(function(d){return d.pnl<0;}).length;
+  var avgDaily=Object.values(dm).length?mNet/Object.values(dm).length:0;
+  return '<div class="page">'
+    +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">'
+    +'<select style="width:auto"><option>Return ($)</option></select>'
+    +'<div style="margin-left:auto;display:flex;gap:4px">'
+    +'<button class="btn" style="padding:4px 12px">2025</button>'
+    +'<button class="btn bp" style="padding:4px 12px">2026</button>'
+    +'</div></div>'
+    +'<div class="card" style="padding:20px;margin-bottom:14px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+    +'<button class="btn" style="padding:2px 8px">&#x2039;</button>'
+    +'<span style="font-weight:600;font-size:15px;color:var(--txt)">June 2026</span>'
+    +'<button class="btn" style="padding:2px 8px">&#x203A;</button>'
+    +'</div>'
+    +'<div class="cg">'+buildCal(yr,mo,dm)+'</div>'
+    +'</div>'
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+    +[['Number of Trades',mt.length],['Winning Days',mWinDays],['Losing Days',mLossDays],
+      ['Winrate',(mt.length?(mw.length/mt.length*100).toFixed(1):0)+'%'],
+      ['Avg Daily P&L',f$(Math.round(avgDaily))],['Total Monthly P&L',f$(mNet)],
+      ['Avg Winner',f$(Math.round(s.aw))],['Avg Loser',f$(-Math.round(s.al))]
+    ].map(function(r){return '<div class="card sc" style="flex:1;min-width:110px"><div class="sl">'+r[0]+'</div><div class="sv">'+r[1]+'</div></div>';}).join('')
+    +'</div></div>';
+}
+function pRPChartbook(){
+  return '<div class="page" style="padding:0;display:flex;height:100%">'
+    +'<div style="width:260px;flex-shrink:0;border-right:1px solid var(--bdr);background:var(--sur)">'
+    +['Journal Trades (0)','Missed Trades (0)','Trading Plans (0)'].map(function(l){
+      return '<div style="border-bottom:1px solid var(--bdr)">'
+        +'<div style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:13px;font-weight:500;color:var(--txt)">'
+        +'<span>'+l+'</span><span style="color:var(--mut)">&#x203A;</span>'
+        +'</div></div>';
+    }).join('')
+    +'</div>'
+    +'<div style="flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg)">'
+    +'<div style="text-align:center;color:var(--mut)">'
+    +'<div style="font-size:32px;margin-bottom:12px">&#x1F4F7;</div>'
+    +'<div style="font-size:13px">To view screenshots, select a trade on the left.</div>'
+    +'</div></div></div>';
+}
+
+/* ========== STRATEGY LAB ========== */
+function pSLAlt(){
+  return '<div class="page">'
+    +'<div class="bg">'
+    +'<button class="btn bp">+ Add More</button>'
+    +'<button class="btn">Delete</button>'
+    +'</div>'
+    +'<div class="card tw" style="margin-bottom:14px">'
+    +'<table><thead><tr><th>#</th><th>Name</th><th>Setups</th><th>Profit</th><th>alt. Profit</th></tr></thead>'
+    +'<tbody><tr><td colspan="5" style="text-align:center;color:var(--mut);padding:30px">No Rows To Show</td></tr></tbody>'
+    +'</table></div>'
+    +'<div style="display:flex;gap:10px;margin-bottom:14px">'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="radio" name="altShow" checked/> Show Profit</label>'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="radio" name="altShow"/> Show R</label>'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox"/> Split Chart by Setups</label>'
+    +'</div>'
+    +'<div class="card" style="padding:20px;min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:13px">'
+    +'Add alternative strategies to compare performance.'
+    +'</div></div>';
+}
+
+/* ========== SETTINGS PAGES ========== */
+function togRow(label,id,val){
+  return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--bdr)">'
+    +'<span style="font-size:13px;color:var(--txt)">'+label+'</span>'
+    +'<label style="position:relative;display:inline-block;width:40px;height:22px;cursor:pointer">'
+    +'<input type="checkbox" '+(val?'checked':'')+' style="opacity:0;width:0;height:0" id="'+id+'"/>'
+    +'<span style="position:absolute;inset:0;border-radius:22px;background:'+(val?'var(--grn)':'var(--bdr)')+';transition:.3s" onclick="this.parentElement.querySelector(\'input\').click();this.style.background=this.parentElement.querySelector(\'input\').checked?\'var(--grn)\':\'var(--bdr)\'"></span>'
+    +'<span style="position:absolute;top:3px;left:'+(val?'21':'3')+'px;width:16px;height:16px;border-radius:50%;background:white;transition:.3s" onclick="this.parentElement.querySelector(\'input\').click()"></span>'
+    +'</label></div>';
+}
+function pSTAccount(){
+  return '<div class="page"><div class="card" style="padding:24px;max-width:520px">'
+    +'<div style="font-weight:700;font-size:16px;color:var(--txt);margin-bottom:18px">Account Settings</div>'
+    +'<div class="fg" style="margin-bottom:16px">'
+    +'<div class="fi"><label>Time Zone</label><select><option>Local time</option></select></div>'
+    +'<div class="fi"><label>Date Format</label><select><option>European 13/08/2025</option><option>US 08/13/2025</option></select></div>'
+    +'</div>'
+    +togRow('Enable Edgewonk legacy import','tLegacy',false)
+    +togRow('Show week totals in calendar','tWeek',true)
+    +togRow('Week starts on Sunday','tSun',false)
+    +togRow('Show account balance','tBal',true)
+    +togRow('Allow other users to share journals with me','tShare',false)
+    +'<div style="margin-top:18px">'
+    +'<button class="btn">Change Password</button>'
+    +'</div>'
+    +'</div></div>';
+}
+function pSTJournal(){
+  return '<div class="page"><div class="card" style="padding:24px;max-width:520px">'
+    +'<div style="font-weight:700;font-size:16px;color:var(--txt);margin-bottom:18px">Journal Settings</div>'
+    +'<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">'
+    +'<div class="fi"><label>Journal Name</label><input type="text" value="CADD Trading Journal"/></div>'
+    +'<div class="fi"><label>Account Currency</label><select><option>Australian Dollar AUD</option><option>US Dollar USD</option></select></div>'
+    +'<div class="fi"><label>Markets</label><select><option>Stocks 2 decimals</option><option>Forex 4 decimals</option></select></div>'
+    +'<div class="fi"><label>Default Trade Type</label><select><option>Spot</option><option>Option</option><option>Futures</option></select></div>'
+    +'</div>'
+    +togRow('Auto Calculate Profit/Loss','tAutoCalc',true)
+    +'<div style="display:flex;gap:8px;margin-top:18px">'
+    +'<button class="btn bp">Save</button>'
+    +'<button class="btn">Reset</button>'
+    +'</div></div></div>';
+}
+var ewDeposits=JSON.parse(localStorage.getItem('ew_deposits')||'[{"id":1,"date":"2025-01-10","amount":291097.39,"balance":291097.39,"reason":"Initial deposit"},{"id":2,"date":"2025-06-01","amount":5000,"balance":296097.39,"reason":"Additional capital"},{"id":3,"date":"2026-01-15","amount":-2000,"balance":294097.39,"reason":"Withdrawal"}]');
+function saveDeposits(){localStorage.setItem('ew_deposits',JSON.stringify(ewDeposits));}
+function pSTDeposits(){
+  var rows=ewDeposits.map(function(d){
+    return '<tr><td>'+esc(d.date)+'</td><td class="'+(d.amount>=0?'wn':'ls')+'">'+f$(d.amount)+'</td><td>'+f$(d.balance)+'</td><td>'+esc(d.reason)+'</td></tr>';
+  }).join('');
+  return '<div class="page">'
+    +'<div class="bg"><button class="btn bp" onclick="openDepModal()">+ Add More</button></div>'
+    +'<div class="card tw">'
+    +'<table><thead><tr><th>Date</th><th>Amount</th><th>New Balance</th><th>Reason</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table></div>'
+    +'<div class="mo" id="mDep"><div class="md">'
+    +'<div class="mt">New Entry</div>'
+    +'<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">'
+    +'<div class="fi"><label>Date</label><input type="date" id="depDate"/></div>'
+    +'<div class="fi"><label>Amount (negative for withdrawal)</label><input type="number" id="depAmt" placeholder="0.00" step="0.01"/></div>'
+    +'<div class="fi"><label>Reason</label><input type="text" id="depReason" placeholder="Deposit / Withdrawal..."/></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button class="btn" style="flex:1" onclick="closeDepModal()">Cancel</button>'
+    +'<button class="btn bp" style="flex:1" onclick="saveDeposit()">Save</button>'
+    +'</div></div></div>'
+    +'</div>';
+}
+function openDepModal(){var m=document.getElementById('mDep');if(m)m.classList.add('open');}
+function closeDepModal(){var m=document.getElementById('mDep');if(m)m.classList.remove('open');}
+function saveDeposit(){
+  var amt=parseFloat(document.getElementById('depAmt').value)||0;
+  var lastBal=ewDeposits.length?ewDeposits[ewDeposits.length-1].balance:0;
+  ewDeposits.push({id:Date.now(),date:document.getElementById('depDate').value,amount:amt,balance:Math.round((lastBal+amt)*100)/100,reason:document.getElementById('depReason').value});
+  saveDeposits();closeDepModal();render();
+}
+function pSTImport(){
+  return '<div class="page">'
+    +'<div style="font-size:13px;color:var(--mut);margin-bottom:14px">'
+    +'Select trades to keep after an import. Use Undo to revert an import entirely.'
+    +'</div>'
+    +'<div class="card tw">'
+    +'<table><thead><tr><th>Importer</th><th>Import Date</th><th>Items</th><th>Status</th><th>Action</th></tr></thead>'
+    +'<tbody><tr>'
+    +'<td style="font-weight:500;color:var(--txt)">Interactive Brokers</td>'
+    +'<td>13/06/2026 16:39</td><td>577</td><td><span class="bdg" style="background:rgba(22,163,74,.1);color:var(--grn)">Import done</span></td>'
+    +'<td><button class="btn" style="font-size:11px;padding:3px 8px;margin-right:4px">Select trades</button><button class="btn" style="font-size:11px;padding:3px 8px">Undo</button></td>'
+    +'</tr></tbody></table></div></div>';
+}
+var ewInstruments=JSON.parse(localStorage.getItem('ew_instruments')||'[]');
+if(!ewInstruments.length){ewInstruments=['ALAB','AMD','ARM','AUD:USD','AVGO','GOOGL','MRVL','NVDA','PLTR','SPCX','SPX','TSLA','MSTR'].map(function(n,i){return {id:i+1,name:n,fee:0,active:true};});localStorage.setItem('ew_instruments',JSON.stringify(ewInstruments));}
+function saveInstruments(){localStorage.setItem('ew_instruments',JSON.stringify(ewInstruments));}
+function pSTInstruments(){
+  var active=ewInstruments.filter(function(i){return i.active;});
+  var rows=active.map(function(i){
+    return '<tr><td style="width:24px;cursor:grab;color:var(--mut)">&#x22EE;&#x22EE;</td>'
+      +'<td style="font-weight:500;color:var(--txt)">'+esc(i.name)+'</td>'
+      +'<td>$'+i.fee.toFixed(2)+'</td>'
+      +'<td><button onclick="delInst('+i.id+')" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:14px">&#x2715;</button></td></tr>';
+  }).join('');
+  return '<div class="page">'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px;max-width:400px">'
+    +'<input type="text" id="newInst" placeholder="Instrument name..." style="flex:1"/>'
+    +'<button class="btn bp" onclick="addInst()">Add Instrument</button>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px">'
+    +'<button class="btn bp" style="font-size:12px;padding:4px 12px">Active Instruments</button>'
+    +'<button class="btn" style="font-size:12px;padding:4px 12px">Disabled Instruments</button>'
+    +'</div>'
+    +'<div class="card tw"><table><thead><tr><th style="width:24px"></th><th>Name</th><th>Fees</th><th></th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table></div>'
+    +'</div>';
+}
+function addInst(){var el=document.getElementById('newInst');if(!el||!el.value.trim())return;ewInstruments.push({id:Date.now(),name:el.value.trim(),fee:0,active:true});el.value='';saveInstruments();render();}
+function delInst(id){ewInstruments=ewInstruments.filter(function(i){return i.id!==id;});saveInstruments();render();}
+var ewSetups=JSON.parse(localStorage.getItem('ew_setups')||'[]');
+if(!ewSetups.length){ewSetups=[{id:1,name:'Default Setup',desc:'',checklist:'None',active:true}];localStorage.setItem('ew_setups',JSON.stringify(ewSetups));}
+function saveSetups(){localStorage.setItem('ew_setups',JSON.stringify(ewSetups));}
+function pSTSetups(){
+  var active=ewSetups.filter(function(s){return s.active;});
+  var rows=active.map(function(s){
+    return '<tr><td style="width:24px;cursor:grab;color:var(--mut)">&#x22EE;&#x22EE;</td>'
+      +'<td style="font-weight:500;color:var(--txt)">'+esc(s.name)+'</td>'
+      +'<td style="color:var(--mut)">'+esc(s.desc)+'</td>'
+      +'<td>'+esc(s.checklist)+'</td>'
+      +'<td><button onclick="delSetup('+s.id+')" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:14px">&#x2715;</button></td></tr>';
+  }).join('');
+  return '<div class="page">'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px;max-width:400px">'
+    +'<input type="text" id="newSetup" placeholder="Setup name..." style="flex:1"/>'
+    +'<button class="btn bp" onclick="addSetup()">Add Setup</button>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px">'
+    +'<select style="width:auto"><option>Setups</option><option>Checklists</option></select>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px">'
+    +'<button class="btn bp" style="font-size:12px;padding:4px 12px">Active Setups</button>'
+    +'<button class="btn" style="font-size:12px;padding:4px 12px">Disabled Setups</button>'
+    +'</div>'
+    +'<div class="card tw"><table><thead><tr><th style="width:24px"></th><th>Name</th><th>Description</th><th>Checklist</th><th></th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table></div>'
+    +'</div>';
+}
+function addSetup(){var el=document.getElementById('newSetup');if(!el||!el.value.trim())return;ewSetups.push({id:Date.now(),name:el.value.trim(),desc:'',checklist:'None',active:true});el.value='';saveSetups();render();}
+function delSetup(id){ewSetups=ewSetups.filter(function(s){return s.id!==id;});saveSetups();render();}
+function pSTTComments(){
+  var cols=['Pre Trade Comments','Entry Comments','Trade Management','Exit Comments'];
+  var defaults=[['Followed rules','Broke rules'],['Followed rules','Broke rules'],['Managed well','Closed early'],['Followed rules','Broke rules']];
+  var colsH=cols.map(function(c,ci){
+    var items=defaults[ci].map(function(n,ni){
+      var sent=ni===0?'Positive':'Negative';
+      var sentColor=ni===0?'var(--grn)':'var(--red)';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bdr)">'
+        +'<span style="font-size:13px;color:var(--txt)">'+n+'</span>'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+        +'<select style="width:auto;font-size:11px"><option>Neutral</option><option '+(ni===0?'selected':'')+'>Positive</option><option '+(ni===1?'selected':'')+'>Negative</option></select>'
+        +'<span style="color:var(--mut);cursor:pointer;font-size:14px">&#x2709;</span>'
+        +'</div></div>';
+    }).join('');
+    return '<div style="flex:1;min-width:160px">'
+      +'<div style="font-weight:600;font-size:13px;color:var(--txt);padding:10px 0;border-bottom:1px solid var(--bdr)">'+c+'</div>'
+      +'<button class="btn" style="font-size:11px;padding:3px 10px;margin:8px 0">Add +</button>'
+      +items
+      +'</div>';
+  }).join('');
+  return '<div class="page">'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px">'
+    +'<button class="btn bp" style="font-size:12px;padding:4px 12px">Active Comments</button>'
+    +'<button class="btn" style="font-size:12px;padding:4px 12px">Disabled Comments</button>'
+    +'</div>'
+    +'<div class="card" style="padding:20px">'
+    +'<div style="display:flex;gap:20px;flex-wrap:wrap">'+colsH+'</div>'
+    +'</div></div>';
+}
+var ewSessionCats=JSON.parse(localStorage.getItem('ew_sesscats')||'[]');
+if(!ewSessionCats.length){ewSessionCats=['Risk Management','Discipline','Emotions','Trade Management','Missed Trades'].map(function(n,i){return {id:i+1,name:n,active:true};});localStorage.setItem('ew_sesscats',JSON.stringify(ewSessionCats));}
+function saveSessionCats(){localStorage.setItem('ew_sesscats',JSON.stringify(ewSessionCats));}
+function pSTSessions(){
+  var active=ewSessionCats.filter(function(c){return c.active;});
+  var rows=active.map(function(c){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bdr)">'
+      +'<div style="display:flex;align-items:center;gap:10px"><span style="cursor:grab;color:var(--mut);font-size:16px">&#x22EE;&#x22EE;</span>'
+      +'<span style="font-size:13px;font-weight:500;color:var(--txt)">'+esc(c.name)+'</span></div>'
+      +'<button onclick="delSessCat('+c.id+')" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:14px">&#x2715;</button>'
+      +'</div>';
+  }).join('');
+  return '<div class="page">'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px;max-width:400px">'
+    +'<input type="text" id="newSessCat" placeholder="Category name..." style="flex:1"/>'
+    +'<button class="btn bp" onclick="addSessCat()">Add Session Category</button>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px">'
+    +'<button class="btn bp" style="font-size:12px;padding:4px 12px">Active Categories</button>'
+    +'<button class="btn" style="font-size:12px;padding:4px 12px">Disabled Categories</button>'
+    +'</div>'
+    +'<div class="card" style="padding:16px">'+rows+'</div>'
+    +'</div>';
+}
+function addSessCat(){var el=document.getElementById('newSessCat');if(!el||!el.value.trim())return;ewSessionCats.push({id:Date.now(),name:el.value.trim(),active:true});el.value='';saveSessionCats();render();}
+function delSessCat(id){ewSessionCats=ewSessionCats.filter(function(c){return c.id!==id;});saveSessionCats();render();}
+var ewCustomStats=JSON.parse(localStorage.getItem('ew_customstats')||'[]');
+function pSTCustomStats(){
+  var statsH='';
+  for(var i=1;i<=16;i++){
+    var s=ewCustomStats[i-1]||null;
+    statsH+='<div class="card" style="padding:16px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+      +'<span style="font-weight:600;font-size:13px;color:var(--txt)">'+(s?esc(s.name):'Custom Stat '+i)+'</span>'
+      +'<span style="cursor:pointer;color:var(--mut)">&#x22EE;</span>'
+      +'</div>'
+      +'<div style="color:var(--mut);font-size:12px;margin-bottom:8px">No comments added.</div>'
+      +'<button class="btn" style="font-size:11px;padding:3px 10px">Add +</button>'
+      +'</div>';
+  }
+  return '<div class="page">'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px">'
+    +'<button class="btn bp" style="font-size:12px;padding:4px 12px">Active Statistics</button>'
+    +'<button class="btn" style="font-size:12px;padding:4px 12px">Disabled Statistics</button>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">'+statsH+'</div>'
+    +'</div>';
+}
+
 function pSettings(){
   var secs=[
     {id:'Account',ico:'&#x1F464;',desc:'Email, password, subscription'},
@@ -755,22 +1395,58 @@ function render(){
     else if(pg==='EQ')  html=pEQ();
     else if(pg==='Portfolio') html=pPortfolio();
     else if(pg==='Settings') html=pSettings();
+    else if(pg==='AJ'){
+      if(!sub||sub==='Trading Plans') html=pAJPlans();
+      else if(sub==='Missed Trades') html=pAJMissed();
+      else if(sub==='Missed Trades - Analysis') html=pAJMissedAnalysis();
+      else html=pAJPlans();
+    }
+    else if(pg==='DR'){
+      if(!sub||sub==='Notebook') html=pDRNotebook();
+      else if(sub==='Sessions') html=pDRSessions();
+      else html=pDRNotebook();
+    }
     else if(pg==='CL'){
       if(!sub||sub==='Drawdown') html=pDD();
       else if(sub==='Performance by Day') html=pDay();
       else if(sub==='Performance by Instrument') html=pInstr();
       else if(sub==='Consecutive W/L') html=pCons();
       else if(sub==='Performance by Setup') html=pSetup();
+      else if(sub==='Checklist Performance') html=pCLChecklist();
+      else if(sub==='Efficiency') html=pCLEfficiency();
+      else if(sub==='Exit Analysis') html=pCLExit();
+      else if(sub==='Holding Time') html=pCLHolding();
+      else if(sub==='Performance by Time') html=pCLPerfTime();
+      else if(sub==='Performance Ratio') html=pCLRatio();
+      else if(sub==='Risk Distribution') html=pCLRisk();
+      else if(sub==='Trade Comments') html=pCLComments();
+      else if(sub==='Trade Management') html=pCLMgmt();
       else html=pDD();
     }
     else if(pg==='RP'){
-      if(!sub||sub==='Calendar'||sub==='Monthly Reports') html=pMR();
+      if(!sub||sub==='Monthly Reports') html=pMR();
       else if(sub==='Trade Analytics') html=pTA();
-      else html=pTA();
+      else if(sub==='Calendar') html=pRPCal();
+      else if(sub==='Chartbook') html=pRPChartbook();
+      else html=pMR();
     }
     else if(pg==='SL'){
       if(sub==='Backtester') html=pBT();
+      else if(sub==='Alternative Strategies') html=pSLAlt();
       else html=pSim();
+    }
+    else if(pg==='ST'){
+      if(!sub) html=pSettings();
+      else if(sub==='Account') html=pSTAccount();
+      else if(sub==='Journal Settings') html=pSTJournal();
+      else if(sub==='Deposits & Withdrawals') html=pSTDeposits();
+      else if(sub==='Import History') html=pSTImport();
+      else if(sub==='Instruments') html=pSTInstruments();
+      else if(sub==='Setups & Checklists') html=pSTSetups();
+      else if(sub==='Trade Comments') html=pSTTComments();
+      else if(sub==='Sessions') html=pSTSessions();
+      else if(sub==='Custom Statistics') html=pSTCustomStats();
+      else html=pSettings();
     }
     else html='<div class="page" style="color:var(--mut);font-size:14px;padding-top:40px;text-align:center">'+esc(pg)+(sub?' &mdash; '+esc(sub):'')+' &middot; coming soon</div>';
   }catch(e){
@@ -857,6 +1533,40 @@ function mountCharts(){
     mkC('setupC',{type:'bar',data:{labels:sd.map(function(d){return d.n;}),datasets:[{data:sd.map(function(d){return d.p;}),backgroundColor:sd.map(function(d){return d.p>=0?'rgba(22,163,74,.7)':'rgba(220,38,38,.7)';}),borderRadius:4}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return f$(c.raw);}}}},scales:{y:{ticks:{callback:function(v){return '$'+Math.round(v/1000)+'k';}}}},responsive:true,maintainAspectRatio:false}});
   }
   if(document.getElementById('bW')) setTimeout(uBT,50);
+  // Missed trades bar
+  if(document.getElementById('ajMissedBar')){
+    mkC('ajMissedBar',{type:'bar',data:{labels:['Missed','Real','Total'],datasets:[{data:[0,0,0],backgroundColor:['rgba(22,163,74,.7)','rgba(22,163,74,.7)','rgba(22,163,74,.7)'],borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}},responsive:true,maintainAspectRatio:false}});
+  }
+  // Holding time
+  if(document.getElementById('holdC')){
+    var hbk=['<1h','1-4h','4-8h','1d','2-3d','4-7d','>1w'],hbv=hbk.map(function(){return 0;});
+    s.closed.forEach(function(t){var h=(t.xD-t.eD)/3600000;var idx=h<1?0:h<4?1:h<8?2:h<24?3:h<72?4:h<168?5:6;hbv[idx]++;});
+    mkC('holdC',{type:'bar',data:{labels:hbk,datasets:[{data:hbv,backgroundColor:'rgba(37,99,235,.7)',borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}},responsive:true,maintainAspectRatio:false}});
+  }
+  // Performance by Time
+  if(document.getElementById('ptimeC')){
+    var dnames2=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    var acc2={};dnames2.forEach(function(d){acc2[d]=[];});
+    s.closed.forEach(function(t){var n=DAYS[t.xD.getDay()];if(acc2[n])acc2[n].push(t.ret);});
+    var tots2=dnames2.map(function(d){return Math.round(acc2[d].reduce(function(a,v){return a+v;},0));});
+    mkC('ptimeC',{type:'bar',data:{labels:dnames2,datasets:[{data:tots2,backgroundColor:tots2.map(function(v){return v>=0?'rgba(22,163,74,.7)':'rgba(220,38,38,.7)';}),borderRadius:4}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return f$(c.raw);}}}},scales:{y:{ticks:{callback:function(v){return '$'+Math.round(v/1000)+'k';}}}},responsive:true,maintainAspectRatio:false}});
+  }
+  // Performance Ratio (Sharpe)
+  if(document.getElementById('ratioC')){
+    var revT=s.closed.slice().reverse(),ratPts=[],cumR=0,cumR2=0,n2=0;
+    revT.forEach(function(t,i){var r=t.pct;cumR+=r;cumR2+=r*r;n2++;var mean=cumR/n2;var std=Math.sqrt(cumR2/n2-mean*mean)||1;ratPts.push(Math.round((mean/std)*100)/100);});
+    mkC('ratioC',{type:'line',data:{labels:ratPts.map(function(_,i){return i+1;}),datasets:[{data:ratPts,borderColor:'#2563EB',backgroundColor:'rgba(37,99,235,.1)',fill:true,pointRadius:0,borderWidth:1.5,tension:.2}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{callback:function(v){return v.toFixed(1);}}}},responsive:true,maintainAspectRatio:false}});
+  }
+  // Risk Distribution
+  if(document.getElementById('riskC')){
+    var cv2=document.getElementById('riskC');
+    try{
+      var keys2=JSON.parse(cv2.dataset.keys||'[]');
+      var vals2=JSON.parse(cv2.dataset.vals||'[]');
+      var colors2=JSON.parse(cv2.dataset.colors||'[]');
+      if(keys2.length) mkC('riskC',{type:'bar',data:{labels:keys2,datasets:[{data:vals2,backgroundColor:colors2,borderRadius:2}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}},responsive:true,maintainAspectRatio:false}});
+    }catch(e){}
+  }
 }
 
 /* ========== BACKTESTER ========== */
