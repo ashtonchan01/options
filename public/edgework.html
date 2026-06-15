@@ -1046,7 +1046,14 @@ function loadFlexCreds(){
     var raw=localStorage.getItem('options:flex');
     if(!raw) return null;
     var d=JSON.parse(raw);
-    return (d.flexToken&&d.queryId)?d:null;
+    // New format: {profiles:[{token,queryId,...}], activeId}
+    if(d.profiles&&d.profiles.length){
+      var active=d.profiles.find(function(p){return p.id===d.activeId;})||d.profiles[0];
+      return (active.token&&active.queryId)?{flexToken:active.token,queryId:active.queryId}:null;
+    }
+    // Legacy format: {token, queryId}
+    if(d.token&&d.queryId) return {flexToken:d.token,queryId:d.queryId};
+    return null;
   }catch(e){return null;}
 }
 
