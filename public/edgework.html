@@ -6,7 +6,7 @@
 <title>Edgework</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",sans-serif;height:100vh;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",sans-serif;height:100vh;overflow:hidden;color:var(--txt);background:var(--bg)}
 :root{--bg:#F6F8FA;--sur:#FFF;--sur2:#F0F2F4;--bdr:#E1E4E8;--txt:#1A1A2E;--mut:#6B7280;--grn:#16A34A;--red:#DC2626;--amb:#B45309;--blu:#2563EB}
 body.dark{--bg:#0D1117;--sur:#161B22;--sur2:#1C2128;--bdr:#30363D;--txt:#E6EDF3;--mut:#7D8590;--grn:#22c55e;--red:#f87171;--amb:#fbbf24;--blu:#60a5fa}
 ::-webkit-scrollbar{width:5px;height:5px}
@@ -662,7 +662,7 @@ function pPortfolio(){
     +'<div class="card" style="padding:20px;margin-bottom:16px">'
     +'<div style="font-weight:600;font-size:15px;color:var(--txt);margin-bottom:12px">Journals</div>'
     +'<table><thead><tr><th>Name</th><th>Balance</th><th>Return (%)</th><th>Avg. P&L</th><th>Profit Factor</th><th>Winrate</th><th>Trades #</th><th>EW Score</th></tr></thead>'
-    +'<tbody><tr><td class="wn" style="font-weight:600">CADD Trading Journal</td><td>$317,982.07</td><td class="wn">22.01%</td><td class="wn">'+f$(s.net/s.closed.length)+'</td><td class="wn">'+s.pf.toFixed(2)+'</td><td class="wn">'+s.wr.toFixed(2)+'%</td><td>'+s.closed.length+'</td><td>51.57</td></tr></tbody></table>'
+    +'<tbody><tr><td class="wn" style="font-weight:600">CADD Trading Journal</td><td>'+(parseFloat(localStorage.getItem('ew_net_liq')||'0')>0?'US'+parseFloat(localStorage.getItem('ew_net_liq')).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td><td class="wn">22.01%</td><td class="wn">'+f$(s.net/s.closed.length)+'</td><td class="wn">'+s.pf.toFixed(2)+'</td><td class="wn">'+s.wr.toFixed(2)+'%</td><td>'+s.closed.length+'</td><td>51.57</td></tr></tbody></table>'
     +'</div>'
     +'<div class="card" style="padding:20px"><div style="font-weight:600;font-size:15px;color:var(--txt);margin-bottom:12px">Equity Graph</div><div style="height:280px"><canvas id="portC"></canvas></div></div>'
     +'</div>';
@@ -1510,7 +1510,7 @@ function mountCharts(){
     var con=document.getElementById('con');
     if(con) con.innerHTML='<div style="font-weight:600;font-size:13px;color:var(--txt);margin-bottom:10px">Consistency</div>'
       +[['Profitable Days','80.4%'],['Profitable Weeks','80.5%'],['Profitable Months','85.0%']].map(function(r){return '<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:12px;color:var(--mut)">'+r[0]+'</span><span style="font-size:12px;font-weight:600;color:var(--grn)">'+r[1]+'</span></div>';}).join('');
-    mkC('eqC',{type:'line',data:{labels:eq.map(function(d){return d.x;}),datasets:[{data:eq.map(function(d){return d.y;}),borderColor:'#16A34A',backgroundColor:'rgba(22,163,74,.15)',fill:true,pointRadius:0,borderWidth:1.5,tension:.1}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return f$(c.raw);}}}},scales:{x:{title:{display:true,text:'Trades',color:'#6B7280',font:{size:11}}},y:{ticks:{callback:function(v){return Math.round(v/1000)+'k';}}}},responsive:true,maintainAspectRatio:false}});
+    mkC('eqC',{type:'line',data:{labels:eq.map(function(d){return d.x;}),datasets:[{data:eq.map(function(d){return d.y;}),borderColor:'#16A34A',backgroundColor:'rgba(22,163,74,.15)',fill:true,pointRadius:0,borderWidth:1.5,tension:.1}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return f$(c.raw);}}}},scales:{x:{title:{display:true,text:'Trades',color:dark?'#7D8590':'#6B7280',font:{size:11}}},y:{ticks:{callback:function(v){return Math.round(v/1000)+'k';}}}},responsive:true,maintainAspectRatio:false}});
   }
   // Portfolio equity
   if(document.getElementById('portC')){
