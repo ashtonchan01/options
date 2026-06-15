@@ -1883,10 +1883,20 @@ async function syncIBKR(){
     // 1. Equity Summary in Base (best — add "Equity Summary in Base" to Flex query)
     var eqBase=doc.querySelector('EquitySummaryInBase')||doc.querySelector('EquitySummaryByReportDateInBase');
     if(eqBase) netLiq=parseFloat(eqBase.getAttribute('netLiquidation')||'0');
-    // 2. Net Asset Value in Base (add "Net Asset Value (NAV) in Base" to Flex query)
+    // 2. Net Asset Value in Base — data is on child NetAssetValue elements
     if(!netLiq){
-      var nav=doc.querySelector('NetAssetValueInBase');
-      if(nav) netLiq=parseFloat(nav.getAttribute('total')||nav.getAttribute('netAssetValue')||'0');
+      // Try the container element first (some Flex formats put total here)
+      var navContainer=doc.querySelector('NetAssetValueInBase');
+      if(navContainer) netLiq=parseFloat(navContainer.getAttribute('total')||'0');
+      // More commonly, rows are <NetAssetValue total="..." /> inside the container
+      if(!netLiq){
+        var navRows=Array.from(doc.querySelectorAll('NetAssetValue'));
+        // Find the row with the highest/summary total (usually last or labelled BASE)
+        navRows.forEach(function(el){
+          var t=parseFloat(el.getAttribute('total')||'0');
+          if(t>netLiq) netLiq=t;
+        });
+      }
     }
     // 3. Mark-to-Market Performance Summary (already enabled in your Flex query)
     if(!netLiq){
