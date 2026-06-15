@@ -1479,6 +1479,7 @@ function render(){
       else if(sub==='Custom Statistics') html=pSTCustomStats();
       else html=pSettings();
     }
+    else if(pg==='EF') html=pEF();
     else html='<div class="page" style="color:var(--mut);font-size:14px;padding-top:40px;text-align:center">'+esc(pg)+(sub?' &mdash; '+esc(sub):'')+' &middot; coming soon</div>';
   }catch(e){
     html='<div style="padding:24px;color:var(--red);font-family:monospace;font-size:12px"><b>Render error on '+esc(pg)+': </b>'+esc(e.message)+'<br><pre style="margin-top:8px;white-space:pre-wrap">'+esc(e.stack)+'</pre></div>';
@@ -1825,6 +1826,212 @@ function initFlexBtn(){
   if(btn) btn.style.display=creds?'':'none';
 }
 
+/* ========== OPEN POSITIONS PARSER ========== */
+function parseOpenPositions(xmlTxt){
+  var doc=new DOMParser().parseFromString(xmlTxt,'application/xml');
+  var els=Array.from(doc.querySelectorAll('OpenPosition'));
+  var pos=[];
+  els.forEach(function(el){
+    var g=function(a){return el.getAttribute(a)||'';};
+    var sym=g('symbol');if(!sym) return;
+    var ac=(g('assetCategory')||'STK').toUpperCase();
+    var qty=parseFloat(g('position')||'0');if(qty===0) return;
+    var pc=g('putCall')||'';
+    var strike=parseFloat(g('strike')||'0');
+    var expiry=g('expiry')||'';
+    var markPrice=parseFloat(g('markPrice')||'0');
+    var costBasis=parseFloat(g('costBasisMoney')||g('averageCost')||'0');
+    var unrealPnl=parseFloat(g('fifoPnlUnrealized')||g('unrealizedPnL')||'0');
+    var posVal=parseFloat(g('positionValue')||'0');
+    var ccy=(g('currency')||'USD').toUpperCase();
+    // Parse expiry YYYYMMDD → Date
+    var expDate=null;
+    if(expiry.length>=8){
+      expDate=new Date(parseInt(expiry.slice(0,4)),parseInt(expiry.slice(4,6))-1,parseInt(expiry.slice(6,8)));
+    }
+    pos.push({sym:sym,ac:ac,pc:pc,strike:strike,expiry:expiry,expDate:expDate,
+      qty:qty,markPrice:markPrice,costBasis:costBasis,unrealPnl:unrealPnl,posVal:posVal,ccy:ccy});
+  });
+  return pos;
+}
+
+/* ========== EDGE FINDER RECOMMENDATION ENGINE ========== */
+function efRecommend(p){
+  var today=new Date();today.setHours(0,0,0,0);
+  var dte=p.expDate?Math.round((p.expDate-today)/(86400000)):null;
+  var isShort=p.qty<0;
+  var isLong=p.qty>0;
+  var isOpt=p.ac==='OPT';
+  var isPut=p.pc==='P';
+  var isCall=p.pc==='C';
+  // P&L ratio: how much of max profit has been captured?
+  // For short options: costBasis is credit received (negative positionValue means short)
+  // unrealPnl > 0 means winning
+  var pctCapture=0;
+  var maxProfit=Math.abs(p.costBasis);
+  if(maxProfit>0&&isShort) pctCapture=Math.round((p.unrealPnl/maxProfit)*100);
+
+  var tags=[];
+  var rec='';
+  var priority='low'; // low / med / high
+
+  if(!isOpt){
+    // Stock position
+    if(isShort){ rec='Short stock: monitor for buyback opportunity below your cost basis.'; priority='med'; }
+    else { rec='Long stock: hold for assignment or covered call against this position.'; priority='low'; }
+    return {rec:rec,tags:tags,priority:priority,dte:dte,pctCapture:pctCapture};
+  }
+
+  // Option position
+  var dteLabel=dte!==null?dte+' DTE':'unknown DTE';
+  tags.push(isPut?'PUT':'CALL');
+  tags.push(isShort?'Short':'Long');
+  if(dte!==null){
+    if(dte<=7) tags.push('⚠️ Expiry week');
+    else if(dte<=21) tags.push('Last 21 DTE');
+    else if(dte<=45) tags.push('Prime theta zone');
+    else tags.push('Long-dated');
+  }
+
+  // MSTR / high-volatility detection
+  var highVol=['MSTR','MSTU','MSTZ','NVDA','TSLA','GME','SMCI','COIN','RIOT','MARA'].indexOf(p.sym.toUpperCase())>=0;
+  if(highVol) tags.push('🔥 High IV');
+
+  // Margin-intensive = large short put
+  var marginHeavy=isShort&&isPut&&Math.abs(p.costBasis)>500;
+
+  if(isShort){
+    if(isPut){
+      // Short put recommendations
+      if(dte!==null&&dte>180){
+        priority='high';
+        rec='Long-dated short put ('+dteLabel+'). Theta decay is SLOW this far out — you\'re not earning time premium efficiently. ';
+        if(highVol) rec+='On any spike up in '+p.sym+' (vol crush event), buy to close for a quick profit. ';
+        rec+='Target: close at 25–40% of max profit rather than waiting — frees margin faster than holding to expiry. ';
+        if(marginHeavy) rec+='Strike roll: consider rolling to a closer expiry (30–60 DTE) at a lower strike to recapture margin.';
+        tags.push('Roll candidate');
+      } else if(dte!==null&&dte>60){
+        priority='med';
+        rec='Short put with '+dteLabel+'. Theta is starting to accelerate. ';
+        if(pctCapture>=50) rec+='Already at '+pctCapture+'% profit — consider closing now to lock in gains and free margin. ';
+        else rec+='Target 50% profit (BTC at ~$'+(Math.round(Math.abs(p.markPrice)*0.5*100)/100)+') then close. ';
+        if(highVol) rec+=''+p.sym+' is volatile — a vol spike could work in your favour quickly.';
+      } else if(dte!==null&&dte>21){
+        priority='med';
+        rec='Prime theta zone ('+dteLabel+'). ';
+        if(pctCapture>=50) rec+='You\'ve captured '+pctCapture+'% of max profit. Book it — close now and redeploy. ';
+        else rec+='Target 50% profit. BTC below $'+(Math.round(Math.abs(p.markPrice)*0.5*100)/100)+' to close early.';
+      } else if(dte!==null&&dte<=21){
+        priority=pctCapture>=75?'low':'high';
+        if(pctCapture>=75) rec='Near expiry, '+pctCapture+'% profit captured. Safe to hold to expiry for full premium unless underlying is close to the $'+p.strike+' strike.';
+        else rec='⚠️ Under 21 DTE and only '+pctCapture+'% captured. Gamma risk is rising. Consider rolling out to the next monthly expiry to avoid assignment risk.';
+        tags.push(dte<=7?'Expiry risk':'Gamma risk rising');
+      } else {
+        rec='Monitor for 50% profit target and close to free margin.';
+        priority='low';
+      }
+    } else {
+      // Short call
+      if(dte!==null&&dte<=21&&pctCapture>=50){
+        priority='low';
+        rec='Covered call nearing expiry with '+pctCapture+'% profit captured. Let it expire worthless for full premium, or BTC at 80%+ to avoid pin risk.';
+      } else {
+        rec='Short call: target 50% profit then close. BTC at ~$'+(Math.round(Math.abs(p.markPrice)*0.5*100)/100)+'.';
+        priority='med';
+      }
+    }
+  } else {
+    // Long option
+    rec='Long '+( isPut?'put':'call')+': hold until thesis plays out or cut at 50% loss to preserve capital.';
+    priority='low';
+  }
+
+  return {rec:rec,tags:tags,priority:priority,dte:dte,pctCapture:pctCapture};
+}
+
+/* ========== EDGE FINDER PAGE ========== */
+function pEF(){
+  var positions=[];
+  try{positions=JSON.parse(localStorage.getItem('ew_positions')||'[]');}catch(e){}
+  if(!positions.length){
+    return '<div class="page">'
+      +'<div style="font-weight:700;font-size:17px;margin-bottom:6px">Edge Finder</div>'
+      +'<div style="font-size:13px;color:var(--mut);margin-bottom:20px">Recommendations to close open positions in profit.</div>'
+      +'<div class="card" style="padding:32px;text-align:center">'
+      +'<div style="font-size:28px;margin-bottom:12px">📭</div>'
+      +'<div style="font-weight:600;font-size:15px;margin-bottom:8px">No open positions found</div>'
+      +'<div style="font-size:13px;color:var(--mut);margin-bottom:16px">Sync IBKR to load your current open positions. Make sure your Flex query includes <b>Open Positions</b>.</div>'
+      +'<button class="btn bp" onclick="syncIBKR()">🔄 Sync IBKR Now</button>'
+      +'</div></div>';
+  }
+
+  // Sort: high priority first, then by DTE ascending (most urgent)
+  var priorityOrder={high:0,med:1,low:2};
+  var annotated=positions.map(function(p){
+    var r=efRecommend(p);
+    return {p:p,r:r};
+  });
+  annotated.sort(function(a,b){
+    var po=(priorityOrder[a.r.priority]||2)-(priorityOrder[b.r.priority]||2);
+    if(po!==0) return po;
+    var da=a.r.dte!=null?a.r.dte:9999;
+    var db=b.r.dte!=null?b.r.dte:9999;
+    return da-db;
+  });
+
+  var today=new Date();today.setHours(0,0,0,0);
+  var syncDate=localStorage.getItem('ew_pos_date')||'';
+  var h='<div class="page">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+    +'<div style="font-weight:700;font-size:17px">Edge Finder</div>'
+    +(syncDate?'<div style="font-size:11px;color:var(--mut)">Last synced '+syncDate+'</div>':'')
+    +'</div>'
+    +'<div style="font-size:13px;color:var(--mut);margin-bottom:20px">AI-style recommendations for closing open positions in profit, ranked by urgency.</div>';
+
+  annotated.forEach(function(item){
+    var p=item.p,r=item.r;
+    var isOpt=p.ac==='OPT';
+    var borderCol=r.priority==='high'?'var(--red)':r.priority==='med'?'var(--amb)':'var(--bdr)';
+    var pnlCol=p.unrealPnl>=0?'var(--grn)':'var(--red)';
+    var label=isOpt?(p.sym+' $'+p.strike+' '+(p.pc==='P'?'Put':'Call')+' '+p.expiry):p.sym;
+    var dirLabel=p.qty<0?'Short':'Long';
+    var qtyLabel=Math.abs(p.qty)+' contract'+(Math.abs(p.qty)!==1?'s':'');
+    if(p.ac==='STK') qtyLabel=Math.abs(p.qty)+' shares';
+
+    h+='<div class="card" style="padding:18px 20px;margin-bottom:14px;border-left:4px solid '+borderCol+'">'
+      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">'
+      +'<div>'
+      +'<div style="font-weight:700;font-size:15px;margin-bottom:3px">'+esc(label)+'</div>'
+      +'<div style="font-size:12px;color:var(--mut)">'+esc(dirLabel)+' · '+esc(qtyLabel)+(r.dte!=null?' · '+r.dte+' DTE':'')+'</div>'
+      +'</div>'
+      +'<div style="text-align:right">'
+      +(p.unrealPnl!==0?'<div style="font-weight:700;font-size:15px;color:'+pnlCol+'">'+(p.unrealPnl>=0?'+':'')+f$(p.unrealPnl)+'</div>':'')
+      +(r.pctCapture?'<div style="font-size:11px;color:var(--mut)">'+r.pctCapture+'% captured</div>':'')
+      +'</div>'
+      +'</div>'
+      // Tags
+      +(r.tags.length?'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'
+        +r.tags.map(function(t){return '<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--sur2);color:var(--mut)">'+esc(t)+'</span>';}).join('')
+        +'</div>':'')
+      // Recommendation
+      +'<div style="font-size:13px;line-height:1.6;color:var(--txt);background:var(--sur2);border-radius:6px;padding:10px 12px">'
+      +'<span style="font-size:10px;text-transform:uppercase;font-weight:600;color:var(--mut);letter-spacing:.5px;display:block;margin-bottom:4px">Recommendation</span>'
+      +esc(r.rec)
+      +'</div>'
+      // Mark price / cost basis
+      +(isOpt&&p.markPrice?'<div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:var(--mut)">'
+        +'<span>Mark: $'+p.markPrice.toFixed(2)+'</span>'
+        +(p.costBasis?'<span>Cost basis: $'+Math.abs(p.costBasis).toFixed(2)+'</span>':'')
+        +(p.posVal?'<span>Pos value: '+f$(p.posVal)+'</span>':'')
+        +'</div>':'')
+      +'</div>';
+  });
+
+  h+='<div style="font-size:11px;color:var(--mut);margin-top:8px;text-align:center">These are mechanical heuristics based on DTE and P&L data from your last IBKR sync. Not financial advice.</div>';
+  h+='</div>';
+  return h;
+}
+
 function parseCashTransactions(xmlTxt){
   var doc=new DOMParser().parseFromString(xmlTxt,'application/xml');
   var els=Array.from(doc.querySelectorAll('CashTransaction'));
@@ -1917,9 +2124,15 @@ async function syncIBKR(){
     var existing=new Set(TR.filter(function(t){return t.imp;}).map(function(t){return t.inst+'|'+t.eD.getTime();}));
     var fresh=parsed.filter(function(t){return !existing.has(t.inst+'|'+t.eD.getTime());});
     if(fresh.length) TR=fresh.concat(TR);
-    // Step 5: parse cash transactions (deposits/withdrawals)
+    // Step 5: parse open positions (Edge Finder)
+    var openPos=parseOpenPositions(xml);
+    if(openPos.length){
+      localStorage.setItem('ew_positions',JSON.stringify(openPos));
+      localStorage.setItem('ew_pos_date',new Date().toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}));
+    }
+    // Step 6: parse cash transactions (deposits/withdrawals)
     var cashImported=parseCashTransactions(xml);
-    var msg='✅ '+fresh.length+' trades';
+    var msg='✅ '+fresh.length+' trades'+(openPos.length?' · '+openPos.length+' open pos':'');
     if(netLiq) msg+=' · Net Liq US$'+netLiq.toLocaleString('en-US',{maximumFractionDigits:0});
     if(cashImported>0) msg+=' + '+cashImported+' cash entries';
     pg='Journal';sub='';buildNav();render();
