@@ -1312,7 +1312,8 @@ function pSTDeposits(){
   }).join('');
   return '<div class="page">'
     +'<div style="font-size:12px;color:var(--mut);margin-bottom:10px">Deposits and withdrawals are in <b>AUD</b> (your funding currency). Trade P&amp;L is in <b>USD</b> (US stocks).</div>'
-    +'<div class="bg"><button class="btn bp" onclick="openDepModal()">+ Add More</button></div>'
+    +'<div class="bg"><button class="btn bp" onclick="openDepModal()">+ Add More</button>'
+    +'<button class="btn" style="margin-left:auto;color:var(--red)" onclick="if(confirm(\'Clear all deposit & withdrawal entries? This cannot be undone.\')){ewDeposits=[];saveDeposits();render();}">Clear All</button></div>'
     +'<div class="card tw">'
     +'<table><thead><tr><th>Date</th><th>Amount</th><th>Running Balance</th><th>Reason</th><th>Type</th><th></th></tr></thead>'
     +'<tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;color:var(--mut);padding:20px">No entries yet — sync IBKR or add manually</td></tr>')+'</tbody></table></div>'
@@ -2197,7 +2198,26 @@ function parseCashTransactions(xmlTxt){
   var els=Array.from(doc.querySelectorAll('CashTransaction'));
   var imported=0;
   // Build set of existing entry keys to avoid duplicates
-  var existingKeys=new Set(ewDeposits.map(function(d){return d.date+'|'+d.amount;}));
+  // Dedup: count how many times each date|amount|ccy key already exists
+  var keyCount={};
+  ewDeposits.forEach(function(d){var k=d.date+'|'+d.amount+'|'+(d.currency||'AUD');keyCount[k]=(keyCount[k]||0)+1;});
+  // Also count occurrences within this XML batch to handle multiple same-amount same-day entries
+  var batchCount={};
+  els.forEach(function(el){
+    var type=el.getAttribute('type')||'';
+    var isDepWith=type.indexOf('Deposit')>=0||type.indexOf('Withdrawal')>=0;
+    var isFX=type.indexOf('FX')>=0||type.indexOf('Forex')>=0||type.indexOf('Currency')>=0;
+    if(!isDepWith&&!isFX) return;
+    var amt=parseFloat(el.getAttribute('amount')||'0');if(amt===0) return;
+    var ccy=(el.getAttribute('currency')||'AUD').toUpperCase();
+    var rawDate=el.getAttribute('dateTime')||el.getAttribute('reportDate')||'';
+    var dp=rawDate.replace(/[;,\s].*/,'');
+    var date=dp.length>=8?dp.slice(0,4)+'-'+dp.slice(4,6)+'-'+dp.slice(6,8):rawDate.slice(0,10);
+    var k=date+'|'+amt+'|'+ccy;
+    batchCount[k]=(batchCount[k]||0)+1;
+  });
+  // Only import entries where batch has MORE occurrences than already stored
+  var seenInBatch={};
   els.forEach(function(el){
     var type=el.getAttribute('type')||'';
     var isDepWith=type.indexOf('Deposit')>=0||type.indexOf('Withdrawal')>=0;
@@ -2211,9 +2231,10 @@ function parseCashTransactions(xmlTxt){
     var date=dp.length>=8?dp.slice(0,4)+'-'+dp.slice(4,6)+'-'+dp.slice(6,8):rawDate.slice(0,10);
     var desc=el.getAttribute('description')||type;
     var entryType=isFX?'FX Conversion':'Deposit/Withdrawal';
-    var key=date+'|'+amt+'|'+ccy;
-    if(existingKeys.has(key)) return;
-    existingKeys.add(key);
+    var k=date+'|'+amt+'|'+ccy;
+    seenInBatch[k]=(seenInBatch[k]||0)+1;
+    // Skip if we already have at least this many occurrences stored
+    if((keyCount[k]||0)>=seenInBatch[k]) return;
     var lastBal=ewDeposits.filter(function(d){return (d.currency||'AUD')===ccy;}).reduce(function(a,d){return a+d.amount;},0);
     ewDeposits.push({id:Date.now()+imported,date:date,amount:amt,balance:Math.round((lastBal+amt)*100)/100,currency:ccy,type:entryType,reason:desc});
     imported++;
