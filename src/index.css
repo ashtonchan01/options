@@ -5,20 +5,20 @@
 
 :root,
 [data-theme="dark"] {
-  /* ── Neutral carbon (no blue cast) ── */
-  --bg-page:     #0a0a0c;
-  --bg-surface:  #111113;
-  --bg-sidebar:  #000000;
-  --bg-card:     #17171a;
-  --bg-elevated: #1e1e22;
-  --bg-active:   #29292f;
-  --border:       rgba(255, 255, 255, 0.07);
-  --border-light: rgba(255, 255, 255, 0.15);
-  --text-1: #f5f5f7;
-  --text-2: #c7c7cf;
-  --text-3: #8d8d96;
-  --text-4: #616169;
-  --text-5: #38383e;
+  /* ── Neutral carbon, softened (no blue cast, no pure black/white) ── */
+  --bg-page:     #16161a;
+  --bg-surface:  #1c1c21;
+  --bg-sidebar:  #131316;
+  --bg-card:     #1f1f24;
+  --bg-elevated: #26262c;
+  --bg-active:   #313138;
+  --border:       rgba(255, 255, 255, 0.08);
+  --border-light: rgba(255, 255, 255, 0.16);
+  --text-1: #e4e4e7;
+  --text-2: #b8b8c0;
+  --text-3: #8a8a92;
+  --text-4: #64646c;
+  --text-5: #3d3d43;
   --scrollbar: rgba(255, 255, 255, 0.14);
   --scrollbar-hover: rgba(255, 255, 255, 0.26);
   --overlay: rgba(0, 0, 0, 0.72);
