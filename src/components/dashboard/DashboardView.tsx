@@ -193,7 +193,21 @@ const INCOME_CHANNELS: Array<{ page: string; label: string; color: string }> = [
   { page: 'rotation',      label: 'Rotation',      color: '#f59e0b' },
   { page: 'dcas',          label: 'DCAS',          color: '#ec4899' },
   { page: 'profit_taking', label: 'Profit Taking', color: '#84cc16' },
+  { page: 'other',         label: 'Other',         color: '#64748b' },
 ]
+
+// Auto-classifier strategy type → income channel page, used as a fallback
+// when the user hasn't manually labelled any trades yet.
+const AUTO_STRAT_TO_CHANNEL: Record<string, string> = {
+  covered_call:  'covered_calls',
+  pmcc:          'covered_calls',
+  csp:           'csp',
+  leap:          'leap',
+  risk_reversal: 'other',
+  put_spread:    'other',
+  call_spread:   'other',
+  other:         'other',
+}
 
 const TODAY_DASH = new Date(); TODAY_DASH.setHours(0,0,0,0)
 
@@ -210,21 +224,42 @@ function isExpiredDash(t: RawTrade): boolean {
   return d !== null && d < TODAY_DASH
 }
 
-function IncomeChannelStrip({ trades, labels }: { trades: RawTrade[]; labels: Record<string, string> }) {
+function IncomeChannelStrip({ trades, labels, symbolToStratType }: { trades: RawTrade[]; labels: Record<string, string>; symbolToStratType: Map<string, string> }) {
   const hasLabels = Object.keys(labels).length > 0
-  if (!hasLabels) return null
+
+  // Fallback: when nothing has been manually labelled yet, derive channel
+  // membership from the auto strategy classifier + the SPX/SPXW rule, so the
+  // strip still shows something useful instead of disappearing entirely.
+  const effectiveLabels: Record<string, string> = hasLabels ? labels : (() => {
+    const auto: Record<string, string> = {}
+    for (const t of trades) {
+      const sym = t.symbol ?? ''
+      if (/^SPXW?/.test(t.underlyingSymbol ?? sym)) {
+        auto[tradeId(t)] = 'spx'
+        continue
+      }
+      const stratType = symbolToStratType.get(sym)
+      auto[tradeId(t)] = stratType ? (AUTO_STRAT_TO_CHANNEL[stratType] ?? 'other') : 'other'
+    }
+    return auto
+  })()
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-      gap: 1,
-      borderBottom: '1px solid var(--border)',
-      background: 'var(--border)',
-      flexShrink: 0,
-    }}>
+    <div style={{ flexShrink: 0 }}>
+      {!hasLabels && (
+        <div style={{ padding: '4px 12px', fontSize: 10, color: 'var(--text-4)', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
+          Auto-classified (no manual labels yet) — label trades for more accurate grouping
+        </div>
+      )}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+        gap: 1,
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--border)',
+      }}>
       {INCOME_CHANNELS.map(ch => {
-        const chTrades = trades.filter(t => labels[tradeId(t)] === ch.page)
+        const chTrades = trades.filter(t => effectiveLabels[tradeId(t)] === ch.page)
         if (chTrades.length === 0) return null
 
         const sells   = chTrades.filter(t => t.quantity < 0)
@@ -277,6 +312,7 @@ function IncomeChannelStrip({ trades, labels }: { trades: RawTrade[]; labels: Re
           </div>
         )
       })}
+      </div>
     </div>
   )
 }
@@ -379,7 +415,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
       </div>
 
       {/* ── Income channels ── */}
-      <IncomeChannelStrip trades={trades} labels={labels} />
+      <IncomeChannelStrip trades={trades} labels={labels} symbolToStratType={symbolToStratType} />
 
       {/* ── Scrollable content ── */}
       <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0 }}>
