@@ -6,41 +6,22 @@ import { WATCHLIST } from '../../data/watchlist'
 
 interface Props { state: AppState }
 
-// ─── PutHouse strategy modes ──────────────────────────────────────────────────
-
-type PutHouseMode = 'selective' | 'bold' | 'custom' | 'all'
+// ─── Scan filter params (user-adjusted, no preset modes) ─────────────────────
 
 interface ModeConfig {
   deltaMin: number; deltaMax: number
   dteMin: number;   dteMax: number
   minBid: number
-  targetMonthlyPct: [number, number]
 }
 
-const MODE_CFG: Record<'selective' | 'bold', ModeConfig> = {
-  selective: { deltaMin: 0.05, deltaMax: 0.10, dteMin: 7,  dteMax: 10, minBid: 0.05, targetMonthlyPct: [1, 2] },
-  bold:      { deltaMin: 0.15, deltaMax: 0.25, dteMin: 7,  dteMax: 14, minBid: 0.10, targetMonthlyPct: [2, 3] },
-}
-
-const MODE_META: Record<PutHouseMode, { label: string; sub: string; color: string }> = {
-  selective: { label: 'SELECTIVE', sub: 'Δ 0.05–0.10 · 7–10d · Conservative', color: '#10b981' },
-  bold:      { label: 'BOLD',      sub: 'Δ 0.15–0.25 · 7–14d · Higher yield',  color: '#f59e0b' },
-  custom:    { label: 'CUSTOM',    sub: 'User-defined parameters',               color: '#a855f7' },
-  all:       { label: 'ALL',       sub: 'Δ 0.05–0.55 · 7–60d · Unfiltered',    color: '#00E5FF' },
-}
-
-const MODE_KEY       = 'options:puthouse_mode'
 const CUSTOM_CFG_KEY = 'options:custom_cfg'
-const DEFAULT_CUSTOM: ModeConfig = { deltaMin: 0.10, deltaMax: 0.25, dteMin: 7, dteMax: 21, minBid: 0.05, targetMonthlyPct: [1, 3] }
+const DEFAULT_CUSTOM: ModeConfig = { deltaMin: 0.10, deltaMax: 0.25, dteMin: 7, dteMax: 21, minBid: 0.05 }
 
-function loadMode(): PutHouseMode { return (localStorage.getItem(MODE_KEY) as PutHouseMode) ?? 'all' }
 function loadCustomCfg(): ModeConfig {
   try { return JSON.parse(localStorage.getItem(CUSTOM_CFG_KEY) || 'null') ?? DEFAULT_CUSTOM } catch { return DEFAULT_CUSTOM }
 }
 
-function filterByMode(results: ScanResult[], mode: PutHouseMode, custom: ModeConfig): ScanResult[] {
-  if (mode === 'all') return results
-  const cfg: ModeConfig = mode === 'custom' ? custom : MODE_CFG[mode as 'selective' | 'bold']
+function filterByMode(results: ScanResult[], cfg: ModeConfig): ScanResult[] {
   return results.filter(r => {
     const d = Math.abs(r.delta)
     return d >= cfg.deltaMin && d <= cfg.deltaMax && r.dte >= cfg.dteMin && r.dte <= cfg.dteMax && r.bid >= cfg.minBid
@@ -68,7 +49,7 @@ function tradeYield(r: ScanResult) { return r.annualizedYield * r.dte / 365 }
 
 // ─── Card width ───────────────────────────────────────────────────────────────
 
-const CARD_W = 400
+const CARD_W = 'min(400px, 100%)'
 const CUSTOM_TICKERS_KEY = 'options:custom_tickers'
 function loadCustomTickers(): string[] { try { return JSON.parse(localStorage.getItem(CUSTOM_TICKERS_KEY) || '[]') } catch { return [] } }
 function saveCustomTickers(t: string[]) { localStorage.setItem(CUSTOM_TICKERS_KEY, JSON.stringify(t)) }
@@ -167,10 +148,8 @@ export default function OpportunitiesView({ state }: Props) {
   const [collapsed,     setCollapsed]    = useState<Set<string>>(new Set())
   const [customTickers, setCustomTickers]= useState<string[]>(loadCustomTickers)
   const [tickerInput,   setTickerInput]  = useState('')
-  const [mode,          setModeState]    = useState<PutHouseMode>(loadMode)
   const [customCfg,     setCustomCfg]    = useState<ModeConfig>(loadCustomCfg)
 
-  function saveMode(m: PutHouseMode) { setModeState(m); localStorage.setItem(MODE_KEY, m) }
   function updateCustom(patch: Partial<ModeConfig>) {
     setCustomCfg(prev => { const n = { ...prev, ...patch }; localStorage.setItem(CUSTOM_CFG_KEY, JSON.stringify(n)); return n })
   }
@@ -192,8 +171,8 @@ export default function OpportunitiesView({ state }: Props) {
     return [...set].sort()
   }, [state.sync.positions, customTickers])
 
-  const filtered = useMemo(() => filterByMode(results, mode, customCfg), [results, mode, customCfg])
-  const cards    = useMemo(() => buildCards(filtered, tickers),           [filtered, tickers])
+  const filtered = useMemo(() => filterByMode(results, customCfg), [results, customCfg])
+  const cards    = useMemo(() => buildCards(filtered, tickers),    [filtered, tickers])
 
   function toggleCollapse(sym: string) {
     setCollapsed(prev => { const n = new Set(prev); n.has(sym) ? n.delete(sym) : n.add(sym); return n })
@@ -217,9 +196,6 @@ export default function OpportunitiesView({ state }: Props) {
     } catch (e) { setError(String(e)) }
     finally { setScanning(false); setScanProgress('') }
   }
-
-  const meta       = MODE_META[mode]
-  const activeCfg  = mode === 'selective' || mode === 'bold' ? MODE_CFG[mode] : mode === 'custom' ? customCfg : null
 
   return (
     <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
@@ -251,46 +227,20 @@ export default function OpportunitiesView({ state }: Props) {
 
         {scanned && (
           <span style={{ fontSize: 11, color: 'var(--text-4)', marginLeft: 'auto', fontFamily: 'Inter, sans-serif' }}>
-            {filtered.length} results · {cards.length} tickers{mode !== 'all' ? ` · ${meta.label}` : ''}
+            {filtered.length} results · {cards.length} tickers
           </span>
         )}
       </div>
 
-      {/* ── PutHouse mode picker ────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 2, fontFamily: "'Inter', sans-serif", marginRight: 2 }}>PUTHOUSE</span>
-        {(Object.keys(MODE_META) as PutHouseMode[]).map(id => {
-          const m = MODE_META[id]; const active = mode === id
-          return (
-            <button key={id} onClick={() => saveMode(id)} style={{
-              padding: '5px 12px', borderRadius: 4, cursor: 'pointer', textAlign: 'left',
-              border: `1px solid ${active ? m.color : 'var(--border)'}`,
-              background: active ? `${m.color}18` : 'var(--bg-elevated)',
-              fontFamily: "'Inter', sans-serif", textTransform: 'uppercase',
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.5px', color: active ? m.color : 'var(--text-3)' }}>{m.label}</div>
-              <div style={{ fontSize: 9, marginTop: 1, color: active ? m.color + 'aa' : 'var(--text-5)' }}>{m.sub}</div>
-            </button>
-          )
-        })}
-        {activeCfg && mode !== 'custom' && (
-          <span style={{ marginLeft: 6, fontSize: 11, color: meta.color, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-            {activeCfg.targetMonthlyPct[0]}–{activeCfg.targetMonthlyPct[1]}%/mo target
-          </span>
-        )}
+      {/* ── Scan params (manual) ────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--signature)', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>PARAMS</span>
+        <label style={labelStyle}>Δ min <input type="number" value={customCfg.deltaMin} step={0.01} min={0.01} max={0.49} onChange={e => updateCustom({ deltaMin: +e.target.value })} style={inputStyle} /></label>
+        <label style={labelStyle}>Δ max <input type="number" value={customCfg.deltaMax} step={0.01} min={0.02} max={0.55} onChange={e => updateCustom({ deltaMax: +e.target.value })} style={inputStyle} /></label>
+        <label style={labelStyle}>DTE min <input type="number" value={customCfg.dteMin} step={1} min={1} max={59} onChange={e => updateCustom({ dteMin: +e.target.value })} style={inputStyle} /></label>
+        <label style={labelStyle}>DTE max <input type="number" value={customCfg.dteMax} step={1} min={2} max={90} onChange={e => updateCustom({ dteMax: +e.target.value })} style={inputStyle} /></label>
+        <label style={labelStyle}>Min bid <input type="number" value={customCfg.minBid} step={0.01} min={0.01} max={5} onChange={e => updateCustom({ minBid: +e.target.value })} style={inputStyle} /></label>
       </div>
-
-      {/* ── Custom controls ─────────────────────────────────────────────────── */}
-      {mode === 'custom' && (
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid #a855f740', borderRadius: 6, flexShrink: 0, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#a855f7', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>PARAMS</span>
-          <label style={labelStyle}>Δ min <input type="number" value={customCfg.deltaMin} step={0.01} min={0.01} max={0.49} onChange={e => updateCustom({ deltaMin: +e.target.value })} style={inputStyle} /></label>
-          <label style={labelStyle}>Δ max <input type="number" value={customCfg.deltaMax} step={0.01} min={0.02} max={0.55} onChange={e => updateCustom({ deltaMax: +e.target.value })} style={inputStyle} /></label>
-          <label style={labelStyle}>DTE min <input type="number" value={customCfg.dteMin} step={1} min={1} max={59} onChange={e => updateCustom({ dteMin: +e.target.value })} style={inputStyle} /></label>
-          <label style={labelStyle}>DTE max <input type="number" value={customCfg.dteMax} step={1} min={2} max={90} onChange={e => updateCustom({ dteMax: +e.target.value })} style={inputStyle} /></label>
-          <label style={labelStyle}>Min bid <input type="number" value={customCfg.minBid} step={0.01} min={0.01} max={5} onChange={e => updateCustom({ minBid: +e.target.value })} style={inputStyle} /></label>
-        </div>
-      )}
 
       {/* ── Custom tickers ──────────────────────────────────────────────────── */}
       {customTickers.length > 0 && (
@@ -323,9 +273,11 @@ export default function OpportunitiesView({ state }: Props) {
           <Activity size={28} style={{ color: 'var(--text-5)', marginBottom: 10 }} />
           <div className="chakra" style={{ fontSize: 15, color: 'var(--text-2)', letterSpacing: '1px' }}>OPTIONS SCANNER</div>
           <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 6, fontFamily: 'Inter, sans-serif', lineHeight: 1.8 }}>
-            {tickers.length} tickers · CSP &amp; CC · Mode: {meta.label}
+            {tickers.length} tickers · CSP &amp; CC
           </div>
-          <div style={{ fontSize: 11, color: meta.color, marginTop: 2, fontFamily: 'Inter, sans-serif' }}>{meta.sub}</div>
+          <div style={{ fontSize: 11, color: 'var(--signature)', marginTop: 2, fontFamily: 'Inter, sans-serif' }}>
+            Δ {customCfg.deltaMin}–{customCfg.deltaMax} · {customCfg.dteMin}–{customCfg.dteMax}d · bid ≥ ${customCfg.minBid}
+          </div>
           <button onClick={handleScan} style={{ marginTop: 16, padding: '8px 24px', fontSize: 13, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid rgba(16,185,129,0.25)', color: 'var(--accent)', cursor: 'pointer', fontFamily: "'Inter', sans-serif", letterSpacing: '1.5px', textTransform: 'uppercase' }}>
             START SCAN
           </button>
@@ -334,11 +286,10 @@ export default function OpportunitiesView({ state }: Props) {
 
       {scanned && !scanning && cards.length === 0 && (
         <div style={{ textAlign: 'center', paddingTop: 40 }}>
-          <div className="chakra" style={{ fontSize: 13, color: 'var(--text-3)', letterSpacing: '1px' }}>NO RESULTS FOR {meta.label}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 6, fontFamily: 'Inter, sans-serif' }}>{meta.sub}</div>
-          <button onClick={() => saveMode('all')} style={{ marginTop: 12, padding: '5px 14px', fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', fontFamily: "'Inter', sans-serif" }}>
-            SWITCH TO ALL
-          </button>
+          <div className="chakra" style={{ fontSize: 13, color: 'var(--text-3)', letterSpacing: '1px' }}>NO RESULTS FOR CURRENT PARAMS</div>
+          <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 6, fontFamily: 'Inter, sans-serif' }}>
+            Δ {customCfg.deltaMin}–{customCfg.deltaMax} · {customCfg.dteMin}–{customCfg.dteMax}d · bid ≥ ${customCfg.minBid} — widen above to see more
+          </div>
         </div>
       )}
 
