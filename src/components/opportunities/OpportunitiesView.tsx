@@ -149,6 +149,11 @@ export default function OpportunitiesView({ state }: Props) {
   const [customTickers, setCustomTickers]= useState<string[]>(loadCustomTickers)
   const [tickerInput,   setTickerInput]  = useState('')
   const [customCfg,     setCustomCfg]    = useState<ModeConfig>(loadCustomCfg)
+  const [topCollapsed,  setTopCollapsed] = useState(false)
+
+  function handleResultsScroll(e: React.UIEvent<HTMLDivElement>) {
+    setTopCollapsed(e.currentTarget.scrollTop > 24)
+  }
 
   function updateCustom(patch: Partial<ModeConfig>) {
     setCustomCfg(prev => { const n = { ...prev, ...patch }; localStorage.setItem(CUSTOM_CFG_KEY, JSON.stringify(n)); return n })
@@ -232,27 +237,36 @@ export default function OpportunitiesView({ state }: Props) {
         )}
       </div>
 
-      {/* ── Scan params (manual) ────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, flexShrink: 0, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--signature)', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>PARAMS</span>
-        <label style={labelStyle}>Δ min <input type="number" value={customCfg.deltaMin} step={0.01} min={0.01} max={0.49} onChange={e => updateCustom({ deltaMin: +e.target.value })} style={inputStyle} /></label>
-        <label style={labelStyle}>Δ max <input type="number" value={customCfg.deltaMax} step={0.01} min={0.02} max={0.55} onChange={e => updateCustom({ deltaMax: +e.target.value })} style={inputStyle} /></label>
-        <label style={labelStyle}>DTE min <input type="number" value={customCfg.dteMin} step={1} min={1} max={59} onChange={e => updateCustom({ dteMin: +e.target.value })} style={inputStyle} /></label>
-        <label style={labelStyle}>DTE max <input type="number" value={customCfg.dteMax} step={1} min={2} max={90} onChange={e => updateCustom({ dteMax: +e.target.value })} style={inputStyle} /></label>
-        <label style={labelStyle}>Min bid <input type="number" value={customCfg.minBid} step={0.01} min={0.01} max={5} onChange={e => updateCustom({ minBid: +e.target.value })} style={inputStyle} /></label>
-      </div>
-
-      {/* ── Custom tickers ──────────────────────────────────────────────────── */}
-      {customTickers.length > 0 && (
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flexShrink: 0, alignItems: 'center' }}>
-          <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif" }}>CUSTOM:</span>
-          {customTickers.map(sym => (
-            <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid rgba(16,185,129,0.2)', color: 'var(--accent)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
-              {sym} <span style={{ color: 'var(--text-4)', fontSize: 8 }}>&times;</span>
-            </button>
-          ))}
+      {/* ── Collapsible: params + custom tickers (hides while scrolling results) ── */}
+      <div style={{
+        flexShrink: 0, overflow: 'hidden',
+        maxHeight: topCollapsed ? 0 : 120,
+        opacity: topCollapsed ? 0 : 1,
+        transition: 'max-height 0.22s ease, opacity 0.18s ease',
+        display: 'flex', flexDirection: 'column', gap: 10,
+      }}>
+        {/* ── Scan params (manual) ────────────────────────────────────────────── */}
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--signature)', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>PARAMS</span>
+          <label style={labelStyle}>Δ min <input type="number" value={customCfg.deltaMin} step={0.01} min={0.01} max={0.49} onChange={e => updateCustom({ deltaMin: +e.target.value })} style={inputStyle} /></label>
+          <label style={labelStyle}>Δ max <input type="number" value={customCfg.deltaMax} step={0.01} min={0.02} max={0.55} onChange={e => updateCustom({ deltaMax: +e.target.value })} style={inputStyle} /></label>
+          <label style={labelStyle}>DTE min <input type="number" value={customCfg.dteMin} step={1} min={1} max={59} onChange={e => updateCustom({ dteMin: +e.target.value })} style={inputStyle} /></label>
+          <label style={labelStyle}>DTE max <input type="number" value={customCfg.dteMax} step={1} min={2} max={90} onChange={e => updateCustom({ dteMax: +e.target.value })} style={inputStyle} /></label>
+          <label style={labelStyle}>Min bid <input type="number" value={customCfg.minBid} step={0.01} min={0.01} max={5} onChange={e => updateCustom({ minBid: +e.target.value })} style={inputStyle} /></label>
         </div>
-      )}
+
+        {/* ── Custom tickers ──────────────────────────────────────────────────── */}
+        {customTickers.length > 0 && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flexShrink: 0, alignItems: 'center' }}>
+            <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif" }}>CUSTOM:</span>
+            {customTickers.map(sym => (
+              <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid rgba(16,185,129,0.2)', color: 'var(--accent)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
+                {sym} <span style={{ color: 'var(--text-4)', fontSize: 8 }}>&times;</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* ── Error ───────────────────────────────────────────────────────────── */}
       {error && <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f43f5e', fontSize: 12, flexShrink: 0 }}><AlertCircle size={13} />{error}</div>}
@@ -295,7 +309,7 @@ export default function OpportunitiesView({ state }: Props) {
 
       {/* ── Card grid ───────────────────────────────────────────────────────── */}
       {scanned && cards.length > 0 && (
-        <div style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'start', justifyContent: 'center' }}>
+        <div onScroll={handleResultsScroll} style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'start', justifyContent: 'center' }}>
           {cards.map((card, idx) => {
             const isCollapsed = collapsed.has(card.symbol)
             const hasData = card.topCsp.length > 0 || card.topCc.length > 0

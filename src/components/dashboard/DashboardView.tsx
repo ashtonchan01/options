@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { AppState, Action, UrgencyLevel, StrategyType, RawTrade } from '../../types'
 import type { TradeLabels } from '../../App'
 import { tradeId } from '../../store/tradeLabelsStore'
@@ -390,35 +391,48 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
   }
   const TDR = { ...TD, textAlign: 'right' as const }
 
+  const [topCollapsed, setTopCollapsed] = useState(false)
+  function handleContentScroll(e: React.UIEvent<HTMLDivElement>) {
+    setTopCollapsed(e.currentTarget.scrollTop > 24)
+  }
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-      {/* ── Key metrics ── */}
+      {/* ── Collapsible: key metrics + income channels (hides while scrolling) ── */}
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 0, flexShrink: 0, borderBottom: '1px solid var(--border)',
+        flexShrink: 0, overflow: 'hidden',
+        maxHeight: topCollapsed ? 0 : 220,
+        opacity: topCollapsed ? 0 : 1,
+        transition: 'max-height 0.22s ease, opacity 0.18s ease',
       }}>
-        {[
-          { label: 'Net Liquidation', value: fmtDollar(netLiq), color: 'var(--text-1)' },
-          { label: 'Unrealized P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
-          { label: 'Realized P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
-          { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
-        ].map(({ label, value, color }, i, arr) => (
-          <div key={label} style={{
-            padding: '12px 20px',
-            borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
-          }}>
-            <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
-          </div>
-        ))}
+        {/* ── Key metrics ── */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 0, borderBottom: '1px solid var(--border)',
+        }}>
+          {[
+            { label: 'Net Liquidation', value: fmtDollar(netLiq), color: 'var(--text-1)' },
+            { label: 'Unrealized P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
+            { label: 'Realized P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
+            { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
+          ].map(({ label, value, color }, i, arr) => (
+            <div key={label} style={{
+              padding: '12px 20px',
+              borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+            }}>
+              <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Income channels ── */}
+        <IncomeChannelStrip trades={trades} labels={labels} symbolToStratType={symbolToStratType} />
       </div>
 
-      {/* ── Income channels ── */}
-      <IncomeChannelStrip trades={trades} labels={labels} symbolToStratType={symbolToStratType} />
-
       {/* ── Scrollable content ── */}
-      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0 }}>
+      <div onScroll={handleContentScroll} style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0 }}>
 
         {/* Stocks */}
         {stocks.length > 0 && (
