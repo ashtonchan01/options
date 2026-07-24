@@ -3,8 +3,8 @@
   "short_name": "Options",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f3f6fc",
-  "theme_color": "#1c2a4f",
+  "background_color": "#121215",
+  "theme_color": "#0a0a0c",
   "icons": [
     {
       "src": "/icon-192.png",

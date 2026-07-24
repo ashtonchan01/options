@@ -55,51 +55,52 @@
 }
 
 [data-theme="dark"] {
-  /* ── Night: deep navy + muted steel blue ── */
-  --bg-page:     #10182f;
-  --bg-surface:  #141d3a;
-  --bg-sidebar:  #0b1226;
-  --bg-card:     #182347;
-  --bg-elevated: #1e2a54;
-  --bg-active:   #263061;
-  --border:       rgba(140, 160, 220, 0.11);
-  --border-light: rgba(140, 160, 220, 0.20);
-  --text-1: #dde1f2;
-  --text-2: #b0b9d8;
-  --text-3: #8590b3;
-  --text-4: #5f6a8d;
-  --text-5: #38416a;
-  --scrollbar: rgba(140, 160, 220, 0.22);
-  --scrollbar-hover: rgba(140, 160, 220, 0.38);
-  --overlay: rgba(4, 8, 24, 0.68);
-  /* Brand accent — muted steel blue */
-  --accent:        #6f8fdb;
-  --accent-dim:    rgba(111, 143, 219, 0.14);
-  --accent-glow:   rgba(111, 143, 219, 0.07);
-  --accent-border: rgba(111, 143, 219, 0.30);
-  --signature:      #8ea3e0;
-  --signature-dim:  rgba(142, 163, 224, 0.14);
-  --signature-glow: rgba(142, 163, 224, 0.28);
-  /* Sidebar (same navy family as page) */
-  --sb-bg:        #0b1226;
-  --sb-hover:     rgba(142, 163, 224, 0.07);
-  --sb-active:    rgba(142, 163, 224, 0.14);
-  --sb-border:    rgba(140, 160, 220, 0.09);
-  --sb-text:      #d5daf0;
-  --sb-text-dim:  #8590b3;
-  --sb-text-faint:#525d84;
-  --sb-accent:    #9db1e8;
-  --grid-dot: rgba(142, 163, 224, 0.045);
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.22);
+  /* ── Night: neutral carbon + Solana green/purple ── */
+  --bg-page:     #121215;
+  --bg-surface:  #18181c;
+  --bg-sidebar:  #0a0a0c;
+  --bg-card:     #1c1c21;
+  --bg-elevated: #242429;
+  --bg-active:   #2e2e35;
+  --border:       rgba(255, 255, 255, 0.08);
+  --border-light: rgba(255, 255, 255, 0.16);
+  --text-1: #ececef;
+  --text-2: #c0c0c6;
+  --text-3: #8f8f98;
+  --text-4: #64646c;
+  --text-5: #3a3a40;
+  --scrollbar: rgba(255, 255, 255, 0.15);
+  --scrollbar-hover: rgba(255, 255, 255, 0.28);
+  --overlay: rgba(0, 0, 0, 0.70);
+  /* Brand accent — Solana green */
+  --accent:        #14f195;
+  --accent-dim:    rgba(20, 241, 149, 0.13);
+  --accent-glow:   rgba(20, 241, 149, 0.08);
+  --accent-border: rgba(20, 241, 149, 0.30);
+  /* Signature — Solana purple, the brand/active-state color */
+  --signature:      #b26bff;
+  --signature-dim:  rgba(153, 69, 255, 0.16);
+  --signature-glow: rgba(153, 69, 255, 0.35);
+  /* Sidebar — neutral black rail */
+  --sb-bg:        #0a0a0c;
+  --sb-hover:     rgba(153, 69, 255, 0.08);
+  --sb-active:    rgba(153, 69, 255, 0.16);
+  --sb-border:    rgba(255, 255, 255, 0.07);
+  --sb-text:      #ececef;
+  --sb-text-dim:  #8f8f98;
+  --sb-text-faint:#565660;
+  --sb-accent:    #b26bff;
+  --grid-dot: rgba(153, 69, 255, 0.05);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.28);
   /* Loss / warn */
   --pink:        #ef4444;
   --pink-dim:    rgba(239, 68, 68, 0.10);
   --gold:        #f59e0b;
   --gold-dim:    rgba(245, 158, 11, 0.10);
   /* Palette */
-  --neon-cyan:   #6f8fdb;
+  --neon-cyan:   #14f195;
   --neon-pink:   #ef4444;
-  --neon-green:  #10b981;
+  --neon-green:  #14f195;
   --neon-amber:  #f59e0b;
 }
 
@@ -1076,7 +1077,7 @@ body {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #6f8fdb, #2e3f7a);
+  background: linear-gradient(135deg, #14f195, #9945ff);
   box-shadow: 0 0 16px var(--signature-glow);
   display: flex;
   align-items: center;
