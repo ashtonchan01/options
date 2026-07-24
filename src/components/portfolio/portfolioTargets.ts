@@ -17,7 +17,7 @@ export const PORTFOLIO_TARGETS: TickerTarget[] = [
   { ticker: 'ARM',   ath: 237.30,     priceTarget2026: 114.00,    cagr: 0.14,   atr1: 100,      atr2: 80,       targetShares: 500,    targetReqShares: 100,  rrContracts: 0,  category: 'stock' },
   { ticker: 'ASML',  ath: 1544.74,    priceTarget2026: 1218.49,   cagr: 0.1946, atr1: 1020,     atr2: 950,      targetShares: 100,    targetReqShares: 10,   rrContracts: 0,  category: 'stock' },
   { ticker: 'AVGO',  ath: 425.44,     priceTarget2026: 376.80,    cagr: 0.256,  atr1: 300,      atr2: 260,      targetShares: 500,    targetReqShares: 100,  rrContracts: 0,  category: 'stock' },
-  { ticker: 'GOOG',  ath: 395.07,     priceTarget2026: 369.68,    cagr: 0.1925, atr1: 310,      atr2: 297,      targetShares: 500,    targetReqShares: 100,  rrContracts: 0,  category: 'stock' },
+  { ticker: 'GOOGL', ath: 395.07,     priceTarget2026: 369.68,    cagr: 0.1925, atr1: 310,      atr2: 297,      targetShares: 500,    targetReqShares: 100,  rrContracts: 0,  category: 'stock' },
   { ticker: 'MRVL',  ath: 172.15,     priceTarget2026: 88.46,     cagr: 0.164,  atr1: 76,       atr2: 66,       targetShares: 500,    targetReqShares: 100,  rrContracts: 0,  category: 'stock' },
   { ticker: 'MU',    ath: 666.80,     priceTarget2026: 321.37,    cagr: 0.1276, atr1: 285,      atr2: 240,      targetShares: 500,    targetReqShares: 100,  rrContracts: 0,  category: 'stock' },
   { ticker: 'NVDA',  ath: 207.67,     priceTarget2026: 246.09,    cagr: 0.4062, atr1: 175,      atr2: 130,      targetShares: 2000,   targetReqShares: 300,  rrContracts: 0,  category: 'stock' },
