@@ -54,6 +54,10 @@ const CUSTOM_TICKERS_KEY = 'options:custom_tickers'
 function loadCustomTickers(): string[] { try { return JSON.parse(localStorage.getItem(CUSTOM_TICKERS_KEY) || '[]') } catch { return [] } }
 function saveCustomTickers(t: string[]) { localStorage.setItem(CUSTOM_TICKERS_KEY, JSON.stringify(t)) }
 
+const REMOVED_TICKERS_KEY = 'options:removed_tickers'
+function loadRemovedTickers(): string[] { try { return JSON.parse(localStorage.getItem(REMOVED_TICKERS_KEY) || '[]') } catch { return [] } }
+function saveRemovedTickers(t: string[]) { localStorage.setItem(REMOVED_TICKERS_KEY, JSON.stringify(t)) }
+
 // ─── Ticker card data ─────────────────────────────────────────────────────────
 
 interface TickerCard {
@@ -147,6 +151,7 @@ export default function OpportunitiesView({ state }: Props) {
   const [scanProgress,  setScanProgress] = useState('')
   const [collapsed,     setCollapsed]    = useState<Set<string>>(new Set())
   const [customTickers, setCustomTickers]= useState<string[]>(loadCustomTickers)
+  const [removedTickers, setRemovedTickers] = useState<string[]>(loadRemovedTickers)
   const [tickerInput,   setTickerInput]  = useState('')
   const [customCfg,     setCustomCfg]    = useState<ModeConfig>(loadCustomCfg)
   const [topCollapsed,  setTopCollapsed] = useState(false)
@@ -167,14 +172,16 @@ export default function OpportunitiesView({ state }: Props) {
   }, [state.sync.positions])
 
   const tickers = useMemo(() => {
+    const removed = new Set(removedTickers)
     const set = new Set<string>([...WATCHLIST, ...customTickers])
     const SKIP = new Set(['SPX','SPY','QQQ','IWM','DIA','VIX'])
     for (const p of state.sync.positions) {
       const sym = p.underlyingSymbol ?? (p.assetClass === 'STK' ? p.symbol : null)
       if (sym && !SKIP.has(sym)) set.add(sym)
     }
+    for (const r of removed) set.delete(r)
     return [...set].sort()
-  }, [state.sync.positions, customTickers])
+  }, [state.sync.positions, customTickers, removedTickers])
 
   const filtered = useMemo(() => filterByMode(results, customCfg), [results, customCfg])
   const cards    = useMemo(() => buildCards(filtered, tickers),    [filtered, tickers])
@@ -184,11 +191,25 @@ export default function OpportunitiesView({ state }: Props) {
   }
   function addTicker() {
     const sym = tickerInput.trim().toUpperCase()
-    if (!sym || customTickers.includes(sym) || (WATCHLIST as readonly string[]).includes(sym)) return
-    const next = [...customTickers, sym]; setCustomTickers(next); saveCustomTickers(next); setTickerInput('')
+    if (!sym) return
+    // If it was previously removed, un-remove it (covers default watchlist + position tickers)
+    if (removedTickers.includes(sym)) {
+      const nextRemoved = removedTickers.filter(t => t !== sym)
+      setRemovedTickers(nextRemoved); saveRemovedTickers(nextRemoved)
+    }
+    // If it's genuinely new (not default watchlist, not already custom), add as custom
+    if (!customTickers.includes(sym) && !(WATCHLIST as readonly string[]).includes(sym)) {
+      const next = [...customTickers, sym]; setCustomTickers(next); saveCustomTickers(next)
+    }
+    setTickerInput('')
   }
   function removeTicker(sym: string) {
-    const next = customTickers.filter(t => t !== sym); setCustomTickers(next); saveCustomTickers(next)
+    // Custom tickers: drop them outright. Default watchlist / position tickers: mark removed.
+    if (customTickers.includes(sym)) {
+      const next = customTickers.filter(t => t !== sym); setCustomTickers(next); saveCustomTickers(next)
+    } else if (!removedTickers.includes(sym)) {
+      const next = [...removedTickers, sym]; setRemovedTickers(next); saveRemovedTickers(next)
+    }
   }
 
   async function handleScan() {
@@ -240,7 +261,7 @@ export default function OpportunitiesView({ state }: Props) {
       {/* ── Collapsible: params + custom tickers (hides while scrolling results) ── */}
       <div style={{
         flexShrink: 0, overflow: 'hidden',
-        maxHeight: topCollapsed ? 0 : 120,
+        maxHeight: topCollapsed ? 0 : 190,
         opacity: topCollapsed ? 0 : 1,
         transition: 'max-height 0.22s ease, opacity 0.18s ease',
         display: 'flex', flexDirection: 'column', gap: 10,
@@ -255,17 +276,29 @@ export default function OpportunitiesView({ state }: Props) {
           <label style={labelStyle}>Min bid <input type="number" value={customCfg.minBid} step={0.01} min={0.01} max={5} onChange={e => updateCustom({ minBid: +e.target.value })} style={inputStyle} /></label>
         </div>
 
-        {/* ── Custom tickers ──────────────────────────────────────────────────── */}
-        {customTickers.length > 0 && (
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flexShrink: 0, alignItems: 'center' }}>
-            <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif" }}>CUSTOM:</span>
-            {customTickers.map(sym => (
-              <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', color: 'var(--accent)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
+        {/* ── Tickers (add/remove) ────────────────────────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif" }}>
+              TICKERS ({tickers.length}):
+            </span>
+            {tickers.map(sym => (
+              <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, background: customTickers.includes(sym) ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${customTickers.includes(sym) ? 'var(--accent-border)' : 'var(--border)'}`, color: customTickers.includes(sym) ? 'var(--accent)' : 'var(--text-2)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
                 {sym} <span style={{ color: 'var(--text-4)', fontSize: 8 }}>&times;</span>
               </button>
             ))}
           </div>
-        )}
+          {removedTickers.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif" }}>REMOVED:</span>
+              {removedTickers.map(sym => (
+                <button key={sym} onClick={() => { setTickerInput(sym); addTicker() }} title="Add back" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, background: 'transparent', border: '1px dashed var(--border-light)', color: 'var(--text-4)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
+                  {sym} <span style={{ fontSize: 9 }}>+</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Error ───────────────────────────────────────────────────────────── */}
