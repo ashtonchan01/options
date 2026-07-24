@@ -261,7 +261,7 @@ export default function OpportunitiesView({ state }: Props) {
       {/* ── Collapsible: params + custom tickers (hides while scrolling results) ── */}
       <div style={{
         flexShrink: 0, overflow: 'hidden',
-        maxHeight: topCollapsed ? 0 : 190,
+        maxHeight: topCollapsed ? 0 : 130,
         opacity: topCollapsed ? 0 : 1,
         transition: 'max-height 0.22s ease, opacity 0.18s ease',
         display: 'flex', flexDirection: 'column', gap: 10,
@@ -277,22 +277,22 @@ export default function OpportunitiesView({ state }: Props) {
         </div>
 
         {/* ── Tickers (add/remove) ────────────────────────────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif" }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, minWidth: 0 }}>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 2 }}>
+            <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif", flexShrink: 0 }}>
               TICKERS ({tickers.length}):
             </span>
             {tickers.map(sym => (
-              <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, background: customTickers.includes(sym) ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${customTickers.includes(sym) ? 'var(--accent-border)' : 'var(--border)'}`, color: customTickers.includes(sym) ? 'var(--accent)' : 'var(--text-2)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
+              <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap', background: customTickers.includes(sym) ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${customTickers.includes(sym) ? 'var(--accent-border)' : 'var(--border)'}`, color: customTickers.includes(sym) ? 'var(--accent)' : 'var(--text-2)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
                 {sym} <span style={{ color: 'var(--text-4)', fontSize: 8 }}>&times;</span>
               </button>
             ))}
           </div>
           {removedTickers.length > 0 && (
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif" }}>REMOVED:</span>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 2 }}>
+              <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif", flexShrink: 0 }}>REMOVED:</span>
               {removedTickers.map(sym => (
-                <button key={sym} onClick={() => { setTickerInput(sym); addTicker() }} title="Add back" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, background: 'transparent', border: '1px dashed var(--border-light)', color: 'var(--text-4)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
+                <button key={sym} onClick={() => { setTickerInput(sym); addTicker() }} title="Add back" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap', background: 'transparent', border: '1px dashed var(--border-light)', color: 'var(--text-4)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
                   {sym} <span style={{ fontSize: 9 }}>+</span>
                 </button>
               ))}
