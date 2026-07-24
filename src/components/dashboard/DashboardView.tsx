@@ -80,13 +80,25 @@ function ActionsSidebar({ state }: { state: AppState }) {
 
   return (
     <aside className="db-sidebar">
-      <div className="db-sidebar-header">
-        Actions &amp; To-Do
-        {actions.length > 0 && (
-          <span className="top-nav-badge" style={{ marginLeft: 6 }}>
-            {actions.length > 9 ? '9+' : actions.length}
-          </span>
-        )}
+      <div className="db-sidebar-header" style={{ flexWrap: 'wrap', rowGap: 6, paddingBottom: actions.length > 0 ? 10 : 12 }}>
+        <span>Actions &amp; To-Do</span>
+        <div style={{ display: 'flex', gap: 5, marginLeft: 'auto' }}>
+          {URGENCY_ORDER.map(u => {
+            const n = byUrgency[u].length
+            if (n === 0) return null
+            const cfg = URGENCY_CONFIG[u]
+            return (
+              <span key={u} title={cfg.label} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+                fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.color}33`,
+                fontFamily: 'Inter, sans-serif',
+              }}>
+                {n}
+              </span>
+            )
+          })}
+        </div>
       </div>
 
       <div className="db-sidebar-body">
@@ -96,83 +108,94 @@ function ActionsSidebar({ state }: { state: AppState }) {
           </div>
         )}
 
-        {URGENCY_ORDER.map(u => {
-          const cfg   = URGENCY_CONFIG[u]
-          const items = byUrgency[u]
-          if (items.length === 0) return null
-          return (
-            <div key={u} className="db-urgency-group">
-              <div className="db-urgency-label" style={{ color: cfg.color, borderBottom: `1px solid ${cfg.color}33` }}>
-                {cfg.label}
-                <span style={{ background: cfg.bg, border: `1px solid ${cfg.color}33`, padding: '0 5px', fontSize: 10, marginLeft: 6 }}>
-                  {items.length}
-                </span>
+        <div className="db-actions-grid">
+          {URGENCY_ORDER.map(u => {
+            const cfg   = URGENCY_CONFIG[u]
+            const items = byUrgency[u]
+            if (items.length === 0) return null
+            return (
+              <div key={u} className="db-urgency-group">
+                <div className="db-urgency-label" style={{ color: cfg.color, borderBottom: `1px solid ${cfg.color}33` }}>
+                  {cfg.label}
+                  <span style={{ background: cfg.bg, border: `1px solid ${cfg.color}33`, padding: '0 5px', fontSize: 10, marginLeft: 6, borderRadius: 3 }}>
+                    {items.length}
+                  </span>
+                </div>
+                <div className="db-action-card-list">
+                  {items.map(a => {
+                    const aColor = ACTION_COLOR[a.actionType]
+                    const sColor = STRAT_COLOR[a.strategyType]
+                    return (
+                      <div key={a.id} className="db-action-card" style={{ borderLeft: `3px solid ${cfg.color}`, background: `linear-gradient(90deg, ${cfg.color}09, var(--bg-card) 14%)` }}>
+                        {/* Ticker + action badge + strategy */}
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 9, fontWeight: 800, width: 20, height: 20, borderRadius: 5,
+                            color: aColor, background: `${aColor}1c`, border: `1px solid ${aColor}40`, flexShrink: 0,
+                          }}>
+                            {a.actionType === 'close' ? '×' : a.actionType === 'roll' ? '↻' : a.actionType === 'open' ? '+' : '◎'}
+                          </span>
+                          <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)' }}>
+                            {a.underlying}
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', color: sColor, background: `${sColor}14`, border: `1px solid ${sColor}30`, borderRadius: 3 }}>
+                            {STRAT_LABEL[a.strategyType]}
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', color: aColor, background: `${aColor}14`, border: `1px solid ${aColor}30`, borderRadius: 3, marginLeft: 'auto' }}>
+                            {ACTION_LABEL[a.actionType]}
+                          </span>
+                        </div>
+                        {/* Position identifier — which exact position */}
+                        {a.legSummary && (
+                          <div style={{
+                            fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600,
+                            color: cfg.color, background: `${cfg.color}10`,
+                            border: `1px solid ${cfg.color}28`, borderRadius: 4,
+                            padding: '2px 6px', marginBottom: 5, display: 'inline-block',
+                          }}>
+                            {a.legSummary}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-1)', lineHeight: 1.4, marginBottom: 2 }}>
+                          {a.reason}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.4 }}>
+                          {a.details}
+                        </div>
+                        {/* Suggested params */}
+                        {(a.suggestedStrike || a.suggestedExpiry || a.suggestedDelta || a.estimatedCredit != null) && (
+                          <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap', paddingTop: 6, borderTop: '1px solid var(--border)' }}>
+                            {a.suggestedStrike && (
+                              <span style={{ fontSize: 10, fontFamily: 'Inter, sans-serif', color: 'var(--text-4)' }}>
+                                strike <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>${a.suggestedStrike}</span>
+                              </span>
+                            )}
+                            {a.suggestedDelta && (
+                              <span style={{ fontSize: 10, fontFamily: 'Inter, sans-serif', color: 'var(--text-4)' }}>
+                                δ <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>{a.suggestedDelta.toFixed(2)}</span>
+                              </span>
+                            )}
+                            {a.suggestedExpiry && (
+                              <span style={{ fontSize: 10, fontFamily: 'Inter, sans-serif', color: 'var(--text-4)' }}>
+                                exp <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>{a.suggestedExpiry}</span>
+                              </span>
+                            )}
+                            {a.estimatedCredit != null && (
+                              <span style={{ fontSize: 10, fontFamily: 'Inter, sans-serif', color: '#10b981', fontWeight: 700, marginLeft: 'auto' }}>
+                                est. ${a.estimatedCredit.toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-              {items.map(a => {
-                const aColor = ACTION_COLOR[a.actionType]
-                const sColor = STRAT_COLOR[a.strategyType]
-                return (
-                  <div key={a.id} className="db-action-card" style={{ borderLeft: `3px solid ${cfg.color}` }}>
-                    {/* Ticker + strategy + action */}
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)' }}>
-                        {a.underlying}
-                      </span>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', color: sColor, background: `${sColor}14`, border: `1px solid ${sColor}30` }}>
-                        {STRAT_LABEL[a.strategyType]}
-                      </span>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', color: aColor, background: `${aColor}14`, border: `1px solid ${aColor}30` }}>
-                        {ACTION_LABEL[a.actionType]}
-                      </span>
-                    </div>
-                    {/* Position identifier — which exact position */}
-                    {a.legSummary && (
-                      <div style={{
-                        fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600,
-                        color: cfg.color, background: `${cfg.color}10`,
-                        border: `1px solid ${cfg.color}28`, borderRadius: 4,
-                        padding: '2px 6px', marginBottom: 5, display: 'inline-block',
-                      }}>
-                        {a.legSummary}
-                      </div>
-                    )}
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-1)', lineHeight: 1.4, marginBottom: 2 }}>
-                      {a.reason}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.4 }}>
-                      {a.details}
-                    </div>
-                    {/* Suggested params */}
-                    {(a.suggestedStrike || a.suggestedExpiry || a.suggestedDelta || a.estimatedCredit != null) && (
-                      <div style={{ display: 'flex', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
-                        {a.suggestedStrike && (
-                          <span style={{ fontSize: 10, fontFamily: 'Inter, sans-serif', color: 'var(--text-4)' }}>
-                            strike <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>${a.suggestedStrike}</span>
-                          </span>
-                        )}
-                        {a.suggestedDelta && (
-                          <span style={{ fontSize: 10, fontFamily: 'Inter, sans-serif', color: 'var(--text-4)' }}>
-                            δ <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>{a.suggestedDelta.toFixed(2)}</span>
-                          </span>
-                        )}
-                        {a.suggestedExpiry && (
-                          <span style={{ fontSize: 10, fontFamily: 'Inter, sans-serif', color: 'var(--text-4)' }}>
-                            exp <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>{a.suggestedExpiry}</span>
-                          </span>
-                        )}
-                        {a.estimatedCredit != null && (
-                          <span style={{ fontSize: 10, fontFamily: 'Inter, sans-serif', color: '#10b981', fontWeight: 700 }}>
-                            est. ${a.estimatedCredit.toFixed(2)}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
     </aside>
   )
@@ -609,7 +632,7 @@ export default function DashboardView({ state, tradeLabels }: Props) {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
         <div className="db-root" style={{ flex: 1 }}>
-          <div className="db-main" style={{ flex: 1, overflow: 'auto' }}>
+          <div className="db-main" style={{ flex: 1 }}>
             <ActualPortfolio state={state} labels={labels} />
           </div>
           <ActionsSidebar state={state} />
