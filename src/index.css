@@ -5,99 +5,99 @@
 
 :root,
 [data-theme="light"] {
-  /* ── Day: blue-tinted white + cobalt ── */
-  --bg-page:     #f3f6fc;
-  --bg-surface:  #ffffff;
-  --bg-sidebar:  #0d1b45;
-  --bg-card:     #ffffff;
-  --bg-elevated: #eaf0fa;
-  --bg-active:   #dde7f8;
-  --border:       rgba(23, 51, 120, 0.10);
-  --border-light: rgba(23, 51, 120, 0.20);
-  --text-1: #131c33;
-  --text-2: #364260;
-  --text-3: #5e6b8c;
-  --text-4: #8e9ab4;
-  --text-5: #c6cfe2;
-  --scrollbar: rgba(23, 51, 120, 0.20);
-  --scrollbar-hover: rgba(23, 51, 120, 0.35);
-  --overlay: rgba(10, 18, 45, 0.35);
-  /* Brand accent — cobalt */
-  --accent:        #2b6cff;
-  --accent-dim:    rgba(43, 108, 255, 0.10);
-  --accent-glow:   rgba(43, 108, 255, 0.06);
-  --accent-border: rgba(43, 108, 255, 0.30);
-  --signature:      #2b6cff;
-  --signature-dim:  rgba(43, 108, 255, 0.10);
-  --signature-glow: rgba(43, 108, 255, 0.28);
-  /* Two-tone sidebar (navy rail on light page) */
-  --sb-bg:        #0d1b45;
-  --sb-hover:     rgba(255, 255, 255, 0.07);
-  --sb-active:    rgba(120, 158, 255, 0.20);
-  --sb-border:    rgba(255, 255, 255, 0.09);
-  --sb-text:      #edf2ff;
-  --sb-text-dim:  #9fb0d8;
-  --sb-text-faint:#6a7ba8;
-  --sb-accent:    #9db9ff;
+  /* ── Day: muted blue-grey + soft ivory-white ── */
+  --bg-page:     #eef1f7;
+  --bg-surface:  #f8f9fc;
+  --bg-sidebar:  #1c2a4f;
+  --bg-card:     #f8f9fc;
+  --bg-elevated: #e6eaf3;
+  --bg-active:   #dbe1ef;
+  --border:       rgba(41, 58, 102, 0.10);
+  --border-light: rgba(41, 58, 102, 0.18);
+  --text-1: #24304d;
+  --text-2: #465270;
+  --text-3: #6b7592;
+  --text-4: #939cb5;
+  --text-5: #c4cadc;
+  --scrollbar: rgba(41, 58, 102, 0.18);
+  --scrollbar-hover: rgba(41, 58, 102, 0.30);
+  --overlay: rgba(20, 28, 55, 0.32);
+  /* Brand accent — muted steel blue */
+  --accent:        #4a72d4;
+  --accent-dim:    rgba(74, 114, 212, 0.10);
+  --accent-glow:   rgba(74, 114, 212, 0.05);
+  --accent-border: rgba(74, 114, 212, 0.26);
+  --signature:      #4a72d4;
+  --signature-dim:  rgba(74, 114, 212, 0.10);
+  --signature-glow: rgba(74, 114, 212, 0.22);
+  /* Two-tone sidebar (muted navy rail on soft page) */
+  --sb-bg:        #1c2a4f;
+  --sb-hover:     rgba(255, 255, 255, 0.06);
+  --sb-active:    rgba(148, 174, 235, 0.18);
+  --sb-border:    rgba(255, 255, 255, 0.08);
+  --sb-text:      #e4e9f7;
+  --sb-text-dim:  #a3aecb;
+  --sb-text-faint:#717ea3;
+  --sb-accent:    #9db3e8;
   /* Spreadsheet dot grid + card shadow */
-  --grid-dot: rgba(43, 108, 255, 0.09);
-  --shadow-card: 0 1px 2px rgba(19, 40, 99, 0.06), 0 6px 20px rgba(19, 40, 99, 0.07);
+  --grid-dot: rgba(41, 58, 102, 0.06);
+  --shadow-card: 0 1px 2px rgba(28, 42, 79, 0.05), 0 6px 18px rgba(28, 42, 79, 0.05);
   /* Loss / warn */
   --pink:        #ef4444;
   --pink-dim:    rgba(239, 68, 68, 0.10);
   --gold:        #d97706;
   --gold-dim:    rgba(217, 119, 6, 0.10);
   /* Palette */
-  --neon-cyan:   #2b6cff;
+  --neon-cyan:   #4a72d4;
   --neon-pink:   #ef4444;
   --neon-green:  #10b981;
   --neon-amber:  #f59e0b;
 }
 
 [data-theme="dark"] {
-  /* ── Night: deep navy + electric blue ── */
-  --bg-page:     #0a1128;
-  --bg-surface:  #0e1836;
-  --bg-sidebar:  #081026;
-  --bg-card:     #142147;
-  --bg-elevated: #1b2b5c;
-  --bg-active:   #243770;
-  --border:       rgba(146, 172, 255, 0.13);
-  --border-light: rgba(146, 172, 255, 0.24);
-  --text-1: #e9eeff;
-  --text-2: #bcc9ee;
-  --text-3: #8c9dc9;
-  --text-4: #64749f;
-  --text-5: #3b4870;
-  --scrollbar: rgba(146, 172, 255, 0.25);
-  --scrollbar-hover: rgba(146, 172, 255, 0.45);
-  --overlay: rgba(4, 8, 24, 0.72);
-  /* Brand accent — electric blue */
-  --accent:        #5b8dff;
-  --accent-dim:    rgba(91, 141, 255, 0.14);
-  --accent-glow:   rgba(91, 141, 255, 0.08);
-  --accent-border: rgba(91, 141, 255, 0.35);
-  --signature:      #7ea6ff;
-  --signature-dim:  rgba(126, 166, 255, 0.15);
-  --signature-glow: rgba(126, 166, 255, 0.35);
+  /* ── Night: deep navy + muted steel blue ── */
+  --bg-page:     #10182f;
+  --bg-surface:  #141d3a;
+  --bg-sidebar:  #0b1226;
+  --bg-card:     #182347;
+  --bg-elevated: #1e2a54;
+  --bg-active:   #263061;
+  --border:       rgba(140, 160, 220, 0.11);
+  --border-light: rgba(140, 160, 220, 0.20);
+  --text-1: #dde1f2;
+  --text-2: #b0b9d8;
+  --text-3: #8590b3;
+  --text-4: #5f6a8d;
+  --text-5: #38416a;
+  --scrollbar: rgba(140, 160, 220, 0.22);
+  --scrollbar-hover: rgba(140, 160, 220, 0.38);
+  --overlay: rgba(4, 8, 24, 0.68);
+  /* Brand accent — muted steel blue */
+  --accent:        #6f8fdb;
+  --accent-dim:    rgba(111, 143, 219, 0.14);
+  --accent-glow:   rgba(111, 143, 219, 0.07);
+  --accent-border: rgba(111, 143, 219, 0.30);
+  --signature:      #8ea3e0;
+  --signature-dim:  rgba(142, 163, 224, 0.14);
+  --signature-glow: rgba(142, 163, 224, 0.28);
   /* Sidebar (same navy family as page) */
-  --sb-bg:        #081026;
-  --sb-hover:     rgba(126, 166, 255, 0.08);
-  --sb-active:    rgba(126, 166, 255, 0.16);
-  --sb-border:    rgba(146, 172, 255, 0.10);
-  --sb-text:      #e9eeff;
-  --sb-text-dim:  #8c9dc9;
-  --sb-text-faint:#5b6a94;
-  --sb-accent:    #8fb3ff;
-  --grid-dot: rgba(126, 166, 255, 0.05);
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --sb-bg:        #0b1226;
+  --sb-hover:     rgba(142, 163, 224, 0.07);
+  --sb-active:    rgba(142, 163, 224, 0.14);
+  --sb-border:    rgba(140, 160, 220, 0.09);
+  --sb-text:      #d5daf0;
+  --sb-text-dim:  #8590b3;
+  --sb-text-faint:#525d84;
+  --sb-accent:    #9db1e8;
+  --grid-dot: rgba(142, 163, 224, 0.045);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.22);
   /* Loss / warn */
   --pink:        #ef4444;
   --pink-dim:    rgba(239, 68, 68, 0.10);
   --gold:        #f59e0b;
   --gold-dim:    rgba(245, 158, 11, 0.10);
   /* Palette */
-  --neon-cyan:   #5b8dff;
+  --neon-cyan:   #6f8fdb;
   --neon-pink:   #ef4444;
   --neon-green:  #10b981;
   --neon-amber:  #f59e0b;
@@ -1076,7 +1076,7 @@ body {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #5b8dff, #2140c9);
+  background: linear-gradient(135deg, #6f8fdb, #2e3f7a);
   box-shadow: 0 0 16px var(--signature-glow);
   display: flex;
   align-items: center;
