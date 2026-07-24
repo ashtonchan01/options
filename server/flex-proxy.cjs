@@ -152,7 +152,47 @@ async function handleQuotes(res, symbols) {
   sendJson(res, 200, prices)
 }
 
-const server = http.createServer(async (req, res) => {
+// ─── Live trades via IBKR Client Portal Web API (requires IB Gateway running) ──
+// CP Gateway default: https://localhost:5000/v1/api — self-signed cert, so we
+// must disable cert verification for this local-only call.
+const https_ = require('https')
+const cpAgent = new https_.Agent({ rejectUnauthorized: false })
+const CP_GATEWAY = process.env.CP_GATEWAY_URL || 'https://localhost:5000/v1/api'
+
+async function handleLiveTrades(res) {
+  try {
+    const r = await fetch(`${CP_GATEWAY}/iserver/account/trades`, { agent: cpAgent })
+    if (!r.ok) {
+      const text = await r.text()
+      return sendJson(res, r.status, { error: `CP Gateway ${r.status}`, raw: text.slice(0, 300) })
+    }
+    const trades = await r.json()
+    // Normalize into a lightweight shape the frontend expects.
+    // NOTE: CPAPI trades do not include strike/expiry/putCall directly — only
+    // conid + a human order_description string. We surface them as "recent
+    // activity" (informational + staleness flag), not as structured RawTrade
+    // rows for the classifier/journal, which still relies on Flex.
+    const normalized = (Array.isArray(trades) ? trades : []).map(t => ({
+      tradeId:     t.trade_id ?? t.execution_id ?? '',
+      symbol:      t.symbol ?? '',
+      description: t.order_description ?? t.description ?? '',
+      secType:     t.sec_type ?? t.secType ?? '',
+      side:        t.side ?? '',
+      size:        Number(t.size ?? 0),
+      price:       Number(t.price ?? 0),
+      commission:  Number(t.commission ?? 0),
+      netAmount:   Number(t.net_amount ?? 0),
+      realizedPnl: Number(t.realized_pnl ?? 0),
+      tradeTime:   t.trade_time ?? t.trade_time_r ?? '',
+      exchange:    t.exchange ?? '',
+    }))
+    sendJson(res, 200, { trades: normalized })
+  } catch (e) {
+    sendJson(res, 502, { error: `CP Gateway unreachable: ${e.message}. Is IB Gateway running and logged in on localhost:5000?` })
+  }
+}
+
+
   const url = new URL(req.url, `http://localhost:${PORT}`)
 
   if (req.method === 'OPTIONS') {
@@ -179,6 +219,10 @@ const server = http.createServer(async (req, res) => {
     return await handleQuotes(res, url.searchParams.get('symbols'))
   }
 
+  if (url.pathname === '/live/trades') {
+    return await handleLiveTrades(res)
+  }
+
   sendJson(res, 404, { error: 'Not found' })
 })
 
@@ -186,4 +230,5 @@ server.listen(PORT, () => {
   console.log(`[flex-proxy] Listening on http://localhost:${PORT}`)
   console.log(`[flex-proxy] Token: ${FLEX_TOKEN ? '✓ set' : '✗ missing'}`)
   console.log(`[flex-proxy] Query: ${QUERY_ID ? '✓ set (' + QUERY_ID + ')' : '✗ missing'}`)
+  console.log(`[flex-proxy] Live trades: GET /live/trades (needs IB Gateway logged in at ${CP_GATEWAY})`)
 })

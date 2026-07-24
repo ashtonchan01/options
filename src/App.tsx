@@ -3,6 +3,7 @@ import Sidebar, { type TabId } from './components/layout/Sidebar'
 import FlexSettingsPanel from './components/shared/FlexSettingsPanel'
 import { useAppStore } from './store/appStore'
 import { useSettingsStore } from './store/settingsStore'
+import { useLiveProxyStore } from './store/liveProxyStore'
 import { useTradeLabelStore } from './store/tradeLabelsStore'
 import DashboardView from './components/dashboard/DashboardView'
 import PortfolioView from './components/portfolio/PortfolioView'
@@ -39,7 +40,7 @@ export interface TradeLabels {
   clearAll: () => void
 }
 
-type ViewComponent = React.FC<{ state: AppState; stratPage?: StrategyPage; tradeLabels?: TradeLabels }>
+type ViewComponent = React.FC<{ state: AppState; stratPage?: StrategyPage; tradeLabels?: TradeLabels; liveProxyUrl?: string }>
 
 const VIEWS: Record<TabId, ViewComponent> = {
   dashboard:  DashboardView,
@@ -58,6 +59,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const { state, uploadXML, syncFlex }  = useAppStore()
   const { settings, update, activeProfile } = useSettingsStore()
+  const { url: liveProxyUrl, update: updateLiveProxyUrl } = useLiveProxyStore()
   const { labels, setLabel, setMany, clearAll } = useTradeLabelStore()
 
   const hasCredentials = !!(activeProfile?.token && activeProfile?.queryId)
@@ -93,7 +95,7 @@ export default function App() {
 
       <div className="ew-main">
         <main style={{ flex: 1, overflow: 'hidden' }}>
-          <View state={state} stratPage={stratPage} tradeLabels={tradeLabels} />
+          <View state={state} stratPage={stratPage} tradeLabels={tradeLabels} liveProxyUrl={liveProxyUrl} />
         </main>
       </div>
 
@@ -102,6 +104,8 @@ export default function App() {
           settings={settings}
           onSave={update}
           onClose={() => setShowSettings(false)}
+          liveProxyUrl={liveProxyUrl}
+          onSaveLiveProxyUrl={updateLiveProxyUrl}
         />
       )}
     </div>

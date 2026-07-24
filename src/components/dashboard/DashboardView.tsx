@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { AppState, Action, UrgencyLevel, StrategyType, RawTrade } from '../../types'
 import type { TradeLabels } from '../../App'
 import { tradeId } from '../../store/tradeLabelsStore'
+import { fetchLiveTrades, isToday, type LiveTrade } from '../../services/liveTrades'
 
-interface Props { state: AppState; tradeLabels?: TradeLabels }
+interface Props { state: AppState; tradeLabels?: TradeLabels; liveProxyUrl?: string }
 
 // ─── Urgency config ───────────────────────────────────────────────────────────
 
@@ -70,7 +71,7 @@ function fmtDollar(n: number): string {
 
 // ─── Actions Sidebar ──────────────────────────────────────────────────────────
 
-function ActionsSidebar({ state }: { state: AppState }) {
+function ActionsSidebar({ state, liveProxyUrl }: { state: AppState; liveProxyUrl?: string }) {
   const { actions } = state
 
   const byUrgency = URGENCY_ORDER.reduce<Record<UrgencyLevel, Action[]>>((acc, u) => {
@@ -102,6 +103,8 @@ function ActionsSidebar({ state }: { state: AppState }) {
       </div>
 
       <div className="db-sidebar-body">
+        <StalenessBanner state={state} proxyUrl={liveProxyUrl} />
+
         {actions.length === 0 && (
           <div className="db-empty-msg" style={{ padding: '20px 12px' }}>
             No actions — all positions within normal parameters.
@@ -473,7 +476,7 @@ function ibkrDesc(p: { underlyingSymbol?: string; symbol: string; expiry?: strin
   return `${underlying} ${expDesc} ${strikeDesc} ${p.putCall === 'C' ? 'CALL' : p.putCall === 'P' ? 'PUT' : ''}`
 }
 
-function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<string, string> }) {
+function ActualPortfolio({ state, labels, liveProxyUrl }: { state: AppState; labels: Record<string, string>; liveProxyUrl?: string }) {
   const { positions, trades, cashBalance, netLiquidation } = state.sync
 
   const stocks  = positions.filter(p => p.assetClass === 'STK')
@@ -592,6 +595,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
             </div>
             <MonthlyFlowBars trades={trades} />
           </div>
+          <LiveActivityCard proxyUrl={liveProxyUrl} />
         </div>
 
         {/* ── Income channels ── */}
@@ -768,18 +772,127 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
   )
 }
 
+// ─── Live activity (via local IB Gateway proxy, bypasses Flex's day-old lag) ──
+
+function useLiveTrades(proxyUrl?: string) {
+  const [trades, setTrades] = useState<LiveTrade[]>([])
+  const [error, setError]   = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!proxyUrl) { setTrades([]); setError(null); return }
+    let cancelled = false
+    async function poll() {
+      setLoading(true)
+      try {
+        const t = await fetchLiveTrades(proxyUrl!)
+        if (!cancelled) { setTrades(t); setError(null) }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    poll()
+    const id = setInterval(poll, 45_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [proxyUrl])
+
+  return { trades, error, loading }
+}
+
+function fmtTradeTime(iso: string) {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+}
+
+function LiveActivityCard({ proxyUrl }: { proxyUrl?: string }) {
+  const { trades, error, loading } = useLiveTrades(proxyUrl)
+
+  if (!proxyUrl) {
+    return (
+      <div style={{ flex: '1 1 260px', background: 'var(--bg-card)', padding: '12px 16px' }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
+          Live Activity
+        </div>
+        <div className="db-empty-msg" style={{ minHeight: 100, fontSize: 12 }}>
+          Not connected — add a Live Proxy URL in Settings to see today's fills before Flex syncs.
+        </div>
+      </div>
+    )
+  }
+
+  const todays = trades.filter(t => isToday(t.tradeTime)).sort((a, b) => b.tradeTime.localeCompare(a.tradeTime))
+
+  return (
+    <div style={{ flex: '1 1 260px', background: 'var(--bg-card)', padding: '12px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: error ? '#ef4444' : loading ? '#f59e0b' : 'var(--accent)', flexShrink: 0 }} />
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase' }}>
+          Live Activity · Today
+        </div>
+      </div>
+      {error && <div style={{ fontSize: 11, color: '#ef4444', marginBottom: 6 }}>{error}</div>}
+      {!error && todays.length === 0 && (
+        <div className="db-empty-msg" style={{ minHeight: 80, fontSize: 12 }}>No fills yet today</div>
+      )}
+      {todays.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 130, overflowY: 'auto' }}>
+          {todays.slice(0, 8).map(t => (
+            <div key={t.tradeId} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontFamily: 'Inter, sans-serif' }}>
+              <span style={{ color: 'var(--text-4)', width: 42, flexShrink: 0 }}>{fmtTradeTime(t.tradeTime)}</span>
+              <span style={{ fontWeight: 700, color: t.side === 'BUY' ? '#10b981' : '#ef4444', width: 32, flexShrink: 0 }}>{t.side}</span>
+              <span style={{ color: 'var(--text-1)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {t.symbol} {t.description}
+              </span>
+              <span style={{ color: 'var(--text-3)' }}>{t.size}@{t.price}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Pinned banner: live fills that happened after the last Flex sync. */
+function StalenessBanner({ state, proxyUrl }: { state: AppState; proxyUrl?: string }) {
+  const { trades } = useLiveTrades(proxyUrl)
+  if (!proxyUrl) return null
+
+  const lastSync = state.sync.lastSync
+  const newer = lastSync
+    ? trades.filter(t => { const ts = new Date(t.tradeTime).getTime(); return !isNaN(ts) && ts > lastSync })
+    : trades.filter(t => isToday(t.tradeTime))
+
+  if (newer.length === 0) return null
+
+  return (
+    <div style={{
+      margin: '0 8px 8px', padding: '8px 10px', borderRadius: 8,
+      background: 'var(--signature-dim)', border: '1px solid var(--signature)',
+      display: 'flex', alignItems: 'center', gap: 8,
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--signature)', flexShrink: 0 }} />
+      <div style={{ fontSize: 11, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', lineHeight: 1.4 }}>
+        <strong style={{ color: 'var(--signature)' }}>{newer.length} fill{newer.length > 1 ? 's' : ''}</strong> since last Flex sync — not reflected in positions/journal below yet.
+      </div>
+    </div>
+  )
+}
+
 // ─── Dashboard View ───────────────────────────────────────────────────────────
 
-export default function DashboardView({ state, tradeLabels }: Props) {
+export default function DashboardView({ state, tradeLabels, liveProxyUrl }: Props) {
   const labels = tradeLabels?.labels ?? {}
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
         <div className="db-root" style={{ flex: 1 }}>
           <div className="db-main" style={{ flex: 1 }}>
-            <ActualPortfolio state={state} labels={labels} />
+            <ActualPortfolio state={state} labels={labels} liveProxyUrl={liveProxyUrl} />
           </div>
-          <ActionsSidebar state={state} />
+          <ActionsSidebar state={state} liveProxyUrl={liveProxyUrl} />
         </div>
       </div>
     </div>

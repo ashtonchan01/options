@@ -6,6 +6,8 @@ interface Props {
   settings: FlexSettings
   onSave: (s: FlexSettings) => void
   onClose: () => void
+  liveProxyUrl: string
+  onSaveLiveProxyUrl: (url: string) => void
 }
 
 const inputStyle: React.CSSProperties = {
@@ -20,12 +22,13 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 6,
 }
 
-export default function FlexSettingsPanel({ settings, onSave, onClose }: Props) {
+export default function FlexSettingsPanel({ settings, onSave, onClose, liveProxyUrl, onSaveLiveProxyUrl }: Props) {
   const [profiles, setProfiles] = useState<FlexProfile[]>(
     settings.profiles.map(p => ({ ...p }))
   )
   const [activeId, setActiveId] = useState(settings.activeId || settings.profiles[0]?.id || '')
   const [saved, setSaved] = useState(false)
+  const [liveUrl, setLiveUrl] = useState(liveProxyUrl)
 
   const current = profiles.find(p => p.id === activeId)
 
@@ -49,6 +52,7 @@ export default function FlexSettingsPanel({ settings, onSave, onClose }: Props) 
 
   function handleSave() {
     onSave({ profiles, activeId })
+    onSaveLiveProxyUrl(liveUrl)
     setSaved(true)
     setTimeout(onClose, 700)
   }
@@ -129,6 +133,15 @@ export default function FlexSettingsPanel({ settings, onSave, onClose }: Props) 
             Click <strong>+ Add</strong> to create your first account profile
           </div>
         )}
+
+        {/* Live trades proxy (ngrok tunnel to IB Gateway) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+          <label style={{ fontSize: 10, color: 'var(--signature)', letterSpacing: 2, textTransform: 'uppercase', marginTop: 12 }}>Live Proxy URL (optional)</label>
+          <input type="text" value={liveUrl} onChange={e => setLiveUrl(e.target.value)} placeholder="https://xxxx.ngrok-free.app" style={inputStyle} spellCheck={false} />
+          <span style={{ fontSize: 11, color: 'var(--text-5)' }}>
+            Points at your local proxy tunnel while IB Gateway is running — shows today's fills before Flex catches up. Rotates each time ngrok restarts, so update this whenever you start a new session.
+          </span>
+        </div>
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

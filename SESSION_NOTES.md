@@ -161,6 +161,21 @@ Each row = one complete position (open legs + matched close legs).
 
 ---
 
+## Live Activity (IB Gateway, added 2026-07-24)
+Flex Web Service data is inherently ~1 day stale (IBKR generates statements on a schedule, no intraday option for most reports). To see today's fills before Flex catches up:
+
+1. Start IB Gateway (Client Portal Gateway) on the Mac, log in — it listens on `https://localhost:5000`
+2. Start the local proxy: `node server/flex-proxy.cjs` (now also serves `GET /live/trades`, proxying `https://localhost:5000/v1/api/iserver/account/trades`)
+3. Start ngrok: `ngrok http 3457`
+4. Copy the ngrok URL (e.g. `https://xxxx.ngrok-free.app`) into the app: Settings → Live Proxy URL. Rotates every ngrok restart — update it each session.
+5. Dashboard now shows a **Live Activity** card (today's fills, polls every 45s) and a pinned banner in Actions when fills exist after the last Flex sync timestamp.
+
+**Scope note**: CPAPI trades only return `conid`/`symbol`/side/size/price — no strike/expiry/putCall breakdown. So live trades are informational-only (staleness flag + activity feed); they do NOT feed the classifier/position-matching/journal, which still needs Flex's structured fields. Full replacement would require resolving `conid` → contract detail via a `/trsrv/secdef` lookup — not built yet.
+
+**Untested**: the `/live/trades` endpoint and CPAPI field names (`trade_time`, `order_description`, etc.) were written against IBKR's documented CPAPI shape but not verified against a live Gateway session — check the browser console / proxy terminal output if it errors, and the field mapping in `handleLiveTrades()` in `server/flex-proxy.cjs` may need adjusting to match what your Gateway actually returns.
+
+
 ## Pending / next steps
+
 1. **Week column** — removed from StrategyTradeLog; user may want back as grouping/filter
 2. **Income channel strip** — only visible when trades are labelled; consider showing raw totals when no labels
