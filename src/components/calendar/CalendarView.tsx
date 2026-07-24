@@ -231,73 +231,70 @@ function DayCell({
         )}
       </div>
 
-      {/* CBOE holiday */}
-      {isHoliday && (
-        <div style={{
-          fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
-          color: '#f43f5e', background: '#f43f5e14',
-          padding: '1px 4px', borderRadius: 3, marginBottom: 2,
-          textAlign: 'center', border: '1px solid #f43f5e30',
-        }}>
-          CLOSED
-        </div>
-      )}
-
-      {/* Earnings badges */}
-      {earnings.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 2 }}>
-          {earnings.slice(0, 3).map(t => (
-            <span key={t} style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
-              color: '#F0B429', background: '#F0B42914',
-              padding: '1px 4px', borderRadius: 3,
-              border: '1px solid #F0B42930',
-              fontFamily: 'Inter, sans-serif',
-            }}>
-              ER {t}
-            </span>
-          ))}
-          {earnings.length > 3 && (
-            <span style={{ fontSize: 9, color: '#F0B429', fontFamily: 'Inter, sans-serif' }}>
-              +{earnings.length - 3}
-            </span>
-          )}
-        </div>
-      )}
-
-      {trades && trades.tradeCount > 0 && (
-        <div style={{
-          fontSize: 10, fontFamily: 'Inter, sans-serif',
-          color: trades.netCash >= 0 ? '#10b981' : '#f43f5e',
-          background: trades.netCash >= 0 ? '#10b98110' : '#f43f5e10',
-          padding: '1px 4px', borderRadius: 3, marginBottom: 2,
-          textAlign: 'center',
-        }}>
-          {trades.tradeCount} trade{trades.tradeCount !== 1 ? 's' : ''}
-        </div>
-      )}
-
-      {events.slice(0, 2).map((ev, i) => {
-        const color = STRAT_COLOR[ev.strategyType]
-        return (
-          <div key={i} style={{
-            display: 'flex', alignItems: 'center', gap: 3,
-            padding: '1px 4px', marginBottom: 1,
-            background: `${color}14`, border: `1px solid ${color}30`,
-            fontSize: 11, lineHeight: 1.3, borderRadius: 3,
+      {/* Fills remaining cell height; content lists run down until they hit the bottom, soft-fading instead of an abrupt cut or "+N" counter */}
+      <div style={{
+        flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        WebkitMaskImage: 'linear-gradient(to bottom, black calc(100% - 10px), transparent 100%)',
+        maskImage: 'linear-gradient(to bottom, black calc(100% - 10px), transparent 100%)',
+      }}>
+        {/* CBOE holiday */}
+        {isHoliday && (
+          <div style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+            color: '#f43f5e', background: '#f43f5e14',
+            padding: '1px 4px', borderRadius: 3, marginBottom: 2,
+            textAlign: 'center', border: '1px solid #f43f5e30', flexShrink: 0,
           }}>
-            <span style={{ fontWeight: 700, color, fontFamily: 'Inter, sans-serif', flexShrink: 0 }}>
-              {ev.underlying}
-            </span>
-            <span style={{ color: 'var(--text-2)', flexShrink: 0 }}>{STRAT_LABEL[ev.strategyType]}</span>
+            CLOSED
           </div>
-        )
-      })}
-      {events.length > 2 && (
-        <div style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'Inter, sans-serif' }}>
-          +{events.length - 2}
-        </div>
-      )}
+        )}
+
+        {/* Earnings badges */}
+        {earnings.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 2, flexShrink: 0 }}>
+            {earnings.map(t => (
+              <span key={t} style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
+                color: '#F0B429', background: '#F0B42914',
+                padding: '1px 4px', borderRadius: 3,
+                border: '1px solid #F0B42930',
+                fontFamily: 'Inter, sans-serif',
+              }}>
+                ER {t}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {trades && trades.tradeCount > 0 && (
+          <div style={{
+            fontSize: 10, fontFamily: 'Inter, sans-serif',
+            color: trades.netCash >= 0 ? '#10b981' : '#f43f5e',
+            background: trades.netCash >= 0 ? '#10b98110' : '#f43f5e10',
+            padding: '1px 4px', borderRadius: 3, marginBottom: 2,
+            textAlign: 'center', flexShrink: 0,
+          }}>
+            {trades.tradeCount} trade{trades.tradeCount !== 1 ? 's' : ''}
+          </div>
+        )}
+
+        {events.map((ev, i) => {
+          const color = STRAT_COLOR[ev.strategyType]
+          return (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 3,
+              padding: '1px 4px', marginBottom: 1, flexShrink: 0,
+              background: `${color}14`, border: `1px solid ${color}30`,
+              fontSize: 11, lineHeight: 1.3, borderRadius: 3,
+            }}>
+              <span style={{ fontWeight: 700, color, fontFamily: 'Inter, sans-serif', flexShrink: 0 }}>
+                {ev.underlying}
+              </span>
+              <span style={{ color: 'var(--text-2)', flexShrink: 0 }}>{STRAT_LABEL[ev.strategyType]}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -570,10 +567,10 @@ export default function CalendarView({ state }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
       {/* ── Top: Calendar + Sidebar ──────────────────────────────────────── */}
-      <div className="calendar-layout" style={{ flex: '1 1 50%', display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+      <div className="calendar-layout" style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
 
         {/* Calendar grid */}
-        <div className="calendar-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px 20px' }}>
+        <div className="calendar-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto', padding: '16px 20px' }}>
 
           {/* Month nav */}
           <div className="calendar-nav" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexShrink: 0 }}>
@@ -600,39 +597,43 @@ export default function CalendarView({ state }: Props) {
             )}
           </div>
 
-          {/* Day headers: Mon–Fri + WK P&L */}
-          <div className="calendar-header-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) 100px', gap: 3, marginBottom: 3, flexShrink: 0 }}>
-            {WEEKDAYS.map(d => (
-              <div key={d} style={{ padding: '4px', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', textAlign: 'center' }}>
-                {d}
-              </div>
-            ))}
-            <div style={{ padding: '4px', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', textAlign: 'center' }}>
-              WK P&L
-            </div>
-          </div>
+          {/* Fixed-ratio landscape calendar block — headers + grid together */}
+          <div className="calendar-ratio-box" style={{ width: '100%', aspectRatio: '16 / 9', maxHeight: '100%', display: 'flex', flexDirection: 'column', margin: '0 auto' }}>
 
-          {/* Grid: 5 weekday cols + 1 P&L col */}
-          <div className="calendar-grid-wrap" style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(5, 1fr) 100px',
-            gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))`,
-            gap: 3,
-            flex: 1,
-            minHeight: 0,
-            overflow: 'hidden',
-          }}>
-            {weeks.map((week, wi) => (
-              <WeekRow
-                key={wi}
-                week={week}
-                getDayData={getDayData}
-                todayStr={todayStr}
-                selected={selected}
-                onSelect={(date) => setSelected(date === selected ? null : date)}
-                dailyTrades={dailyTrades}
-              />
-            ))}
+            {/* Day headers: Mon–Fri + WK P&L */}
+            <div className="calendar-header-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) 100px', gap: 3, marginBottom: 3, flexShrink: 0 }}>
+              {WEEKDAYS.map(d => (
+                <div key={d} style={{ padding: '4px', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', textAlign: 'center' }}>
+                  {d}
+                </div>
+              ))}
+              <div style={{ padding: '4px', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', textAlign: 'center' }}>
+                WK P&L
+              </div>
+            </div>
+
+            {/* Grid: 5 weekday cols + 1 P&L col */}
+            <div className="calendar-grid-wrap" style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, 1fr) 100px',
+              gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))`,
+              gap: 3,
+              flex: 1,
+              minHeight: 0,
+              overflow: 'hidden',
+            }}>
+              {weeks.map((week, wi) => (
+                <WeekRow
+                  key={wi}
+                  week={week}
+                  getDayData={getDayData}
+                  todayStr={todayStr}
+                  selected={selected}
+                  onSelect={(date) => setSelected(date === selected ? null : date)}
+                  dailyTrades={dailyTrades}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
