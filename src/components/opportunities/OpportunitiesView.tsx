@@ -213,7 +213,7 @@ export default function OpportunitiesView({ state }: Props) {
         <button onClick={handleScan} disabled={scanning} style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600,
           background: scanning ? 'var(--bg-elevated)' : 'var(--accent-dim)',
-          border: `1px solid ${scanning ? 'var(--border)' : 'rgba(16,185,129,0.25)'}`,
+          border: `1px solid ${scanning ? 'var(--border)' : 'var(--accent-border)'}`,
           color: scanning ? 'var(--text-3)' : 'var(--accent)', cursor: scanning ? 'not-allowed' : 'pointer',
           fontFamily: "'Inter', sans-serif", letterSpacing: '1px', textTransform: 'uppercase',
         }}>
@@ -260,7 +260,7 @@ export default function OpportunitiesView({ state }: Props) {
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flexShrink: 0, alignItems: 'center' }}>
             <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif" }}>CUSTOM:</span>
             {customTickers.map(sym => (
-              <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid rgba(16,185,129,0.2)', color: 'var(--accent)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
+              <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', color: 'var(--accent)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
                 {sym} <span style={{ color: 'var(--text-4)', fontSize: 8 }}>&times;</span>
               </button>
             ))}
@@ -292,7 +292,7 @@ export default function OpportunitiesView({ state }: Props) {
           <div style={{ fontSize: 11, color: 'var(--signature)', marginTop: 2, fontFamily: 'Inter, sans-serif' }}>
             Δ {customCfg.deltaMin}–{customCfg.deltaMax} · {customCfg.dteMin}–{customCfg.dteMax}d · bid ≥ ${customCfg.minBid}
           </div>
-          <button onClick={handleScan} style={{ marginTop: 16, padding: '8px 24px', fontSize: 13, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid rgba(16,185,129,0.25)', color: 'var(--accent)', cursor: 'pointer', fontFamily: "'Inter', sans-serif", letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+          <button onClick={handleScan} style={{ marginTop: 16, padding: '8px 24px', fontSize: 13, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', color: 'var(--accent)', cursor: 'pointer', fontFamily: "'Inter', sans-serif", letterSpacing: '1.5px', textTransform: 'uppercase' }}>
             START SCAN
           </button>
         </div>
@@ -315,7 +315,7 @@ export default function OpportunitiesView({ state }: Props) {
             const hasData = card.topCsp.length > 0 || card.topCc.length > 0
             const shares = stocksHeld[card.symbol] ?? 0
             return (
-              <div key={card.symbol} style={{ width: CARD_W, minWidth: CARD_W, maxWidth: CARD_W, background: 'var(--bg-card)', border: `1px solid ${idx < 3 && hasData ? 'rgba(16,185,129,0.15)' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+              <div key={card.symbol} style={{ width: CARD_W, minWidth: CARD_W, maxWidth: CARD_W, background: 'var(--bg-card)', border: `1px solid ${idx < 3 && hasData ? 'var(--accent-border)' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
 
                 <div onClick={() => hasData && toggleCollapse(card.symbol)}
                   style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: hasData ? 'pointer' : 'default', background: 'var(--bg-surface)', borderBottom: isCollapsed || !hasData ? 'none' : '1px solid var(--border)', userSelect: 'none' }}>

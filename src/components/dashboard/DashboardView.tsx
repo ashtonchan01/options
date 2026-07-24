@@ -528,7 +528,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
     const slices: DonutSlice[] = [...byType.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([t, v]) => ({ label: STRAT_META[t]?.label ?? 'Other', value: v, color: STRAT_META[t]?.color ?? '#64748b' }))
-    if (stockMV > 0) slices.unshift({ label: 'Stocks', value: Math.abs(stockMV), color: '#a78bfa' })
+    if (stockMV > 0) slices.unshift({ label: 'Stocks', value: Math.abs(stockMV), color: '#2b6cff' })
     return slices
   })()
 
