@@ -266,17 +266,23 @@ function DayCell({
           </div>
         )}
 
-        {trades && trades.tradeCount > 0 && (
-          <div style={{
-            fontSize: 10, fontFamily: 'Inter, sans-serif',
-            color: trades.netCash >= 0 ? '#10b981' : '#f43f5e',
-            background: trades.netCash >= 0 ? '#10b98110' : '#f43f5e10',
-            padding: '1px 4px', borderRadius: 3, marginBottom: 2,
-            textAlign: 'center', flexShrink: 0,
+        {trades && trades.trades.map((t, i) => (
+          <div key={i} style={{
+            display: 'flex', alignItems: 'center', gap: 3,
+            padding: '1px 4px', marginBottom: 1, flexShrink: 0,
+            background: t.netCash >= 0 ? '#10b98112' : '#f43f5e12',
+            border: `1px solid ${t.netCash >= 0 ? '#10b98130' : '#f43f5e30'}`,
+            fontSize: 10.5, lineHeight: 1.3, borderRadius: 3,
           }}>
-            {trades.tradeCount} trade{trades.tradeCount !== 1 ? 's' : ''}
+            <span style={{ fontWeight: 700, color: 'var(--text-2)', fontFamily: 'Inter, sans-serif', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 44 }}>
+              {t.underlyingSymbol ?? t.symbol}
+            </span>
+            <span style={{ color: 'var(--text-4)', flexShrink: 0 }}>{t.quantity > 0 ? '+' : ''}{t.quantity}</span>
+            <span style={{ marginLeft: 'auto', fontWeight: 600, color: t.netCash >= 0 ? '#10b981' : '#f43f5e', flexShrink: 0, fontFamily: 'Inter, sans-serif' }}>
+              {t.netCash >= 0 ? '+' : ''}{Math.round(t.netCash)}
+            </span>
           </div>
-        )}
+        ))}
 
         {events.map((ev, i) => {
           const color = STRAT_COLOR[ev.strategyType]
