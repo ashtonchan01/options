@@ -260,12 +260,18 @@ export default function OpportunitiesView({ state }: Props) {
 
       {/* ── Collapsible: params + custom tickers (hides while scrolling results) ── */}
       <div style={{
-        flexShrink: 0, overflow: 'hidden',
-        maxHeight: topCollapsed ? 0 : 130,
-        opacity: topCollapsed ? 0 : 1,
-        transition: 'max-height 0.22s ease, opacity 0.18s ease',
-        display: 'flex', flexDirection: 'column', gap: 10,
+        display: 'grid',
+        gridTemplateRows: topCollapsed ? '0fr' : '1fr',
+        transition: 'grid-template-rows 0.22s ease',
+        flexShrink: 0,
       }}>
+        <div style={{
+          overflow: 'hidden',
+          opacity: topCollapsed ? 0 : 1,
+          transition: 'opacity 0.18s ease',
+          display: 'flex', flexDirection: 'column', gap: 10,
+          minHeight: 0,
+        }}>
         {/* ── Scan params (manual) ────────────────────────────────────────────── */}
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, flexShrink: 0, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--signature)', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>PARAMS</span>
@@ -298,6 +304,7 @@ export default function OpportunitiesView({ state }: Props) {
               ))}
             </div>
           )}
+        </div>
         </div>
       </div>
 

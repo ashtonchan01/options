@@ -548,11 +548,12 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
 
       {/* ── Collapsible: key metrics + analytics + income channels (hides while scrolling) ── */}
       <div style={{
-        flexShrink: 0, overflow: 'hidden',
-        maxHeight: topCollapsed ? 0 : 470,
-        opacity: topCollapsed ? 0 : 1,
-        transition: 'max-height 0.22s ease, opacity 0.18s ease',
+        display: 'grid',
+        gridTemplateRows: topCollapsed ? '0fr' : '1fr',
+        transition: 'grid-template-rows 0.22s ease',
+        flexShrink: 0,
       }}>
+        <div style={{ overflow: 'hidden', opacity: topCollapsed ? 0 : 1, transition: 'opacity 0.18s ease', minHeight: 0 }}>
         {/* ── Key metrics ── */}
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
@@ -596,6 +597,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
 
         {/* ── Income channels ── */}
         <IncomeChannelStrip trades={trades} labels={labels} symbolToStratType={symbolToStratType} />
+        </div>
       </div>
 
       {/* ── Scrollable content ── */}
