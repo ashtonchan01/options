@@ -483,9 +483,15 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
   const stockPnL = stocks.reduce((s, p) => s + p.unrealizedPnL, 0)
   const stockCost= stocks.reduce((s, p) => s + p.costBasisMoney, 0)
   const optionMV = options.reduce((s, p) => s + p.positionValue, 0)
-  const realizedPnL = trades.reduce((s, t) => s + t.netCash, 0)
+  const optionPnL = options.reduce((s, p) => s + p.unrealizedPnL, 0)
+  // Realized P&L must only count expired/closed positions — summing netCash across
+  // ALL trades (as before) wrongly included opening credit on still-open short options.
+  const realizedPnL = trades
+    .filter(t => t.assetClass === 'OPT' && isExpiredDash(t))
+    .reduce((s, t) => s + t.netCash, 0)
   const netLiq   = netLiquidation ?? (stockMV + optionMV + cashBalance)
-  const totalUnrealized = stocks.reduce((s, p) => s + p.unrealizedPnL, 0)
+  // Full account unrealized P&L — stocks + options (was stock-only, undercounting badly)
+  const totalUnrealized = stockPnL + optionPnL
 
   const pnlColor = (n: number) => n >= 0 ? '#10b981' : '#ef4444'
 
