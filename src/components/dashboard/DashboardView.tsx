@@ -201,6 +201,110 @@ function ActionsSidebar({ state }: { state: AppState }) {
   )
 }
 
+// ─── Analytics: structure donut + monthly flow bars (exceltable-style) ────────
+
+function parseTradeDate(s: string): Date | null {
+  if (!s) return null
+  const norm = /^\d{8}$/.test(s) ? `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` : s
+  const d = new Date(norm)
+  return isNaN(d.getTime()) ? null : d
+}
+function monthKey(s: string): string | null {
+  const d = parseTradeDate(s)
+  if (!d) return null
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+function fmtMonthShort(ym: string) {
+  const [, m] = ym.split('-')
+  const MONTHS = ['J','F','M','A','M','J','J','A','S','O','N','D']
+  return MONTHS[parseInt(m, 10) - 1] ?? ym
+}
+
+interface DonutSlice { label: string; value: number; color: string }
+
+function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSlice[]; centerLabel: string; centerValue: string }) {
+  const total = slices.reduce((s, x) => s + x.value, 0)
+  if (total <= 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No allocation data</div>
+
+  const R = 52, CX = 70, CY = 70, STROKE = 22
+  const circumference = 2 * Math.PI * R
+  let offset = 0
+  const arcs = slices.filter(s => s.value > 0).map(s => {
+    const frac = s.value / total
+    const dash = frac * circumference
+    const arc = { ...s, dash, gap: circumference - dash, offset }
+    offset += dash
+    return arc
+  })
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+      <svg viewBox="0 0 140 140" style={{ width: 140, height: 140, flexShrink: 0, transform: 'rotate(-90deg)' }}>
+        <circle cx={CX} cy={CY} r={R} fill="none" stroke="var(--bg-elevated)" strokeWidth={STROKE} />
+        {arcs.map((a, i) => (
+          <circle key={i} cx={CX} cy={CY} r={R} fill="none" stroke={a.color} strokeWidth={STROKE}
+            strokeDasharray={`${a.dash} ${a.gap}`} strokeDashoffset={-a.offset}
+            style={{ transition: 'stroke-dasharray 0.3s' }} />
+        ))}
+      </svg>
+      <div style={{ flex: 1, minWidth: 140 }}>
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase' }}>{centerLabel}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{centerValue}</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {arcs.slice(0, 6).map((a, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontFamily: 'Inter, sans-serif' }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: a.color, flexShrink: 0 }} />
+              <span style={{ color: 'var(--text-2)', flex: 1 }}>{a.label}</span>
+              <span style={{ color: 'var(--text-4)' }}>{((a.value / total) * 100).toFixed(0)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MonthlyFlowBars({ trades }: { trades: RawTrade[] }) {
+  const byMonth = new Map<string, number>()
+  for (const t of trades) {
+    const key = monthKey(t.tradeDate)
+    if (!key) continue
+    byMonth.set(key, (byMonth.get(key) ?? 0) + t.netCash)
+  }
+  const rows = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-8)
+  if (rows.length === 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No trade history yet</div>
+
+  const W = 380, H = 150, PL = 42, PR = 8, PT = 10, PB = 20
+  const maxAbs = Math.max(...rows.map(([, v]) => Math.abs(v)), 1)
+  const y0 = PT + (H - PT - PB) / 2
+  const scale = (H - PT - PB) / 2 / maxAbs
+  const bw = (W - PL - PR) / rows.length
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
+      <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="var(--border-light)" strokeWidth="1" />
+      <text x={PL - 6} y={PT + 8} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">{fmtDollar(maxAbs)}</text>
+      <text x={PL - 6} y={y0 + 3} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">$0</text>
+      {rows.map(([key, val], i) => {
+        const h = Math.abs(val) * scale
+        const bx = PL + i * bw + bw * 0.2
+        const by = val >= 0 ? y0 - h : y0
+        return (
+          <g key={key}>
+            <rect x={bx} y={by} width={bw * 0.6} height={Math.max(h, 1)} rx={2}
+              fill={val >= 0 ? '#10b981' : '#ef4444'} opacity={0.85} />
+            <text x={bx + bw * 0.3} y={H - 6} textAnchor="middle" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">
+              {fmtMonthShort(key)}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
 // ─── Actual Portfolio View ────────────────────────────────────────────────────
 
 // ─── Income channel strip ─────────────────────────────────────────────────────
@@ -414,6 +518,20 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
   }
   const TDR = { ...TD, textAlign: 'right' as const }
 
+  // Allocation structure for donut: options grouped by strategy type + stocks as its own slice
+  const donutSlices: DonutSlice[] = (() => {
+    const byType = new Map<string, number>()
+    for (const p of options) {
+      const t = symbolToStratType.get(p.symbol) ?? 'other'
+      byType.set(t, (byType.get(t) ?? 0) + Math.abs(p.positionValue))
+    }
+    const slices: DonutSlice[] = [...byType.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([t, v]) => ({ label: STRAT_META[t]?.label ?? 'Other', value: v, color: STRAT_META[t]?.color ?? '#64748b' }))
+    if (stockMV > 0) slices.unshift({ label: 'Stocks', value: Math.abs(stockMV), color: '#a78bfa' })
+    return slices
+  })()
+
   const [topCollapsed, setTopCollapsed] = useState(false)
   function handleContentScroll(e: React.UIEvent<HTMLDivElement>) {
     setTopCollapsed(e.currentTarget.scrollTop > 24)
@@ -422,10 +540,10 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-      {/* ── Collapsible: key metrics + income channels (hides while scrolling) ── */}
+      {/* ── Collapsible: key metrics + analytics + income channels (hides while scrolling) ── */}
       <div style={{
         flexShrink: 0, overflow: 'hidden',
-        maxHeight: topCollapsed ? 0 : 220,
+        maxHeight: topCollapsed ? 0 : 470,
         opacity: topCollapsed ? 0 : 1,
         transition: 'max-height 0.22s ease, opacity 0.18s ease',
       }}>
@@ -448,6 +566,26 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
               <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
             </div>
           ))}
+        </div>
+
+        {/* ── Analytics: allocation structure + monthly flow ── */}
+        <div style={{ display: 'flex', gap: 1, background: 'var(--border)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 260px', background: 'var(--bg-card)', padding: '12px 16px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
+              Allocation by Strategy
+            </div>
+            <StructureDonut
+              slices={donutSlices}
+              centerLabel="Total"
+              centerValue={fmtDollar(stockMV + Math.abs(optionMV))}
+            />
+          </div>
+          <div style={{ flex: '1 1 260px', background: 'var(--bg-card)', padding: '12px 16px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
+              Monthly Cash Flow
+            </div>
+            <MonthlyFlowBars trades={trades} />
+          </div>
         </div>
 
         {/* ── Income channels ── */}
