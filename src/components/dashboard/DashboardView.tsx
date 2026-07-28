@@ -601,7 +601,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
       </div>
 
       {/* ── Scrollable content ── */}
-      <div onScroll={handleContentScroll} style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0 }}>
+      <div onScroll={handleContentScroll} style={{ flex: 1, overflow: 'auto', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', gap: 0 }}>
 
         {/* Stocks */}
         {stocks.length > 0 && (

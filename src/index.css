@@ -482,6 +482,7 @@ body {
 .db-sidebar-body {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 0;
