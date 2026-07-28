@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import type { AppState, Action, UrgencyLevel, StrategyType, RawTrade } from '../../types'
 import type { TradeLabels } from '../../App'
 import { tradeId } from '../../store/tradeLabelsStore'
@@ -538,70 +537,55 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
     return slices
   })()
 
-  const [topCollapsed, setTopCollapsed] = useState(false)
-  function handleContentScroll(e: React.UIEvent<HTMLDivElement>) {
-    setTopCollapsed(e.currentTarget.scrollTop > 24)
-  }
-
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
 
-      {/* ── Collapsible: key metrics + analytics + income channels (hides while scrolling) ── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateRows: topCollapsed ? '0fr' : '1fr',
-        transition: 'grid-template-rows 0.22s ease',
-        flexShrink: 0,
+      {/* ── Key metrics ── */}
+      <div className="db-keymetrics" style={{
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 0, flexShrink: 0, borderBottom: '1px solid var(--border)',
       }}>
-        <div style={{ overflow: 'hidden', opacity: topCollapsed ? 0 : 1, transition: 'opacity 0.18s ease', minHeight: 0 }}>
-        {/* ── Key metrics ── */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 0, borderBottom: '1px solid var(--border)',
-        }}>
-          {[
-            { label: 'Net Liquidation', value: fmtDollar(netLiq), color: 'var(--text-1)' },
-            { label: 'Unrealized P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
-            { label: 'Realized P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
-            { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
-          ].map(({ label, value, color }, i, arr) => (
-            <div key={label} style={{
-              padding: '12px 20px',
-              borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
-            }}>
-              <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-              <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Analytics: allocation structure + monthly flow ── */}
-        <div style={{ display: 'flex', gap: 1, background: 'var(--border)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 260px', background: 'var(--bg-card)', padding: '12px 16px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
-              Allocation by Strategy
-            </div>
-            <StructureDonut
-              slices={donutSlices}
-              centerLabel="Total"
-              centerValue={fmtDollar(stockMV + Math.abs(optionMV))}
-            />
+        {[
+          { label: 'Net Liquidation', value: fmtDollar(netLiq), color: 'var(--text-1)' },
+          { label: 'Unrealized P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
+          { label: 'Realized P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
+          { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
+        ].map(({ label, value, color }, i, arr) => (
+          <div key={label} style={{
+            padding: '12px 20px',
+            borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+          }}>
+            <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
           </div>
-          <div style={{ flex: '1 1 260px', background: 'var(--bg-card)', padding: '12px 16px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
-              Monthly Cash Flow
-            </div>
-            <MonthlyFlowBars trades={trades} />
-          </div>
-        </div>
+        ))}
+      </div>
 
-        {/* ── Income channels ── */}
-        <IncomeChannelStrip trades={trades} labels={labels} symbolToStratType={symbolToStratType} />
+      {/* ── Analytics: allocation structure + monthly flow ── */}
+      <div style={{ display: 'flex', gap: 1, background: 'var(--border)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexShrink: 0 }}>
+        <div style={{ flex: '1 1 260px', background: 'var(--bg-card)', padding: '12px 16px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
+            Allocation by Strategy
+          </div>
+          <StructureDonut
+            slices={donutSlices}
+            centerLabel="Total"
+            centerValue={fmtDollar(stockMV + Math.abs(optionMV))}
+          />
+        </div>
+        <div style={{ flex: '1 1 260px', background: 'var(--bg-card)', padding: '12px 16px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
+            Monthly Cash Flow
+          </div>
+          <MonthlyFlowBars trades={trades} />
         </div>
       </div>
 
-      {/* ── Scrollable content ── */}
-      <div onScroll={handleContentScroll} style={{ flex: 1, overflow: 'auto', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {/* ── Income channels ── */}
+      <IncomeChannelStrip trades={trades} labels={labels} symbolToStratType={symbolToStratType} />
+
+      {/* ── Content ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
         {/* Stocks */}
         {stocks.length > 0 && (
