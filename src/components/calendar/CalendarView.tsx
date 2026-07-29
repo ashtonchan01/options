@@ -1,9 +1,10 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { AppState, Strategy, StrategyType, RawTrade } from '../../types'
 import { HOLIDAY_MAP } from '../../data/marketHolidays'
 import { WATCHLIST } from '../../data/watchlist'
 import { fetchEarningsDates, earningsByDate } from '../../services/earnings'
+import { ECON_EVENT_MAP, type EconEvent } from '../../data/economicEvents'
 
 interface Props { state: AppState }
 
@@ -65,6 +66,7 @@ interface DayData {
   hasActivity: boolean
   earnings: string[]     // ticker symbols reporting earnings
   holiday: string | null // CBOE holiday name or null
+  econEvents: EconEvent[] // macro events (FOMC, etc.)
 }
 
 interface CalendarWeek {
@@ -191,14 +193,30 @@ function DayCell({
   if (!date) return <div style={{ background: 'var(--bg-surface)', borderRadius: 4 }} />
 
   const dayNum = parseInt(date.split('-')[2])
-  const { events, trades, hasActivity, earnings, holiday } = data
+  const { events, trades, hasActivity, earnings, holiday, econEvents } = data
   const hasPnL = trades && trades.netCash !== 0
   const isHoliday = !!holiday
+
+  const listRef = useRef<HTMLDivElement>(null)
+  const [hiddenCount, setHiddenCount] = useState(0)
+
+  useLayoutEffect(() => {
+    const el = listRef.current
+    if (!el) { setHiddenCount(0); return }
+    const bottom = el.getBoundingClientRect().bottom
+    let count = 0
+    el.querySelectorAll('[data-cal-item]').forEach(child => {
+      const r = (child as HTMLElement).getBoundingClientRect()
+      if (r.bottom > bottom + 0.5) count++
+    })
+    setHiddenCount(count)
+  })
 
   return (
     <div
       onClick={onClick}
       style={{
+        position: 'relative',
         background: isHoliday ? '#f43f5e08' : isSelected ? 'var(--bg-active)' : hasActivity ? 'var(--bg-card)' : 'var(--bg-surface)',
         border: `1px solid ${isSelected ? '#312e81' : isToday ? '#3b82f6' : isHoliday ? '#f43f5e30' : 'var(--bg-active)'}`,
         borderRadius: 4,
@@ -231,15 +249,15 @@ function DayCell({
         )}
       </div>
 
-      {/* Fills remaining cell height; content lists run down until they hit the bottom, soft-fading instead of an abrupt cut or "+N" counter */}
-      <div style={{
+      {/* Fills remaining cell height; content lists run down until they hit the bottom, soft-fading instead of an abrupt cut */}
+      <div ref={listRef} style={{
         flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
         WebkitMaskImage: 'linear-gradient(to bottom, black calc(100% - 10px), transparent 100%)',
         maskImage: 'linear-gradient(to bottom, black calc(100% - 10px), transparent 100%)',
       }}>
         {/* CBOE holiday */}
         {isHoliday && (
-          <div style={{
+          <div data-cal-item style={{
             fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
             color: '#f43f5e', background: '#f43f5e14',
             padding: '1px 4px', borderRadius: 3, marginBottom: 2,
@@ -249,11 +267,24 @@ function DayCell({
           </div>
         )}
 
+        {/* Economic events (FOMC, etc.) */}
+        {econEvents.map((e, i) => (
+          <div key={`econ-${i}`} data-cal-item style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
+            color: '#a78bfa', background: '#a78bfa14',
+            padding: '1px 4px', marginBottom: 1, borderRadius: 3,
+            textAlign: 'center', border: '1px solid #a78bfa30', flexShrink: 0,
+            fontFamily: 'Inter, sans-serif',
+          }}>
+            {e.label}
+          </div>
+        ))}
+
         {/* Earnings badges */}
         {earnings.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 2, flexShrink: 0 }}>
             {earnings.map(t => (
-              <span key={t} style={{
+              <span key={t} data-cal-item style={{
                 fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
                 color: '#F0B429', background: '#F0B42914',
                 padding: '1px 4px', borderRadius: 3,
@@ -267,7 +298,7 @@ function DayCell({
         )}
 
         {trades && trades.trades.map((t, i) => (
-          <div key={i} style={{
+          <div key={i} data-cal-item style={{
             display: 'flex', alignItems: 'center', gap: 3,
             padding: '1px 4px', marginBottom: 1, flexShrink: 0,
             background: t.netCash >= 0 ? '#10b98112' : '#f43f5e12',
@@ -287,7 +318,7 @@ function DayCell({
         {events.map((ev, i) => {
           const color = STRAT_COLOR[ev.strategyType]
           return (
-            <div key={i} style={{
+            <div key={i} data-cal-item style={{
               display: 'flex', alignItems: 'center', gap: 3,
               padding: '1px 4px', marginBottom: 1, flexShrink: 0,
               background: `${color}14`, border: `1px solid ${color}30`,
@@ -301,6 +332,20 @@ function DayCell({
           )
         })}
       </div>
+
+      {hiddenCount > 0 && (
+        <div style={{
+          position: 'absolute', bottom: 2, right: 3,
+          fontSize: 9, fontWeight: 700, lineHeight: 1,
+          color: 'var(--text-1)', background: 'var(--bg-elevated)',
+          padding: '2px 4px', borderRadius: 8,
+          border: '1px solid var(--border)',
+          fontFamily: 'Inter, sans-serif',
+          pointerEvents: 'none',
+        }}>
+          +{hiddenCount}
+        </div>
+      )}
     </div>
   )
 }
@@ -370,7 +415,7 @@ function ActivitySidebar({
 }) {
   const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`
 
-  // Collect all dates that have any activity (trades, earnings, holidays)
+  // Collect all dates that have any activity (trades, earnings, holidays, econ events)
   const monthDates = useMemo(() => {
     const dateSet = new Set<string>()
     // Trade dates
@@ -383,6 +428,10 @@ function ActivitySidebar({
     }
     // Holiday dates
     for (const d of Object.keys(HOLIDAY_MAP)) {
+      if (d.startsWith(monthPrefix)) dateSet.add(d)
+    }
+    // Economic event dates (FOMC, etc.)
+    for (const d of Object.keys(ECON_EVENT_MAP)) {
       if (d.startsWith(monthPrefix)) dateSet.add(d)
     }
     return [...dateSet].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
@@ -412,7 +461,8 @@ function ActivitySidebar({
           const dayTrades = dailyTrades[date]
           const dayEarnings = earningsByDateMap[date] ?? []
           const dayHoliday = HOLIDAY_MAP[date] ?? null
-          if (!dayEvents.length && !dayTrades && !dayEarnings.length && !dayHoliday) return null
+          const dayEcon = ECON_EVENT_MAP[date] ?? []
+          if (!dayEvents.length && !dayTrades && !dayEarnings.length && !dayHoliday && !dayEcon.length) return null
 
           const d = new Date(date + 'T12:00:00')
           const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
@@ -442,6 +492,15 @@ function ActivitySidebar({
                   <span style={{ color: '#f43f5e', fontWeight: 600, fontSize: 12 }}>{dayHoliday}</span>
                 </div>
               )}
+
+              {/* Economic event detail (FOMC, etc.) */}
+              {dayEcon.map((e, i) => (
+                <div key={`econ-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderTop: '1px solid var(--border-light)', fontSize: 13 }}>
+                  <div style={{ width: 3, height: 24, background: '#a78bfa', flexShrink: 0, borderRadius: 1 }} />
+                  <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', fontSize: 13 }}>{e.label}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', background: '#a78bfa14', padding: '1px 6px', borderRadius: 3, border: '1px solid #a78bfa30' }}>RATE DECISION</span>
+                </div>
+              ))}
 
               {/* Earnings detail */}
               {dayEarnings.map(ticker => (
@@ -559,14 +618,15 @@ export default function CalendarView({ state }: Props) {
   // Calendar always renders (holidays + earnings are always available)
 
   function getDayData(date: string | null): DayData {
-    if (!date) return { events: [], trades: null, totalPnL: 0, hasActivity: false, earnings: [], holiday: null }
+    if (!date) return { events: [], trades: null, totalPnL: 0, hasActivity: false, earnings: [], holiday: null, econEvents: [] }
     const evs = eventsByDate[date] ?? []
     const tr = dailyTrades[date] ?? null
     const totalPnL = (tr?.netCash ?? 0) + evs.reduce((s, e) => s + e.unrealizedPnL, 0)
     const earnings = earningsByDateMap[date] ?? []
     const holiday = HOLIDAY_MAP[date] ?? null
-    const hasActivity = evs.length > 0 || (tr !== null && tr.tradeCount > 0) || earnings.length > 0 || holiday !== null
-    return { events: evs, trades: tr, totalPnL, hasActivity, earnings, holiday }
+    const econEvents = ECON_EVENT_MAP[date] ?? []
+    const hasActivity = evs.length > 0 || (tr !== null && tr.tradeCount > 0) || earnings.length > 0 || holiday !== null || econEvents.length > 0
+    return { events: evs, trades: tr, totalPnL, hasActivity, earnings, holiday, econEvents }
   }
 
   return (
