@@ -4,7 +4,8 @@ import type { AppState, Strategy, StrategyType, RawTrade } from '../../types'
 import { HOLIDAY_MAP } from '../../data/marketHolidays'
 import { WATCHLIST } from '../../data/watchlist'
 import { fetchEarningsDates, earningsByDate } from '../../services/earnings'
-import { ECON_EVENT_MAP, type EconEvent } from '../../data/economicEvents'
+import { fetchFomcDates } from '../../services/fomc'
+import { buildEconEventMap, type EconEvent } from '../../data/economicEvents'
 
 interface Props { state: AppState }
 
@@ -404,11 +405,12 @@ function WeekPnLCell({
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 function ActivitySidebar({
-  events, dailyTrades, earningsByDateMap, selectedDate, year, month,
+  events, dailyTrades, earningsByDateMap, econEventMap, selectedDate, year, month,
 }: {
   events: ExpiryEvent[]
   dailyTrades: Record<string, DailyTradeData>
   earningsByDateMap: Record<string, string[]>
+  econEventMap: Record<string, EconEvent[]>
   selectedDate: string | null
   year: number
   month: number // 0-indexed
@@ -431,11 +433,11 @@ function ActivitySidebar({
       if (d.startsWith(monthPrefix)) dateSet.add(d)
     }
     // Economic event dates (FOMC, etc.)
-    for (const d of Object.keys(ECON_EVENT_MAP)) {
+    for (const d of Object.keys(econEventMap)) {
       if (d.startsWith(monthPrefix)) dateSet.add(d)
     }
     return [...dateSet].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
-  }, [dailyTrades, earningsByDateMap, monthPrefix])
+  }, [dailyTrades, earningsByDateMap, econEventMap, monthPrefix])
 
   const displayDates = selectedDate ? [selectedDate] : monthDates
 
@@ -461,7 +463,7 @@ function ActivitySidebar({
           const dayTrades = dailyTrades[date]
           const dayEarnings = earningsByDateMap[date] ?? []
           const dayHoliday = HOLIDAY_MAP[date] ?? null
-          const dayEcon = ECON_EVENT_MAP[date] ?? []
+          const dayEcon = econEventMap[date] ?? []
           if (!dayEvents.length && !dayTrades && !dayEarnings.length && !dayHoliday && !dayEcon.length) return null
 
           const d = new Date(date + 'T12:00:00')
@@ -586,6 +588,13 @@ export default function CalendarView({ state }: Props) {
   }, [])
   const earningsByDateMap = useMemo(() => earningsByDate(earningsMap), [earningsMap])
 
+  // FOMC dates (fetched live from federalreserve.gov, cached/re-checked weekly)
+  const [fomcDates, setFomcDates] = useState<string[]>([])
+  useEffect(() => {
+    fetchFomcDates().then(setFomcDates).catch(() => {})
+  }, [])
+  const econEventMap = useMemo(() => buildEconEventMap(fomcDates), [fomcDates])
+
   const events = useMemo(() => deriveEvents(state.strategies), [state.strategies])
   const dailyTrades = useMemo(() => buildDailyTrades(state.sync.trades), [state.sync.trades])
 
@@ -624,7 +633,7 @@ export default function CalendarView({ state }: Props) {
     const totalPnL = (tr?.netCash ?? 0) + evs.reduce((s, e) => s + e.unrealizedPnL, 0)
     const earnings = earningsByDateMap[date] ?? []
     const holiday = HOLIDAY_MAP[date] ?? null
-    const econEvents = ECON_EVENT_MAP[date] ?? []
+    const econEvents = econEventMap[date] ?? []
     const hasActivity = evs.length > 0 || (tr !== null && tr.tradeCount > 0) || earnings.length > 0 || holiday !== null || econEvents.length > 0
     return { events: evs, trades: tr, totalPnL, hasActivity, earnings, holiday, econEvents }
   }
@@ -705,7 +714,7 @@ export default function CalendarView({ state }: Props) {
 
         {/* Activity sidebar */}
         <div className="calendar-sidebar" style={{ width: 300, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <ActivitySidebar events={events} dailyTrades={dailyTrades} earningsByDateMap={earningsByDateMap} selectedDate={selected} year={year} month={month} />
+          <ActivitySidebar events={events} dailyTrades={dailyTrades} earningsByDateMap={earningsByDateMap} econEventMap={econEventMap} selectedDate={selected} year={year} month={month} />
         </div>
       </div>
 
