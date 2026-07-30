@@ -27,13 +27,19 @@ const pathGen = geoPath(projection)
 const countriesPath = pathGen(countries) ?? ''
 const bordersPath = pathGen(countryBorders) ?? ''
 
-// Crop out the mostly-empty polar strips (Antarctica, high Arctic) so the
-// visible map reads as a tight equirectangular band, like the reference.
+// Crop out the mostly-empty polar strips (Antarctica, high Arctic) and the
+// empty Pacific margins on either side, so the visible map is a tight band
+// centered on the tracked exchanges, like the reference.
 const CROP_LAT_TOP = 75
 const CROP_LAT_BOTTOM = -58
+const CROP_LON_LEFT = -110
+const CROP_LON_RIGHT = 165
 const cropY0 = projection([0, CROP_LAT_TOP])![1]
 const cropY1 = projection([0, CROP_LAT_BOTTOM])![1]
+const cropX0 = projection([CROP_LON_LEFT, 0])![0]
+const cropX1 = projection([CROP_LON_RIGHT, 0])![0]
 const VIEW_HEIGHT = cropY1 - cropY0
+const VIEW_WIDTH = cropX1 - cropX0
 
 function fmtPrice(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -182,8 +188,8 @@ export default function MarketsView() {
         position: 'relative', background: 'var(--bg-card)', border: '1px solid var(--border)',
         borderRadius: 8, padding: 8, marginBottom: 16, overflow: 'hidden',
       }}>
-        <svg viewBox={`0 ${cropY0} ${WIDTH} ${VIEW_HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
-          <rect x={0} y={cropY0} width={WIDTH} height={VIEW_HEIGHT} fill="var(--bg-surface)" />
+        <svg viewBox={`${cropX0} ${cropY0} ${VIEW_WIDTH} ${VIEW_HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+          <rect x={cropX0} y={cropY0} width={VIEW_WIDTH} height={VIEW_HEIGHT} fill="var(--bg-surface)" />
           <path d={countriesPath} fill="var(--bg-active)" fillRule="evenodd" />
           <path d={bordersPath} fill="none" stroke="var(--border)" strokeWidth={0.6} />
           {cityGroups.map(g => (
@@ -200,7 +206,7 @@ export default function MarketsView() {
         {hover && (
           <div style={{
             position: 'absolute',
-            left: `${(hover.pos.x / WIDTH) * 100}%`,
+            left: `${((hover.pos.x - cropX0) / VIEW_WIDTH) * 100}%`,
             top: `${((hover.pos.y - cropY0) / VIEW_HEIGHT) * 100}%`,
             transform: 'translate(-50%, -100%) translateY(-10px)',
             background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6,
