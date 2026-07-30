@@ -1,14 +1,15 @@
 /**
- * Global markets overview — flat world map with a dot per major exchange
- * (green if trading is currently open, gray if closed) plus a live quote
- * list below. Land shapes come from world-atlas (bundled, no runtime
- * fetch); prices come from /api/markets, refreshed on a short interval.
+ * Global markets overview — flat (equirectangular) world map with country
+ * outlines and a dot per major exchange (green if trading is currently
+ * open, gray if closed) plus a live quote list below. Country shapes come
+ * from world-atlas (bundled, no runtime fetch); prices come from
+ * /api/markets, refreshed on a short interval.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { geoNaturalEarth1, geoPath } from 'd3-geo'
-import { feature } from 'topojson-client'
-import type { Topology, GeometryCollection } from 'topojson-specification'
-import landTopology from '../../data/land-110m.json'
+import { geoEquirectangular, geoPath } from 'd3-geo'
+import { feature, mesh } from 'topojson-client'
+import type { Topology, GeometryCollection, Objects } from 'topojson-specification'
+import countriesTopology from '../../data/countries-110m.json'
 import { EXCHANGES, type Exchange } from '../../data/exchanges'
 import { isExchangeOpen } from '../../utils/marketHours'
 import { fetchMarketQuotes, type MarketQuote } from '../../services/markets'
@@ -17,14 +18,14 @@ const WIDTH = 960
 const HEIGHT = 460
 const REFRESH_MS = 60_000
 
-const land = feature(
-  landTopology as unknown as Topology,
-  (landTopology as unknown as Topology).objects.land as GeometryCollection,
-)
+const topology = countriesTopology as unknown as Topology<Objects<{ name?: string }>>
+const countries = feature(topology, topology.objects.countries as GeometryCollection)
+const countryBorders = mesh(topology, topology.objects.countries as GeometryCollection, (a, b) => a !== b)
 
-const projection = geoNaturalEarth1().fitSize([WIDTH, HEIGHT], land)
+const projection = geoEquirectangular().fitSize([WIDTH, HEIGHT], countries)
 const pathGen = geoPath(projection)
-const landPath = pathGen(land) ?? ''
+const countriesPath = pathGen(countries) ?? ''
+const bordersPath = pathGen(countryBorders) ?? ''
 
 function fmtPrice(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -130,7 +131,8 @@ export default function MarketsView() {
       }}>
         <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
           <rect x={0} y={0} width={WIDTH} height={HEIGHT} fill="var(--bg-surface)" />
-          <path d={landPath} fill="var(--bg-active)" stroke="var(--border)" strokeWidth={0.5} />
+          <path d={countriesPath} fill="var(--bg-active)" fillRule="evenodd" />
+          <path d={bordersPath} fill="none" stroke="var(--border)" strokeWidth={0.6} />
           {cityGroups.map(g => (
             <CityMarker
               key={`${g.city}|${g.country}`}
