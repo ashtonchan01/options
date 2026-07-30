@@ -35,7 +35,7 @@ export const EXCHANGES: Exchange[] = [
   { symbol: '000001.SS', name: 'Shanghai',        city: 'Shanghai',   country: 'CN', lat: 31.23, lon: 121.47,timezone: 'Asia/Shanghai',        openMin: 9 * 60 + 30, closeMin: 15 * 60 },
   { symbol: '^HSI',      name: 'Hang Seng',       city: 'Hong Kong',  country: 'HK', lat: 22.32, lon: 114.17,timezone: 'Asia/Hong_Kong',       openMin: 9 * 60 + 30, closeMin: 16 * 60 },
   { symbol: '399001.SZ', name: 'Shenzhen',        city: 'Shenzhen',   country: 'CN', lat: 22.54, lon: 114.06,timezone: 'Asia/Shanghai',        openMin: 9 * 60 + 30, closeMin: 15 * 60, mapGroup: 'Hong Kong|HK' },
-  { symbol: '^TWII',     name: 'Taiwan Weighted', city: 'Taipei',     country: 'TW', lat: 25.03, lon: 121.57,timezone: 'Asia/Taipei',          openMin: 9 * 60,      closeMin: 13 * 60 + 30 },
+  { symbol: '0050.TW',   name: 'Taiwan 50',       city: 'Taipei',     country: 'TW', lat: 25.03, lon: 121.57,timezone: 'Asia/Taipei',          openMin: 9 * 60,      closeMin: 13 * 60 + 30 },
   { symbol: '^KLSE',     name: 'Malaysia (KLCI)', city: 'Kuala Lumpur',country: 'MY',lat: 3.14,  lon: 101.69,timezone: 'Asia/Kuala_Lumpur',    openMin: 9 * 60,      closeMin: 17 * 60 },
   { symbol: '^STI',      name: 'Singapore (STI)', city: 'Singapore',  country: 'SG', lat: 1.35,  lon: 103.82,timezone: 'Asia/Singapore',       openMin: 9 * 60,      closeMin: 17 * 60 },
   { symbol: '^BSESN',    name: 'Sensex',          city: 'Mumbai',     country: 'IN', lat: 19.08, lon: 72.88, timezone: 'Asia/Kolkata',         openMin: 9 * 60 + 15, closeMin: 15 * 60 + 30 },
