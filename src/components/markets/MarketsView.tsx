@@ -1,9 +1,9 @@
 /**
  * Global markets overview — flat (equirectangular) world map with country
- * outlines and a dot per major exchange (green if trading is currently
- * open, gray if closed) plus a live quote list below. Country shapes come
- * from world-atlas (bundled, no runtime fetch); prices come from
- * /api/markets, refreshed on a short interval.
+ * outlines, a dot + name/%-change label per major exchange (green/pulsing
+ * if trading is currently open, gray if closed), plus a live quote list
+ * below. Country shapes come from world-atlas (bundled, no runtime fetch);
+ * prices come from /api/markets, refreshed on a short interval.
  */
 import { useEffect, useMemo, useState } from 'react'
 import { geoEquirectangular, geoPath } from 'd3-geo'
@@ -42,7 +42,7 @@ interface CityGroup {
 function groupByCity(exchanges: Exchange[]): CityGroup[] {
   const groups = new Map<string, CityGroup>()
   for (const ex of exchanges) {
-    const key = `${ex.city}|${ex.country}`
+    const key = ex.mapGroup ?? `${ex.city}|${ex.country}`
     let g = groups.get(key)
     if (!g) { g = { city: ex.city, country: ex.country, lat: ex.lat, lon: ex.lon, exchanges: [] }; groups.set(key, g) }
     g.exchanges.push(ex)
@@ -51,15 +51,31 @@ function groupByCity(exchanges: Exchange[]): CityGroup[] {
 }
 
 /**
- * One dot per city cluster. Labels are left off the map (dense regions
- * like Europe / East Asia sit too close together at this scale to fit
- * text without overlapping) — hover shows a native tooltip, and the full
- * name/price/change lives in the grid below where there's room.
+ * Which direction a city's label fans out from its dot. Cities that sit
+ * close together on the map (Europe, East Asia, SE Asia) get manually
+ * spread in different directions so their labels don't collide.
  */
+type Anchor = 'left' | 'right' | 'top' | 'bottom'
+const LABEL_ANCHOR: Record<string, Anchor> = {
+  'Toronto':      'top',
+  'London':       'left',
+  'Paris':        'bottom',
+  'Frankfurt':    'top',
+  'Milan':        'bottom',
+  'Moscow':       'right',
+  'Shanghai':     'left',
+  'Hong Kong':    'bottom',
+  'Taipei':       'right',
+  'Kuala Lumpur': 'top',
+  'Singapore':    'bottom',
+}
+
+/** One dot per city cluster, with a stacked name+% label fanned out per LABEL_ANCHOR. */
 function CityMarker({
-  group, now, onHover,
+  group, quotes, now, onHover,
 }: {
   group: CityGroup
+  quotes: Record<string, MarketQuote>
   now: Date
   onHover: (group: CityGroup | null, pos: { x: number; y: number } | null) => void
 }) {
@@ -68,6 +84,16 @@ function CityMarker({
   const [x, y] = pt
   const anyOpen = group.exchanges.some(ex => isExchangeOpen(ex, now))
   const dotColor = !anyOpen ? 'var(--text-4)' : '#10b981'
+
+  const anchor = LABEL_ANCHOR[group.city] ?? 'right'
+  const lineHeight = 11
+  const n = group.exchanges.length
+  const textAnchor = anchor === 'left' ? 'end' : anchor === 'right' ? 'start' : 'middle'
+  const labelX = anchor === 'left' ? -7 : anchor === 'right' ? 7 : 0
+  // For top/bottom anchors the whole stack sits above/below the dot; for left/right it's vertically centered on it.
+  const stackStartY = anchor === 'top' ? -8 - (n - 1) * lineHeight
+    : anchor === 'bottom' ? 8 + lineHeight * 0.3
+    : -((n - 1) * lineHeight) / 2 + 3
 
   return (
     <g
@@ -85,6 +111,24 @@ function CityMarker({
       {/* Larger invisible hit target for easier hovering */}
       <circle r={8} fill="transparent" />
       <circle r={3.5} fill={dotColor} stroke="var(--bg-surface)" strokeWidth={1} />
+
+      {group.exchanges.map((ex, i) => {
+        const q = quotes[ex.symbol]
+        const changeColor = !q ? 'var(--text-3)' : q.change >= 0 ? '#10b981' : '#f43f5e'
+        const rowY = stackStartY + i * lineHeight
+        return (
+          <text key={ex.symbol} x={labelX} y={rowY} textAnchor={textAnchor}
+            fontSize={9} fontFamily="Inter, sans-serif" fontWeight={700} fill="var(--text-2)"
+            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3 }}>
+            {ex.name}
+            {q && (
+              <tspan fill={changeColor} fontWeight={600}>
+                {'  '}{q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}%
+              </tspan>
+            )}
+          </text>
+        )
+      })}
     </g>
   )
 }
@@ -137,6 +181,7 @@ export default function MarketsView() {
             <CityMarker
               key={`${g.city}|${g.country}`}
               group={g}
+              quotes={quotes}
               now={now}
               onHover={(group, pos) => setHover(group && pos ? { group, pos } : null)}
             />
