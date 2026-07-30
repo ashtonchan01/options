@@ -83,6 +83,7 @@ const LABEL_ANCHOR: Record<string, Anchor> = {
   'Kuala Lumpur': 'top',
   'Singapore':    'bottom',
   'Sydney':       'left',
+  'Tokyo':        'left',
 }
 
 /** One dot per city cluster, with a stacked name+% label fanned out per LABEL_ANCHOR. */
@@ -101,14 +102,14 @@ function CityMarker({
   const dotColor = !anyOpen ? 'var(--text-4)' : '#10b981'
 
   const anchor = LABEL_ANCHOR[group.city] ?? 'right'
-  const lineHeight = 11
+  const lineHeight = 9.5
   const n = group.exchanges.length
   const textAnchor = anchor === 'left' ? 'end' : anchor === 'right' ? 'start' : 'middle'
-  const labelX = anchor === 'left' ? -7 : anchor === 'right' ? 7 : 0
+  const labelX = anchor === 'left' ? -6 : anchor === 'right' ? 6 : 0
   // For top/bottom anchors the whole stack sits above/below the dot; for left/right it's vertically centered on it.
-  const stackStartY = anchor === 'top' ? -8 - (n - 1) * lineHeight
-    : anchor === 'bottom' ? 8 + lineHeight * 0.3
-    : -((n - 1) * lineHeight) / 2 + 3
+  const stackStartY = anchor === 'top' ? -7 - (n - 1) * lineHeight
+    : anchor === 'bottom' ? 7 + lineHeight * 0.3
+    : -((n - 1) * lineHeight) / 2 + 2.5
 
   return (
     <g
@@ -133,8 +134,8 @@ function CityMarker({
         const rowY = stackStartY + i * lineHeight
         return (
           <text key={ex.symbol} x={labelX} y={rowY} textAnchor={textAnchor}
-            fontSize={9} fontFamily="Inter, sans-serif" fontWeight={700} fill="var(--text-2)"
-            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3 }}>
+            fontSize={7.5} fontFamily="Inter, sans-serif" fontWeight={700} fill="var(--text-2)"
+            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 2.5 }}>
             {ex.name}
             {q && (
               <tspan fill={changeColor} fontWeight={600}>
