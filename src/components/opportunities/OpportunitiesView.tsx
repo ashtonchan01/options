@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Scan, AlertCircle, Activity, ChevronDown, ChevronUp } from 'lucide-react'
 import type { AppState, ScanResult, ScanFlag } from '../../types'
 import { scanAllTickersCboe } from '../../services/cboe'
 import { WATCHLIST } from '../../data/watchlist'
+import { fetchEarningsDates } from '../../services/earnings'
 
 interface Props { state: AppState }
 
@@ -43,6 +44,31 @@ function fmtExp(s: string): string {
   const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
   return m ? `${parseInt(m[2])}/${parseInt(m[3])}` : s
 }
+/** 'YYYYMMDD' -> 'YYYY-MM-DD' so it's directly comparable to earnings dates. */
+function normalizeExpiry(s: string): string {
+  const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : s
+}
+function todayYMD(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+/** Nearest upcoming earnings date for a ticker, or null if none known. */
+function nextEarningsFor(sym: string, earningsMap: Record<string, string[]>): string | null {
+  const dates = earningsMap[sym]
+  if (!dates?.length) return null
+  const today = todayYMD()
+  const upcoming = dates.filter(d => d >= today).sort()
+  return upcoming[0] ?? null
+}
+/** True if the ticker's next earnings date falls on/before this option's expiry —
+ *  i.e. the position would still be open through the earnings event. */
+function earningsBeforeExpiry(expiry: string, nextEarnings: string | null): boolean {
+  return nextEarnings !== null && nextEarnings <= normalizeExpiry(expiry)
+}
+function fmtEr(d: string): string {
+  const [, m, day] = d.split('-')
+  return `${parseInt(m)}/${parseInt(day)}`
+}
 function scoreColor(s: number)  { return s >= 70 ? '#10b981' : s >= 40 ? '#f59e0b' : 'var(--text-4)' }
 function deltaColor(d: number)  { const a = Math.abs(d); return a < 0.15 ? 'var(--text-3)' : a > 0.40 ? '#f59e0b' : '#10b981' }
 function tradeYield(r: ScanResult) { return r.annualizedYield * r.dte / 365 }
@@ -63,9 +89,10 @@ function saveRemovedTickers(t: string[]) { localStorage.setItem(REMOVED_TICKERS_
 interface TickerCard {
   symbol: string; price: number; bestScore: number; avgIv: number
   totalContracts: number; topCsp: ScanResult[]; topCc: ScanResult[]
+  nextEarnings: string | null
 }
 
-function buildCards(results: ScanResult[], tickers: string[]): TickerCard[] {
+function buildCards(results: ScanResult[], tickers: string[], earningsMap: Record<string, string[]>): TickerCard[] {
   const map = new Map<string, { results: ScanResult[]; price: number }>()
   for (const sym of tickers) map.set(sym, { results: [], price: 0 })
   for (const r of results) {
@@ -83,6 +110,7 @@ function buildCards(results: ScanResult[], tickers: string[]): TickerCard[] {
       totalContracts: rs.length,
       topCsp: rs.filter(r => r.strategyType === 'csp').sort((a, b) => b.score - a.score).slice(0, 5),
       topCc:  rs.filter(r => r.strategyType === 'covered_call').sort((a, b) => b.score - a.score).slice(0, 5),
+      nextEarnings: nextEarningsFor(symbol, earningsMap),
     })
   }
   return cards.sort((a, b) => b.bestScore - a.bestScore)
@@ -92,14 +120,22 @@ function buildCards(results: ScanResult[], tickers: string[]): TickerCard[] {
 
 const GRID = '18px 1fr 44px 34px 44px 48px 40px 34px'
 
-function OptionRow({ r, rank }: { r: ScanResult; rank: number }) {
+function OptionRow({ r, rank, nextEarnings }: { r: ScanResult; rank: number; nextEarnings: string | null }) {
   const ty = tradeYield(r)
+  const throughEarnings = earningsBeforeExpiry(r.expiry, nextEarnings)
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 4, alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif' }}
-      title={`Annualized: ${r.annualizedYield.toFixed(0)}% · OI: ${r.openInterest} · V/OI: ${r.volumeOiRatio.toFixed(2)}`}>
+    <div style={{
+      display: 'grid', gridTemplateColumns: GRID, gap: 4, alignItems: 'center', padding: '5px 4px', margin: '0 -4px',
+      borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
+      background: throughEarnings ? '#F0B42912' : 'transparent',
+      borderLeft: throughEarnings ? '2px solid #F0B429' : '2px solid transparent',
+    }}
+      title={`Annualized: ${r.annualizedYield.toFixed(0)}% · OI: ${r.openInterest} · V/OI: ${r.volumeOiRatio.toFixed(2)}${throughEarnings ? ` · Earnings ${fmtEr(nextEarnings!)} before expiry` : ''}`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>${r.strike}</span>
-      <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{fmtExp(r.expiry)}</span>
+      <span style={{ color: throughEarnings ? '#F0B429' : 'var(--text-3)', textAlign: 'right', fontWeight: throughEarnings ? 700 : 400 }}>
+        {fmtExp(r.expiry)}{throughEarnings && ' ⚡'}
+      </span>
       <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{r.dte}d</span>
       <span style={{ color: deltaColor(r.delta), textAlign: 'right' }}>{r.delta.toFixed(2)}</span>
       <span style={{ color: '#10b981', textAlign: 'right' }}>${r.mid.toFixed(2)}</span>
@@ -120,7 +156,7 @@ function MiniHeader() {
   )
 }
 
-function StrategySection({ label, color, items }: { label: string; color: string; items: ScanResult[] }) {
+function StrategySection({ label, color, items, nextEarnings }: { label: string; color: string; items: ScanResult[]; nextEarnings: string | null }) {
   if (!items.length) return null
   const flags = Array.from(new Set(items.flatMap(r => r.flags)))
   return (
@@ -133,7 +169,7 @@ function StrategySection({ label, color, items }: { label: string; color: string
         </div>
       </div>
       <MiniHeader />
-      {items.map((r, i) => <OptionRow key={i} r={r} rank={i + 1} />)}
+      {items.map((r, i) => <OptionRow key={i} r={r} rank={i + 1} nextEarnings={nextEarnings} />)}
     </div>
   )
 }
@@ -183,8 +219,13 @@ export default function OpportunitiesView({ state }: Props) {
     return [...set].sort()
   }, [state.sync.positions, customTickers, removedTickers])
 
+  const [earningsMap, setEarningsMap] = useState<Record<string, string[]>>({})
+  useEffect(() => {
+    fetchEarningsDates(tickers).then(setEarningsMap).catch(() => {})
+  }, [tickers])
+
   const filtered = useMemo(() => filterByMode(results, customCfg), [results, customCfg])
-  const cards    = useMemo(() => buildCards(filtered, tickers),    [filtered, tickers])
+  const cards    = useMemo(() => buildCards(filtered, tickers, earningsMap), [filtered, tickers, earningsMap])
 
   function toggleCollapse(sym: string) {
     setCollapsed(prev => { const n = new Set(prev); n.has(sym) ? n.delete(sym) : n.add(sym); return n })
@@ -363,6 +404,11 @@ export default function OpportunitiesView({ state }: Props) {
                   <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 15, fontWeight: 700, color: idx === 0 && hasData ? 'var(--accent)' : hasData ? 'var(--text-1)' : 'var(--text-4)', letterSpacing: '1px' }}>{card.symbol}</span>
                   {card.price > 0 && <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'Inter, sans-serif' }}>${card.price.toFixed(2)}</span>}
                   {shares > 0 && <span style={{ padding: '1px 5px', fontSize: 9, fontWeight: 700, background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', fontFamily: "'Inter', sans-serif" }}>{shares} SHR</span>}
+                  {card.nextEarnings && (
+                    <span title={`Next earnings ${card.nextEarnings}`} style={{ padding: '1px 5px', fontSize: 9, fontWeight: 700, background: '#F0B42915', border: '1px solid #F0B42940', color: '#F0B429', fontFamily: "'Inter', sans-serif" }}>
+                      ER {fmtEr(card.nextEarnings)}
+                    </span>
+                  )}
                   <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
                     {hasData ? (
                       <>
@@ -388,8 +434,8 @@ export default function OpportunitiesView({ state }: Props) {
 
                 {hasData && !isCollapsed && (
                   <div style={{ padding: '8px 12px 10px' }}>
-                    <StrategySection label="CSP" color="#f43f5e" items={card.topCsp} />
-                    <StrategySection label="CC"  color="#3b82f6" items={card.topCc} />
+                    <StrategySection label="CSP" color="#f43f5e" items={card.topCsp} nextEarnings={card.nextEarnings} />
+                    <StrategySection label="CC"  color="#3b82f6" items={card.topCc} nextEarnings={card.nextEarnings} />
                   </div>
                 )}
               </div>
