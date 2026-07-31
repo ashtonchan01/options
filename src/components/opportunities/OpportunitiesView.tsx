@@ -192,6 +192,7 @@ export default function OpportunitiesView({ state }: Props) {
   const [tickerInput,   setTickerInput]  = useState('')
   const [customCfg,     setCustomCfg]    = useState<ModeConfig>(loadCustomCfg)
   const [topCollapsed,  setTopCollapsed] = useState(false)
+  const [strategyFilter, setStrategyFilter] = useState<'all' | 'csp' | 'cc'>('all')
 
   function handleResultsScroll(e: React.UIEvent<HTMLDivElement>) {
     setTopCollapsed(e.currentTarget.scrollTop > 24)
@@ -290,6 +291,21 @@ export default function OpportunitiesView({ state }: Props) {
           placeholder="+ TICKER"
           style={{ width: 80, padding: '5px 8px', fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }}
         />
+
+        {/* Strategy toggle — show CSP, CC, or both */}
+        <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+          {(['all', 'csp', 'cc'] as const).map(f => (
+            <button key={f} onClick={() => setStrategyFilter(f)} style={{
+              padding: '5px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px',
+              background: strategyFilter === f ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+              color: strategyFilter === f ? 'var(--accent)' : 'var(--text-3)',
+              border: 'none', borderLeft: f !== 'all' ? '1px solid var(--border)' : 'none',
+              cursor: 'pointer', fontFamily: "'Inter', sans-serif", textTransform: 'uppercase',
+            }}>
+              {f === 'all' ? 'All' : f}
+            </button>
+          ))}
+        </div>
 
         {scanning && <span style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'Inter, sans-serif', animation: 'pulse 2s infinite' }}>{scanProgress || 'Initializing…'}</span>}
 
@@ -394,7 +410,9 @@ export default function OpportunitiesView({ state }: Props) {
         <div onScroll={handleResultsScroll} style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'start', justifyContent: 'center' }}>
           {cards.map((card, idx) => {
             const isCollapsed = collapsed.has(card.symbol)
-            const hasData = card.topCsp.length > 0 || card.topCc.length > 0
+            const showCsp = strategyFilter !== 'cc' && card.topCsp.length > 0
+            const showCc  = strategyFilter !== 'csp' && card.topCc.length > 0
+            const hasData = showCsp || showCc
             const shares = stocksHeld[card.symbol] ?? 0
             return (
               <div key={card.symbol} style={{ width: CARD_W, minWidth: CARD_W, maxWidth: CARD_W, background: 'var(--bg-card)', border: `1px solid ${idx < 3 && hasData ? 'var(--accent-border)' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
@@ -435,8 +453,8 @@ export default function OpportunitiesView({ state }: Props) {
 
                 {hasData && !isCollapsed && (
                   <div style={{ padding: '8px 12px 10px' }}>
-                    <StrategySection label="CSP" color="#f43f5e" items={card.topCsp} nextEarnings={card.nextEarnings} />
-                    <StrategySection label="CC"  color="#3b82f6" items={card.topCc} nextEarnings={card.nextEarnings} />
+                    {showCsp && <StrategySection label="CSP" color="#f43f5e" items={card.topCsp} nextEarnings={card.nextEarnings} />}
+                    {showCc  && <StrategySection label="CC"  color="#3b82f6" items={card.topCc} nextEarnings={card.nextEarnings} />}
                   </div>
                 )}
               </div>
