@@ -45,6 +45,32 @@ function fmtPrice(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+/** Tiny intraday line+area chart from a quote's 15m closes, like a mini stock ticker chart. */
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  const W = 72
+  const H = 28
+  if (data.length < 2) {
+    return <svg width={W} height={H} style={{ flexShrink: 0 }} />
+  }
+  const min = Math.min(...data)
+  const max = Math.max(...data)
+  const range = max - min || 1
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * W
+    const y = H - ((v - min) / range) * H
+    return [x, y] as const
+  })
+  const linePath = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+  const areaPath = `${linePath} L${W},${H} L0,${H} Z`
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ flexShrink: 0 }}>
+      <path d={areaPath} fill={color} opacity={0.12} />
+      <path d={linePath} fill="none" stroke={color} strokeWidth={1.3} strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 interface CityGroup {
   city: string
   country: string
@@ -259,18 +285,23 @@ export default function MarketsView() {
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-1)' }}>{ex.name}</span>
                 <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-4)' }}>{open ? 'OPEN' : 'CLOSED'}</span>
               </div>
-              {q ? (
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)' }}>
-                    {fmtPrice(q.price)}
-                  </span>
-                  <span style={{ fontSize: 11.5, fontWeight: 600, fontFamily: 'Inter, sans-serif', color }}>
-                    {q.change >= 0 ? '+' : ''}{fmtPrice(q.change)} ({q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}%)
-                  </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {q ? (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)' }}>
+                        {fmtPrice(q.price)}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, fontFamily: 'Inter, sans-serif', color }}>
+                        {q.change >= 0 ? '+' : ''}{fmtPrice(q.change)} ({q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}%)
+                      </span>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 12, color: 'var(--text-4)' }}>—</span>
+                  )}
                 </div>
-              ) : (
-                <span style={{ fontSize: 12, color: 'var(--text-4)' }}>—</span>
-              )}
+                {q && q.sparkline.length > 1 && <Sparkline data={q.sparkline} color={color} />}
+              </div>
               <span style={{ fontSize: 10, color: 'var(--text-4)' }}>{ex.city}, {ex.country}</span>
             </div>
           )

@@ -28,12 +28,13 @@ function jsonResponse(body, status = 200, extra = {}) {
 async function fetchOne(symbol) {
   for (const host of ['query2.finance.yahoo.com', 'query1.finance.yahoo.com']) {
     try {
-      const url = `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`
+      const url = `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=15m&range=1d`
       const res = await fetch(url, { headers: { 'User-Agent': UA } })
       if (res.status === 429) { await sleep(1500); continue }
       if (!res.ok) continue
       const json = await res.json()
-      const meta = json?.chart?.result?.[0]?.meta
+      const result = json?.chart?.result?.[0]
+      const meta = result?.meta
       if (!meta || typeof meta.regularMarketPrice !== 'number') continue
 
       const price = meta.regularMarketPrice
@@ -41,12 +42,16 @@ async function fetchOne(symbol) {
       const change = price - prevClose
       const changePercent = prevClose ? (change / prevClose) * 100 : 0
 
+      const closes = result?.indicators?.quote?.[0]?.close ?? []
+      const sparkline = closes.filter(c => typeof c === 'number')
+
       return {
         price,
         change,
         changePercent,
         marketState: meta.marketState ?? null,
         exchangeName: meta.exchangeName ?? null,
+        sparkline,
       }
     } catch { /* try next host */ }
   }

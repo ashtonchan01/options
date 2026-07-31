@@ -11,6 +11,8 @@ export interface MarketQuote {
   changePercent: number
   marketState: string | null
   exchangeName: string | null
+  /** Intraday closes for today's session (15m bars), oldest first — for a sparkline. */
+  sparkline: number[]
 }
 
 export async function fetchMarketQuotes(symbols: string[]): Promise<Record<string, MarketQuote>> {
