@@ -78,6 +78,7 @@ const LABEL_ANCHOR: Record<string, Anchor> = {
   'Milan':        'bottom',
   'Moscow':       'right',
   'Shanghai':     'left',
+  'Seoul':        'top',
   'Hong Kong':    'bottom',
   'Taipei':       'right',
   'Kuala Lumpur': 'top',
