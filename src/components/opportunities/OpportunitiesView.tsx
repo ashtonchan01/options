@@ -65,9 +65,10 @@ function nextEarningsFor(sym: string, earningsMap: Record<string, string[]>): st
 function earningsBeforeExpiry(expiry: string, nextEarnings: string | null): boolean {
   return nextEarnings !== null && nextEarnings <= normalizeExpiry(expiry)
 }
+const MONTH_ABBR = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
 function fmtEr(d: string): string {
   const [, m, day] = d.split('-')
-  return `${parseInt(m)}/${parseInt(day)}`
+  return `${MONTH_ABBR[parseInt(m) - 1]} ${parseInt(day)}`
 }
 function scoreColor(s: number)  { return s >= 70 ? '#10b981' : s >= 40 ? '#f59e0b' : 'var(--text-4)' }
 function deltaColor(d: number)  { const a = Math.abs(d); return a < 0.15 ? 'var(--text-3)' : a > 0.40 ? '#f59e0b' : '#10b981' }
