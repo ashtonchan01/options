@@ -140,7 +140,6 @@ async function fetchCboeChain(symbol: string): Promise<CboeData | null> {
 function processChain(
   data: CboeData,
   underlying: string,
-  hasSufficientShares: boolean,
 ): ScanResult[] {
   const now = Date.now()
   const stockPrice = data.current_price
@@ -225,10 +224,11 @@ function processChain(
     }
   }
 
-  // Always scan puts (CSP)
+  // Scan both puts (CSP) and calls (covered call) for every ticker, regardless
+  // of whether shares are actually held — lets you scout CC entries you'd
+  // need to buy shares for first.
   if (puts.length > 0) processGroup(puts, true, 'csp')
-  // Only scan calls if user holds ≥100 shares
-  if (hasSufficientShares && calls.length > 0) processGroup(calls, false, 'covered_call')
+  if (calls.length > 0) processGroup(calls, false, 'covered_call')
 
   return results
 }
@@ -242,7 +242,6 @@ function processChain(
  */
 export async function scanAllTickersCboe(
   tickers: string[],
-  stocksHeld: Record<string, number>,
   onProgress?: (ticker: string, i: number, total: number) => void,
 ): Promise<ScanResult[]> {
   onProgress?.('Fetching all chains...', 0, tickers.length)
@@ -253,8 +252,7 @@ export async function scanAllTickersCboe(
         const data = await fetchCboeChain(sym)
         onProgress?.(sym, i + 1, tickers.length)
         if (!data) return []
-        const hasSufficientShares = (stocksHeld[sym] ?? 0) >= 100
-        return processChain(data, sym, hasSufficientShares)
+        return processChain(data, sym)
       } catch (e) {
         console.warn(`[CBOE] ${sym} failed:`, e)
         return []

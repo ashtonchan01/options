@@ -259,7 +259,7 @@ export default function OpportunitiesView({ state }: Props) {
     setScanning(true); setError(null); setResults([]); setScanProgress('')
     try {
       setScanProgress('Fetching chains…')
-      const all = await scanAllTickersCboe(tickers, stocksHeld, (sym, i, total) => setScanProgress(`${sym} (${i}/${total})`))
+      const all = await scanAllTickersCboe(tickers, (sym, i, total) => setScanProgress(`${sym} (${i}/${total})`))
       if (!all.length && tickers.length) setError('No results — try again in 30s.')
       setResults(all); setScanned(true)
     } catch (e) { setError(String(e)) }
