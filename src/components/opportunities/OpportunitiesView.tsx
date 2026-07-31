@@ -60,10 +60,21 @@ function nextEarningsFor(sym: string, earningsMap: Record<string, string[]>): st
   const upcoming = dates.filter(d => d >= today).sort()
   return upcoming[0] ?? null
 }
-/** True if the ticker's next earnings date falls on/before this option's expiry —
- *  i.e. the position would still be open through the earnings event. */
-function earningsBeforeExpiry(expiry: string, nextEarnings: string | null): boolean {
-  return nextEarnings !== null && nextEarnings <= normalizeExpiry(expiry)
+/** Monday–Sunday range (as 'YYYY-MM-DD') containing the given date. */
+function weekRange(dateStr: string): { start: string; end: string } {
+  const d = new Date(`${dateStr}T12:00:00`)
+  const dow = d.getDay() || 7 // Mon=1 … Sun=7
+  const monday = new Date(d); monday.setDate(d.getDate() - (dow - 1))
+  const sunday = new Date(d); sunday.setDate(d.getDate() + (7 - dow))
+  const toYMD = (x: Date) => x.toISOString().slice(0, 10)
+  return { start: toYMD(monday), end: toYMD(sunday) }
+}
+/** True if this option's expiry falls in the same Mon–Sun week as the ticker's next earnings date. */
+function expiryInEarningsWeek(expiry: string, nextEarnings: string | null): boolean {
+  if (nextEarnings === null) return false
+  const exp = normalizeExpiry(expiry)
+  const { start, end } = weekRange(nextEarnings)
+  return exp >= start && exp <= end
 }
 const MONTH_ABBR = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
 function fmtEr(d: string): string {
@@ -123,7 +134,7 @@ const GRID = '18px 1fr 44px 34px 44px 48px 40px 34px'
 
 function OptionRow({ r, rank, nextEarnings }: { r: ScanResult; rank: number; nextEarnings: string | null }) {
   const ty = tradeYield(r)
-  const throughEarnings = earningsBeforeExpiry(r.expiry, nextEarnings)
+  const throughEarnings = expiryInEarningsWeek(r.expiry, nextEarnings)
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: GRID, gap: 4, alignItems: 'center', padding: '5px 4px', margin: '0 -4px',
@@ -131,7 +142,7 @@ function OptionRow({ r, rank, nextEarnings }: { r: ScanResult; rank: number; nex
       background: throughEarnings ? '#F0B42912' : 'transparent',
       borderLeft: throughEarnings ? '2px solid #F0B429' : '2px solid transparent',
     }}
-      title={`Annualized: ${r.annualizedYield.toFixed(0)}% · OI: ${r.openInterest} · V/OI: ${r.volumeOiRatio.toFixed(2)}${throughEarnings ? ` · Earnings ${fmtEr(nextEarnings!)} before expiry` : ''}`}>
+      title={`Annualized: ${r.annualizedYield.toFixed(0)}% · OI: ${r.openInterest} · V/OI: ${r.volumeOiRatio.toFixed(2)}${throughEarnings ? ` · Expires the week of earnings (${fmtEr(nextEarnings!)})` : ''}`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>${r.strike}</span>
       <span style={{ color: throughEarnings ? '#F0B429' : 'var(--text-3)', textAlign: 'right', fontWeight: throughEarnings ? 700 : 400 }}>
