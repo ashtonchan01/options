@@ -221,20 +221,18 @@ function fmtMonthShort(ym: string) {
 
 interface DonutSlice { label: string; value: number; color: string }
 
-const PIE_W = 820, PIE_H = 520
-const PIE_CX = 410, PIE_CY = 260, PIE_R = 150
-const LABEL_GAP = 16 // how far outside the circle each label's column sits
-const LABEL_COL_LEFT = PIE_CX - PIE_R - LABEL_GAP
-const LABEL_COL_RIGHT = PIE_CX + PIE_R + LABEL_GAP
+const PIE_W = 980, PIE_H = 620
+const PIE_CX = 490, PIE_CY = 310, PIE_R = 230
+const LABEL_GAP = 6 // how far outside the circle each label sits — just touching, no line
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
 }
 
-/** Full pie (no donut hole) with external leader-line labels fanned left/right, like a
- * classic "exploded label" pie chart — each slice's name + % sits outside the circle,
- * connected back to its wedge by a line, instead of a swatch legend off to the side. */
+/** Full pie (no donut hole) with each slice's name + % printed just outside the circle at
+ * its own angle — no connecting line, so the pie is sized generously (enlarge PIE_R rather
+ * than crowd) to leave enough arc length between neighboring labels. */
 function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSlice[]; centerLabel: string; centerValue: string }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
   if (total <= 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No allocation data</div>
@@ -257,38 +255,8 @@ function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSli
     return `M${PIE_CX},${PIE_CY} L${p0.x},${p0.y} A${PIE_R},${PIE_R} 0 ${largeArc} 1 ${p1.x},${p1.y} Z`
   }
 
-  // Labels sit right next to the pie, at each slice's own vertical position — not spread
-  // across the full chart height. Only nudge a label away from its natural spot when it
-  // would otherwise collide with its neighbor (a standard label-declutter pass), so most
-  // labels stay hugging the circle right beside their wedge, like the reference chart.
-  const MARGIN = 14, MIN_GAP = 24
-  const edgeY = (w: (typeof wedges)[number]) => polar(PIE_CX, PIE_CY, PIE_R, w.midAngle).y
-  const bySide = (cond: (w: (typeof wedges)[number]) => boolean) =>
-    wedges.filter(cond).sort((a, b) => edgeY(a) - edgeY(b))
-  const left = bySide(w => Math.cos(((w.midAngle - 90) * Math.PI) / 180) < 0)
-  const right = bySide(w => Math.cos(((w.midAngle - 90) * Math.PI) / 180) >= 0)
-
-  function declutter(group: typeof wedges): Map<(typeof wedges)[number], number> {
-    const y = group.map(edgeY)
-    // Forward pass: push each label down if it's too close to the one above it.
-    for (let i = 1; i < y.length; i++) {
-      if (y[i] < y[i - 1] + MIN_GAP) y[i] = y[i - 1] + MIN_GAP
-    }
-    // If that pushed the bottom past the chart, shift the whole run back up.
-    const overflow = y.length ? y[y.length - 1] - (PIE_H - MARGIN) : 0
-    if (overflow > 0) for (let i = 0; i < y.length; i++) y[i] -= overflow
-    // Clamp the top, re-running the forward pass so gaps are preserved.
-    if (y.length && y[0] < MARGIN) {
-      y[0] = MARGIN
-      for (let i = 1; i < y.length; i++) if (y[i] < y[i - 1] + MIN_GAP) y[i] = y[i - 1] + MIN_GAP
-    }
-    return new Map(group.map((w, i) => [w, y[i]]))
-  }
-  const leftY = declutter(left)
-  const rightY = declutter(right)
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
       <div>
         <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase' }}>{centerLabel}</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', marginLeft: 8 }}>{centerValue}</span>
@@ -298,30 +266,14 @@ function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSli
           <path key={i} d={wedgePath(w.startAngle, w.endAngle)} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />
         ))}
         {wedges.map((w, i) => {
-          const onLeft = leftY.has(w)
-          const labelY = (onLeft ? leftY.get(w) : rightY.get(w))!
-          const colX = onLeft ? LABEL_COL_LEFT : LABEL_COL_RIGHT
-          const edge = polar(PIE_CX, PIE_CY, PIE_R, w.midAngle)
-          const dotX = onLeft ? colX - 4 : colX + 4
-          // Color swatch sits between the leader line and the text, so each label is
-          // unambiguously color-coded back to its wedge without following the line.
-          const SW = 8
-          const swatchX = onLeft ? colX - SW - 2 : colX + 2
-          const textX = onLeft ? swatchX - 4 : swatchX + SW + 4
+          const pt = polar(PIE_CX, PIE_CY, PIE_R + LABEL_GAP, w.midAngle)
+          const onLeft = pt.x < PIE_CX
           return (
-            <g key={`label-${i}`}>
-              <line x1={edge.x} y1={edge.y} x2={dotX} y2={labelY} stroke="var(--text-4)" strokeWidth={0.75} opacity={0.6} />
-              <circle cx={edge.x} cy={edge.y} r={2} fill={w.color} />
-              <rect x={swatchX} y={labelY - SW + 1} width={SW} height={SW} rx={2} fill={w.color} />
-              <text x={textX} y={labelY - 3} textAnchor={onLeft ? 'end' : 'start'}
-                fontSize={11} fontWeight={700} fontFamily="Inter, sans-serif" fill="var(--text-2)">
-                {w.label}
-              </text>
-              <text x={textX} y={labelY + 10} textAnchor={onLeft ? 'end' : 'start'}
-                fontSize={10} fontFamily="Inter, sans-serif" fill="var(--text-4)">
-                {(w.frac * 100).toFixed(1)}%
-              </text>
-            </g>
+            <text key={`label-${i}`} x={pt.x} y={pt.y} textAnchor={onLeft ? 'end' : 'start'} dominantBaseline="middle"
+              fontSize={11} fontFamily="Inter, sans-serif">
+              <tspan fontWeight={700} fill={w.color}>{w.label}</tspan>
+              <tspan fill="var(--text-4)" fontSize={10}> {(w.frac * 100).toFixed(1)}%</tspan>
+            </text>
           )
         })}
       </svg>
@@ -632,9 +584,9 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
         ))}
       </div>
 
-      {/* ── Analytics: allocation structure + monthly flow ── */}
-      <div style={{ display: 'flex', gap: 1, background: 'var(--border)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexShrink: 0 }}>
-        <div style={{ flex: '2.2 1 460px', background: 'var(--bg-card)', padding: '12px 16px' }}>
+      {/* ── Analytics: allocation structure (full width, no-line labels need room) + monthly flow ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--border)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ background: 'var(--bg-card)', padding: '12px 16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
             Allocation by Position
           </div>
@@ -644,7 +596,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
             centerValue={fmtDollar(stockMV + Math.abs(optionMV))}
           />
         </div>
-        <div style={{ flex: '1 1 260px', background: 'var(--bg-card)', padding: '12px 16px' }}>
+        <div style={{ background: 'var(--bg-card)', padding: '12px 16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
             Monthly Cash Flow
           </div>
