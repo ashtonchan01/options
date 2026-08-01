@@ -287,15 +287,21 @@ function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSli
           const colX = onLeft ? LABEL_COL_LEFT : LABEL_COL_RIGHT
           const edge = polar(PIE_CX, PIE_CY, PIE_R, w.midAngle)
           const dotX = onLeft ? colX - 4 : colX + 4
+          // Color swatch sits between the leader line and the text, so each label is
+          // unambiguously color-coded back to its wedge without following the line.
+          const SW = 8
+          const swatchX = onLeft ? colX - SW - 2 : colX + 2
+          const textX = onLeft ? swatchX - 4 : swatchX + SW + 4
           return (
             <g key={`label-${i}`}>
               <line x1={edge.x} y1={edge.y} x2={dotX} y2={labelY} stroke="var(--text-4)" strokeWidth={0.75} opacity={0.6} />
               <circle cx={edge.x} cy={edge.y} r={2} fill={w.color} />
-              <text x={colX} y={labelY - 3} textAnchor={onLeft ? 'end' : 'start'}
+              <rect x={swatchX} y={labelY - SW + 1} width={SW} height={SW} rx={2} fill={w.color} />
+              <text x={textX} y={labelY - 3} textAnchor={onLeft ? 'end' : 'start'}
                 fontSize={11} fontWeight={700} fontFamily="Inter, sans-serif" fill="var(--text-2)">
                 {w.label}
               </text>
-              <text x={colX} y={labelY + 10} textAnchor={onLeft ? 'end' : 'start'}
+              <text x={textX} y={labelY + 10} textAnchor={onLeft ? 'end' : 'start'}
                 fontSize={10} fontFamily="Inter, sans-serif" fill="var(--text-4)">
                 {(w.frac * 100).toFixed(1)}%
               </text>
