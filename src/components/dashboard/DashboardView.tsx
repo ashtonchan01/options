@@ -223,7 +223,9 @@ interface DonutSlice { label: string; value: number; color: string }
 
 const PIE_W = 820, PIE_H = 520
 const PIE_CX = 410, PIE_CY = 260, PIE_R = 150
-const LABEL_COL_LEFT = 170, LABEL_COL_RIGHT = 650
+const LABEL_GAP = 16 // how far outside the circle each label's column sits
+const LABEL_COL_LEFT = PIE_CX - PIE_R - LABEL_GAP
+const LABEL_COL_RIGHT = PIE_CX + PIE_R + LABEL_GAP
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180
@@ -255,21 +257,35 @@ function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSli
     return `M${PIE_CX},${PIE_CY} L${p0.x},${p0.y} A${PIE_R},${PIE_R} 0 ${largeArc} 1 ${p1.x},${p1.y} Z`
   }
 
-  // Fan labels left/right of the pie, stacked top-to-bottom (by actual vertical position on
-  // the circle, so leader lines don't cross), spread across the chart's full height so a
-  // handful of slices don't bunch up near the vertical center.
+  // Labels sit right next to the pie, at each slice's own vertical position — not spread
+  // across the full chart height. Only nudge a label away from its natural spot when it
+  // would otherwise collide with its neighbor (a standard label-declutter pass), so most
+  // labels stay hugging the circle right beside their wedge, like the reference chart.
+  const MARGIN = 14, MIN_GAP = 24
   const edgeY = (w: (typeof wedges)[number]) => polar(PIE_CX, PIE_CY, PIE_R, w.midAngle).y
   const bySide = (cond: (w: (typeof wedges)[number]) => boolean) =>
     wedges.filter(cond).sort((a, b) => edgeY(a) - edgeY(b))
   const left = bySide(w => Math.cos(((w.midAngle - 90) * Math.PI) / 180) < 0)
   const right = bySide(w => Math.cos(((w.midAngle - 90) * Math.PI) / 180) >= 0)
-  const MARGIN = 24
-  const stackY = (group: typeof wedges) => {
-    const slot = (PIE_H - 2 * MARGIN) / Math.max(group.length, 1)
-    return new Map(group.map((w, i) => [w, MARGIN + slot * (i + 0.5)]))
+
+  function declutter(group: typeof wedges): Map<(typeof wedges)[number], number> {
+    const y = group.map(edgeY)
+    // Forward pass: push each label down if it's too close to the one above it.
+    for (let i = 1; i < y.length; i++) {
+      if (y[i] < y[i - 1] + MIN_GAP) y[i] = y[i - 1] + MIN_GAP
+    }
+    // If that pushed the bottom past the chart, shift the whole run back up.
+    const overflow = y.length ? y[y.length - 1] - (PIE_H - MARGIN) : 0
+    if (overflow > 0) for (let i = 0; i < y.length; i++) y[i] -= overflow
+    // Clamp the top, re-running the forward pass so gaps are preserved.
+    if (y.length && y[0] < MARGIN) {
+      y[0] = MARGIN
+      for (let i = 1; i < y.length; i++) if (y[i] < y[i - 1] + MIN_GAP) y[i] = y[i - 1] + MIN_GAP
+    }
+    return new Map(group.map((w, i) => [w, y[i]]))
   }
-  const leftY = stackY(left)
-  const rightY = stackY(right)
+  const leftY = declutter(left)
+  const rightY = declutter(right)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
