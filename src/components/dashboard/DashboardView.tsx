@@ -219,55 +219,90 @@ function fmtMonthShort(ym: string) {
   return MONTHS[parseInt(m, 10) - 1] ?? ym
 }
 
-interface DonutSlice { label: string; value: number; color: string; tickers?: string[] }
+interface DonutSlice { label: string; value: number; color: string }
 
+const PIE_W = 560, PIE_H = 380
+const PIE_CX = 280, PIE_CY = 190, PIE_R = 82
+const LABEL_COL_LEFT = 165, LABEL_COL_RIGHT = 395
+
+function polar(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+}
+
+/** Full pie (no donut hole) with external leader-line labels fanned left/right, like a
+ * classic "exploded label" pie chart — each slice's name + % sits outside the circle,
+ * connected back to its wedge by a line, instead of a swatch legend off to the side. */
 function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSlice[]; centerLabel: string; centerValue: string }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
   if (total <= 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No allocation data</div>
 
-  const R = 52, CX = 70, CY = 70, STROKE = 22
-  const circumference = 2 * Math.PI * R
-  let offset = 0
-  const arcs = slices.filter(s => s.value > 0).map(s => {
+  let angle = 0
+  const wedges = slices.filter(s => s.value > 0).map(s => {
     const frac = s.value / total
-    const dash = frac * circumference
-    const arc = { ...s, dash, gap: circumference - dash, offset }
-    offset += dash
-    return arc
+    const startAngle = angle
+    const endAngle = angle + frac * 360
+    angle = endAngle
+    const midAngle = (startAngle + endAngle) / 2
+    return { ...s, frac, startAngle, endAngle, midAngle }
   })
 
+  // Path for each wedge (pie slice, not stroked arc)
+  function wedgePath(startAngle: number, endAngle: number) {
+    const p0 = polar(PIE_CX, PIE_CY, PIE_R, startAngle)
+    const p1 = polar(PIE_CX, PIE_CY, PIE_R, endAngle)
+    const largeArc = endAngle - startAngle > 180 ? 1 : 0
+    return `M${PIE_CX},${PIE_CY} L${p0.x},${p0.y} A${PIE_R},${PIE_R} 0 ${largeArc} 1 ${p1.x},${p1.y} Z`
+  }
+
+  // Fan labels left/right of the pie, stacked top-to-bottom (by actual vertical position on
+  // the circle, so leader lines don't cross), spread across the chart's full height so a
+  // handful of slices don't bunch up near the vertical center.
+  const edgeY = (w: (typeof wedges)[number]) => polar(PIE_CX, PIE_CY, PIE_R, w.midAngle).y
+  const bySide = (cond: (w: (typeof wedges)[number]) => boolean) =>
+    wedges.filter(cond).sort((a, b) => edgeY(a) - edgeY(b))
+  const left = bySide(w => Math.cos(((w.midAngle - 90) * Math.PI) / 180) < 0)
+  const right = bySide(w => Math.cos(((w.midAngle - 90) * Math.PI) / 180) >= 0)
+  const MARGIN = 24
+  const stackY = (group: typeof wedges) => {
+    const slot = (PIE_H - 2 * MARGIN) / Math.max(group.length, 1)
+    return new Map(group.map((w, i) => [w, MARGIN + slot * (i + 0.5)]))
+  }
+  const leftY = stackY(left)
+  const rightY = stackY(right)
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-      <svg viewBox="0 0 140 140" style={{ width: 140, height: 140, flexShrink: 0, transform: 'rotate(-90deg)' }}>
-        <circle cx={CX} cy={CY} r={R} fill="none" stroke="var(--bg-elevated)" strokeWidth={STROKE} />
-        {arcs.map((a, i) => (
-          <circle key={i} cx={CX} cy={CY} r={R} fill="none" stroke={a.color} strokeWidth={STROKE}
-            strokeDasharray={`${a.dash} ${a.gap}`} strokeDashoffset={-a.offset}
-            style={{ transition: 'stroke-dasharray 0.3s' }} />
-        ))}
-      </svg>
-      <div style={{ flex: 1, minWidth: 140 }}>
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase' }}>{centerLabel}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{centerValue}</div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {arcs.slice(0, 6).map((a, i) => (
-            <div key={i}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontFamily: 'Inter, sans-serif' }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: a.color, flexShrink: 0 }} />
-                <span style={{ color: 'var(--text-2)', flex: 1 }}>{a.label}</span>
-                <span style={{ color: 'var(--text-4)' }}>{((a.value / total) * 100).toFixed(0)}%</span>
-              </div>
-              {a.tickers && a.tickers.length > 0 && (
-                <div style={{ marginLeft: 14, fontSize: 9.5, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif', lineHeight: 1.4 }}>
-                  {a.tickers.slice(0, 6).join(', ')}{a.tickers.length > 6 ? ` +${a.tickers.length - 6} more` : ''}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div>
+        <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase' }}>{centerLabel}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', marginLeft: 8 }}>{centerValue}</span>
       </div>
+      <svg viewBox={`0 0 ${PIE_W} ${PIE_H}`} style={{ width: '100%', height: 'auto', maxWidth: 560 }}>
+        {wedges.map((w, i) => (
+          <path key={i} d={wedgePath(w.startAngle, w.endAngle)} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />
+        ))}
+        {wedges.map((w, i) => {
+          const onLeft = leftY.has(w)
+          const labelY = (onLeft ? leftY.get(w) : rightY.get(w))!
+          const colX = onLeft ? LABEL_COL_LEFT : LABEL_COL_RIGHT
+          const edge = polar(PIE_CX, PIE_CY, PIE_R, w.midAngle)
+          const dotX = onLeft ? colX - 4 : colX + 4
+          return (
+            <g key={`label-${i}`}>
+              <line x1={edge.x} y1={edge.y} x2={dotX} y2={labelY} stroke="var(--text-4)" strokeWidth={0.75} opacity={0.6} />
+              <circle cx={edge.x} cy={edge.y} r={2} fill={w.color} />
+              <text x={colX} y={labelY - 3} textAnchor={onLeft ? 'end' : 'start'}
+                fontSize={11} fontWeight={700} fontFamily="Inter, sans-serif" fill="var(--text-2)">
+                {w.label}
+              </text>
+              <text x={colX} y={labelY + 10} textAnchor={onLeft ? 'end' : 'start'}
+                fontSize={10} fontFamily="Inter, sans-serif" fill="var(--text-4)">
+                {(w.frac * 100).toFixed(1)}%
+              </text>
+            </g>
+          )
+        })}
+      </svg>
     </div>
   )
 }
@@ -464,6 +499,13 @@ const STRAT_META: Record<string, { label: string; color: string; order: number }
   other:         { label: 'Other',         color: '#64748b', order: 8 },
 }
 
+/** Categorical colors for per-ticker pie slices, cycling once a portfolio has more tickers than colors. */
+const TICKER_PALETTE = [
+  '#4a72d4', '#f43f5e', '#10b981', '#f59e0b', '#a855f7', '#06b6d4',
+  '#eab308', '#ec4899', '#22c55e', '#6366f1', '#f97316', '#14b8a6',
+  '#e11d48', '#84cc16', '#8b5cf6', '#0ea5e9',
+]
+
 function ibkrDesc(p: { underlyingSymbol?: string; symbol: string; expiry?: string; strike?: number; putCall?: string }) {
   const underlying = p.underlyingSymbol ?? p.symbol
   const expDesc = (() => {
@@ -530,37 +572,18 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
   }
   const TDR = { ...TD, textAlign: 'right' as const }
 
-  // Allocation structure for donut: options grouped by strategy type + stocks as its own slice.
-  // Each slice also carries the tickers that make it up, ranked by position value.
+  // Allocation structure for the pie: one slice per underlying ticker (stock value +
+  // any options on it combined), so labels read as position names, not strategy buckets.
   const donutSlices: DonutSlice[] = (() => {
-    const byType = new Map<string, number>()
-    const tickersByType = new Map<string, Map<string, number>>()
+    const byTicker = new Map<string, number>()
+    for (const p of stocks)  byTicker.set(p.symbol, (byTicker.get(p.symbol) ?? 0) + Math.abs(p.positionValue))
     for (const p of options) {
-      const t = symbolToStratType.get(p.symbol) ?? 'other'
       const ticker = p.underlyingSymbol ?? p.symbol
-      byType.set(t, (byType.get(t) ?? 0) + Math.abs(p.positionValue))
-      if (!tickersByType.has(t)) tickersByType.set(t, new Map())
-      const tm = tickersByType.get(t)!
-      tm.set(ticker, (tm.get(ticker) ?? 0) + Math.abs(p.positionValue))
+      byTicker.set(ticker, (byTicker.get(ticker) ?? 0) + Math.abs(p.positionValue))
     }
-    const rankTickers = (tm: Map<string, number> | undefined) =>
-      tm ? [...tm.entries()].sort((a, b) => b[1] - a[1]).map(([sym]) => sym) : []
-
-    const slices: DonutSlice[] = [...byType.entries()]
+    return [...byTicker.entries()]
       .sort((a, b) => b[1] - a[1])
-      .map(([t, v]) => ({
-        label: STRAT_META[t]?.label ?? 'Other', value: v, color: STRAT_META[t]?.color ?? '#64748b',
-        tickers: rankTickers(tickersByType.get(t)),
-      }))
-    if (stockMV > 0) {
-      const byTicker = new Map<string, number>()
-      for (const p of stocks) byTicker.set(p.symbol, (byTicker.get(p.symbol) ?? 0) + Math.abs(p.positionValue))
-      slices.unshift({
-        label: 'Stocks', value: Math.abs(stockMV), color: '#4a72d4',
-        tickers: rankTickers(byTicker),
-      })
-    }
-    return slices
+      .map(([ticker, v], i) => ({ label: ticker, value: v, color: TICKER_PALETTE[i % TICKER_PALETTE.length] }))
   })()
 
   return (
@@ -591,7 +614,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
       <div style={{ display: 'flex', gap: 1, background: 'var(--border)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexShrink: 0 }}>
         <div style={{ flex: '1 1 260px', background: 'var(--bg-card)', padding: '12px 16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
-            Allocation by Strategy
+            Allocation by Position
           </div>
           <StructureDonut
             slices={donutSlices}
