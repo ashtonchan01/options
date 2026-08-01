@@ -221,9 +221,9 @@ function fmtMonthShort(ym: string) {
 
 interface DonutSlice { label: string; value: number; color: string }
 
-const PIE_W = 560, PIE_H = 380
-const PIE_CX = 280, PIE_CY = 190, PIE_R = 82
-const LABEL_COL_LEFT = 165, LABEL_COL_RIGHT = 395
+const PIE_W = 680, PIE_H = 440
+const PIE_CX = 340, PIE_CY = 210, PIE_R = 115
+const LABEL_COL_LEFT = 200, LABEL_COL_RIGHT = 480
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180
@@ -277,7 +277,7 @@ function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSli
         <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase' }}>{centerLabel}</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', marginLeft: 8 }}>{centerValue}</span>
       </div>
-      <svg viewBox={`0 0 ${PIE_W} ${PIE_H}`} style={{ width: '100%', height: 'auto', maxWidth: 560 }}>
+      <svg viewBox={`0 0 ${PIE_W} ${PIE_H}`} style={{ width: '100%', height: 'auto', maxWidth: PIE_W }}>
         {wedges.map((w, i) => (
           <path key={i} d={wedgePath(w.startAngle, w.endAngle)} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />
         ))}
@@ -612,7 +612,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
 
       {/* ── Analytics: allocation structure + monthly flow ── */}
       <div style={{ display: 'flex', gap: 1, background: 'var(--border)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexShrink: 0 }}>
-        <div style={{ flex: '1 1 260px', background: 'var(--bg-card)', padding: '12px 16px' }}>
+        <div style={{ flex: '1.6 1 380px', background: 'var(--bg-card)', padding: '12px 16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
             Allocation by Position
           </div>
