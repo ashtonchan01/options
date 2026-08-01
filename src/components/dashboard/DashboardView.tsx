@@ -221,9 +221,9 @@ function fmtMonthShort(ym: string) {
 
 interface DonutSlice { label: string; value: number; color: string }
 
-const PIE_W = 680, PIE_H = 440
-const PIE_CX = 340, PIE_CY = 210, PIE_R = 115
-const LABEL_COL_LEFT = 200, LABEL_COL_RIGHT = 480
+const PIE_W = 820, PIE_H = 520
+const PIE_CX = 410, PIE_CY = 260, PIE_R = 150
+const LABEL_COL_LEFT = 170, LABEL_COL_RIGHT = 650
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180
@@ -612,7 +612,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
 
       {/* ── Analytics: allocation structure + monthly flow ── */}
       <div style={{ display: 'flex', gap: 1, background: 'var(--border)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexShrink: 0 }}>
-        <div style={{ flex: '1.6 1 380px', background: 'var(--bg-card)', padding: '12px 16px' }}>
+        <div style={{ flex: '2.2 1 460px', background: 'var(--bg-card)', padding: '12px 16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
             Allocation by Position
           </div>
