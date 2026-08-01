@@ -219,7 +219,7 @@ function fmtMonthShort(ym: string) {
   return MONTHS[parseInt(m, 10) - 1] ?? ym
 }
 
-interface DonutSlice { label: string; value: number; color: string }
+interface DonutSlice { label: string; value: number; color: string; tickers?: string[] }
 
 function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSlice[]; centerLabel: string; centerValue: string }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
@@ -251,12 +251,19 @@ function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSli
           <div style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase' }}>{centerLabel}</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{centerValue}</div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {arcs.slice(0, 6).map((a, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontFamily: 'Inter, sans-serif' }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: a.color, flexShrink: 0 }} />
-              <span style={{ color: 'var(--text-2)', flex: 1 }}>{a.label}</span>
-              <span style={{ color: 'var(--text-4)' }}>{((a.value / total) * 100).toFixed(0)}%</span>
+            <div key={i}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontFamily: 'Inter, sans-serif' }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: a.color, flexShrink: 0 }} />
+                <span style={{ color: 'var(--text-2)', flex: 1 }}>{a.label}</span>
+                <span style={{ color: 'var(--text-4)' }}>{((a.value / total) * 100).toFixed(0)}%</span>
+              </div>
+              {a.tickers && a.tickers.length > 0 && (
+                <div style={{ marginLeft: 14, fontSize: 9.5, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif', lineHeight: 1.4 }}>
+                  {a.tickers.slice(0, 6).join(', ')}{a.tickers.length > 6 ? ` +${a.tickers.length - 6} more` : ''}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -523,17 +530,36 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
   }
   const TDR = { ...TD, textAlign: 'right' as const }
 
-  // Allocation structure for donut: options grouped by strategy type + stocks as its own slice
+  // Allocation structure for donut: options grouped by strategy type + stocks as its own slice.
+  // Each slice also carries the tickers that make it up, ranked by position value.
   const donutSlices: DonutSlice[] = (() => {
     const byType = new Map<string, number>()
+    const tickersByType = new Map<string, Map<string, number>>()
     for (const p of options) {
       const t = symbolToStratType.get(p.symbol) ?? 'other'
+      const ticker = p.underlyingSymbol ?? p.symbol
       byType.set(t, (byType.get(t) ?? 0) + Math.abs(p.positionValue))
+      if (!tickersByType.has(t)) tickersByType.set(t, new Map())
+      const tm = tickersByType.get(t)!
+      tm.set(ticker, (tm.get(ticker) ?? 0) + Math.abs(p.positionValue))
     }
+    const rankTickers = (tm: Map<string, number> | undefined) =>
+      tm ? [...tm.entries()].sort((a, b) => b[1] - a[1]).map(([sym]) => sym) : []
+
     const slices: DonutSlice[] = [...byType.entries()]
       .sort((a, b) => b[1] - a[1])
-      .map(([t, v]) => ({ label: STRAT_META[t]?.label ?? 'Other', value: v, color: STRAT_META[t]?.color ?? '#64748b' }))
-    if (stockMV > 0) slices.unshift({ label: 'Stocks', value: Math.abs(stockMV), color: '#4a72d4' })
+      .map(([t, v]) => ({
+        label: STRAT_META[t]?.label ?? 'Other', value: v, color: STRAT_META[t]?.color ?? '#64748b',
+        tickers: rankTickers(tickersByType.get(t)),
+      }))
+    if (stockMV > 0) {
+      const byTicker = new Map<string, number>()
+      for (const p of stocks) byTicker.set(p.symbol, (byTicker.get(p.symbol) ?? 0) + Math.abs(p.positionValue))
+      slices.unshift({
+        label: 'Stocks', value: Math.abs(stockMV), color: '#4a72d4',
+        tickers: rankTickers(byTicker),
+      })
+    }
     return slices
   })()
 
