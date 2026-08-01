@@ -224,6 +224,10 @@ interface DonutSlice { label: string; value: number; color: string }
 const PIE_W = 980, PIE_H = 620
 const PIE_CX = 490, PIE_CY = 310, PIE_R = 230
 const LABEL_GAP = 6 // how far outside the circle each label sits — just touching, no line
+// Slices are largest-first, so the smallest ones land back-to-back with the biggest one
+// right at the top seam (angle 0/360) — the most crowded spot for labels. Rotating the
+// whole pie counter-clockwise moves that seam away from top-center into open space.
+const PIE_ROTATION = -120
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180
@@ -237,7 +241,7 @@ function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSli
   const total = slices.reduce((s, x) => s + x.value, 0)
   if (total <= 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No allocation data</div>
 
-  let angle = 0
+  let angle = PIE_ROTATION
   const wedges = slices.filter(s => s.value > 0).map(s => {
     const frac = s.value / total
     const startAngle = angle
