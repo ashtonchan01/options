@@ -1,10 +1,10 @@
 /**
  * Compact global exchanges map for the Dashboard overview — same flat
- * equirectangular projection and region zoom as the Markets page. Only
- * cities with enough room get an inline label (lead mover); crowded
- * neighbors fall back to a dot + hover tooltip so labels never overlap.
+ * equirectangular projection and region zoom as the Markets page. Every
+ * city gets an inline label; hovering a city brings its label to the
+ * front (drawn last) so it reads clearly even over crowded neighbors.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { geoEquirectangular, geoPath } from 'd3-geo'
 import { feature, mesh } from 'topojson-client'
 import type { Topology, GeometryCollection, Objects } from 'topojson-specification'
@@ -15,9 +15,6 @@ import type { MarketQuote } from '../../../services/markets'
 
 const WIDTH = 480
 const HEIGHT = 260
-/** Minimum ON-SCREEN pixel gap between two dots for both to keep an inline label — converted to
- * SVG viewBox units based on actual rendered width, so more labels show as the panel gets wider. */
-const MIN_LABEL_GAP_PX = 24
 
 const topology = countriesTopology as unknown as Topology<Objects<{ name?: string }>>
 const countries = feature(topology, topology.objects.countries as GeometryCollection)
@@ -87,28 +84,14 @@ function leadExchange(group: CityGroup, quotes: Record<string, MarketQuote>): Ex
   return withQuotes.reduce((a, b) => Math.abs(quotes[b.symbol].changePercent) > Math.abs(quotes[a.symbol].changePercent) ? b : a)
 }
 
-/** Greedily pick which cities have room for an inline label, in dot-position order, so labels can't overlap each other. */
-function pickLabeled(positioned: { group: CityGroup; x: number; y: number }[], minGap: number): Set<string> {
-  const kept: { x: number; y: number }[] = []
-  const labeled = new Set<string>()
-  for (const p of positioned) {
-    const tooClose = kept.some(k => Math.hypot(k.x - p.x, k.y - p.y) < minGap)
-    if (!tooClose) {
-      kept.push(p)
-      labeled.add(`${p.group.city}|${p.group.country}`)
-    }
-  }
-  return labeled
-}
-
 function CityMarker({
-  group, quotes, now, scale, showLabel, onHover,
+  group, quotes, now, scale, isHovered, onHover,
 }: {
   group: CityGroup
   quotes: Record<string, MarketQuote>
   now: Date
   scale: number
-  showLabel: boolean
+  isHovered: boolean
   onHover: (group: CityGroup | null, pos: { x: number; y: number } | null) => void
 }) {
   const pt = projection([group.lon, group.lat])
@@ -124,6 +107,7 @@ function CityMarker({
   const textAnchor = anchor === 'left' ? 'end' : anchor === 'right' ? 'start' : 'middle'
   const labelX = anchor === 'left' ? -6 * scale : anchor === 'right' ? 6 * scale : 0
   const labelY = anchor === 'top' ? -7 * scale : anchor === 'bottom' ? 8.5 * scale : 2 * scale
+  const labelScale = isHovered ? 1.35 : 1
 
   return (
     <g
@@ -141,18 +125,17 @@ function CityMarker({
       <circle r={6 * scale} fill="transparent" />
       <circle r={1.6 * scale} fill={dotColor} stroke="var(--bg-surface)" strokeWidth={0.6 * scale} />
 
-      {showLabel && (
-        <text x={labelX} y={labelY} textAnchor={textAnchor}
-          fontSize={5 * scale} fontFamily="Inter, sans-serif" fontWeight={400} fill="var(--text-3)"
-          style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 1.2 * scale }}>
-          {group.exchanges.length > 1 ? group.city : group.exchanges[0].name}
-          {leadQuote && (
-            <tspan fill={changeColor} fontWeight={400}>
-              {'  '}{leadQuote.changePercent >= 0 ? '+' : ''}{leadQuote.changePercent.toFixed(2)}%
-            </tspan>
-          )}
-        </text>
-      )}
+      <text x={labelX * labelScale} y={labelY * labelScale} textAnchor={textAnchor}
+        fontSize={(isHovered ? 6.5 : 5) * scale} fontFamily="Inter, sans-serif" fontWeight={isHovered ? 600 : 400}
+        fill={isHovered ? 'var(--text-1)' : 'var(--text-3)'}
+        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: (isHovered ? 2.5 : 1.2) * scale }}>
+        {group.exchanges.length > 1 ? group.city : group.exchanges[0].name}
+        {leadQuote && (
+          <tspan fill={changeColor} fontWeight={isHovered ? 700 : 400}>
+            {'  '}{leadQuote.changePercent >= 0 ? '+' : ''}{leadQuote.changePercent.toFixed(2)}%
+          </tspan>
+        )}
+      </text>
     </g>
   )
 }
@@ -162,34 +145,20 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
   const openCount = EXCHANGES.filter(ex => isExchangeOpen(ex, now)).length
   const [region, setRegion] = useState<Region>('global')
   const [hover, setHover] = useState<{ group: CityGroup; x: number; y: number } | null>(null)
-  const mapBoxRef = useRef<HTMLDivElement>(null)
-  const [renderedWidth, setRenderedWidth] = useState(WIDTH)
-
-  useEffect(() => {
-    const el = mapBoxRef.current
-    if (!el) return
-    const ro = new ResizeObserver(entries => {
-      const w = entries[0]?.contentRect.width
-      if (w) setRenderedWidth(w)
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
 
   const crop = useMemo(() => getCrop(region), [region])
   const scale = crop.width / GLOBAL_CROP_WIDTH
-  const physicalScale = renderedWidth / crop.width
-  const minGap = MIN_LABEL_GAP_PX / physicalScale
 
-  const labeledCities = useMemo(() => {
-    const positioned = cityGroups
-      .map(group => {
-        const pt = projection([group.lon, group.lat])
-        return pt ? { group, x: pt[0], y: pt[1] } : null
-      })
-      .filter((p): p is { group: CityGroup; x: number; y: number } => p !== null)
-    return pickLabeled(positioned, minGap)
-  }, [cityGroups, minGap])
+  // Draw the hovered city last so its label renders on top of any crowded neighbors.
+  const orderedCityGroups = useMemo(() => {
+    if (!hover) return cityGroups
+    const key = `${hover.group.city}|${hover.group.country}`
+    return [...cityGroups].sort((a, b) => {
+      const aHover = `${a.city}|${a.country}` === key ? 1 : 0
+      const bHover = `${b.city}|${b.country}` === key ? 1 : 0
+      return aHover - bHover
+    })
+  }, [cityGroups, hover])
 
   return (
     <div className="dash-panel">
@@ -216,19 +185,19 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
         ))}
       </div>
 
-      <div ref={mapBoxRef} style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
         <svg viewBox={`${crop.x0} ${crop.y0} ${crop.width} ${crop.height}`} style={{ width: '100%', height: '100%', display: 'block' }}>
           <rect x={crop.x0} y={crop.y0} width={crop.width} height={crop.height} fill="var(--bg-surface)" />
           <path d={countriesPath} fill="var(--bg-active)" fillRule="evenodd" />
           <path d={bordersPath} fill="none" stroke="var(--border)" strokeWidth={0.5} />
-          {cityGroups.map(g => (
+          {orderedCityGroups.map(g => (
             <CityMarker
               key={`${g.city}|${g.country}`}
               group={g}
               quotes={quotes}
               now={now}
               scale={scale}
-              showLabel={labeledCities.has(`${g.city}|${g.country}`)}
+              isHovered={hover ? `${hover.group.city}|${hover.group.country}` === `${g.city}|${g.country}` : false}
               onHover={(group, pos) => setHover(group && pos ? { group, x: pos.x, y: pos.y } : null)}
             />
           ))}

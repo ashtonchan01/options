@@ -5,12 +5,14 @@
  */
 import { useState } from 'react'
 
+/** Channel-based live embeds — YouTube plays whatever is currently live on the
+ * channel, so this doesn't go stale like a pinned video ID does once a stream ends. */
 const CHANNELS = [
-  { id: 'bloomberg', name: 'Bloomberg',      videoId: 'iEpJwprxDdk' },
-  { id: 'cnbc',       name: 'CNBC',          videoId: '9NyxcX3rhQs' },
-  { id: 'sky',        name: 'Sky News',      videoId: 'uvviIF4725I' },
-  { id: 'yahoo',      name: 'Yahoo Finance', videoId: 'KQp-e_XQnDE' },
-  { id: 'dw',         name: 'DW',            videoId: 'LuKwFajn37U' },
+  { id: 'bloomberg', name: 'Bloomberg',      channelId: 'UCIALMKvObZNtJ6AmdCLP7Lg' },
+  { id: 'cnbc',       name: 'CNBC',          channelId: 'UCrp_UI8XtuYfpiqluWLD7Lw' },
+  { id: 'sky',        name: 'Sky News',      channelId: 'UCoMdktPbSTixAyNGwb-UYkQ' },
+  { id: 'yahoo',      name: 'Yahoo Finance', channelId: 'UCEAZeUIeJs0IjQiqTCdVSIg' },
+  { id: 'dw',         name: 'DW',            channelId: 'UCknLrEdhRCp1aegoMqRaCZg' },
 ]
 
 export default function LiveTVPanel() {
@@ -37,11 +39,11 @@ export default function LiveTVPanel() {
       <div style={{ flex: 1, minHeight: 0, borderRadius: 6, overflow: 'hidden', background: '#000' }}>
         <iframe
           key={active.id}
-          src={`https://www.youtube-nocookie.com/embed/${active.videoId}?autoplay=1&mute=1`}
+          src={`https://www.youtube-nocookie.com/embed/live_stream?channel=${active.channelId}&autoplay=1&mute=1&playsinline=1`}
           title={active.name}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
           allowFullScreen
-          style={{ width: '100%', height: '100%', border: 'none' }}
+          style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
         />
       </div>
     </div>
