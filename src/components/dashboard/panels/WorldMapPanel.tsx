@@ -1,8 +1,7 @@
 /**
  * Compact global exchanges map for the Dashboard overview — same flat
- * equirectangular projection as the Markets page, with a %-change label
- * per city and a hover tooltip showing price, without the region buttons
- * or side list (those live in the Markets tab / LiveChartsStrip).
+ * equirectangular projection and region zoom as the Markets page, with a
+ * %-change label per city and a hover tooltip showing price.
  */
 import { useMemo, useState } from 'react'
 import { geoEquirectangular, geoPath } from 'd3-geo'
@@ -23,6 +22,25 @@ const projection = geoEquirectangular().fitSize([WIDTH, HEIGHT], countries)
 const pathGen = geoPath(projection)
 const countriesPath = pathGen(countries) ?? ''
 const bordersPath = pathGen(countryBorders) ?? ''
+
+type Region = 'global' | 'america' | 'europe' | 'asia'
+const REGIONS: Record<Region, { label: string; lonMin: number; lonMax: number; latMin: number; latMax: number }> = {
+  global:  { label: 'Global',  lonMin: -110, lonMax: 165, latMin: -58, latMax: 75 },
+  america: { label: 'America', lonMin: -125, lonMax: -35, latMin: -35, latMax: 58 },
+  europe:  { label: 'Europe',  lonMin: -15,  lonMax: 42,  latMin: 33,  latMax: 62 },
+  asia:    { label: 'Asia',    lonMin: 65,   lonMax: 155, latMin: -40, latMax: 45 },
+}
+
+function getCrop(region: Region) {
+  const r = REGIONS[region]
+  const y0 = projection([0, r.latMax])![1]
+  const y1 = projection([0, r.latMin])![1]
+  const x0 = projection([r.lonMin, 0])![0]
+  const x1 = projection([r.lonMax, 0])![0]
+  return { x0, y0, width: x1 - x0, height: y1 - y0 }
+}
+
+const GLOBAL_CROP_WIDTH = getCrop('global').width
 
 interface CityGroup { city: string; country: string; lat: number; lon: number; exchanges: Exchange[] }
 
@@ -45,6 +63,10 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
   const cityGroups = useMemo(() => groupByCity(EXCHANGES), [])
   const openCount = EXCHANGES.filter(ex => isExchangeOpen(ex, now)).length
   const [hover, setHover] = useState<{ group: CityGroup; x: number; y: number } | null>(null)
+  const [region, setRegion] = useState<Region>('global')
+
+  const crop = useMemo(() => getCrop(region), [region])
+  const scale = crop.width / GLOBAL_CROP_WIDTH
 
   return (
     <div className="dash-panel">
@@ -52,9 +74,28 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
         <span>World Markets</span>
         <span className="dash-panel-sub">{openCount} of {EXCHANGES.length} open</span>
       </div>
+
+      <div style={{ display: 'flex', gap: 5 }}>
+        {(Object.keys(REGIONS) as Region[]).map(r => (
+          <button
+            key={r}
+            onClick={() => setRegion(r)}
+            style={{
+              fontSize: 10.5, fontWeight: 600, padding: '3px 9px', borderRadius: 5,
+              border: `1px solid ${region === r ? '#8b5cf6' : 'var(--border)'}`,
+              background: region === r ? '#8b5cf61a' : 'transparent',
+              color: region === r ? '#8b5cf6' : 'var(--text-3)',
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            {REGIONS[r].label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: '100%', height: '100%', display: 'block' }}>
-          <rect x={0} y={0} width={WIDTH} height={HEIGHT} fill="var(--bg-surface)" />
+        <svg viewBox={`${crop.x0} ${crop.y0} ${crop.width} ${crop.height}`} style={{ width: '100%', height: '100%', display: 'block' }}>
+          <rect x={crop.x0} y={crop.y0} width={crop.width} height={crop.height} fill="var(--bg-surface)" />
           <path d={countriesPath} fill="var(--bg-active)" fillRule="evenodd" />
           <path d={bordersPath} fill="none" stroke="var(--border)" strokeWidth={0.5} />
           {cityGroups.map(g => {
@@ -79,16 +120,16 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
                 style={{ cursor: 'pointer' }}
               >
                 {anyOpen && (
-                  <circle r={5} fill={color} opacity={0.35}>
-                    <animate attributeName="r" values="4;8;4" dur="2s" repeatCount="indefinite" />
+                  <circle r={5 * scale} fill={color} opacity={0.35}>
+                    <animate attributeName="r" values={`${4 * scale};${8 * scale};${4 * scale}`} dur="2s" repeatCount="indefinite" />
                     <animate attributeName="opacity" values="0.35;0;0.35" dur="2s" repeatCount="indefinite" />
                   </circle>
                 )}
-                <circle r={7} fill="transparent" />
-                <circle r={2.6} fill={color} stroke="var(--bg-surface)" strokeWidth={0.8} />
+                <circle r={7 * scale} fill="transparent" />
+                <circle r={2.6 * scale} fill={color} stroke="var(--bg-surface)" strokeWidth={0.8 * scale} />
                 {leadQuote && (
-                  <text x={5} y={2.5} fontSize={6.5} fontFamily="Inter, sans-serif" fontWeight={700} fill={changeColor}
-                    style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 2 }}>
+                  <text x={5 * scale} y={2.5 * scale} fontSize={6.5 * scale} fontFamily="Inter, sans-serif" fontWeight={700} fill={changeColor}
+                    style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 2 * scale }}>
                     {leadQuote.changePercent >= 0 ? '+' : ''}{leadQuote.changePercent.toFixed(1)}%
                   </text>
                 )}
@@ -100,8 +141,8 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
         {hover && (
           <div style={{
             position: 'absolute',
-            left: `${(hover.x / WIDTH) * 100}%`,
-            top: `${(hover.y / HEIGHT) * 100}%`,
+            left: `${((hover.x - crop.x0) / crop.width) * 100}%`,
+            top: `${((hover.y - crop.y0) / crop.height) * 100}%`,
             transform: 'translate(-50%, -100%) translateY(-8px)',
             background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6,
             padding: '6px 8px', pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 1,
