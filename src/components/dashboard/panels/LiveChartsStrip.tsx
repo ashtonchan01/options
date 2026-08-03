@@ -33,11 +33,17 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   )
 }
 
-/** `row`: wide landscape cards flowing in rows, horizontal scroll (default).
+/** `row`: wide landscape cards flowing in 3 stacked rows, horizontal scroll.
+ * `row-single`: one single row of cards, horizontal scroll — for a strip under the map.
  * `column`: single vertical list of cards, for use as a narrow sidebar next to the map. */
-export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Record<string, MarketQuote>; layout?: 'row' | 'column' }) {
+export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Record<string, MarketQuote>; layout?: 'row' | 'row-single' | 'column' }) {
   const gridStyle = layout === 'column'
     ? { flex: 1, minWidth: 0, minHeight: 0, display: 'flex' as const, flexDirection: 'column' as const, gap: 8, overflowY: 'auto' as const, padding: '2px 2px 6px' }
+    : layout === 'row-single'
+    ? {
+      flex: 1, minWidth: 0, minHeight: 0, display: 'flex' as const, flexDirection: 'row' as const,
+      gap: 10, overflowX: 'auto' as const, padding: '2px 2px 6px',
+    }
     : {
       flex: 1, minWidth: 0, minHeight: 0, display: 'grid' as const, gridTemplateRows: 'repeat(3, 1fr)', gridAutoFlow: 'column' as const,
       gridAutoColumns: '220px', gap: 10, overflowX: 'auto' as const, padding: '2px 2px 6px',
@@ -54,8 +60,9 @@ export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Re
             <div key={ex.symbol} style={{
               background: 'var(--bg-page)', border: '1px solid var(--border-light)',
               borderRadius: 6, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4,
-              minWidth: 0, minHeight: layout === 'column' ? 90 : 0,
-              flexShrink: layout === 'column' ? 0 : undefined,
+              minWidth: layout === 'row-single' ? 150 : 0, minHeight: layout === 'column' ? 90 : 0,
+              flexShrink: layout === 'column' ? 0 : layout === 'row-single' ? 0 : undefined,
+              width: layout === 'row-single' ? 150 : undefined,
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, flexShrink: 0 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

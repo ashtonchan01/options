@@ -1312,7 +1312,7 @@ body {
   padding: 6px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(277px, 1fr));
-  grid-auto-rows: 400px;
+  grid-auto-rows: 500px;
   grid-auto-flow: row dense;
   gap: 6px;
   overflow-y: auto;
@@ -1322,14 +1322,21 @@ body {
 .dash-cell { display: flex; min-width: 0; min-height: 0; }
 .dash-cell > * { flex: 1; min-width: 0; min-height: 0; }
 .dash-cell-w2 { grid-column: span 2; }
+.dash-cell-w3 { grid-column: span 3; }
+/* Always spans the full row width, guaranteeing it lands on its own row below whatever
+   came before it, instead of sharing a row when there happens to be leftover space. */
+.dash-cell-full { grid-column: 1 / -1; }
 .dash-cell-h2 { grid-row: span 2; }
 /* The Actions & To-Do sidebar is normally a fixed-width strip next to the portfolio view —
  * as its own standalone dashboard cell it should fill the cell like every other panel. */
 .dash-actions-cell .db-sidebar { width: 100%; border-left: 1px solid var(--border); }
-/* When only one column fits, a span-2 cell would force an overflowing implicit track —
-   fall back to single-column placement. */
+/* When fewer columns fit than a cell spans, that span would force an overflowing implicit
+   track — fall back to however many columns actually fit at each width. */
+@media (max-width: 900px) {
+  .dash-cell-w3 { grid-column: span 2; }
+}
 @media (max-width: 650px) {
-  .dash-cell-w2 { grid-column: auto; }
+  .dash-cell-w2, .dash-cell-w3 { grid-column: auto; }
 }
 
 .dash-panel {
