@@ -113,11 +113,11 @@ function CityMarker({
         const rowY = stackStartY + i * lineHeight
         return (
           <text key={ex.symbol} x={labelX} y={rowY} textAnchor={textAnchor}
-            fontSize={6.5 * scale} fontFamily="Inter, sans-serif" fontWeight={500} fill="var(--text-2)"
+            fontSize={6.5 * scale} fontFamily="Inter, sans-serif" fontWeight={400} fill="var(--text-2)"
             style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 2 * scale }}>
             {ex.name}
             {q && (
-              <tspan fill={changeColor} fontWeight={600}>
+              <tspan fill={changeColor} fontWeight={400}>
                 {'  '}{q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}%
               </tspan>
             )}
