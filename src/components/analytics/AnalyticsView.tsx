@@ -835,7 +835,7 @@ export function OptionsCard({ state }: { state: AppState }) {
   )
 }
 
-export function ActualPortfolio({ state }: { state: AppState }) {
+export function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<string, string> }) {
   const {
     stocks, sortedOptions, trades, cashBalance,
     stockMV, stockPnL, stockCost, optionMV, optionPnL, realizedPnL, netLiq, totalUnrealized,
@@ -886,6 +886,9 @@ export function ActualPortfolio({ state }: { state: AppState }) {
           <MonthlyFlowBars trades={trades} />
         </div>
       </div>
+
+      {/* ── Income channels ── */}
+      <IncomeChannelStrip trades={trades} labels={labels} symbolToStratType={symbolToStratType} />
 
       {/* ── Content ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>

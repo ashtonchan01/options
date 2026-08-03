@@ -1,14 +1,14 @@
 /**
- * Portfolio tab — a full-width classified-income banner, then three
- * side-by-side columns: Analytics (allocation pie, cash flow, stocks/options
- * tables), Journal Overview (KPIs, equity curve, Edge Finder, breakdowns),
- * and Trade Journal (per-position setup/mistake/rating/notes). All three
- * columns render at once instead of behind sub-tabs.
+ * Portfolio tab — three side-by-side columns: Analytics (allocation pie,
+ * cash flow, classified income, stocks/options tables), Journal Overview
+ * (KPIs, equity curve, Edge Finder, breakdowns), and Trade Journal
+ * (per-position setup/mistake/rating/notes). All three render at once
+ * instead of behind sub-tabs.
  */
 import { useMemo } from 'react'
 import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
-import { ActualPortfolio, IncomeChannelsCard } from '../analytics/AnalyticsView'
+import { ActualPortfolio } from '../analytics/AnalyticsView'
 import { OverviewTab, JournalTab } from '../journal/JournalView'
 import { buildJournalPositions, closedByDate } from '../../engine/journal'
 import { useJournalStore } from '../../store/journalStore'
@@ -32,24 +32,19 @@ export default function PortfolioView({ state, tradeLabels }: { state: AppState;
   const hasTrades = state.sync.trades.length > 0
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ height: 220, flexShrink: 0, display: 'flex', borderBottom: '1px solid var(--border)' }}>
-        <IncomeChannelsCard state={state} labels={tradeLabels?.labels ?? {}} />
+    <div className="pf-columns">
+      <div className="pf-column">
+        <ActualPortfolio state={state} labels={tradeLabels?.labels ?? {}} />
       </div>
-      <div className="pf-columns" style={{ flex: 1, minHeight: 0 }}>
-        <div className="pf-column">
-          <ActualPortfolio state={state} />
-        </div>
-        <div className="pf-column jr-root">
-          <div className="cc-section-title" style={{ padding: 0 }}>Journal Overview</div>
-          {hasTrades ? <OverviewTab closed={closed} entries={entries} /> : <NoTradeData />}
-        </div>
-        <div className="pf-column jr-root">
-          <div className="cc-section-title" style={{ padding: 0 }}>Trade Journal</div>
-          {hasTrades ? (
-            <JournalTab positions={positions} entries={entries} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
-          ) : <NoTradeData />}
-        </div>
+      <div className="pf-column jr-root">
+        <div className="cc-section-title" style={{ padding: 0 }}>Journal Overview</div>
+        {hasTrades ? <OverviewTab closed={closed} entries={entries} /> : <NoTradeData />}
+      </div>
+      <div className="pf-column jr-root">
+        <div className="cc-section-title" style={{ padding: 0 }}>Trade Journal</div>
+        {hasTrades ? (
+          <JournalTab positions={positions} entries={entries} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
+        ) : <NoTradeData />}
       </div>
     </div>
   )
