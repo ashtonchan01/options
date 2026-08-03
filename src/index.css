@@ -1359,8 +1359,19 @@ body {
   .dash-grid { grid-template-columns: 1fr; grid-auto-rows: min-content; overflow-y: auto; height: 100%; align-content: start; }
   .dash-col { flex: none; }
   .dash-row { flex: none; }
-  .dash-panel { flex: none; min-height: 320px; }
-  .dash-map-panel { min-height: 420px; }
+  .dash-panel { flex: none !important; min-height: 320px; }
+  /* Ad-hoc wrapper rows in DashboardView (map+chart row, single-panel fill rows) also need
+     their flex-grow ratios reset here, same as .dash-row/.dash-panel — otherwise they keep
+     trying to distribute height from a content-sized (min-content) ancestor. */
+  .dashcol-maprow, .dashcol-fillrow { flex: none !important; }
+  /* Fixed (not min-) heights on purpose: both the map (flex:1 SVG area) and the charts list
+     (flex:1 scrolling list of ~20 cards) need a DEFINITE ancestor height to resolve against —
+     a mere min-height floor still leaves them "hug content", and unconstrained content (an
+     SVG's fallback size, or every card rendered in full with no scroll clipping) can demand
+     a much larger height than intended, blowing up the whole column. Giving the row itself a
+     fixed height lets align-items:stretch pass that height down to both children evenly. */
+  .dashcol-maprow { height: 420px !important; }
+  .dashcol-fillrow { height: 320px !important; }
 }
 
 /* Headlines and X stay side-by-side until the screen is genuinely narrow. */
