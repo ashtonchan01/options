@@ -191,7 +191,7 @@ function DayCell({
   isSelected: boolean
   onClick: () => void
 }) {
-  if (!date) return <div style={{ background: 'var(--bg-surface)', borderRadius: 4 }} />
+  if (!date) return <div style={{ background: 'var(--bg-surface)' }} />
 
   const dayNum = parseInt(date.split('-')[2])
   const { events, trades, hasActivity, earnings, holiday, econEvents } = data
@@ -220,7 +220,6 @@ function DayCell({
         position: 'relative',
         background: isHoliday ? '#f43f5e08' : isSelected ? 'var(--bg-active)' : hasActivity ? 'var(--bg-card)' : 'var(--bg-surface)',
         border: `1px solid ${isSelected ? '#312e81' : isToday ? '#3b82f6' : isHoliday ? '#f43f5e30' : 'var(--bg-active)'}`,
-        borderRadius: 4,
         padding: '4px 6px',
         cursor: hasActivity ? 'pointer' : 'default',
         overflow: 'hidden',

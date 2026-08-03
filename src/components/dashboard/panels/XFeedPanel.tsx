@@ -8,6 +8,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Plus, X, Settings2 } from 'lucide-react'
 
 const STORAGE_KEY = 'options:x-entries'
+/** Superseded by STORAGE_KEY when List URL support was added — read once to migrate any
+ * accounts a user had already added under the old key, then cleared. */
+const LEGACY_STORAGE_KEY = 'options:x-accounts'
 
 interface XEntry {
   type: 'account' | 'list'
@@ -16,6 +19,22 @@ interface XEntry {
 }
 
 const DEFAULT_ENTRIES: XEntry[] = [{ type: 'account', value: 'DeItaone', label: '@DeItaone' }]
+
+function migrateLegacyAccounts(): XEntry[] | null {
+  try {
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed) || parsed.length === 0) return null
+    const entries: XEntry[] = parsed
+      .filter((h): h is string => typeof h === 'string' && h.length > 0)
+      .map(handle => ({ type: 'account' as const, value: handle, label: `@${handle}` }))
+    localStorage.removeItem(LEGACY_STORAGE_KEY)
+    return entries.length > 0 ? entries : null
+  } catch {
+    return null
+  }
+}
 
 declare global {
   interface Window {
@@ -40,7 +59,14 @@ function loadTwitterWidgets(): Promise<void> {
 function loadEntries(): XEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw === null) return DEFAULT_ENTRIES
+    if (raw === null) {
+      const migrated = migrateLegacyAccounts()
+      if (migrated) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
+        return migrated
+      }
+      return DEFAULT_ENTRIES
+    }
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? parsed : DEFAULT_ENTRIES
   } catch {
