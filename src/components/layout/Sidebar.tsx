@@ -6,28 +6,25 @@
 import { useState, useRef } from 'react'
 import {
   LayoutDashboard, Briefcase, CalendarDays, Layers, BookOpen, Radar,
-  FlaskConical, ClipboardList, Menu, X, RefreshCw, Upload, Settings,
-  Sun, Moon, ChevronDown, Pencil, Globe, LogOut, ChevronLeft, ChevronRight,
+  Menu, X, RefreshCw, Upload, Settings,
+  Sun, Moon, ChevronDown, Pencil, LogOut, ChevronLeft, ChevronRight,
   PieChart,
 } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
 import type { StrategyPage } from '../../App'
 
-export const TAB_IDS = ['dashboard', 'portfolio', 'analytics', 'markets', 'calendar', 'strategies', 'journal', 'scanner', 'plan', 'backtest'] as const
+export const TAB_IDS = ['dashboard', 'portfolio', 'analytics', 'calendar', 'strategies', 'journal', 'scanner'] as const
 export type TabId = typeof TAB_IDS[number]
 
 const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard',  label: 'Dashboard',  icon: <LayoutDashboard size={17} /> },
   { id: 'portfolio',  label: 'Portfolio',  icon: <Briefcase size={17} /> },
   { id: 'analytics',  label: 'Analytics',  icon: <PieChart size={17} /> },
-  { id: 'markets',    label: 'Markets',    icon: <Globe size={17} /> },
   { id: 'calendar',   label: 'Calendar',   icon: <CalendarDays size={17} /> },
   // strategies rendered separately (expandable)
   { id: 'journal',    label: 'Journal',    icon: <BookOpen size={17} /> },
   { id: 'scanner',    label: 'Scanner',    icon: <Radar size={17} /> },
-  { id: 'backtest',   label: 'Backtest',   icon: <FlaskConical size={17} /> },
-  { id: 'plan',       label: 'Plan',       icon: <ClipboardList size={17} /> },
 ]
 
 const STRATEGY_ITEMS: { label: string; page: StrategyPage }[] = [
@@ -117,7 +114,7 @@ export default function Sidebar({
         </div>
 
         <nav className="ew-nav">
-          {NAV_ITEMS.slice(0, 5).map(item => (
+          {NAV_ITEMS.slice(0, 4).map(item => (
             <button key={item.id}
               className={`ew-nav-item${activeTab === item.id ? ' active' : ''}`}
               title={collapsed ? item.label : undefined}
@@ -165,7 +162,7 @@ export default function Sidebar({
             </div>
           )}
 
-          {NAV_ITEMS.slice(5).map(item => (
+          {NAV_ITEMS.slice(4).map(item => (
             <button key={item.id}
               className={`ew-nav-item${activeTab === item.id ? ' active' : ''}`}
               title={collapsed ? item.label : undefined}
