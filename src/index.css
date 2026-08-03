@@ -1326,6 +1326,16 @@ body {
 /* Always spans the full row width, guaranteeing it lands on its own row below whatever
    came before it, instead of sharing a row when there happens to be leftover space. */
 .dash-cell-full { grid-column: 1 / -1; }
+/* Pinned to the same starting column as the map (both are first in DOM order, so dense
+   packing places the map at column 1) and the same span, so this cell is always exactly as
+   wide as the map and can only land directly below it, never beside it. */
+.dash-cell-under-map { grid-column: 1 / span 3; }
+@media (max-width: 900px) {
+  .dash-cell-under-map { grid-column: 1 / span 2; }
+}
+@media (max-width: 650px) {
+  .dash-cell-under-map { grid-column: 1; }
+}
 /* Base row unit is 165px; most panels want ~500px (h3), tall ones (analytics/calendar) want
    ~1000px (h6) — a thin single-row strip like Live Charts just uses the 165px default (h1). */
 .dash-cell-h3 { grid-row: span 3; }
