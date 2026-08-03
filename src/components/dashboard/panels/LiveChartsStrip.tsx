@@ -5,6 +5,10 @@
 import { EXCHANGES } from '../../../data/exchanges'
 import type { MarketQuote } from '../../../services/markets'
 
+function fmtPrice(n: number): string {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 const VB_WIDTH = 140
 const VB_HEIGHT = 40
 
@@ -58,6 +62,11 @@ export default function LiveChartsStrip({ quotes }: { quotes: Record<string, Mar
                   <span style={{ fontSize: 10, color: 'var(--text-4)' }}>—</span>
                 )}
               </div>
+              {q && (
+                <span style={{ fontSize: 12.5, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)', flexShrink: 0 }}>
+                  {fmtPrice(q.price)}
+                </span>
+              )}
               <div style={{ flex: 1, minHeight: 0 }}>
                 {q && q.sparkline.length > 1 && <Sparkline data={q.sparkline} color={color} />}
               </div>
