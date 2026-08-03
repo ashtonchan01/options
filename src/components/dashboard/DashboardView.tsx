@@ -19,6 +19,7 @@ import CalendarPanel from './panels/CalendarPanel'
 import { ActualPortfolio, ActionsSidebar } from '../analytics/AnalyticsView'
 
 const REFRESH_MS = 60_000
+const CHART_ONLY_SYMBOLS = ['ES=F']
 
 export default function DashboardView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
   const [quotes, setQuotes] = useState<Record<string, MarketQuote>>({})
@@ -26,7 +27,7 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
 
   useEffect(() => {
     let cancelled = false
-    const symbols = EXCHANGES.map(e => e.symbol)
+    const symbols = [...EXCHANGES.map(e => e.symbol), ...CHART_ONLY_SYMBOLS]
     async function load() {
       const data = await fetchMarketQuotes(symbols)
       if (!cancelled && Object.keys(data).length > 0) setQuotes(data)
@@ -42,7 +43,7 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
       <div className="dash-cell dash-cell-under-map dash-cell-h3">
         <WorldMapPanel quotes={quotes} now={now} />
       </div>
-      <div className="dash-cell dash-cell-under-map">
+      <div className="dash-cell dash-cell-under-map dash-cell-charts">
         <LiveChartsStrip quotes={quotes} layout="row-single" />
       </div>
       <div className="dash-cell dash-cell-w2 dash-cell-h3">
