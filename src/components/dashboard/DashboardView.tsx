@@ -33,7 +33,7 @@ export default function DashboardView() {
   return (
     <div className="dash-grid">
       <div className="dash-col">
-        <WorldMapPanel now={now} />
+        <WorldMapPanel quotes={quotes} now={now} />
         <LiveChartsStrip quotes={quotes} />
       </div>
       <div className="dash-col">

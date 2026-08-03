@@ -75,7 +75,7 @@ export default function Sidebar({
 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [stratOpen, setStratOpen]   = useState(activeTab === 'strategies')
-  const [collapsed, setCollapsed]   = useState(() => localStorage.getItem('options:sidebar-collapsed') === '1')
+  const [collapsed, setCollapsed]   = useState(() => localStorage.getItem('options:sidebar-collapsed') !== '0')
   const fileRef = useRef<HTMLInputElement>(null)
   const { theme, toggle } = useThemeStore()
   const isLoading = syncStatus === 'loading'
