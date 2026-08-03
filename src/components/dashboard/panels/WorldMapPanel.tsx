@@ -89,7 +89,7 @@ function CityMarker({
   const dotColor = !anyOpen ? 'var(--text-4)' : '#10b981'
 
   const anchor = LABEL_ANCHOR[group.city] ?? 'right'
-  const lineHeight = 8.5 * scale
+  const lineHeight = 7 * scale
   const n = group.exchanges.length
   const textAnchor = anchor === 'left' ? 'end' : anchor === 'right' ? 'start' : 'middle'
   const labelX = anchor === 'left' ? -6 * scale : anchor === 'right' ? 6 * scale : 0
@@ -113,8 +113,8 @@ function CityMarker({
         const rowY = stackStartY + i * lineHeight
         return (
           <text key={ex.symbol} x={labelX} y={rowY} textAnchor={textAnchor}
-            fontSize={6.5 * scale} fontFamily="Inter, sans-serif" fontWeight={400} fill="var(--text-2)"
-            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 2 * scale }}>
+            fontSize={5 * scale} fontFamily="Inter, sans-serif" fontWeight={400} fill="var(--text-3)"
+            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 1.2 * scale }}>
             {ex.name}
             {q && (
               <tspan fill={changeColor} fontWeight={400}>
