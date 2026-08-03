@@ -1,8 +1,5 @@
 import type { AppState, Action, UrgencyLevel, StrategyType, RawTrade } from '../../types'
-import type { TradeLabels } from '../../App'
 import { tradeId } from '../../store/tradeLabelsStore'
-
-interface Props { state: AppState; tradeLabels?: TradeLabels }
 
 // ─── Urgency config ───────────────────────────────────────────────────────────
 
@@ -1063,20 +1060,3 @@ export function ActualPortfolio({ state, labels }: { state: AppState; labels: Re
   )
 }
 
-// ─── Dashboard View ───────────────────────────────────────────────────────────
-
-export default function DashboardView({ state, tradeLabels }: Props) {
-  const labels = tradeLabels?.labels ?? {}
-  return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-        <div className="db-root" style={{ flex: 1 }}>
-          <div className="db-main" style={{ flex: 1 }}>
-            <ActualPortfolio state={state} labels={labels} />
-          </div>
-          <ActionsSidebar state={state} />
-        </div>
-      </div>
-    </div>
-  )
-}
