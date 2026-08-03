@@ -7,7 +7,7 @@ import { useState, useRef } from 'react'
 import {
   LayoutDashboard, Briefcase, CalendarDays, Layers, BookOpen, Radar,
   FlaskConical, ClipboardList, Menu, X, RefreshCw, Upload, Settings,
-  Sun, Moon, ChevronDown, Pencil, Globe,
+  Sun, Moon, ChevronDown, Pencil, Globe, LogOut,
 } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
@@ -62,11 +62,14 @@ interface Props {
   onSyncClick: () => void
   onXmlUpload: (file: File) => void
   onOpenSettings: () => void
+  userEmail?: string
+  onSignOut?: () => void
 }
 
 export default function Sidebar({
   activeTab, stratPage, onTabChange, onStrategySelect, actionCount,
   syncStatus, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings,
+  userEmail, onSignOut,
 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [stratOpen, setStratOpen]   = useState(activeTab === 'strategies')
@@ -183,6 +186,11 @@ export default function Sidebar({
             <button className="ew-icon-btn" onClick={toggle} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
               {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
             </button>
+            {onSignOut && (
+              <button className="ew-icon-btn" onClick={onSignOut} title={userEmail ? `Sign out (${userEmail})` : 'Sign out'}>
+                <LogOut size={14} />
+              </button>
+            )}
           </div>
         </div>
       </aside>

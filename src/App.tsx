@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import Sidebar, { type TabId } from './components/layout/Sidebar'
 import FlexSettingsPanel from './components/shared/FlexSettingsPanel'
+import AuthGate from './components/auth/AuthGate'
 import { useAppStore } from './store/appStore'
 import { useSettingsStore } from './store/settingsStore'
 import { useTradeLabelStore } from './store/tradeLabelsStore'
+import { useAuthStore } from './store/authStore'
 import DashboardView from './components/dashboard/DashboardView'
 import PortfolioView from './components/portfolio/PortfolioView'
 import CalendarView from './components/calendar/CalendarView'
@@ -61,10 +63,18 @@ export default function App() {
   const { state, uploadXML, syncFlex }  = useAppStore()
   const { settings, update, activeProfile } = useSettingsStore()
   const { labels, setLabel, setMany, clearAll } = useTradeLabelStore()
+  const auth = useAuthStore()
 
   const hasCredentials = !!(activeProfile?.token && activeProfile?.queryId)
   const View = VIEWS[activeTab]
   const tradeLabels: TradeLabels = { labels, setLabel, setMany, clearAll }
+
+  if (auth.loading) {
+    return <div style={{ height: '100vh', width: '100vw', background: 'var(--bg-surface)' }} />
+  }
+  if (!auth.user) {
+    return <AuthGate error={auth.error} onLogin={auth.login} onSignup={auth.signup} />
+  }
 
   function handleTabChange(tab: TabId) {
     setActiveTab(tab)
@@ -91,6 +101,8 @@ export default function App() {
         onSyncClick={() => activeProfile && syncFlex(activeProfile.token, activeProfile.queryId)}
         onXmlUpload={uploadXML}
         onOpenSettings={() => setShowSettings(true)}
+        userEmail={auth.user.email}
+        onSignOut={auth.logout}
       />
 
       <div className="ew-main">
