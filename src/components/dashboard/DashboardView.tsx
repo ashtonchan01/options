@@ -39,30 +39,30 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
 
   return (
     <div className="dash-wrap">
-      <div className="dash-cell dash-cell-w3">
+      <div className="dash-cell dash-cell-under-map dash-cell-h3">
         <WorldMapPanel quotes={quotes} now={now} />
       </div>
-      <div className="dash-cell dash-cell-full">
+      <div className="dash-cell dash-cell-under-map">
         <LiveChartsStrip quotes={quotes} layout="row-single" />
       </div>
-      <div className="dash-cell dash-cell-w2">
+      <div className="dash-cell dash-cell-w2 dash-cell-h3">
         <LiveTVPanel />
       </div>
-      <div className="dash-cell">
+      <div className="dash-cell dash-cell-h3">
         <HeadlinesPanel />
       </div>
-      <div className="dash-cell">
+      <div className="dash-cell dash-cell-h3">
         <TickerHeadlinesPanel />
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h2">
+      <div className="dash-cell dash-cell-w2 dash-cell-h6">
         <div className="dash-panel" style={{ padding: 0, overflow: 'hidden' }}>
           <ActualPortfolio state={state} labels={tradeLabels?.labels ?? {}} />
         </div>
       </div>
-      <div className="dash-cell dash-cell-h2 dash-actions-cell">
+      <div className="dash-cell dash-cell-h6 dash-actions-cell">
         <ActionsSidebar state={state} />
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h2">
+      <div className="dash-cell dash-cell-w2 dash-cell-h6">
         <CalendarPanel state={state} />
       </div>
     </div>

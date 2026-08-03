@@ -51,7 +51,6 @@ export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Re
 
   return (
     <div className="dash-panel">
-      <div className="dash-panel-header"><span>Live Charts</span></div>
       <div style={gridStyle}>
         {EXCHANGES.map(ex => {
           const q = quotes[ex.symbol]
