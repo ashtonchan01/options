@@ -16,7 +16,7 @@ import type { MarketQuote } from '../../../services/markets'
 const WIDTH = 480
 const HEIGHT = 260
 /** Minimum pixel gap between two dots for both to keep an inline label. */
-const MIN_LABEL_GAP = 34
+const MIN_LABEL_GAP = 20
 
 const topology = countriesTopology as unknown as Topology<Objects<{ name?: string }>>
 const countries = feature(topology, topology.objects.countries as GeometryCollection)
@@ -132,13 +132,13 @@ function CityMarker({
       style={{ cursor: 'pointer' }}
     >
       {anyOpen && (
-        <circle r={5 * scale} fill={dotColor} opacity={0.35}>
-          <animate attributeName="r" values={`${4 * scale};${8 * scale};${4 * scale}`} dur="2s" repeatCount="indefinite" />
+        <circle r={3.2 * scale} fill={dotColor} opacity={0.35}>
+          <animate attributeName="r" values={`${2.6 * scale};${5 * scale};${2.6 * scale}`} dur="2s" repeatCount="indefinite" />
           <animate attributeName="opacity" values="0.35;0;0.35" dur="2s" repeatCount="indefinite" />
         </circle>
       )}
-      <circle r={7 * scale} fill="transparent" />
-      <circle r={2.6 * scale} fill={dotColor} stroke="var(--bg-surface)" strokeWidth={0.8 * scale} />
+      <circle r={6 * scale} fill="transparent" />
+      <circle r={1.6 * scale} fill={dotColor} stroke="var(--bg-surface)" strokeWidth={0.6 * scale} />
 
       {showLabel && (
         <text x={labelX} y={labelY} textAnchor={textAnchor}
