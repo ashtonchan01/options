@@ -10,11 +10,8 @@ import DashboardView from './components/dashboard/DashboardView'
 import AnalyticsView from './components/analytics/AnalyticsView'
 import PortfolioView from './components/portfolio/PortfolioView'
 import CalendarView from './components/calendar/CalendarView'
-import MarketsView from './components/markets/MarketsView'
 import StrategiesView from './components/strategies/StrategiesView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
-import PlanView from './components/plan/PlanView'
-import BacktestView from './components/backtest/BacktestView'
 import JournalView from './components/journal/JournalView'
 import type { AppState } from './types'
 import type { TradeLabel } from './store/tradeLabelsStore'
@@ -49,12 +46,9 @@ const VIEWS: Record<TabId, ViewComponent> = {
   dashboard:  DashboardView as ViewComponent,
   portfolio:  PortfolioView,
   analytics:  AnalyticsView,
-  markets:    MarketsView as ViewComponent,
   calendar:   CalendarView as ViewComponent,
   strategies: StrategiesView as ViewComponent,
   scanner:    OpportunitiesView as ViewComponent,
-  plan:       PlanView as ViewComponent,
-  backtest:   BacktestView as ViewComponent,
   journal:    JournalView as ViewComponent,
 }
 
