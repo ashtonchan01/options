@@ -13,6 +13,11 @@ const CHANNELS = [
   { id: 'sky',        name: 'Sky News',      channelId: 'UCoMdktPbSTixAyNGwb-UYkQ' },
   { id: 'yahoo',      name: 'Yahoo Finance', channelId: 'UCEAZeUIeJs0IjQiqTCdVSIg' },
   { id: 'dw',         name: 'DW',            channelId: 'UCknLrEdhRCp1aegoMqRaCZg' },
+  { id: 'aljazeera',  name: 'Al Jazeera',    channelId: 'UCNye-wNBqNL5ZzHSJj3l8Bg' },
+  { id: 'france24',   name: 'France 24',     channelId: 'UCQfwfsi5VrQ8yKZ-UWmAEFg' },
+  { id: 'nbc',        name: 'NBC News',      channelId: 'UCeY0bbntWzzVIaj2z3QigXg' },
+  { id: 'abc',        name: 'ABC News',      channelId: 'UCBi2mrWuNuyYy4gbM6fU18Q' },
+  { id: 'cbs',        name: 'CBS News',      channelId: 'UC8p1vwvWtl6T73JiExfWs1g' },
 ]
 
 export default function LiveTVPanel() {

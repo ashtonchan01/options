@@ -1338,8 +1338,10 @@ body {
 }
 /* Base row unit is 165px; most panels want ~500px (h3), tall ones (analytics/calendar) want
    ~1000px (h6) — a thin single-row strip like Live Charts just uses the 165px default (h1). */
+.dash-cell-h2 { grid-row: span 2; }
 .dash-cell-h3 { grid-row: span 3; }
 .dash-cell-h6 { grid-row: span 6; }
+.dash-cell-h12 { grid-row: span 12; }
 /* Live Charts is a single row of thin sparkline cards — even the 165px default row is more
    height than it needs, so pin it shorter than its track instead of stretching to fill it. */
 .dash-cell-charts { height: 118px; align-self: start; }

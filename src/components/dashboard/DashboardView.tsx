@@ -16,7 +16,15 @@ import LiveTVPanel from './panels/LiveTVPanel'
 import HeadlinesPanel from './panels/HeadlinesPanel'
 import TickerHeadlinesPanel from './panels/TickerHeadlinesPanel'
 import CalendarPanel from './panels/CalendarPanel'
-import { ActualPortfolio, ActionsSidebar } from '../analytics/AnalyticsView'
+import {
+  ActionsSidebar,
+  PortfolioSummaryCard,
+  AllocationPieCard,
+  CashFlowCard,
+  IncomeChannelsCard,
+  StocksCard,
+  OptionsCard,
+} from '../analytics/AnalyticsView'
 
 const REFRESH_MS = 60_000
 const CHART_ONLY_SYMBOLS = ['ES=F']
@@ -55,12 +63,25 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
       <div className="dash-cell dash-cell-h3">
         <TickerHeadlinesPanel />
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h6">
-        <div className="dash-panel" style={{ padding: 0, overflow: 'hidden' }}>
-          <ActualPortfolio state={state} labels={tradeLabels?.labels ?? {}} />
-        </div>
+      <div className="dash-cell dash-cell-h2">
+        <PortfolioSummaryCard state={state} />
       </div>
-      <div className="dash-cell dash-cell-h6 dash-actions-cell">
+      <div className="dash-cell dash-cell-h3">
+        <AllocationPieCard state={state} />
+      </div>
+      <div className="dash-cell dash-cell-h3">
+        <CashFlowCard state={state} />
+      </div>
+      <div className="dash-cell dash-cell-w2 dash-cell-h3">
+        <IncomeChannelsCard state={state} labels={tradeLabels?.labels ?? {}} />
+      </div>
+      <div className="dash-cell dash-cell-w2 dash-cell-h6">
+        <StocksCard state={state} />
+      </div>
+      <div className="dash-cell dash-cell-w2 dash-cell-h6">
+        <OptionsCard state={state} />
+      </div>
+      <div className="dash-cell dash-cell-h12 dash-actions-cell">
         <ActionsSidebar state={state} />
       </div>
       <div className="dash-cell dash-cell-w2 dash-cell-h6">
