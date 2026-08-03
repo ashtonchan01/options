@@ -84,6 +84,9 @@ function fmtEr(d: string): string {
 function scoreColor(s: number)  { return s >= 70 ? '#10b981' : s >= 40 ? '#f59e0b' : 'var(--text-4)' }
 function deltaColor(d: number)  { const a = Math.abs(d); return a < 0.15 ? 'var(--text-3)' : a > 0.40 ? '#f59e0b' : '#10b981' }
 function tradeYield(r: ScanResult) { return r.annualizedYield * r.dte / 365 }
+/** Breakeven price after the premium received: strike minus credit for a CSP
+ * (effective cost basis if assigned), current price minus credit for a covered call. */
+function breakeven(r: ScanResult) { return r.strategyType === 'csp' ? r.strike - r.mid : r.stockPrice - r.mid }
 
 // ─── Card width ───────────────────────────────────────────────────────────────
 
@@ -130,14 +133,18 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
 
 // ─── Table components ─────────────────────────────────────────────────────────
 
-const GRID = '18px 1fr 44px 34px 44px 48px 40px 34px'
+// Column tracks sized to fit each header label at its own font/letter-spacing —
+// previously several (DELTA, CREDIT, YIELD) were narrower than their own header
+// text, so the header overflowed left past its column and never lined up with
+// the right-aligned numbers below it.
+const GRID = '16px minmax(48px,1fr) 34px 28px 38px 44px 44px 38px 28px'
 
 function OptionRow({ r, rank, nextEarnings }: { r: ScanResult; rank: number; nextEarnings: string | null }) {
   const ty = tradeYield(r)
   const throughEarnings = expiryInEarningsWeek(r.expiry, nextEarnings)
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: GRID, gap: 4, alignItems: 'center', padding: '5px 4px', margin: '0 -4px',
+      display: 'grid', gridTemplateColumns: GRID, gap: 3, alignItems: 'center', padding: '5px 4px', margin: '0 -4px',
       borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
       background: throughEarnings ? '#F0B42912' : 'transparent',
       borderLeft: throughEarnings ? '2px solid #F0B429' : '2px solid transparent',
@@ -151,6 +158,7 @@ function OptionRow({ r, rank, nextEarnings }: { r: ScanResult; rank: number; nex
       <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{r.dte}d</span>
       <span style={{ color: deltaColor(r.delta), textAlign: 'right' }}>{r.delta.toFixed(2)}</span>
       <span style={{ color: '#10b981', textAlign: 'right' }}>${r.mid.toFixed(2)}</span>
+      <span style={{ color: 'var(--text-2)', textAlign: 'right' }}>${breakeven(r).toFixed(2)}</span>
       <span style={{ color: ty >= 1 ? '#10b981' : 'var(--text-3)', fontWeight: 600, textAlign: 'right' }}>{ty.toFixed(1)}%</span>
       <span style={{ color: scoreColor(r.score), fontWeight: 700, fontFamily: "'Inter', sans-serif", textAlign: 'right' }}>{r.score}</span>
     </div>
@@ -159,10 +167,11 @@ function OptionRow({ r, rank, nextEarnings }: { r: ScanResult; rank: number; nex
 
 function MiniHeader() {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 4, padding: '3px 0 5px', borderBottom: '1px solid var(--border-light)', fontSize: 8, fontWeight: 600, color: 'var(--text-4)', letterSpacing: '1px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 3, padding: '3px 0 5px', borderBottom: '1px solid var(--border-light)', fontSize: 8, fontWeight: 600, color: 'var(--text-4)', letterSpacing: '0.5px' }}>
       <span style={{ textAlign: 'center' }}>#</span><span>STRIKE</span>
       <span style={{ textAlign: 'right' }}>EXP</span><span style={{ textAlign: 'right' }}>DTE</span>
       <span style={{ textAlign: 'right' }}>DELTA</span><span style={{ textAlign: 'right' }}>CREDIT</span>
+      <span style={{ textAlign: 'right' }}>BEP</span>
       <span style={{ textAlign: 'right' }}>YIELD</span><span style={{ textAlign: 'right' }}>SCR</span>
     </div>
   )
