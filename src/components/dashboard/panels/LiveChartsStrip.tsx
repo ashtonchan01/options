@@ -37,9 +37,9 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
  * `column`: single vertical list of cards, for use as a narrow sidebar next to the map. */
 export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Record<string, MarketQuote>; layout?: 'row' | 'column' }) {
   const gridStyle = layout === 'column'
-    ? { flex: 1, display: 'flex' as const, flexDirection: 'column' as const, gap: 8, overflowY: 'auto' as const, padding: '2px 2px 6px' }
+    ? { flex: 1, minWidth: 0, minHeight: 0, display: 'flex' as const, flexDirection: 'column' as const, gap: 8, overflowY: 'auto' as const, padding: '2px 2px 6px' }
     : {
-      flex: 1, display: 'grid' as const, gridTemplateRows: 'repeat(3, 1fr)', gridAutoFlow: 'column' as const,
+      flex: 1, minWidth: 0, minHeight: 0, display: 'grid' as const, gridTemplateRows: 'repeat(3, 1fr)', gridAutoFlow: 'column' as const,
       gridAutoColumns: '220px', gap: 10, overflowX: 'auto' as const, padding: '2px 2px 6px',
     }
 
