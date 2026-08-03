@@ -60,8 +60,8 @@ export default function App() {
   const [activeTab, setActiveTab]       = useState<TabId>('dashboard')
   const [stratPage, setStratPage]       = useState<StrategyPage>('overview')
   const [showSettings, setShowSettings] = useState(false)
-  const { state, uploadXML, syncFlex }  = useAppStore()
   const auth = useAuthStore()
+  const { state, uploadXML, syncFlex }  = useAppStore(auth.user?.email ?? null)
   const { settings, update, activeProfile } = useSettingsStore(auth.user?.email ?? null)
   const { labels, setLabel, setMany, clearAll } = useTradeLabelStore()
 
