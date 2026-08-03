@@ -74,10 +74,6 @@ const LABEL_ANCHOR: Record<string, Anchor> = {
   'Tokyo':        'left',
 }
 
-function fmtPrice(n: number): string {
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
 function leadExchange(group: CityGroup, quotes: Record<string, MarketQuote>): Exchange | null {
   const withQuotes = group.exchanges.filter(ex => quotes[ex.symbol])
   if (withQuotes.length === 0) return null
@@ -85,14 +81,13 @@ function leadExchange(group: CityGroup, quotes: Record<string, MarketQuote>): Ex
 }
 
 function CityMarker({
-  group, quotes, now, scale, isHovered, onHover,
+  group, quotes, now, scale, onHover,
 }: {
   group: CityGroup
   quotes: Record<string, MarketQuote>
   now: Date
   scale: number
-  isHovered: boolean
-  onHover: (group: CityGroup | null, pos: { x: number; y: number } | null) => void
+  onHover: (group: CityGroup | null) => void
 }) {
   const pt = projection([group.lon, group.lat])
   if (!pt) return null
@@ -107,13 +102,12 @@ function CityMarker({
   const textAnchor = anchor === 'left' ? 'end' : anchor === 'right' ? 'start' : 'middle'
   const labelX = anchor === 'left' ? -6 * scale : anchor === 'right' ? 6 * scale : 0
   const labelY = anchor === 'top' ? -7 * scale : anchor === 'bottom' ? 8.5 * scale : 2 * scale
-  const labelScale = isHovered ? 1.35 : 1
 
   return (
     <g
       transform={`translate(${x}, ${y})`}
-      onMouseEnter={() => onHover(group, { x, y })}
-      onMouseLeave={() => onHover(null, null)}
+      onMouseEnter={() => onHover(group)}
+      onMouseLeave={() => onHover(null)}
       style={{ cursor: 'pointer' }}
     >
       {anyOpen && (
@@ -125,13 +119,12 @@ function CityMarker({
       <circle r={6 * scale} fill="transparent" />
       <circle r={1.6 * scale} fill={dotColor} stroke="var(--bg-surface)" strokeWidth={0.6 * scale} />
 
-      <text x={labelX * labelScale} y={labelY * labelScale} textAnchor={textAnchor}
-        fontSize={(isHovered ? 6.5 : 5) * scale} fontFamily="Inter, sans-serif" fontWeight={isHovered ? 600 : 400}
-        fill={isHovered ? 'var(--text-1)' : 'var(--text-3)'}
-        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: (isHovered ? 2.5 : 1.2) * scale }}>
+      <text x={labelX} y={labelY} textAnchor={textAnchor}
+        fontSize={5 * scale} fontFamily="Inter, sans-serif" fontWeight={400} fill="var(--text-3)"
+        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 1.2 * scale }}>
         {group.exchanges.length > 1 ? group.city : group.exchanges[0].name}
         {leadQuote && (
-          <tspan fill={changeColor} fontWeight={isHovered ? 700 : 400}>
+          <tspan fill={changeColor} fontWeight={400}>
             {'  '}{leadQuote.changePercent >= 0 ? '+' : ''}{leadQuote.changePercent.toFixed(2)}%
           </tspan>
         )}
@@ -144,7 +137,7 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
   const cityGroups = useMemo(() => groupByCity(EXCHANGES), [])
   const openCount = EXCHANGES.filter(ex => isExchangeOpen(ex, now)).length
   const [region, setRegion] = useState<Region>('global')
-  const [hover, setHover] = useState<{ group: CityGroup; x: number; y: number } | null>(null)
+  const [hover, setHover] = useState<CityGroup | null>(null)
 
   const crop = useMemo(() => getCrop(region), [region])
   const scale = crop.width / GLOBAL_CROP_WIDTH
@@ -152,7 +145,7 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
   // Draw the hovered city last so its label renders on top of any crowded neighbors.
   const orderedCityGroups = useMemo(() => {
     if (!hover) return cityGroups
-    const key = `${hover.group.city}|${hover.group.country}`
+    const key = `${hover.city}|${hover.country}`
     return [...cityGroups].sort((a, b) => {
       const aHover = `${a.city}|${a.country}` === key ? 1 : 0
       const bHover = `${b.city}|${b.country}` === key ? 1 : 0
@@ -197,48 +190,10 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
               quotes={quotes}
               now={now}
               scale={scale}
-              isHovered={hover ? `${hover.group.city}|${hover.group.country}` === `${g.city}|${g.country}` : false}
-              onHover={(group, pos) => setHover(group && pos ? { group, x: pos.x, y: pos.y } : null)}
+              onHover={setHover}
             />
           ))}
         </svg>
-
-        {hover && (
-          <div style={{
-            position: 'absolute',
-            left: `${((hover.x - crop.x0) / crop.width) * 100}%`,
-            top: `${((hover.y - crop.y0) / crop.height) * 100}%`,
-            transform: 'translate(-50%, -100%) translateY(-8px)',
-            background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6,
-            padding: '6px 8px', pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 1,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          }}>
-            <div style={{ fontSize: 9.5, color: 'var(--text-4)', marginBottom: 2 }}>
-              {hover.group.city}, {hover.group.country}
-            </div>
-            {hover.group.exchanges.map(ex => {
-              const q = quotes[ex.symbol]
-              const color = !q ? 'var(--text-3)' : q.change >= 0 ? '#10b981' : '#f43f5e'
-              const open = isExchangeOpen(ex, now)
-              return (
-                <div key={ex.symbol} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: open ? '#10b981' : 'var(--text-4)', flexShrink: 0 }} />
-                  <span style={{ fontWeight: 700, color: 'var(--text-1)' }}>{ex.name}</span>
-                  {q ? (
-                    <>
-                      <span style={{ fontFamily: 'Inter, sans-serif', color: 'var(--text-2)' }}>{fmtPrice(q.price)}</span>
-                      <span style={{ fontWeight: 600, color, fontFamily: 'Inter, sans-serif' }}>
-                        {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}%
-                      </span>
-                    </>
-                  ) : (
-                    <span style={{ color: 'var(--text-4)' }}>—</span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
       </div>
     </div>
   )
