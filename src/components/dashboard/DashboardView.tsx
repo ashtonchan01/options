@@ -40,7 +40,7 @@ export default function DashboardView({ state }: { state: AppState }) {
       <div className="dash-col">
         <div className="dash-row" style={{ flex: 1.3, minHeight: 0 }}>
           <WorldMapPanel quotes={quotes} now={now} />
-          <div style={{ flex: '0 0 220px' }}>
+          <div style={{ flex: '0 0 220px', display: 'flex', minHeight: 0 }}>
             <LiveChartsStrip quotes={quotes} layout="column" />
           </div>
         </div>

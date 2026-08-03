@@ -1355,13 +1355,12 @@ body {
   color: var(--text-4);
 }
 
-.dash-map-panel { min-height: 420px; }
-
 @media (max-width: 1400px) {
   .dash-grid { grid-template-columns: 1fr; grid-auto-rows: min-content; overflow-y: auto; height: 100%; align-content: start; }
   .dash-col { flex: none; }
   .dash-row { flex: none; }
   .dash-panel { flex: none; min-height: 320px; }
+  .dash-map-panel { min-height: 420px; }
 }
 
 /* Headlines and X stay side-by-side until the screen is genuinely narrow. */
