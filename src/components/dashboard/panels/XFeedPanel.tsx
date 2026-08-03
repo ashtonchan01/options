@@ -32,9 +32,9 @@ function loadTwitterWidgets(): Promise<void> {
 function loadAccounts(): string[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return DEFAULT_ACCOUNTS
+    if (raw === null) return DEFAULT_ACCOUNTS
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_ACCOUNTS
+    return Array.isArray(parsed) ? parsed : DEFAULT_ACCOUNTS
   } catch {
     return DEFAULT_ACCOUNTS
   }

@@ -1354,7 +1354,7 @@ body {
   color: var(--text-4);
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1400px) {
   .dash-grid { grid-template-columns: 1fr; overflow-y: auto; height: auto; min-height: 100%; }
   .dash-row { flex-direction: column; }
   /* World map stays full-width and full-height on top; everything else stacks below it. */
