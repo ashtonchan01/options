@@ -7,18 +7,20 @@ import { useState, useRef } from 'react'
 import {
   LayoutDashboard, Briefcase, CalendarDays, Layers, BookOpen, Radar,
   FlaskConical, ClipboardList, Menu, X, RefreshCw, Upload, Settings,
-  Sun, Moon, ChevronDown, Pencil, Globe, LogOut,
+  Sun, Moon, ChevronDown, Pencil, Globe, LogOut, ChevronLeft, ChevronRight,
+  PieChart,
 } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
 import type { StrategyPage } from '../../App'
 
-export const TAB_IDS = ['dashboard', 'portfolio', 'markets', 'calendar', 'strategies', 'journal', 'scanner', 'plan', 'backtest'] as const
+export const TAB_IDS = ['dashboard', 'portfolio', 'analytics', 'markets', 'calendar', 'strategies', 'journal', 'scanner', 'plan', 'backtest'] as const
 export type TabId = typeof TAB_IDS[number]
 
 const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard',  label: 'Dashboard',  icon: <LayoutDashboard size={17} /> },
   { id: 'portfolio',  label: 'Portfolio',  icon: <Briefcase size={17} /> },
+  { id: 'analytics',  label: 'Analytics',  icon: <PieChart size={17} /> },
   { id: 'markets',    label: 'Markets',    icon: <Globe size={17} /> },
   { id: 'calendar',   label: 'Calendar',   icon: <CalendarDays size={17} /> },
   // strategies rendered separately (expandable)
@@ -73,6 +75,7 @@ export default function Sidebar({
 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [stratOpen, setStratOpen]   = useState(activeTab === 'strategies')
+  const [collapsed, setCollapsed]   = useState(() => localStorage.getItem('options:sidebar-collapsed') === '1')
   const fileRef = useRef<HTMLInputElement>(null)
   const { theme, toggle } = useThemeStore()
   const isLoading = syncStatus === 'loading'
@@ -94,9 +97,17 @@ export default function Sidebar({
     setDrawerOpen(false)
   }
 
+  function toggleCollapsed() {
+    setCollapsed(c => {
+      const next = !c
+      localStorage.setItem('options:sidebar-collapsed', next ? '1' : '0')
+      return next
+    })
+  }
+
   return (
     <>
-      <aside className={`ew-sidebar${drawerOpen ? ' open' : ''}`}>
+      <aside className={`ew-sidebar${drawerOpen ? ' open' : ''}${collapsed ? ' collapsed' : ''}`}>
         <div className="ew-logo">
           <div className="ew-logo-mark">O</div>
           <div>
@@ -106,9 +117,10 @@ export default function Sidebar({
         </div>
 
         <nav className="ew-nav">
-          {NAV_ITEMS.slice(0, 4).map(item => (
+          {NAV_ITEMS.slice(0, 5).map(item => (
             <button key={item.id}
               className={`ew-nav-item${activeTab === item.id ? ' active' : ''}`}
+              title={collapsed ? item.label : undefined}
               onClick={() => selectTab(item.id)}>
               {item.icon}
               <span>{item.label}</span>
@@ -121,6 +133,7 @@ export default function Sidebar({
           {/* Strategies — expandable section */}
           <button
             className={`ew-nav-item${activeTab === 'strategies' ? ' active' : ''}`}
+            title={collapsed ? 'Strategies' : undefined}
             onClick={() => {
               if (activeTab !== 'strategies') selectStrategy('overview')
               else setStratOpen(o => !o)
@@ -129,7 +142,7 @@ export default function Sidebar({
             <span>Strategies</span>
             <ChevronDown size={14} className={`ew-chev${stratOpen ? ' open' : ''}`} />
           </button>
-          {stratOpen && (
+          {stratOpen && !collapsed && (
             <div className="ew-nav-sub">
               <button
                 className={`ew-nav-subitem${activeTab === 'strategies' && stratPage === 'overview' ? ' active' : ''}`}
@@ -152,9 +165,10 @@ export default function Sidebar({
             </div>
           )}
 
-          {NAV_ITEMS.slice(4).map(item => (
+          {NAV_ITEMS.slice(5).map(item => (
             <button key={item.id}
               className={`ew-nav-item${activeTab === item.id ? ' active' : ''}`}
+              title={collapsed ? item.label : undefined}
               onClick={() => selectTab(item.id)}>
               {item.icon}
               <span>{item.label}</span>
@@ -193,6 +207,11 @@ export default function Sidebar({
             )}
           </div>
         </div>
+
+        <button className="ew-collapse-btn" onClick={toggleCollapsed} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          <span>Collapse</span>
+        </button>
       </aside>
 
       {drawerOpen && <div className="ew-drawer-overlay" onClick={() => setDrawerOpen(false)} />}
