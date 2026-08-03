@@ -63,10 +63,10 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
       <div className="dash-cell dash-cell-h3">
         <TickerHeadlinesPanel />
       </div>
-      <div className="dash-cell dash-cell-h2">
+      <div className="dash-cell dash-cell-h2 dash-cell-portfolio">
         <PortfolioSummaryCard state={state} />
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h3" style={{ display: 'flex', gap: 6 }}>
+      <div className="dash-cell dash-cell-w2 dash-cell-h3 dash-cell-portfolio" style={{ display: 'flex', gap: 6 }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
           <AllocationPieCard state={state} />
         </div>
@@ -74,19 +74,19 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
           <CashFlowCard state={state} />
         </div>
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h3">
+      <div className="dash-cell dash-cell-w2 dash-cell-h3 dash-cell-portfolio">
         <IncomeChannelsCard state={state} labels={tradeLabels?.labels ?? {}} />
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h6">
+      <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-portfolio">
         <StocksCard state={state} />
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h6">
+      <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-portfolio">
         <OptionsCard state={state} />
       </div>
-      <div className="dash-cell dash-cell-h12 dash-actions-cell">
+      <div className="dash-cell dash-cell-h12 dash-actions-cell dash-cell-portfolio">
         <ActionsSidebar state={state} />
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h6">
+      <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-calendar">
         <CalendarPanel state={state} />
       </div>
     </div>

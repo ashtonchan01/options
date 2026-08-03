@@ -1372,6 +1372,11 @@ body {
 }
 @media (max-width: 650px) {
   .dash-cell-w2, .dash-cell-w3 { grid-column: auto; }
+  /* On a single narrow column everything stacks in DOM order, which buried Calendar
+     at the very bottom — after the huge Stocks/Options/Actions cards. Pull it up to
+     right after the news/market cards instead, ahead of the portfolio-analytics block. */
+  .dash-cell-calendar { order: 1; }
+  .dash-cell-portfolio { order: 2; }
 }
 
 .dash-panel {
