@@ -580,11 +580,19 @@ export default function CalendarView({ state }: Props) {
   const [month, setMonth]   = useState(today.getMonth())
   const [selected, setSelected] = useState<string | null>(null)
 
-  // Earnings dates (fetched once, cached 6h)
+  // Earnings dates (fetched once, cached 6h) — the static WATCHLIST plus every
+  // ticker actually held (stock symbol or option underlying), so positions outside
+  // the watchlist (e.g. SPCX) still get their earnings date pulled and shown.
+  const heldTickers = useMemo(() => {
+    const set = new Set<string>(WATCHLIST)
+    for (const p of state.sync.positions) set.add(p.underlyingSymbol ?? p.symbol)
+    return [...set]
+  }, [state.sync.positions])
+
   const [earningsMap, setEarningsMap] = useState<Record<string, string[]>>({})
   useEffect(() => {
-    fetchEarningsDates([...WATCHLIST]).then(setEarningsMap).catch(() => {})
-  }, [])
+    fetchEarningsDates(heldTickers).then(setEarningsMap).catch(() => {})
+  }, [heldTickers])
   const earningsByDateMap = useMemo(() => earningsByDate(earningsMap), [earningsMap])
 
   // FOMC dates (fetched live from federalreserve.gov, cached/re-checked weekly)

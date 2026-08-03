@@ -11,6 +11,7 @@ const CACHE_TTL = 6 * 60 * 60 * 1000 // 6 hours
 
 interface EarningsCache {
   data: Record<string, string[]>
+  tickers: string[]
   timestamp: number
 }
 
@@ -53,30 +54,42 @@ async function fetchOne(symbol: string): Promise<string[]> {
 export async function fetchEarningsDates(
   tickers: string[],
 ): Promise<Record<string, string[]>> {
-  // Check localStorage cache
+  // Reuse the cache, but only for tickers it actually covers — a fresh ticker
+  // (e.g. a new position outside the static watchlist) must still be fetched
+  // even if the cache for everyone else is still within its 6h TTL.
+  let cachedData: Record<string, string[]> = {}
+  let cachedTickers = new Set<string>()
   try {
     const raw = localStorage.getItem(CACHE_KEY)
     if (raw) {
       const cache: EarningsCache = JSON.parse(raw)
-      if (Date.now() - cache.timestamp < CACHE_TTL) return cache.data
+      if (Date.now() - cache.timestamp < CACHE_TTL) {
+        cachedData = cache.data
+        cachedTickers = new Set(cache.tickers ?? Object.keys(cache.data))
+      }
     }
   } catch { /* ignore corrupt cache */ }
 
-  const data: Record<string, string[]> = {}
+  const missing = tickers.filter(t => !cachedTickers.has(t))
+  if (missing.length === 0) return cachedData
 
-  for (let i = 0; i < tickers.length; i++) {
-    const sym = tickers[i]
+  const data: Record<string, string[]> = { ...cachedData }
+
+  for (let i = 0; i < missing.length; i++) {
+    const sym = missing[i]
     const dates = await fetchOne(sym)
     if (dates.length > 0) data[sym] = dates
     // Small delay between requests (not needed after last)
-    if (i < tickers.length - 1) await sleep(400)
+    if (i < missing.length - 1) await sleep(400)
   }
+
+  const allTickers = [...new Set([...cachedTickers, ...missing])]
 
   // Persist to localStorage
   try {
     localStorage.setItem(
       CACHE_KEY,
-      JSON.stringify({ data, timestamp: Date.now() } satisfies EarningsCache),
+      JSON.stringify({ data, tickers: allTickers, timestamp: Date.now() } satisfies EarningsCache),
     )
   } catch { /* storage full */ }
 
