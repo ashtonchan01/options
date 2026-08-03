@@ -1,9 +1,9 @@
 /**
- * World-Monitor-style overview, 3 columns:
- *  1. World markets map + live-charts sidebar on top; Live TV, then
- *     headlines + ticker-headlines side by side, underneath
- *  2. Portfolio Analytics
- *  3. Calendar (month grid + activity list directly below it)
+ * World-Monitor-style overview — a flat, responsive wrapping grid of
+ * fixed-size cells (see .dash-wrap in index.css). Cells flow to the next
+ * row as the screen narrows; wide/tall cells span 2 tracks where space
+ * allows. Order: map, live charts, TV, world headlines, ticker headlines,
+ * portfolio analytics, calendar.
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
@@ -38,35 +38,28 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
   }, [])
 
   return (
-    <div className="dash-grid dash-grid-3col">
-      <div className="dash-col">
-        {/* Not `.dash-row` on purpose: this split must stay side-by-side even at
-           narrow widths, since its flex ratio is an 80/20 width split, not a
-           direction the "stack below 700px" rule should ever flip to a height split. */}
-        <div className="dashcol-maprow" style={{ flex: 1.3, minHeight: 0, minWidth: 0, display: 'flex', gap: 6 }}>
-          <div style={{ flex: '8 1 0%', display: 'flex', minHeight: 0, minWidth: 0 }}>
-            <WorldMapPanel quotes={quotes} now={now} />
-          </div>
-          <div style={{ flex: '2 1 0%', display: 'flex', minHeight: 0, minWidth: 0 }}>
-            <LiveChartsStrip quotes={quotes} layout="column" />
-          </div>
-        </div>
-        <div className="dashcol-fillrow" style={{ flex: 1.4, minHeight: 0, display: 'flex' }}>
-          <LiveTVPanel />
-        </div>
-        <div className="dash-row" style={{ flex: 1, minHeight: 0 }}>
-          <HeadlinesPanel />
-          <TickerHeadlinesPanel />
-        </div>
+    <div className="dash-wrap">
+      <div className="dash-cell dash-cell-w2">
+        <WorldMapPanel quotes={quotes} now={now} />
       </div>
-
-      <div className="dash-col">
-        <div className="dashcol-fillrow" style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+      <div className="dash-cell">
+        <LiveChartsStrip quotes={quotes} layout="column" />
+      </div>
+      <div className="dash-cell">
+        <LiveTVPanel />
+      </div>
+      <div className="dash-cell">
+        <HeadlinesPanel />
+      </div>
+      <div className="dash-cell">
+        <TickerHeadlinesPanel />
+      </div>
+      <div className="dash-cell dash-cell-w2 dash-cell-h2">
+        <div className="dash-panel" style={{ padding: 0, overflow: 'hidden' }}>
           <AnalyticsView state={state} tradeLabels={tradeLabels} />
         </div>
       </div>
-
-      <div className="dash-col">
+      <div className="dash-cell dash-cell-w2 dash-cell-h2">
         <CalendarPanel state={state} />
       </div>
     </div>
