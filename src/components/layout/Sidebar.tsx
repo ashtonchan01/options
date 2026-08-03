@@ -5,20 +5,19 @@
  */
 import { useState, useRef } from 'react'
 import {
-  LayoutDashboard, Briefcase, BookOpen, Radar,
+  LayoutDashboard, Briefcase, Radar,
   Menu, X, RefreshCw, Upload, Settings,
   Sun, Moon, LogOut, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
 
-export const TAB_IDS = ['dashboard', 'portfolio', 'journal', 'scanner'] as const
+export const TAB_IDS = ['dashboard', 'portfolio', 'scanner'] as const
 export type TabId = typeof TAB_IDS[number]
 
 const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard',  label: 'Dashboard',  icon: <LayoutDashboard size={17} /> },
   { id: 'portfolio',  label: 'Portfolio',  icon: <Briefcase size={17} /> },
-  { id: 'journal',    label: 'Journal',    icon: <BookOpen size={17} /> },
   { id: 'scanner',    label: 'Scanner',    icon: <Radar size={17} /> },
 ]
 

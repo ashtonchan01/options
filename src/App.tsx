@@ -9,7 +9,6 @@ import { useAuthStore } from './store/authStore'
 import DashboardView from './components/dashboard/DashboardView'
 import PortfolioView from './components/portfolio/PortfolioView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
-import JournalView from './components/journal/JournalView'
 import type { AppState } from './types'
 import type { TradeLabel } from './store/tradeLabelsStore'
 
@@ -45,7 +44,6 @@ const VIEWS: Record<TabId, ViewComponent> = {
   dashboard:  DashboardView as ViewComponent,
   portfolio:  PortfolioView,
   scanner:    OpportunitiesView as ViewComponent,
-  journal:    JournalView as ViewComponent,
 }
 
 export default function App() {

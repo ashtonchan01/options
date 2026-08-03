@@ -1,19 +1,17 @@
 /**
- * Trade Journal — Edgewonk-style journal & analytics over IBKR Flex data.
- * Three sub-views: Overview (KPIs, equity curve, Edge Finder, breakdowns),
- * Journal (per-position setup/mistake/rating/notes), Psych Lab (Tiltmeter,
- * mistake cost, discipline edge).
+ * Trade Journal building blocks — Edgewonk-style journal & analytics over IBKR
+ * Flex data. Exports OverviewTab (KPIs, equity curve, Edge Finder, breakdowns)
+ * and JournalTab (per-position setup/mistake/rating/notes), both rendered as
+ * columns on the Portfolio tab (see PortfolioView.tsx).
  */
 import { useMemo, useState } from 'react'
-import type { AppState } from '../../types'
-import type { TradeLabels } from '../../App'
 import {
-  buildJournalPositions, closedByDate, computeStats, equityCurve, breakdown,
+  computeStats, equityCurve, breakdown,
   byUnderlying, byStrategy, byWeekday, byMonth, byDteBucket, byHoldBucket,
   edgeInsights,
   type JournalPosition, type EquityPoint, type BreakdownRow,
 } from '../../engine/journal'
-import { useJournalStore, MISTAKES, type JournalEntry } from '../../store/journalStore'
+import { MISTAKES, type JournalEntry } from '../../store/journalStore'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -253,7 +251,7 @@ function BreakTable({ title, rows, keyHeader, fmtKey }: {
 
 // ─── Overview sub-view ────────────────────────────────────────────────────────
 
-function OverviewTab({ closed, entries }: { closed: JournalPosition[]; entries: Record<string, JournalEntry> }) {
+export function OverviewTab({ closed, entries }: { closed: JournalPosition[]; entries: Record<string, JournalEntry> }) {
   const curve = useMemo(() => equityCurve(closed), [closed])
   return (
     <>
@@ -374,7 +372,7 @@ function EntryEditor({ pos, entry, updateEntry, setups, addSetup }: {
   )
 }
 
-function JournalTab({ positions, entries, updateEntry, setups, addSetup }: {
+export function JournalTab({ positions, entries, updateEntry, setups, addSetup }: {
   positions: JournalPosition[]
   entries: Record<string, JournalEntry>
   updateEntry: (id: string, patch: Partial<JournalEntry>) => void
@@ -510,212 +508,3 @@ function Row({ pos: p, entry: e, open, cols, onToggle, editor }: {
   )
 }
 
-// ─── Psych Lab sub-view ───────────────────────────────────────────────────────
-
-function arcPath(cx: number, cy: number, r: number, a0: number, a1: number) {
-  const rad = (a: number) => (a * Math.PI) / 180
-  const x0 = cx + r * Math.cos(rad(a0)), y0 = cy - r * Math.sin(rad(a0))
-  const x1 = cx + r * Math.cos(rad(a1)), y1 = cy - r * Math.sin(rad(a1))
-  return `M${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 0 1 ${x1.toFixed(1)},${y1.toFixed(1)}`
-}
-
-function Tiltmeter({ score }: { score: number | null }) {
-  const cx = 130, cy = 120, r = 95
-  const angle = score != null ? 180 - score * 1.8 : 90
-  const rad = (angle * Math.PI) / 180
-  const zone = score == null ? 'var(--text-4)' : score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444'
-  return (
-    <svg viewBox="0 0 260 150" style={{ width: '100%', maxWidth: 320, display: 'block', margin: '0 auto' }}>
-      <path d={arcPath(cx, cy, r, 180, 108)} fill="none" stroke="rgba(239,68,68,0.55)" strokeWidth="9" />
-      <path d={arcPath(cx, cy, r, 108, 54)}  fill="none" stroke="rgba(245,158,11,0.55)" strokeWidth="9" />
-      <path d={arcPath(cx, cy, r, 54, 0)}    fill="none" stroke="rgba(16,185,129,0.55)" strokeWidth="9" />
-      {score != null && (
-        <line x1={cx} y1={cy} x2={cx + (r - 16) * Math.cos(rad)} y2={cy - (r - 16) * Math.sin(rad)}
-          stroke="#10b981" strokeWidth="2.5" style={{ filter: 'drop-shadow(0 0 5px rgba(16,185,129,0.7))' }} />
-      )}
-      <circle cx={cx} cy={cy} r="5" fill="#10b981" />
-      <text x={cx} y={cy - 26} textAnchor="middle" fill={zone} fontSize="26" fontWeight="700" fontFamily="Inter, sans-serif">
-        {score != null ? score.toFixed(0) : '—'}
-      </text>
-      <text x={cx} y={cy + 22} textAnchor="middle" fill="var(--text-4)" fontSize="9" letterSpacing="2" fontFamily="Inter, sans-serif">
-        {score == null ? 'RATE TRADES TO CALIBRATE' : score >= 70 ? 'IN CONTROL' : score >= 40 ? 'DRIFTING' : 'ON TILT'}
-      </text>
-    </svg>
-  )
-}
-
-function PsychTab({ closed, entries }: { closed: JournalPosition[]; entries: Record<string, JournalEntry> }) {
-  // Tiltmeter score: last 10 reviewed trades — avg grade scaled 0-100, minus 9 per mistake
-  const score = useMemo(() => {
-    const reviewed = closed.filter(p => entries[p.id]?.rating).slice(-10)
-    if (reviewed.length === 0) return null
-    const avgRating = reviewed.reduce((s, p) => s + (entries[p.id].rating ?? 0), 0) / reviewed.length
-    const mistakes = reviewed.reduce((s, p) => s + (entries[p.id].mistakes?.length ?? 0), 0)
-    return Math.max(0, Math.min(100, ((avgRating - 1) / 4) * 100 - mistakes * 9))
-  }, [closed, entries])
-
-  const mistakeRows = useMemo(() => {
-    const m = new Map<string, { n: number; pnl: number }>()
-    for (const p of closed) {
-      for (const tag of entries[p.id]?.mistakes ?? []) {
-        const cur = m.get(tag) ?? { n: 0, pnl: 0 }
-        cur.n += 1; cur.pnl += p.pnl ?? 0
-        m.set(tag, cur)
-      }
-    }
-    return Array.from(m.entries()).sort((a, b) => a[1].pnl - b[1].pnl)
-  }, [closed, entries])
-
-  const ratingDist = useMemo(() => {
-    const dist = [0, 0, 0, 0, 0]
-    for (const p of closed) {
-      const r = entries[p.id]?.rating
-      if (r) dist[r - 1] += 1
-    }
-    return dist
-  }, [closed, entries])
-  const maxDist = Math.max(...ratingDist, 1)
-
-  const discipline = useMemo(() => {
-    const rated = closed.filter(p => entries[p.id]?.rating)
-    const hi = rated.filter(p => (entries[p.id].rating ?? 0) >= 4)
-    const lo = rated.filter(p => (entries[p.id].rating ?? 0) <= 2)
-    return {
-      hi: hi.length ? hi.reduce((s, p) => s + (p.pnl ?? 0), 0) / hi.length : null,
-      lo: lo.length ? lo.reduce((s, p) => s + (p.pnl ?? 0), 0) / lo.length : null,
-      hiN: hi.length, loN: lo.length,
-    }
-  }, [closed, entries])
-
-  return (
-    <div className="jr-2col" style={{ alignItems: 'start' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <div className="cc-section-title" style={{ padding: 0 }}>Tiltmeter — last 10 graded trades</div>
-          <div className="panel" style={{ padding: '16px 12px 8px' }}>
-            <Tiltmeter score={score} />
-          </div>
-        </div>
-        <div>
-          <div className="cc-section-title" style={{ padding: 0 }}>Discipline Edge</div>
-          <div className="jr-2col" style={{ gap: 10 }}>
-            <div className="stat-card" style={{ padding: '10px 14px' }}>
-              <div className="stat-label">Avg P&L · Grade ≥4 ({discipline.hiN})</div>
-              <div className="stat-value" style={{ fontSize: 19, color: discipline.hi != null ? pnlColor(discipline.hi) : 'var(--text-5)' }}>
-                {discipline.hi != null ? fmt$(discipline.hi) : '—'}
-              </div>
-            </div>
-            <div className="stat-card" style={{ padding: '10px 14px' }}>
-              <div className="stat-label">Avg P&L · Grade ≤2 ({discipline.loN})</div>
-              <div className="stat-value" style={{ fontSize: 19, color: discipline.lo != null ? pnlColor(discipline.lo) : 'var(--text-5)' }}>
-                {discipline.lo != null ? fmt$(discipline.lo) : '—'}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div>
-          <div className="cc-section-title" style={{ padding: 0 }}>Grade Distribution</div>
-          <div className="panel" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {[5, 4, 3, 2, 1].map(r => (
-              <div key={r} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 30px', alignItems: 'center', gap: 8 }}>
-                <span className="mono" style={{ fontSize: 11, color: '#10b981' }}>{'◆'.repeat(r)}</span>
-                <div style={{ height: 6, background: 'rgba(16,185,129,0.08)' }}>
-                  <div style={{ height: '100%', width: `${(ratingDist[r - 1] / maxDist) * 100}%`, background: 'rgba(16,185,129,0.6)' }} />
-                </div>
-                <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)', textAlign: 'right' }}>{ratingDist[r - 1]}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <div className="cc-section-title" style={{ padding: 0 }}>What Your Mistakes Cost</div>
-        <div className="panel" style={{ overflow: 'hidden' }}>
-          {mistakeRows.length === 0 ? (
-            <div className="db-empty-msg" style={{ minHeight: 120, padding: 20 }}>
-              No mistakes tagged yet — review trades in the Journal tab
-            </div>
-          ) : (
-            <table className="trade-table" style={{ fontSize: 11 }}>
-              <thead>
-                <tr>
-                  <th>Mistake</th>
-                  <th style={{ textAlign: 'right' }}>Count</th>
-                  <th style={{ textAlign: 'right' }}>Total P&L</th>
-                  <th style={{ textAlign: 'right' }}>Avg</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mistakeRows.map(([tag, { n, pnl }]) => (
-                  <tr key={tag}>
-                    <td style={{ color: '#ef4444', fontWeight: 600 }}>{tag}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{n}</td>
-                    <td className={`mono ${pnlCls(pnl)}`} style={{ textAlign: 'right', fontWeight: 700 }}>{fmt$(pnl)}</td>
-                    <td className={`mono ${pnlCls(pnl / n)}`} style={{ textAlign: 'right' }}>{fmt$(pnl / n)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Main ─────────────────────────────────────────────────────────────────────
-
-type SubTab = 'overview' | 'journal' | 'psych'
-
-const SUBTABS: { id: SubTab; label: string }[] = [
-  { id: 'overview', label: 'OVERVIEW' },
-  { id: 'journal',  label: 'TRADE JOURNAL' },
-  { id: 'psych',    label: 'PSYCH LAB' },
-]
-
-export default function JournalView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
-  const [tab, setTab] = useState<SubTab>('overview')
-  const { entries, updateEntry, setups, addSetup } = useJournalStore()
-
-  const positions = useMemo(
-    () => buildJournalPositions(state.sync.trades, tradeLabels?.labels ?? {}),
-    [state.sync.trades, tradeLabels?.labels],
-  )
-  const closed = useMemo(() => closedByDate(positions), [positions])
-
-  if (state.sync.trades.length === 0) {
-    return (
-      <div className="jr-root">
-        <div className="db-empty-msg" style={{ flex: 1 }}>
-          No trade data — sync IBKR Flex or upload an XML to start journaling
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="jr-root">
-      <div className="cc-header">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="cc-title-badge" style={{ color: '#10b981', background: '#10b98114', border: '1px solid #10b98133' }}>JRNL</span>
-            <h2 className="cc-title">Trade Journal</h2>
-          </div>
-          <div className="cc-subtitle">Performance analytics · journaling · psychology — built on IBKR Flex data</div>
-        </div>
-        <div className="tl-filter-row">
-          {SUBTABS.map(s => (
-            <button key={s.id} className={`tl-filter-chip${tab === s.id ? ' active' : ''}`} onClick={() => setTab(s.id)}>
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {tab === 'overview' && <OverviewTab closed={closed} entries={entries} />}
-      {tab === 'journal'  && <JournalTab positions={positions} entries={entries} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />}
-      {tab === 'psych'    && <PsychTab closed={closed} entries={entries} />}
-    </div>
-  )
-}

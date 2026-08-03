@@ -968,6 +968,26 @@ body {
   gap: 16px;
 }
 
+/* Portfolio tab — Analytics / Journal Overview / Trade Journal side by side. */
+.pf-columns {
+  height: 100%;
+  display: flex;
+  overflow: hidden;
+}
+.pf-column {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+.pf-column:last-child { border-right: none; }
+@media (max-width: 1100px) {
+  .pf-columns { flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+  .pf-column { flex: none; height: auto; overflow: visible; border-right: none; border-bottom: 1px solid var(--border); }
+  .pf-column:last-child { border-bottom: none; }
+}
+
 .jr-kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
