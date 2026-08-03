@@ -16,7 +16,7 @@ import LiveTVPanel from './panels/LiveTVPanel'
 import HeadlinesPanel from './panels/HeadlinesPanel'
 import TickerHeadlinesPanel from './panels/TickerHeadlinesPanel'
 import CalendarPanel from './panels/CalendarPanel'
-import AnalyticsView from '../analytics/AnalyticsView'
+import { ActualPortfolio, ActionsSidebar } from '../analytics/AnalyticsView'
 
 const REFRESH_MS = 60_000
 
@@ -45,7 +45,7 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
       <div className="dash-cell">
         <LiveChartsStrip quotes={quotes} layout="column" />
       </div>
-      <div className="dash-cell">
+      <div className="dash-cell dash-cell-w2">
         <LiveTVPanel />
       </div>
       <div className="dash-cell">
@@ -56,8 +56,11 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
       </div>
       <div className="dash-cell dash-cell-w2 dash-cell-h2">
         <div className="dash-panel" style={{ padding: 0, overflow: 'hidden' }}>
-          <AnalyticsView state={state} tradeLabels={tradeLabels} />
+          <ActualPortfolio state={state} labels={tradeLabels?.labels ?? {}} />
         </div>
+      </div>
+      <div className="dash-cell dash-cell-h2 dash-actions-cell">
+        <ActionsSidebar state={state} />
       </div>
       <div className="dash-cell dash-cell-w2 dash-cell-h2">
         <CalendarPanel state={state} />
