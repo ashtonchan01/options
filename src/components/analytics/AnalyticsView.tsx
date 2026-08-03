@@ -227,7 +227,7 @@ const LABEL_GAP = 6 // how far outside the circle each label sits — just touch
 // Slices are largest-first, so the smallest ones land back-to-back with the biggest one
 // right at the top seam (angle 0/360) — the most crowded spot for labels. Rotating the
 // whole pie counter-clockwise moves that seam away from top-center into open space.
-const PIE_ROTATION = -120
+const PIE_ROTATION = -75
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180
