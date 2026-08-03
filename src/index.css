@@ -1323,6 +1323,9 @@ body {
 .dash-cell > * { flex: 1; min-width: 0; min-height: 0; }
 .dash-cell-w2 { grid-column: span 2; }
 .dash-cell-h2 { grid-row: span 2; }
+/* The Actions & To-Do sidebar is normally a fixed-width strip next to the portfolio view —
+ * as its own standalone dashboard cell it should fill the cell like every other panel. */
+.dash-actions-cell .db-sidebar { width: 100%; border-left: 1px solid var(--border); }
 /* When only one column fits, a span-2 cell would force an overflowing implicit track —
    fall back to single-column placement. */
 @media (max-width: 860px) {

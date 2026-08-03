@@ -69,7 +69,7 @@ function fmtDollar(n: number): string {
 
 // ─── Actions Sidebar ──────────────────────────────────────────────────────────
 
-function ActionsSidebar({ state }: { state: AppState }) {
+export function ActionsSidebar({ state }: { state: AppState }) {
   const { actions } = state
 
   const byUrgency = URGENCY_ORDER.reduce<Record<UrgencyLevel, Action[]>>((acc, u) => {
@@ -513,7 +513,7 @@ function ibkrDesc(p: { underlyingSymbol?: string; symbol: string; expiry?: strin
   return `${underlying} ${expDesc} ${strikeDesc} ${p.putCall === 'C' ? 'CALL' : p.putCall === 'P' ? 'PUT' : ''}`
 }
 
-function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<string, string> }) {
+export function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<string, string> }) {
   const { positions, trades, cashBalance, netLiquidation } = state.sync
 
   const stocks  = positions.filter(p => p.assetClass === 'STK')
