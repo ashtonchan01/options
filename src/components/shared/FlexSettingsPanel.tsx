@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Plus, Trash2 } from 'lucide-react'
+import { Check, Plus, Trash2, ChevronDown, HelpCircle } from 'lucide-react'
 import type { FlexSettings, FlexProfile } from '../../store/settingsStore'
 
 interface Props {
@@ -26,6 +26,7 @@ export default function FlexSettingsPanel({ settings, onSave, onClose }: Props) 
   )
   const [activeId, setActiveId] = useState(settings.activeId || settings.profiles[0]?.id || '')
   const [saved, setSaved] = useState(false)
+  const [showGuide, setShowGuide] = useState(false)
 
   const current = profiles.find(p => p.id === activeId)
 
@@ -67,11 +68,59 @@ export default function FlexSettingsPanel({ settings, onSave, onClose }: Props) 
         display: 'flex', flexDirection: 'column', gap: 18,
       }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text-1)' }}>IBKR Flex Credentials</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text-1)' }}>IBKR Flex Credentials</h2>
+            <button onClick={() => setShowGuide(v => !v)} style={{
+              display: 'flex', alignItems: 'center', gap: 5, background: 'none',
+              border: '1px solid var(--border)', borderRadius: 6, color: 'var(--accent)',
+              padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              <HelpCircle size={12} /> How do I get this?
+              <ChevronDown size={12} style={{ transform: showGuide ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+            </button>
+          </div>
           <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-3)' }}>
-            Manage multiple accounts · stored in browser only
+            Manage multiple accounts · saved to your account, available on any device
           </p>
         </div>
+
+        {showGuide && (
+          <ol style={{
+            margin: 0, padding: '14px 16px 14px 32px', background: 'var(--bg-page)',
+            border: '1px solid var(--border)', borderRadius: 8,
+            fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.7,
+            listStyleType: 'decimal', listStylePosition: 'outside',
+          }}>
+            <li style={{ marginBottom: 6 }}>
+              Log in to{' '}
+              <a href="https://www.interactivebrokers.com/portal" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
+                IBKR Client Portal
+              </a>.
+            </li>
+            <li style={{ marginBottom: 6 }}>Click your account icon (top right) → <strong>Settings</strong>.</li>
+            <li style={{ marginBottom: 6 }}>
+              Under <strong>Account Settings</strong>, find the <strong>Reporting</strong> section and click{' '}
+              <strong>Flex Queries</strong>.
+            </li>
+            <li style={{ marginBottom: 6 }}>
+              Click the <strong>+</strong> next to "Activity Flex Query" to create one. Select the sections you
+              want (at minimum: <em>Open Positions</em>, <em>Trades</em>, <em>Cash Report</em>), set the format to{' '}
+              <strong>XML</strong>, and save it.
+            </li>
+            <li style={{ marginBottom: 6 }}>
+              Back on the Flex Queries page, note the <strong>Query ID</strong> (a number) next to the query you
+              just created — that's your <strong>Query ID</strong> above.
+            </li>
+            <li style={{ marginBottom: 6 }}>
+              Still under <strong>Reporting</strong>, click <strong>Flex Web Service Configuration</strong>.
+            </li>
+            <li style={{ marginBottom: 6 }}>
+              Click <strong>Generate Token</strong>, choose an expiration (e.g. 1 year), and confirm. Copy the token
+              immediately — IBKR only shows it once. That's your <strong>Flex Token</strong> above.
+            </li>
+            <li style={{ marginBottom: 6 }}>Paste both values in, give the profile a name, and click Save.</li>
+          </ol>
+        )}
 
         {/* Profile tabs */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>

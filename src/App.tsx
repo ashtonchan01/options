@@ -61,9 +61,9 @@ export default function App() {
   const [stratPage, setStratPage]       = useState<StrategyPage>('overview')
   const [showSettings, setShowSettings] = useState(false)
   const { state, uploadXML, syncFlex }  = useAppStore()
-  const { settings, update, activeProfile } = useSettingsStore()
-  const { labels, setLabel, setMany, clearAll } = useTradeLabelStore()
   const auth = useAuthStore()
+  const { settings, update, activeProfile } = useSettingsStore(auth.user?.email ?? null)
+  const { labels, setLabel, setMany, clearAll } = useTradeLabelStore()
 
   const hasCredentials = !!(activeProfile?.token && activeProfile?.queryId)
   const View = VIEWS[activeTab]
