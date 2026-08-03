@@ -1342,9 +1342,6 @@ body {
 .dash-cell-h3 { grid-row: span 3; }
 .dash-cell-h6 { grid-row: span 6; }
 .dash-cell-h12 { grid-row: span 12; }
-/* Live Charts is a single row of thin sparkline cards — even the 165px default row is more
-   height than it needs, so pin it shorter than its track instead of stretching to fill it. */
-.dash-cell-charts { height: 118px; align-self: start; }
 /* The Actions & To-Do sidebar is normally a fixed-width strip next to the portfolio view —
  * as its own standalone dashboard cell it should fill the cell like every other panel. */
 .dash-actions-cell .db-sidebar { width: 100%; border-left: 1px solid var(--border); }

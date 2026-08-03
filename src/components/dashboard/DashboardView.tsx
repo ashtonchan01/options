@@ -51,7 +51,7 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
       <div className="dash-cell dash-cell-under-map dash-cell-h3">
         <WorldMapPanel quotes={quotes} now={now} />
       </div>
-      <div className="dash-cell dash-cell-under-map dash-cell-charts">
+      <div className="dash-cell dash-cell-under-map">
         <LiveChartsStrip quotes={quotes} layout="row-single" />
       </div>
       <div className="dash-cell dash-cell-w2 dash-cell-h3">
