@@ -1371,11 +1371,13 @@ body {
 }
 
 /* Calendar column: force CalendarView's own side-by-side layout (grid + activity list)
- * into a stacked one (grid on top, list below) regardless of viewport width. */
+ * into a stacked one (grid on top, list directly below, no gap) regardless of viewport width.
+ * calendar-main is shrunk to its natural content height (nav + aspect-ratio grid) instead of
+ * flex-growing, so the sidebar list can start immediately below it instead of leaving a gap. */
 .dash-calendar-embed .calendar-layout { flex-direction: column !important; }
-.dash-calendar-embed .calendar-main { padding: 12px !important; }
+.dash-calendar-embed .calendar-main { flex: none !important; padding: 12px !important; overflow: visible !important; }
 .dash-calendar-embed .calendar-sidebar {
   width: 100% !important; border-left: none !important;
   border-top: 1px solid var(--border) !important;
-  max-height: 260px !important; flex: 0 0 auto !important;
+  flex: 1 !important; max-height: none !important; min-height: 0 !important;
 }

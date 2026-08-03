@@ -1,8 +1,9 @@
 /**
  * World-Monitor-style overview, 3 columns:
- *  1. World markets map with a live-charts sidebar to its right
- *  2. Live TV on top, headlines + X side by side below
- *  3. Calendar (month grid + activity list)
+ *  1. World markets map + live-charts sidebar on top; Live TV, then
+ *     headlines + X side by side, underneath
+ *  2. (empty for now)
+ *  3. Calendar (month grid + activity list directly below it)
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
@@ -37,21 +38,22 @@ export default function DashboardView({ state }: { state: AppState }) {
   return (
     <div className="dash-grid dash-grid-3col">
       <div className="dash-col">
-        <div className="dash-row" style={{ flex: 1, minHeight: 0 }}>
+        <div className="dash-row" style={{ flex: 1.3, minHeight: 0 }}>
           <WorldMapPanel quotes={quotes} now={now} />
           <div style={{ flex: '0 0 220px' }}>
             <LiveChartsStrip quotes={quotes} layout="column" />
           </div>
         </div>
-      </div>
-
-      <div className="dash-col">
-        <LiveTVPanel />
+        <div style={{ flex: 1.4, minHeight: 0, display: 'flex' }}>
+          <LiveTVPanel />
+        </div>
         <div className="dash-row" style={{ flex: 1, minHeight: 0 }}>
           <HeadlinesPanel />
           <XFeedPanel />
         </div>
       </div>
+
+      <div className="dash-col" />
 
       <div className="dash-col">
         <CalendarPanel state={state} />
