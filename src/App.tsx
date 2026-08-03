@@ -7,9 +7,7 @@ import { useSettingsStore } from './store/settingsStore'
 import { useTradeLabelStore } from './store/tradeLabelsStore'
 import { useAuthStore } from './store/authStore'
 import DashboardView from './components/dashboard/DashboardView'
-import AnalyticsView from './components/analytics/AnalyticsView'
 import PortfolioView from './components/portfolio/PortfolioView'
-import CalendarView from './components/calendar/CalendarView'
 import StrategiesView from './components/strategies/StrategiesView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import JournalView from './components/journal/JournalView'
@@ -45,8 +43,6 @@ type ViewComponent = React.FC<{ state: AppState; stratPage?: StrategyPage; trade
 const VIEWS: Record<TabId, ViewComponent> = {
   dashboard:  DashboardView as ViewComponent,
   portfolio:  PortfolioView,
-  analytics:  AnalyticsView,
-  calendar:   CalendarView as ViewComponent,
   strategies: StrategiesView as ViewComponent,
   scanner:    OpportunitiesView as ViewComponent,
   journal:    JournalView as ViewComponent,
