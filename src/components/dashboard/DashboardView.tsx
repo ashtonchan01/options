@@ -281,6 +281,20 @@ function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSli
           )
         })}
       </svg>
+
+      {/* Color-coded legend, same order as the pie (largest slice first) */}
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', gap: '4px 16px', justifyContent: 'center',
+        width: '100%', maxWidth: PIE_W, paddingTop: 4, borderTop: '1px solid var(--border-light)',
+      }}>
+        {wedges.map((w, i) => (
+          <div key={`legend-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: 'Inter, sans-serif' }}>
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: w.color, flexShrink: 0 }} />
+            <span style={{ color: 'var(--text-2)', fontWeight: 600 }}>{w.label}</span>
+            <span style={{ color: 'var(--text-4)' }}>{(w.frac * 100).toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
