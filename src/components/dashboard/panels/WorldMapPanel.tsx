@@ -4,7 +4,7 @@
  * cities with enough room get an inline label (lead mover); crowded
  * neighbors fall back to a dot + hover tooltip so labels never overlap.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { geoEquirectangular, geoPath } from 'd3-geo'
 import { feature, mesh } from 'topojson-client'
 import type { Topology, GeometryCollection, Objects } from 'topojson-specification'
@@ -15,8 +15,9 @@ import type { MarketQuote } from '../../../services/markets'
 
 const WIDTH = 480
 const HEIGHT = 260
-/** Minimum pixel gap between two dots for both to keep an inline label. */
-const MIN_LABEL_GAP = 20
+/** Minimum ON-SCREEN pixel gap between two dots for both to keep an inline label — converted to
+ * SVG viewBox units based on actual rendered width, so more labels show as the panel gets wider. */
+const MIN_LABEL_GAP_PX = 24
 
 const topology = countriesTopology as unknown as Topology<Objects<{ name?: string }>>
 const countries = feature(topology, topology.objects.countries as GeometryCollection)
@@ -87,11 +88,11 @@ function leadExchange(group: CityGroup, quotes: Record<string, MarketQuote>): Ex
 }
 
 /** Greedily pick which cities have room for an inline label, in dot-position order, so labels can't overlap each other. */
-function pickLabeled(positioned: { group: CityGroup; x: number; y: number }[]): Set<string> {
+function pickLabeled(positioned: { group: CityGroup; x: number; y: number }[], minGap: number): Set<string> {
   const kept: { x: number; y: number }[] = []
   const labeled = new Set<string>()
   for (const p of positioned) {
-    const tooClose = kept.some(k => Math.hypot(k.x - p.x, k.y - p.y) < MIN_LABEL_GAP)
+    const tooClose = kept.some(k => Math.hypot(k.x - p.x, k.y - p.y) < minGap)
     if (!tooClose) {
       kept.push(p)
       labeled.add(`${p.group.city}|${p.group.country}`)
@@ -161,9 +162,24 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
   const openCount = EXCHANGES.filter(ex => isExchangeOpen(ex, now)).length
   const [region, setRegion] = useState<Region>('global')
   const [hover, setHover] = useState<{ group: CityGroup; x: number; y: number } | null>(null)
+  const mapBoxRef = useRef<HTMLDivElement>(null)
+  const [renderedWidth, setRenderedWidth] = useState(WIDTH)
+
+  useEffect(() => {
+    const el = mapBoxRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width
+      if (w) setRenderedWidth(w)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const crop = useMemo(() => getCrop(region), [region])
   const scale = crop.width / GLOBAL_CROP_WIDTH
+  const physicalScale = renderedWidth / crop.width
+  const minGap = MIN_LABEL_GAP_PX / physicalScale
 
   const labeledCities = useMemo(() => {
     const positioned = cityGroups
@@ -172,8 +188,8 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
         return pt ? { group, x: pt[0], y: pt[1] } : null
       })
       .filter((p): p is { group: CityGroup; x: number; y: number } => p !== null)
-    return pickLabeled(positioned)
-  }, [cityGroups])
+    return pickLabeled(positioned, minGap)
+  }, [cityGroups, minGap])
 
   return (
     <div className="dash-panel">
@@ -200,7 +216,7 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
         ))}
       </div>
 
-      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+      <div ref={mapBoxRef} style={{ flex: 1, position: 'relative', minHeight: 0 }}>
         <svg viewBox={`${crop.x0} ${crop.y0} ${crop.width} ${crop.height}`} style={{ width: '100%', height: '100%', display: 'block' }}>
           <rect x={crop.x0} y={crop.y0} width={crop.width} height={crop.height} fill="var(--bg-surface)" />
           <path d={countriesPath} fill="var(--bg-active)" fillRule="evenodd" />

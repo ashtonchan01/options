@@ -1355,12 +1355,13 @@ body {
 }
 
 @media (max-width: 1400px) {
-  .dash-grid { grid-template-columns: 1fr; overflow-y: auto; height: auto; min-height: 100%; }
-  .dash-row { flex-direction: column; }
+  .dash-grid { grid-template-columns: 1fr; grid-auto-rows: min-content; overflow-y: auto; height: 100%; align-content: start; }
+  .dash-col { flex: none; }
+  .dash-row { flex-direction: column; flex: none; }
   /* World map stays full-width and full-height on top; everything else stacks below it. */
   .dash-col:first-child { flex-shrink: 0; }
   .dash-col:first-child > .dash-panel:first-child { min-height: 420px; flex: none; }
   .dash-col:first-child > .dash-panel:last-child { min-height: 260px; flex: none; }
   .dash-col:last-child > .dash-panel { min-height: 320px; flex: none; }
-  .dash-row > .dash-panel { min-height: 320px; }
+  .dash-row > .dash-panel { min-height: 320px; flex: none; }
 }
