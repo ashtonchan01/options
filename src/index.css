@@ -1311,7 +1311,7 @@ body {
   height: 100%;
   padding: 6px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(370px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(277px, 1fr));
   grid-auto-rows: 400px;
   grid-auto-flow: row dense;
   gap: 6px;
@@ -1328,7 +1328,7 @@ body {
 .dash-actions-cell .db-sidebar { width: 100%; border-left: 1px solid var(--border); }
 /* When only one column fits, a span-2 cell would force an overflowing implicit track —
    fall back to single-column placement. */
-@media (max-width: 860px) {
+@media (max-width: 650px) {
   .dash-cell-w2 { grid-column: auto; }
 }
 
