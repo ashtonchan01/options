@@ -161,7 +161,7 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
   }, [cityGroups, hover])
 
   return (
-    <div className="dash-panel">
+    <div className="dash-panel dash-map-panel">
       <div className="dash-panel-header">
         <span>World Markets</span>
         <span className="dash-panel-sub">{openCount} of {EXCHANGES.length} open</span>

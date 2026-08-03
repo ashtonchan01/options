@@ -33,14 +33,20 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   )
 }
 
-export default function LiveChartsStrip({ quotes }: { quotes: Record<string, MarketQuote> }) {
+/** `row`: wide landscape cards flowing in rows, horizontal scroll (default).
+ * `column`: single vertical list of cards, for use as a narrow sidebar next to the map. */
+export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Record<string, MarketQuote>; layout?: 'row' | 'column' }) {
+  const gridStyle = layout === 'column'
+    ? { flex: 1, display: 'flex' as const, flexDirection: 'column' as const, gap: 8, overflowY: 'auto' as const, padding: '2px 2px 6px' }
+    : {
+      flex: 1, display: 'grid' as const, gridTemplateRows: 'repeat(3, 1fr)', gridAutoFlow: 'column' as const,
+      gridAutoColumns: '220px', gap: 10, overflowX: 'auto' as const, padding: '2px 2px 6px',
+    }
+
   return (
     <div className="dash-panel">
       <div className="dash-panel-header"><span>Live Charts</span></div>
-      <div style={{
-        flex: 1, display: 'grid', gridTemplateRows: 'repeat(3, 1fr)', gridAutoFlow: 'column',
-        gridAutoColumns: '220px', gap: 10, overflowX: 'auto', padding: '2px 2px 6px',
-      }}>
+      <div style={gridStyle}>
         {EXCHANGES.map(ex => {
           const q = quotes[ex.symbol]
           const color = !q ? 'var(--text-3)' : q.change >= 0 ? '#10b981' : '#f43f5e'
@@ -48,7 +54,8 @@ export default function LiveChartsStrip({ quotes }: { quotes: Record<string, Mar
             <div key={ex.symbol} style={{
               background: 'var(--bg-page)', border: '1px solid var(--border-light)',
               borderRadius: 6, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4,
-              minWidth: 0, minHeight: 0,
+              minWidth: 0, minHeight: layout === 'column' ? 90 : 0,
+              flexShrink: layout === 'column' ? 0 : undefined,
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, flexShrink: 0 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
