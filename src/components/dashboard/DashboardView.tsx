@@ -39,11 +39,11 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
 
   return (
     <div className="dash-wrap">
-      <div className="dash-cell dash-cell-w2">
+      <div className="dash-cell dash-cell-w3">
         <WorldMapPanel quotes={quotes} now={now} />
       </div>
-      <div className="dash-cell">
-        <LiveChartsStrip quotes={quotes} layout="column" />
+      <div className="dash-cell dash-cell-full">
+        <LiveChartsStrip quotes={quotes} layout="row-single" />
       </div>
       <div className="dash-cell dash-cell-w2">
         <LiveTVPanel />
