@@ -28,6 +28,14 @@ export async function ensureSchema() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `
+      // Per-user IBKR Flex credentials (token + query ID per profile), one row per user.
+      await db`
+        CREATE TABLE IF NOT EXISTS user_settings (
+          user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          flex_settings JSONB NOT NULL DEFAULT '{"profiles":[],"activeId":""}',
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `
     })()
   }
   return schemaReady
