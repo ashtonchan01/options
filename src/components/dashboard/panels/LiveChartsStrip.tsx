@@ -34,7 +34,7 @@ export default function LiveChartsStrip({ quotes }: { quotes: Record<string, Mar
     <div className="dash-panel">
       <div className="dash-panel-header"><span>Live Charts</span></div>
       <div style={{
-        flex: 1, display: 'grid', gridTemplateRows: 'repeat(2, 1fr)', gridAutoFlow: 'column',
+        flex: 1, display: 'grid', gridTemplateRows: 'repeat(3, 1fr)', gridAutoFlow: 'column',
         gridAutoColumns: '220px', gap: 10, overflowX: 'auto', padding: '2px 2px 6px',
       }}>
         {EXCHANGES.map(ex => {
