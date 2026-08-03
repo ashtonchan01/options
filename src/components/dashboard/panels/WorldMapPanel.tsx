@@ -1,7 +1,8 @@
 /**
  * Compact global exchanges map for the Dashboard overview — same flat
- * equirectangular projection, region zoom, and always-on per-exchange
- * labels as the Markets page.
+ * equirectangular projection and region zoom as the Markets page. Only
+ * cities with enough room get an inline label (lead mover); crowded
+ * neighbors fall back to a dot + hover tooltip so labels never overlap.
  */
 import { useMemo, useState } from 'react'
 import { geoEquirectangular, geoPath } from 'd3-geo'
@@ -14,6 +15,8 @@ import type { MarketQuote } from '../../../services/markets'
 
 const WIDTH = 480
 const HEIGHT = 260
+/** Minimum pixel gap between two dots for both to keep an inline label. */
+const MIN_LABEL_GAP = 34
 
 const topology = countriesTopology as unknown as Topology<Objects<{ name?: string }>>
 const countries = feature(topology, topology.objects.countries as GeometryCollection)
@@ -55,7 +58,6 @@ function groupByCity(exchanges: Exchange[]): CityGroup[] {
   return [...groups.values()]
 }
 
-/** Which direction a city's label fans out from its dot — same layout as the Markets tab. */
 type Anchor = 'left' | 'right' | 'top' | 'bottom'
 const LABEL_ANCHOR: Record<string, Anchor> = {
   'Toronto':      'top',
@@ -74,56 +76,82 @@ const LABEL_ANCHOR: Record<string, Anchor> = {
   'Tokyo':        'left',
 }
 
+function fmtPrice(n: number): string {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function leadExchange(group: CityGroup, quotes: Record<string, MarketQuote>): Exchange | null {
+  const withQuotes = group.exchanges.filter(ex => quotes[ex.symbol])
+  if (withQuotes.length === 0) return null
+  return withQuotes.reduce((a, b) => Math.abs(quotes[b.symbol].changePercent) > Math.abs(quotes[a.symbol].changePercent) ? b : a)
+}
+
+/** Greedily pick which cities have room for an inline label, in dot-position order, so labels can't overlap each other. */
+function pickLabeled(positioned: { group: CityGroup; x: number; y: number }[]): Set<string> {
+  const kept: { x: number; y: number }[] = []
+  const labeled = new Set<string>()
+  for (const p of positioned) {
+    const tooClose = kept.some(k => Math.hypot(k.x - p.x, k.y - p.y) < MIN_LABEL_GAP)
+    if (!tooClose) {
+      kept.push(p)
+      labeled.add(`${p.group.city}|${p.group.country}`)
+    }
+  }
+  return labeled
+}
+
 function CityMarker({
-  group, quotes, now, scale,
+  group, quotes, now, scale, showLabel, onHover,
 }: {
   group: CityGroup
   quotes: Record<string, MarketQuote>
   now: Date
   scale: number
+  showLabel: boolean
+  onHover: (group: CityGroup | null, pos: { x: number; y: number } | null) => void
 }) {
   const pt = projection([group.lon, group.lat])
   if (!pt) return null
   const [x, y] = pt
   const anyOpen = group.exchanges.some(ex => isExchangeOpen(ex, now))
   const dotColor = !anyOpen ? 'var(--text-4)' : '#10b981'
+  const lead = leadExchange(group, quotes)
+  const leadQuote = lead ? quotes[lead.symbol] : null
+  const changeColor = !leadQuote ? 'var(--text-3)' : leadQuote.changePercent >= 0 ? '#10b981' : '#f43f5e'
 
   const anchor = LABEL_ANCHOR[group.city] ?? 'right'
-  const lineHeight = 7 * scale
-  const n = group.exchanges.length
   const textAnchor = anchor === 'left' ? 'end' : anchor === 'right' ? 'start' : 'middle'
   const labelX = anchor === 'left' ? -6 * scale : anchor === 'right' ? 6 * scale : 0
-  const stackStartY = anchor === 'top' ? -7 * scale - (n - 1) * lineHeight
-    : anchor === 'bottom' ? 7 * scale + lineHeight * 0.3
-    : -((n - 1) * lineHeight) / 2 + 2.5 * scale
+  const labelY = anchor === 'top' ? -7 * scale : anchor === 'bottom' ? 8.5 * scale : 2 * scale
 
   return (
-    <g transform={`translate(${x}, ${y})`}>
+    <g
+      transform={`translate(${x}, ${y})`}
+      onMouseEnter={() => onHover(group, { x, y })}
+      onMouseLeave={() => onHover(null, null)}
+      style={{ cursor: 'pointer' }}
+    >
       {anyOpen && (
         <circle r={5 * scale} fill={dotColor} opacity={0.35}>
           <animate attributeName="r" values={`${4 * scale};${8 * scale};${4 * scale}`} dur="2s" repeatCount="indefinite" />
           <animate attributeName="opacity" values="0.35;0;0.35" dur="2s" repeatCount="indefinite" />
         </circle>
       )}
+      <circle r={7 * scale} fill="transparent" />
       <circle r={2.6 * scale} fill={dotColor} stroke="var(--bg-surface)" strokeWidth={0.8 * scale} />
 
-      {group.exchanges.map((ex, i) => {
-        const q = quotes[ex.symbol]
-        const changeColor = !q ? 'var(--text-3)' : q.change >= 0 ? '#10b981' : '#f43f5e'
-        const rowY = stackStartY + i * lineHeight
-        return (
-          <text key={ex.symbol} x={labelX} y={rowY} textAnchor={textAnchor}
-            fontSize={5 * scale} fontFamily="Inter, sans-serif" fontWeight={400} fill="var(--text-3)"
-            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 1.2 * scale }}>
-            {ex.name}
-            {q && (
-              <tspan fill={changeColor} fontWeight={400}>
-                {'  '}{q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}%
-              </tspan>
-            )}
-          </text>
-        )
-      })}
+      {showLabel && (
+        <text x={labelX} y={labelY} textAnchor={textAnchor}
+          fontSize={5 * scale} fontFamily="Inter, sans-serif" fontWeight={400} fill="var(--text-3)"
+          style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 1.2 * scale }}>
+          {group.exchanges.length > 1 ? group.city : group.exchanges[0].name}
+          {leadQuote && (
+            <tspan fill={changeColor} fontWeight={400}>
+              {'  '}{leadQuote.changePercent >= 0 ? '+' : ''}{leadQuote.changePercent.toFixed(2)}%
+            </tspan>
+          )}
+        </text>
+      )}
     </g>
   )
 }
@@ -132,9 +160,20 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
   const cityGroups = useMemo(() => groupByCity(EXCHANGES), [])
   const openCount = EXCHANGES.filter(ex => isExchangeOpen(ex, now)).length
   const [region, setRegion] = useState<Region>('global')
+  const [hover, setHover] = useState<{ group: CityGroup; x: number; y: number } | null>(null)
 
   const crop = useMemo(() => getCrop(region), [region])
   const scale = crop.width / GLOBAL_CROP_WIDTH
+
+  const labeledCities = useMemo(() => {
+    const positioned = cityGroups
+      .map(group => {
+        const pt = projection([group.lon, group.lat])
+        return pt ? { group, x: pt[0], y: pt[1] } : null
+      })
+      .filter((p): p is { group: CityGroup; x: number; y: number } => p !== null)
+    return pickLabeled(positioned)
+  }, [cityGroups])
 
   return (
     <div className="dash-panel">
@@ -167,9 +206,54 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
           <path d={countriesPath} fill="var(--bg-active)" fillRule="evenodd" />
           <path d={bordersPath} fill="none" stroke="var(--border)" strokeWidth={0.5} />
           {cityGroups.map(g => (
-            <CityMarker key={`${g.city}|${g.country}`} group={g} quotes={quotes} now={now} scale={scale} />
+            <CityMarker
+              key={`${g.city}|${g.country}`}
+              group={g}
+              quotes={quotes}
+              now={now}
+              scale={scale}
+              showLabel={labeledCities.has(`${g.city}|${g.country}`)}
+              onHover={(group, pos) => setHover(group && pos ? { group, x: pos.x, y: pos.y } : null)}
+            />
           ))}
         </svg>
+
+        {hover && (
+          <div style={{
+            position: 'absolute',
+            left: `${((hover.x - crop.x0) / crop.width) * 100}%`,
+            top: `${((hover.y - crop.y0) / crop.height) * 100}%`,
+            transform: 'translate(-50%, -100%) translateY(-8px)',
+            background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6,
+            padding: '6px 8px', pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 1,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          }}>
+            <div style={{ fontSize: 9.5, color: 'var(--text-4)', marginBottom: 2 }}>
+              {hover.group.city}, {hover.group.country}
+            </div>
+            {hover.group.exchanges.map(ex => {
+              const q = quotes[ex.symbol]
+              const color = !q ? 'var(--text-3)' : q.change >= 0 ? '#10b981' : '#f43f5e'
+              const open = isExchangeOpen(ex, now)
+              return (
+                <div key={ex.symbol} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: open ? '#10b981' : 'var(--text-4)', flexShrink: 0 }} />
+                  <span style={{ fontWeight: 700, color: 'var(--text-1)' }}>{ex.name}</span>
+                  {q ? (
+                    <>
+                      <span style={{ fontFamily: 'Inter, sans-serif', color: 'var(--text-2)' }}>{fmtPrice(q.price)}</span>
+                      <span style={{ fontWeight: 600, color, fontFamily: 'Inter, sans-serif' }}>
+                        {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}%
+                      </span>
+                    </>
+                  ) : (
+                    <span style={{ color: 'var(--text-4)' }}>—</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
