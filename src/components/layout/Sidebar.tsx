@@ -5,37 +5,21 @@
  */
 import { useState, useRef } from 'react'
 import {
-  LayoutDashboard, Briefcase, Layers, BookOpen, Radar,
+  LayoutDashboard, Briefcase, BookOpen, Radar,
   Menu, X, RefreshCw, Upload, Settings,
-  Sun, Moon, ChevronDown, Pencil, LogOut, ChevronLeft, ChevronRight,
+  Sun, Moon, LogOut, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
-import type { StrategyPage } from '../../App'
 
-export const TAB_IDS = ['dashboard', 'portfolio', 'strategies', 'journal', 'scanner'] as const
+export const TAB_IDS = ['dashboard', 'portfolio', 'journal', 'scanner'] as const
 export type TabId = typeof TAB_IDS[number]
 
 const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard',  label: 'Dashboard',  icon: <LayoutDashboard size={17} /> },
   { id: 'portfolio',  label: 'Portfolio',  icon: <Briefcase size={17} /> },
-  // strategies rendered separately (expandable)
   { id: 'journal',    label: 'Journal',    icon: <BookOpen size={17} /> },
   { id: 'scanner',    label: 'Scanner',    icon: <Radar size={17} /> },
-]
-
-const STRATEGY_ITEMS: { label: string; page: StrategyPage }[] = [
-  { label: 'Covered Calls',     page: 'covered_calls' },
-  { label: 'Cash Secured Puts', page: 'csp'           },
-  { label: 'LEAP',              page: 'leap'          },
-  { label: 'SPX',               page: 'spx'           },
-  { label: 'Rotation Model',    page: 'rotation'      },
-  { label: 'PTOS',              page: 'ptos'          },
-  { label: 'DCAS',              page: 'dcas'          },
-  { label: 'Profit Taking',     page: 'profit_taking' },
-  { label: 'LILO',              page: 'lilo'          },
-  { label: 'ARB Cloud',         page: 'arb_cloud'     },
-  { label: 'TABI',              page: 'tabi'          },
 ]
 
 function relativeTime(ms: number): string {
@@ -47,9 +31,7 @@ function relativeTime(ms: number): string {
 
 interface Props {
   activeTab: TabId
-  stratPage: StrategyPage
   onTabChange: (tab: TabId) => void
-  onStrategySelect: (page: StrategyPage) => void
   actionCount: number
   syncStatus: SyncStatus
   syncError?: string
@@ -63,12 +45,11 @@ interface Props {
 }
 
 export default function Sidebar({
-  activeTab, stratPage, onTabChange, onStrategySelect, actionCount,
+  activeTab, onTabChange, actionCount,
   syncStatus, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings,
   userEmail, onSignOut,
 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [stratOpen, setStratOpen]   = useState(activeTab === 'strategies')
   const [collapsed, setCollapsed]   = useState(() => localStorage.getItem('options:sidebar-collapsed') !== '0')
   const fileRef = useRef<HTMLInputElement>(null)
   const { theme, toggle } = useThemeStore()
@@ -82,12 +63,6 @@ export default function Sidebar({
 
   function selectTab(tab: TabId) {
     onTabChange(tab)
-    setDrawerOpen(false)
-  }
-
-  function selectStrategy(page: StrategyPage) {
-    onStrategySelect(page)
-    setStratOpen(true)
     setDrawerOpen(false)
   }
 
@@ -111,7 +86,7 @@ export default function Sidebar({
         </div>
 
         <nav className="ew-nav">
-          {NAV_ITEMS.slice(0, 2).map(item => (
+          {NAV_ITEMS.map(item => (
             <button key={item.id}
               className={`ew-nav-item${activeTab === item.id ? ' active' : ''}`}
               title={collapsed ? item.label : undefined}
@@ -121,51 +96,6 @@ export default function Sidebar({
               {item.id === 'dashboard' && actionCount > 0 && (
                 <span className="top-nav-badge">{actionCount > 9 ? '9+' : actionCount}</span>
               )}
-            </button>
-          ))}
-
-          {/* Strategies — expandable section */}
-          <button
-            className={`ew-nav-item${activeTab === 'strategies' ? ' active' : ''}`}
-            title={collapsed ? 'Strategies' : undefined}
-            onClick={() => {
-              if (activeTab !== 'strategies') selectStrategy('overview')
-              else setStratOpen(o => !o)
-            }}>
-            <Layers size={17} />
-            <span>Strategies</span>
-            <ChevronDown size={14} className={`ew-chev${stratOpen ? ' open' : ''}`} />
-          </button>
-          {stratOpen && !collapsed && (
-            <div className="ew-nav-sub">
-              <button
-                className={`ew-nav-subitem${activeTab === 'strategies' && stratPage === 'overview' ? ' active' : ''}`}
-                onClick={() => selectStrategy('overview')}>
-                All Strategies
-              </button>
-              <button
-                className={`ew-nav-subitem${activeTab === 'strategies' && stratPage === 'label_trades' ? ' active' : ''}`}
-                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                onClick={() => selectStrategy('label_trades')}>
-                <Pencil size={11} /> Label Trades
-              </button>
-              {STRATEGY_ITEMS.map(item => (
-                <button key={item.page}
-                  className={`ew-nav-subitem${activeTab === 'strategies' && stratPage === item.page ? ' active' : ''}`}
-                  onClick={() => selectStrategy(item.page)}>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {NAV_ITEMS.slice(2).map(item => (
-            <button key={item.id}
-              className={`ew-nav-item${activeTab === item.id ? ' active' : ''}`}
-              title={collapsed ? item.label : undefined}
-              onClick={() => selectTab(item.id)}>
-              {item.icon}
-              <span>{item.label}</span>
             </button>
           ))}
         </nav>
