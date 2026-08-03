@@ -5,6 +5,17 @@
 import { EXCHANGES } from '../../../data/exchanges'
 import type { MarketQuote } from '../../../services/markets'
 
+/** ES futures track the S&P 500 nearly tick-for-tick — shown as a chart card right
+ * next to it, but deliberately left out of the shared EXCHANGES list so it doesn't
+ * also get its own dot on the world map. */
+const ES_CARD = { symbol: 'ES=F', name: 'ES (S&P Fut)' }
+const CHART_CARDS = (() => {
+  const idx = EXCHANGES.findIndex(ex => ex.symbol === '^GSPC')
+  const cards = EXCHANGES.map(ex => ({ symbol: ex.symbol, name: ex.name }))
+  cards.splice(idx + 1, 0, ES_CARD)
+  return cards
+})()
+
 function fmtPrice(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
@@ -52,7 +63,7 @@ export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Re
   return (
     <div className="dash-panel">
       <div style={gridStyle}>
-        {EXCHANGES.map(ex => {
+        {CHART_CARDS.map(ex => {
           const q = quotes[ex.symbol]
           const color = !q ? 'var(--text-3)' : q.change >= 0 ? '#10b981' : '#f43f5e'
           return (
