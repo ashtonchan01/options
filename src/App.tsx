@@ -8,12 +8,13 @@ import { useTradeLabelStore } from './store/tradeLabelsStore'
 import { useAuthStore } from './store/authStore'
 import DashboardView from './components/dashboard/DashboardView'
 import PortfolioView from './components/portfolio/PortfolioView'
-import StrategiesView from './components/strategies/StrategiesView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import JournalView from './components/journal/JournalView'
 import type { AppState } from './types'
 import type { TradeLabel } from './store/tradeLabelsStore'
 
+// Kept for TradeLabel (trade labeling feature, used by Analytics/Portfolio) even though
+// the Strategies tab itself has been removed from navigation.
 export type StrategyPage =
   | 'overview'
   | 'label_trades'
@@ -38,19 +39,17 @@ export interface TradeLabels {
   clearAll: () => void
 }
 
-type ViewComponent = React.FC<{ state: AppState; stratPage?: StrategyPage; tradeLabels?: TradeLabels }>
+type ViewComponent = React.FC<{ state: AppState; tradeLabels?: TradeLabels }>
 
 const VIEWS: Record<TabId, ViewComponent> = {
   dashboard:  DashboardView as ViewComponent,
   portfolio:  PortfolioView,
-  strategies: StrategiesView as ViewComponent,
   scanner:    OpportunitiesView as ViewComponent,
   journal:    JournalView as ViewComponent,
 }
 
 export default function App() {
   const [activeTab, setActiveTab]       = useState<TabId>('dashboard')
-  const [stratPage, setStratPage]       = useState<StrategyPage>('overview')
   const [showSettings, setShowSettings] = useState(false)
   const auth = useAuthStore()
   const { state, uploadXML, syncFlex }  = useAppStore(auth.user?.email ?? null)
@@ -70,21 +69,13 @@ export default function App() {
 
   function handleTabChange(tab: TabId) {
     setActiveTab(tab)
-    if (tab !== 'strategies') setStratPage('overview')
-  }
-
-  function handleStrategySelect(page: StrategyPage) {
-    setActiveTab('strategies')
-    setStratPage(page)
   }
 
   return (
     <div className="ew-shell">
       <Sidebar
         activeTab={activeTab}
-        stratPage={stratPage}
         onTabChange={handleTabChange}
-        onStrategySelect={handleStrategySelect}
         actionCount={state.actions.length}
         syncStatus={state.sync.status}
         syncError={state.sync.error}
@@ -99,7 +90,7 @@ export default function App() {
 
       <div className="ew-main">
         <main style={{ flex: 1, overflow: 'hidden' }}>
-          <View state={state} stratPage={stratPage} tradeLabels={tradeLabels} />
+          <View state={state} tradeLabels={tradeLabels} />
         </main>
       </div>
 
