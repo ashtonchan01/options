@@ -66,11 +66,13 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
       <div className="dash-cell dash-cell-h2">
         <PortfolioSummaryCard state={state} />
       </div>
-      <div className="dash-cell dash-cell-h3">
-        <AllocationPieCard state={state} />
-      </div>
-      <div className="dash-cell dash-cell-h3">
-        <CashFlowCard state={state} />
+      <div className="dash-cell dash-cell-w2 dash-cell-h3" style={{ display: 'flex', gap: 6 }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
+          <AllocationPieCard state={state} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
+          <CashFlowCard state={state} />
+        </div>
       </div>
       <div className="dash-cell dash-cell-w2 dash-cell-h3">
         <IncomeChannelsCard state={state} labels={tradeLabels?.labels ?? {}} />
