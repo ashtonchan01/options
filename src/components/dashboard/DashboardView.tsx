@@ -221,8 +221,8 @@ function fmtMonthShort(ym: string) {
 
 interface DonutSlice { label: string; value: number; color: string }
 
-const PIE_W = 980, PIE_H = 620
-const PIE_CX = 490, PIE_CY = 310, PIE_R = 230
+const PIE_W = 760, PIE_H = 480
+const PIE_CX = 380, PIE_CY = 240, PIE_R = 170
 const LABEL_GAP = 6 // how far outside the circle each label sits — just touching, no line
 // Slices are largest-first, so the smallest ones land back-to-back with the biggest one
 // right at the top seam (angle 0/360) — the most crowded spot for labels. Rotating the
@@ -602,9 +602,9 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
         ))}
       </div>
 
-      {/* ── Analytics: allocation structure (full width, no-line labels need room) + monthly flow ── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--border)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <div style={{ background: 'var(--bg-card)', padding: '12px 16px' }}>
+      {/* ── Analytics: allocation structure + monthly flow, side by side ── */}
+      <div style={{ display: 'flex', gap: 1, background: 'var(--border)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexShrink: 0 }}>
+        <div style={{ flex: '3 1 520px', background: 'var(--bg-card)', padding: '12px 16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
             Allocation by Position
           </div>
@@ -614,7 +614,7 @@ function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<st
             centerValue={fmtDollar(stockMV + Math.abs(optionMV))}
           />
         </div>
-        <div style={{ background: 'var(--bg-card)', padding: '12px 16px' }}>
+        <div style={{ flex: '2 1 320px', background: 'var(--bg-card)', padding: '12px 16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
             Monthly Cash Flow
           </div>
