@@ -66,7 +66,7 @@ export default async function handler(req) {
   const url = new URL(req.url)
   const symbolsParam = url.searchParams.get('symbols')
   if (!symbolsParam) return jsonResponse({ error: 'Missing symbols param' }, 400)
-  if (!/^[A-Za-z0-9.^,\-]+$/.test(symbolsParam)) return jsonResponse({ error: 'Invalid symbols' }, 400)
+  if (!/^[A-Za-z0-9.^=,\-]+$/.test(symbolsParam)) return jsonResponse({ error: 'Invalid symbols' }, 400)
 
   const symbols = [...new Set(symbolsParam.split(',').filter(Boolean))]
 
