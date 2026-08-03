@@ -835,7 +835,7 @@ export function OptionsCard({ state }: { state: AppState }) {
   )
 }
 
-export function ActualPortfolio({ state, labels }: { state: AppState; labels: Record<string, string> }) {
+export function ActualPortfolio({ state }: { state: AppState }) {
   const {
     stocks, sortedOptions, trades, cashBalance,
     stockMV, stockPnL, stockCost, optionMV, optionPnL, realizedPnL, netLiq, totalUnrealized,
@@ -869,7 +869,7 @@ export function ActualPortfolio({ state, labels }: { state: AppState; labels: Re
 
       {/* ── Analytics: allocation structure + monthly flow, side by side ── */}
       <div style={{ display: 'flex', gap: 1, background: 'var(--border)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexShrink: 0 }}>
-        <div style={{ flex: '3 1 520px', background: 'var(--bg-card)', padding: '12px 16px' }}>
+        <div style={{ flex: '1 1 240px', background: 'var(--bg-card)', padding: '12px 16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
             Allocation by Position
           </div>
@@ -879,16 +879,13 @@ export function ActualPortfolio({ state, labels }: { state: AppState; labels: Re
             centerValue={fmtDollar(stockMV + Math.abs(optionMV))}
           />
         </div>
-        <div style={{ flex: '2 1 320px', background: 'var(--bg-card)', padding: '12px 16px' }}>
+        <div style={{ flex: '1 1 240px', background: 'var(--bg-card)', padding: '12px 16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
             Monthly Cash Flow
           </div>
           <MonthlyFlowBars trades={trades} />
         </div>
       </div>
-
-      {/* ── Income channels ── */}
-      <IncomeChannelStrip trades={trades} labels={labels} symbolToStratType={symbolToStratType} />
 
       {/* ── Content ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
