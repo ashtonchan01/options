@@ -167,6 +167,12 @@ body {
 .pos { color: #10b981; }
 .neg { color: #ef4444; }
 .neu { color: var(--text-2); }
+/* .trade-table td's own color rule (and its :hover variant) outrank the plain
+   .pos/.neg classes on specificity alone, so a losing trade's P&L cell always
+   rendered in the table's default gray instead of red — these two rules need
+   to match (or beat) that specificity to actually win. */
+.trade-table td.pos, .trade-table tr:hover td.pos { color: #10b981; }
+.trade-table td.neg, .trade-table tr:hover td.neg { color: #ef4444; }
 
 /* Fonts — Edgewonk uses a single clean sans; .mono keeps numerals aligned */
 .mono    { font-family: 'Inter', sans-serif; font-variant-numeric: tabular-nums; }
