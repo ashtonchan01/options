@@ -49,30 +49,23 @@ function daysBetween(a: Date | string, b: Date | string): number {
 /** Best-guess strategy label from the opening legs alone, used only when the
  * trade has no manual label yet. Every SPX/SPXW position is always a bull put
  * spread here (that's the only structure ever traded on it), regardless of
- * how the legs look — a call-looking leg on an SPX combo is still part of the
- * same put-spread strategy, not a separate LEAP. For every other ticker:
- * any multi-leg group that's all puts (e.g. TSLA 1x 340/330P) is a bull put
- * spread, any multi-leg group that's all calls (e.g. ALAB 1x 120/110C) is a
- * LEAP/PMCC-style setup — regardless of debit or credit, so a straight bought
- * vertical still counts, not just ones with a short leg. A single leg only
- * classifies when it's short (i.e. actually received credit): a lone short
- * put is a cash-secured put, a lone short call is a covered call. */
+ * how the legs look. For every other ticker: a genuine vertical (2+ distinct
+ * strikes) is always "LEAP" here — put or call, debit or credit, this trader
+ * treats any single-ticker vertical as a directional LEAP-style play, not an
+ * income spread. Legs that share the same strike (a same-day roll/adjustment
+ * of one position, not a real spread) collapse to their net quantity instead:
+ * a net-short put is a cash-secured put, a net-short call is a covered call. */
 function autoClassify(underlying: string, openLegs: RawTrade[]): TradeLabel | 'put_spread' | undefined {
   if (/^SPXW?/.test(underlying)) return 'put_spread'
   if (openLegs.length === 0) return undefined
 
-  const allPuts  = openLegs.every(l => l.putCall === 'P')
-  const allCalls = openLegs.every(l => l.putCall === 'C')
+  const distinctStrikes = new Set(openLegs.map(l => l.strike)).size
+  if (distinctStrikes > 1) return 'leap'
 
-  if (openLegs.length > 1) {
-    if (allPuts)  return 'put_spread'
-    if (allCalls) return 'leap'
-    return undefined
-  }
-
-  if (openLegs[0].quantity >= 0) return undefined
-  if (allPuts)  return 'csp'
-  if (allCalls) return 'covered_calls'
+  const netQty = openLegs.reduce((s, l) => s + l.quantity, 0)
+  if (netQty >= 0) return undefined
+  if (openLegs[0].putCall === 'P') return 'csp'
+  if (openLegs[0].putCall === 'C') return 'covered_calls'
   return undefined
 }
 
