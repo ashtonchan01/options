@@ -440,7 +440,7 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
     { id: 'unreviewed', label: `Unreviewed (${counts.unreviewed})` },
   ]
 
-  const COLS = 10
+  const COLS = 7
 
   return (
     <>
@@ -464,9 +464,6 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
                 <th style={{ textAlign: 'center' }}>Status</th>
                 <th style={{ textAlign: 'right' }}>DTE</th>
                 <th style={{ textAlign: 'right' }}>P&L</th>
-                <th>Setup</th>
-                <th style={{ textAlign: 'center' }}>Grade</th>
-                <th style={{ textAlign: 'center' }}>⚠</th>
               </tr>
             </thead>
             <tbody>
@@ -522,15 +519,6 @@ function Row({ pos: p, entry: e, open, cols, onToggle, editor }: {
         </td>
         <td className={`mono ${p.pnl != null ? pnlCls(p.pnl) : ''}`} style={{ textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
           {p.pnl != null ? fmt$(p.pnl, 2) : '—'}
-        </td>
-        <td style={{ fontSize: 11, color: e.setup ? 'var(--text-2)' : 'var(--text-5)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {e.setup ?? '—'}
-        </td>
-        <td className="mono" style={{ textAlign: 'center', color: e.rating ? '#10b981' : 'var(--text-5)' }}>
-          {e.rating ? '◆'.repeat(e.rating) : '—'}
-        </td>
-        <td className="mono" style={{ textAlign: 'center', color: (e.mistakes?.length ?? 0) > 0 ? '#ef4444' : 'var(--text-5)' }}>
-          {e.mistakes?.length || (e.note ? '✎' : '—')}
         </td>
       </tr>
       {open && (
