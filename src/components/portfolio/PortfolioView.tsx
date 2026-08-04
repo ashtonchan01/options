@@ -41,7 +41,7 @@ export default function PortfolioView({ state, tradeLabels }: { state: AppState;
       </div>
       <div className="pf-column jr-root">
         <div className="cc-section-title" style={{ padding: 0 }}>Journal Overview</div>
-        {hasTrades ? <OverviewTab closed={closed} entries={entries} /> : <NoTradeData />}
+        {hasTrades ? <OverviewTab closed={closed} positions={positions} entries={entries} /> : <NoTradeData />}
       </div>
       <div className="pf-column jr-root">
         <div className="cc-section-title" style={{ padding: 0 }}>Trade Journal</div>

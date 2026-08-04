@@ -330,6 +330,16 @@ export function closedByDate(positions: JournalPosition[]): JournalPosition[] {
     .sort((a, b) => a.dateClosed!.localeCompare(b.dateClosed!))
 }
 
+/** Sum of net premium (credit received, or negative for debit paid) across
+ * still-open positions — matches the manual spreadsheet's convention of
+ * counting a position's cash flow toward the running total as soon as it's
+ * opened, rather than waiting for it to close. Not a mark-to-market
+ * unrealized figure (this app doesn't fetch live option quotes for that),
+ * just the premium banked or paid at entry. */
+export function openPremiumTotal(positions: JournalPosition[]): number {
+  return positions.filter(p => p.status === 'Active').reduce((s, p) => s + p.netPremium, 0)
+}
+
 export function computeStats(closed: JournalPosition[]): JournalStats {
   const pnls = closed.map(p => p.pnl ?? 0)
   const wins   = pnls.filter(n => n > 0)

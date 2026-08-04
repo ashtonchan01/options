@@ -6,7 +6,7 @@
  */
 import { useMemo, useState } from 'react'
 import {
-  computeStats, equityCurve, breakdown,
+  computeStats, equityCurve, breakdown, openPremiumTotal,
   byUnderlying, byStrategy, byWeekday, byMonth, byDteBucket, byHoldBucket,
   edgeInsights,
   type JournalPosition, type EquityPoint, type BreakdownRow,
@@ -71,9 +71,15 @@ function StratBadge({ strategy }: { strategy?: string }) {
 
 // ─── KPI strip ────────────────────────────────────────────────────────────────
 
-function KpiStrip({ closed }: { closed: JournalPosition[] }) {
+function KpiStrip({ closed, openPremium }: { closed: JournalPosition[]; openPremium: number }) {
   const s = useMemo(() => computeStats(closed), [closed])
   const pf = s.profitFactor === Infinity ? '∞' : s.profitFactor.toFixed(2)
+  // Tried folding open-position net premium into this figure to match the
+  // spreadsheet's per-row convention, but verified against real data it makes
+  // the total wildly wrong (the spreadsheet's own weekly/monthly tally is
+  // realized-P&L-only, despite showing raw premium in the per-position table)
+  // — so Net P&L stays realized-only; open premium is a separate reference
+  // stat below instead.
   const cards = [
     { label: 'Net P&L',       value: fmt$(s.netPnl),                 color: pnlColor(s.netPnl) },
     { label: 'Win Rate',      value: s.trades ? `${s.winRate.toFixed(0)}%` : '—',
@@ -86,6 +92,8 @@ function KpiStrip({ closed }: { closed: JournalPosition[] }) {
     { label: 'Max Drawdown',  value: fmt$(-s.maxDrawdown),           color: '#f59e0b' },
   ]
   const minis = [
+    { label: 'Realized P&L',  value: fmt$(s.netPnl) },
+    { label: 'Open Premium',  value: fmt$(openPremium) },
     { label: 'Closed Trades', value: String(s.trades) },
     { label: 'Streak',        value: s.currentStreak === 0 ? '—' : `${s.currentStreak > 0 ? 'W' : 'L'}${Math.abs(s.currentStreak)}` },
     { label: 'Best Streak',   value: `W${s.longestWinStreak} / L${s.longestLossStreak}` },
@@ -264,11 +272,14 @@ function BreakTable({ title, rows, keyHeader, fmtKey }: {
 
 // ─── Overview sub-view ────────────────────────────────────────────────────────
 
-export function OverviewTab({ closed, entries }: { closed: JournalPosition[]; entries: Record<string, JournalEntry> }) {
+export function OverviewTab({ closed, positions, entries }: {
+  closed: JournalPosition[]; positions: JournalPosition[]; entries: Record<string, JournalEntry>
+}) {
   const curve = useMemo(() => equityCurve(closed), [closed])
+  const openPremium = useMemo(() => openPremiumTotal(positions), [positions])
   return (
     <>
-      <KpiStrip closed={closed} />
+      <KpiStrip closed={closed} openPremium={openPremium} />
 
       <div className="cc-section">
         <div className="cc-section-title" style={{ padding: 0 }}>Equity Curve — Realized P&L</div>
