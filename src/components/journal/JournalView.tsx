@@ -33,6 +33,17 @@ function fmtMonth(ym: string) {
 function pnlCls(n: number) { return n > 0 ? 'pos' : n < 0 ? 'neg' : 'neu' }
 function pnlColor(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'var(--text-4)' }
 
+const TODAY_JR = new Date(); TODAY_JR.setHours(0, 0, 0, 0)
+
+/** Days left until expiry (can be negative once past it). */
+function dte(expiry: string): number | null {
+  if (!expiry) return null
+  const s = /^\d{8}$/.test(expiry) ? `${expiry.slice(0, 4)}-${expiry.slice(4, 6)}-${expiry.slice(6, 8)}` : expiry
+  const d = new Date(s)
+  if (isNaN(d.getTime())) return null
+  return Math.round((d.getTime() - TODAY_JR.getTime()) / 86_400_000)
+}
+
 const LABEL_SHORT: Record<string, string> = {
   covered_calls: 'CC', csp: 'CSP', leap: 'LEAP', spx: 'SPX', rotation: 'ROT',
   ptos: 'PTOS', dcas: 'DCAS', profit_taking: 'PT', lilo: 'LILO',
@@ -440,7 +451,7 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
                 <th style={{ textAlign: 'center' }}>Strat</th>
                 <th style={{ textAlign: 'right' }}>Position</th>
                 <th style={{ textAlign: 'center' }}>Status</th>
-                <th style={{ textAlign: 'right' }}>Hold</th>
+                <th style={{ textAlign: 'right' }}>DTE</th>
                 <th style={{ textAlign: 'right' }}>P&L</th>
                 <th>Setup</th>
                 <th style={{ textAlign: 'center' }}>Grade</th>
@@ -475,9 +486,11 @@ function Row({ pos: p, entry: e, open, cols, onToggle, editor }: {
   onToggle: () => void; editor: React.ReactNode
 }) {
   const statusColor = p.status === 'Active' ? '#10b981' : p.status === 'Closed' ? '#f59e0b' : 'var(--text-4)'
+  const daysLeft = dte(p.expiry)
+  const urgent = p.status === 'Active' && daysLeft != null && daysLeft <= 7
   return (
     <>
-      <tr onClick={onToggle} style={{ cursor: 'pointer', background: open ? 'rgba(16,185,129,0.05)' : undefined }}>
+      <tr onClick={onToggle} style={{ cursor: 'pointer', background: open ? 'rgba(16,185,129,0.05)' : urgent ? 'rgba(239,68,68,0.08)' : undefined }}>
         <td className="mono" style={{ whiteSpace: 'nowrap', color: 'var(--text-3)' }}>
           {p.dateClosed ? fmtDate(p.dateClosed) : `opened ${fmtDate(p.dateOpen)}`}
         </td>
@@ -492,7 +505,9 @@ function Row({ pos: p, entry: e, open, cols, onToggle, editor }: {
             {p.status}
           </span>
         </td>
-        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{p.holdDays != null ? `${p.holdDays}d` : '—'}</td>
+        <td className="mono" style={{ textAlign: 'right', color: urgent ? '#ef4444' : 'var(--text-3)', fontWeight: urgent ? 700 : 400 }}>
+          {daysLeft != null ? `${daysLeft}d` : '—'}
+        </td>
         <td className={`mono ${p.pnl != null ? pnlCls(p.pnl) : ''}`} style={{ textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
           {p.pnl != null ? fmt$(p.pnl, 2) : '—'}
         </td>
