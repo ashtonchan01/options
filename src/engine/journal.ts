@@ -47,13 +47,18 @@ function daysBetween(a: Date | string, b: Date | string): number {
 }
 
 /** Best-guess strategy label from the opening legs alone, used only when the
- * trade has no manual label yet: a lone short put is a cash-secured put, a
- * lone short call is a covered call, a put credit spread (short + long put,
- * same expiry, any ticker — e.g. a bull put spread on SPX) is "put_spread",
- * and a call spread (e.g. ALAB 1x 120/110C) is a LEAP/PMCC-style setup.
- * Matches on "every leg is the same putCall" rather than a fixed leg count,
- * so a rolled position combining several strikes in one group still counts. */
-function autoClassify(openLegs: RawTrade[]): TradeLabel | 'put_spread' | undefined {
+ * trade has no manual label yet. Every SPX/SPXW position is always a bull put
+ * spread here (that's the only structure ever traded on it), regardless of
+ * how the legs look — a call-looking leg on an SPX combo is still part of the
+ * same put-spread strategy, not a separate LEAP. For every other ticker: a
+ * lone short put is a cash-secured put, a lone short call is a covered call,
+ * a put credit spread is "put_spread", and a call spread (e.g. ALAB 1x
+ * 120/110C) is a LEAP/PMCC-style setup. Matches on "every leg is the same
+ * putCall" rather than a fixed leg count, so a rolled position combining
+ * several strikes in one group still counts. */
+function autoClassify(underlying: string, openLegs: RawTrade[]): TradeLabel | 'put_spread' | undefined {
+  if (/^SPXW?/.test(underlying)) return 'put_spread'
+
   const sells = openLegs.filter(l => l.quantity < 0)
   const buys  = openLegs.filter(l => l.quantity > 0)
   if (sells.length === 0) return undefined
@@ -112,7 +117,7 @@ export function buildJournalPositions(
     const putCall = sells[0]?.putCall ?? og.legs[0]?.putCall ?? ''
 
     const tradeIds = og.legs.map(tradeId)
-    const strategy = tradeIds.map(id => labels[id]).find(Boolean) ?? autoClassify(openLegs)
+    const strategy = tradeIds.map(id => labels[id]).find(Boolean) ?? autoClassify(og.underlying, openLegs)
 
     const base = {
       id: og.key,
