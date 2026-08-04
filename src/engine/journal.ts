@@ -46,6 +46,22 @@ function daysBetween(a: Date | string, b: Date | string): number {
   return Math.round((db.getTime() - da.getTime()) / 86_400_000)
 }
 
+/** Best-guess strategy label from the opening legs alone, used only when the
+ * trade has no manual label yet: a lone short put is a cash-secured put, a
+ * lone short call is a covered call, and a put credit spread (short + long
+ * put, same expiry) on SPX is bucketed as the SPX/bull-put-spread channel. */
+function autoClassify(underlying: string, openLegs: RawTrade[]): TradeLabel | undefined {
+  const sells = openLegs.filter(l => l.quantity < 0)
+  const buys  = openLegs.filter(l => l.quantity > 0)
+  if (sells.length === 0) return undefined
+  const putCall = sells[0].putCall
+  const isSpread = buys.some(b => b.putCall === putCall)
+  if (isSpread) return /^SPXW?/.test(underlying) ? 'spx' : undefined
+  if (putCall === 'P') return 'csp'
+  if (putCall === 'C') return 'covered_calls'
+  return undefined
+}
+
 const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0)
 
 export function buildJournalPositions(
@@ -92,7 +108,7 @@ export function buildJournalPositions(
     const putCall = sells[0]?.putCall ?? og.legs[0]?.putCall ?? ''
 
     const tradeIds = og.legs.map(tradeId)
-    const strategy = tradeIds.map(id => labels[id]).find(Boolean)
+    const strategy = tradeIds.map(id => labels[id]).find(Boolean) ?? autoClassify(og.underlying, openLegs)
 
     const base = {
       id: og.key,
