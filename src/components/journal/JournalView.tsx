@@ -460,7 +460,7 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
                 <th>Closed</th>
                 <th>Ticker</th>
                 <th style={{ textAlign: 'center' }}>Strat</th>
-                <th style={{ textAlign: 'right' }}>Position</th>
+                <th style={{ textAlign: 'right', maxWidth: 130 }}>Position</th>
                 <th style={{ textAlign: 'center' }}>Status</th>
                 <th style={{ textAlign: 'right' }}>DTE</th>
                 <th style={{ textAlign: 'right' }}>P&L</th>
@@ -507,7 +507,8 @@ function Row({ pos: p, entry: e, open, cols, onToggle, editor }: {
         </td>
         <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>{p.underlying}</td>
         <td style={{ textAlign: 'center' }}><StratBadge strategy={p.strategy} /></td>
-        <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+        <td className="mono" style={{ textAlign: 'right', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          title={p.strikeDisplay === 'SHARES' ? undefined : `${p.contracts}× ${p.strikeDisplay}`}>
           {p.strikeDisplay === 'SHARES' ? `${p.contracts} sh` : `${p.contracts}× ${p.strikeDisplay}`}
         </td>
         <td style={{ textAlign: 'center' }}>
