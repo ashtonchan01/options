@@ -90,10 +90,18 @@ export function buildJournalPositions(
   const closeGroups: Array<{ date: string; expiry: string; underlying: string; legs: RawTrade[] }> = []
 
   for (const [key, legs] of groups) {
+    // Closing a spread means buying back the short leg AND selling to close the
+    // long leg — both a buy and a sell, same as an opening trade would look by
+    // quantity sign alone. Trust IBKR's own openCloseIndicator first (a group
+    // is a genuine close only if every leg in it is explicitly marked closing);
+    // fall back to the buy/sell heuristic only when that field isn't populated,
+    // so naked-leg closes (a plain buy, no close flag) still work as before.
+    const allMarkedClose = legs.length > 0 && legs.every(l => l.openClose === 'C')
     const hasSell = legs.some(l => l.quantity < 0)
     const hasBuy  = legs.some(l => l.quantity > 0)
     const [date, expiry, underlying] = key.split('|')
-    if (hasSell) openGroups.push({ key, date, expiry, underlying, legs })
+    if (allMarkedClose) closeGroups.push({ date, expiry, underlying, legs })
+    else if (hasSell) openGroups.push({ key, date, expiry, underlying, legs })
     else if (hasBuy) closeGroups.push({ date, expiry, underlying, legs })
   }
 
