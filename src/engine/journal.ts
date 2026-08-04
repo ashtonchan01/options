@@ -116,9 +116,14 @@ export function buildJournalPositions(
     const openFees       = openLegs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0)
     const openingNetCash = openLegs.reduce((s, l) => s + l.netCash, 0)
 
-    const allStrikes = [...new Set(og.legs.map(l => l.strike).filter(Boolean) as number[])].sort((a, b) => b - a)
-    const strikeDisplay = allStrikes.length > 0
-      ? allStrikes.map(s => s % 1 === 0 ? s.toFixed(0) : s.toFixed(2)).join('/')
+    // Each leg gets its own put/call suffix — a risk-reversal/LEAP combo (long
+    // call + short put on different strikes) must show as e.g. "120P/110C",
+    // not "120/110C", which would wrongly read as if both strikes were calls.
+    const legKey = (l: RawTrade) => `${l.strike}${l.putCall}`
+    const uniqueLegs = [...new Map(og.legs.filter(l => l.strike != null && l.putCall).map(l => [legKey(l), l])).values()]
+      .sort((a, b) => (b.strike ?? 0) - (a.strike ?? 0))
+    const strikeDisplay = uniqueLegs.length > 0
+      ? uniqueLegs.map(l => `${l.strike! % 1 === 0 ? l.strike!.toFixed(0) : l.strike!.toFixed(2)}${l.putCall}`).join('/')
       : '—'
     const putCall = sells[0]?.putCall ?? og.legs[0]?.putCall ?? ''
 

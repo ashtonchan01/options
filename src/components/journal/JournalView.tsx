@@ -497,7 +497,7 @@ function Row({ pos: p, entry: e, open, cols, onToggle, editor }: {
         <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>{p.underlying}</td>
         <td style={{ textAlign: 'center' }}><StratBadge strategy={p.strategy} /></td>
         <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-          {p.contracts}× {p.strikeDisplay}{p.putCall}
+          {p.contracts}× {p.strikeDisplay}
         </td>
         <td style={{ textAlign: 'center' }}>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', letterSpacing: '0.06em',
