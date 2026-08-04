@@ -115,8 +115,15 @@ export function buildJournalPositions(
 
   return openGroups.map(og => {
     const expDate = parseExpiry(og.expiry)
-    const openLegs       = og.legs.filter(l => l.openClose !== 'C')
-    const settlementLegs = og.legs.filter(l => l.openClose === 'C')
+    const openLegs = og.legs.filter(l => l.openClose !== 'C')
+    // Same-day (0DTE) settlement legs for THIS position's own contracts only —
+    // a 'C'-marked leg sharing this group's date/expiry/underlying can still be
+    // closing a completely different strike (e.g. buying back an unrelated
+    // older covered call the same day a fresh CSP opens on the same expiry
+    // coincidentally); matching strike+putCall against the actual opening legs
+    // keeps that unrelated close out of this position's P&L.
+    const openContracts = new Set(openLegs.map(l => `${l.strike}${l.putCall}`))
+    const settlementLegs = og.legs.filter(l => l.openClose === 'C' && openContracts.has(`${l.strike}${l.putCall}`))
     const sells = openLegs.filter(l => l.quantity < 0)
 
     const contracts      = sells.length > 0 ? Math.abs(sells[0].quantity) : 1
@@ -126,13 +133,18 @@ export function buildJournalPositions(
     // Each leg gets its own put/call suffix — a risk-reversal/LEAP combo (long
     // call + short put on different strikes) must show as e.g. "120P/110C",
     // not "120/110C", which would wrongly read as if both strikes were calls.
+    // Built from openLegs only, not og.legs — a same-day trade that happens to
+    // close an unrelated older position (e.g. buying back an old covered call
+    // the same day a fresh CSP is sold) shares this group's date/expiry/
+    // underlying but isn't part of THIS position; its strike has no business
+    // showing up here, only in whatever position it's actually closing out.
     const legKey = (l: RawTrade) => `${l.strike}${l.putCall}`
-    const uniqueLegs = [...new Map(og.legs.filter(l => l.strike != null && l.putCall).map(l => [legKey(l), l])).values()]
+    const uniqueLegs = [...new Map(openLegs.filter(l => l.strike != null && l.putCall).map(l => [legKey(l), l])).values()]
       .sort((a, b) => (b.strike ?? 0) - (a.strike ?? 0))
     const strikeDisplay = uniqueLegs.length > 0
       ? uniqueLegs.map(l => `${l.strike! % 1 === 0 ? l.strike!.toFixed(0) : l.strike!.toFixed(2)}${l.putCall}`).join('/')
       : '—'
-    const putCall = sells[0]?.putCall ?? og.legs[0]?.putCall ?? ''
+    const putCall = sells[0]?.putCall ?? openLegs[0]?.putCall ?? ''
 
     const tradeIds = og.legs.map(tradeId)
     const strategy = tradeIds.map(id => labels[id]).find(Boolean) ?? autoClassify(og.underlying, openLegs)
