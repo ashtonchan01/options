@@ -426,7 +426,12 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export const byWeekday   = (p: JournalPosition) => WEEKDAYS[new Date(p.dateOpen).getDay()]
 export const byUnderlying = (p: JournalPosition) => p.underlying
 export const byStrategy  = (p: JournalPosition) => p.strategy ?? 'unlabelled'
-export const byMonth     = (p: JournalPosition) => (p.dateClosed ?? p.dateOpen).slice(0, 7)  // YYYY-MM
+// Bucketed by open date (matches the user's manual spreadsheet convention,
+// which tracks each position under the week/month it was opened, not closed —
+// a LEAP held for months shows its full realized gain under its entry month).
+// dateOpen is IBKR's raw "YYYYMMDD" — must normalize before slicing, or every
+// bucket comes out as an invalid 7-digit non-date instead of "YYYY-MM".
+export const byMonth      = (p: JournalPosition) => normalizeDateStr(p.dateOpen).slice(0, 7)  // YYYY-MM
 
 export function byDteBucket(p: JournalPosition): string {
   const d = p.initialDTE
