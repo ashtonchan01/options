@@ -48,15 +48,19 @@ function daysBetween(a: Date | string, b: Date | string): number {
 
 /** Best-guess strategy label from the opening legs alone, used only when the
  * trade has no manual label yet: a lone short put is a cash-secured put, a
- * lone short call is a covered call, and a put credit spread (short + long
- * put, same expiry) on SPX is bucketed as the SPX/bull-put-spread channel. */
+ * lone short call is a covered call, a put credit spread (short + long put,
+ * same expiry) on SPX is bucketed as the SPX/bull-put-spread channel, and any
+ * call spread (e.g. ALAB 1x 120/110C) is a LEAP/PMCC-style setup. */
 function autoClassify(underlying: string, openLegs: RawTrade[]): TradeLabel | undefined {
   const sells = openLegs.filter(l => l.quantity < 0)
   const buys  = openLegs.filter(l => l.quantity > 0)
   if (sells.length === 0) return undefined
   const putCall = sells[0].putCall
   const isSpread = buys.some(b => b.putCall === putCall)
-  if (isSpread) return /^SPXW?/.test(underlying) ? 'spx' : undefined
+  if (isSpread) {
+    if (putCall === 'C') return 'leap'
+    return /^SPXW?/.test(underlying) ? 'spx' : undefined
+  }
   if (putCall === 'P') return 'csp'
   if (putCall === 'C') return 'covered_calls'
   return undefined
