@@ -50,24 +50,29 @@ function daysBetween(a: Date | string, b: Date | string): number {
  * trade has no manual label yet. Every SPX/SPXW position is always a bull put
  * spread here (that's the only structure ever traded on it), regardless of
  * how the legs look — a call-looking leg on an SPX combo is still part of the
- * same put-spread strategy, not a separate LEAP. For every other ticker: a
- * lone short put is a cash-secured put, a lone short call is a covered call,
- * a put credit spread is "put_spread", and a call spread (e.g. ALAB 1x
- * 120/110C) is a LEAP/PMCC-style setup. Matches on "every leg is the same
- * putCall" rather than a fixed leg count, so a rolled position combining
- * several strikes in one group still counts. */
+ * same put-spread strategy, not a separate LEAP. For every other ticker:
+ * any multi-leg group that's all puts (e.g. TSLA 1x 340/330P) is a bull put
+ * spread, any multi-leg group that's all calls (e.g. ALAB 1x 120/110C) is a
+ * LEAP/PMCC-style setup — regardless of debit or credit, so a straight bought
+ * vertical still counts, not just ones with a short leg. A single leg only
+ * classifies when it's short (i.e. actually received credit): a lone short
+ * put is a cash-secured put, a lone short call is a covered call. */
 function autoClassify(underlying: string, openLegs: RawTrade[]): TradeLabel | 'put_spread' | undefined {
   if (/^SPXW?/.test(underlying)) return 'put_spread'
+  if (openLegs.length === 0) return undefined
 
-  const sells = openLegs.filter(l => l.quantity < 0)
-  const buys  = openLegs.filter(l => l.quantity > 0)
-  if (sells.length === 0) return undefined
   const allPuts  = openLegs.every(l => l.putCall === 'P')
   const allCalls = openLegs.every(l => l.putCall === 'C')
-  if (allPuts  && buys.length > 0) return 'put_spread'
-  if (allCalls && buys.length > 0) return 'leap'
-  if (allPuts  && buys.length === 0) return 'csp'
-  if (allCalls && buys.length === 0) return 'covered_calls'
+
+  if (openLegs.length > 1) {
+    if (allPuts)  return 'put_spread'
+    if (allCalls) return 'leap'
+    return undefined
+  }
+
+  if (openLegs[0].quantity >= 0) return undefined
+  if (allPuts)  return 'csp'
+  if (allCalls) return 'covered_calls'
   return undefined
 }
 
