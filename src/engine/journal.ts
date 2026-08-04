@@ -24,7 +24,7 @@ export interface JournalPosition {
   openFees: number
   netPremium: number
   status: PositionStatus
-  strategy?: TradeLabel | 'put_spread'   // resolved from trade labels, or auto-classified
+  strategy?: TradeLabel | 'put_spread' | 'shares'   // resolved from trade labels, or auto-classified
   tradeIds: string[]
   // Closed/Expired only
   dateClosed?: string         // close date, or expiry for expired positions
@@ -180,6 +180,103 @@ export function buildJournalPositions(
 
     return { ...base, status: 'Active' as const }
   })
+}
+
+/** Stock-leg P&L (assignment outcomes, manual buys/sells) — kept entirely
+ * separate from the option-position matcher above and merged in by the
+ * caller, since shares have no expiry/strike and are matched by simple FIFO
+ * lot accounting per ticker instead of the open/close-group logic options
+ * use. Mirrors the "Stocks Assigned / Bought / Sold" ledger in a manual
+ * journal: every sell closes the oldest open buy lot(s) first, splitting a
+ * sell across multiple buy lots (and vice versa) when sizes don't line up. */
+export function buildStockPositions(
+  trades: RawTrade[],
+  labels: Record<string, TradeLabel>,
+): JournalPosition[] {
+  const stockTrades = trades.filter(t => t.assetClass === 'STK')
+
+  const byTicker = new Map<string, RawTrade[]>()
+  for (const t of stockTrades) {
+    if (!byTicker.has(t.symbol)) byTicker.set(t.symbol, [])
+    byTicker.get(t.symbol)!.push(t)
+  }
+
+  const positions: JournalPosition[] = []
+
+  for (const [ticker, tsRaw] of byTicker) {
+    const ts = [...tsRaw].sort((a, b) => a.tradeDate.localeCompare(b.tradeDate))
+    const openLots: Array<{ trade: RawTrade; remaining: number }> = []
+    let seq = 0
+
+    for (const t of ts) {
+      if (t.quantity > 0) {
+        openLots.push({ trade: t, remaining: t.quantity })
+        continue
+      }
+      if (t.quantity >= 0) continue
+
+      let sellRemaining = Math.abs(t.quantity)
+      const sellTotalQty = Math.abs(t.quantity)
+      const sellFeesTotal = Math.abs(t.commissions ?? 0)
+
+      while (sellRemaining > 0 && openLots.length > 0) {
+        const lot = openLots[0]
+        const matched = Math.min(lot.remaining, sellRemaining)
+        const buyTrade = lot.trade
+        const buyFeesShare  = Math.abs(buyTrade.commissions ?? 0) * (matched / Math.abs(buyTrade.quantity))
+        const sellFeesShare = sellFeesTotal * (matched / sellTotalQty)
+        const buyCost      = buyTrade.tradePrice * matched
+        const sellProceeds = t.tradePrice * matched
+        seq++
+        positions.push({
+          id: `stk|${ticker}|${buyTrade.tradeDate}|${seq}`,
+          underlying: ticker,
+          contracts: matched,
+          strikeDisplay: 'SHARES',
+          putCall: '',
+          expiry: '',
+          dateOpen: buyTrade.tradeDate,
+          initialDTE: 0,
+          openFees: buyFeesShare,
+          netPremium: -buyCost,
+          status: 'Closed',
+          strategy: labels[tradeId(buyTrade)] ?? labels[tradeId(t)] ?? 'shares',
+          tradeIds: [tradeId(buyTrade), tradeId(t)],
+          dateClosed: t.tradeDate,
+          closeFees: sellFeesShare,
+          pnl: sellProceeds - buyCost - buyFeesShare - sellFeesShare,
+          holdDays: Math.max(0, daysBetween(buyTrade.tradeDate, t.tradeDate)),
+        })
+        lot.remaining -= matched
+        sellRemaining -= matched
+        if (lot.remaining <= 0) openLots.shift()
+      }
+      // A sell with no matching buy lot (short sale) isn't modeled — skip.
+    }
+
+    for (const lot of openLots) {
+      if (lot.remaining <= 0) continue
+      seq++
+      const buyTrade = lot.trade
+      positions.push({
+        id: `stk|${ticker}|${buyTrade.tradeDate}|open${seq}`,
+        underlying: ticker,
+        contracts: lot.remaining,
+        strikeDisplay: 'SHARES',
+        putCall: '',
+        expiry: '',
+        dateOpen: buyTrade.tradeDate,
+        initialDTE: 0,
+        openFees: Math.abs(buyTrade.commissions ?? 0) * (lot.remaining / Math.abs(buyTrade.quantity)),
+        netPremium: -(buyTrade.tradePrice * lot.remaining),
+        status: 'Active',
+        strategy: labels[tradeId(buyTrade)] ?? 'shares',
+        tradeIds: [tradeId(buyTrade)],
+      })
+    }
+  }
+
+  return positions
 }
 
 // ─── KPI stats ────────────────────────────────────────────────────────────────

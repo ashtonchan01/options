@@ -48,13 +48,13 @@ const LABEL_SHORT: Record<string, string> = {
   covered_calls: 'CC', csp: 'CSP', leap: 'LEAP', spx: 'SPX', rotation: 'ROT',
   ptos: 'PTOS', dcas: 'DCAS', profit_taking: 'PT', lilo: 'LILO',
   arb_cloud: 'ARB', tabi: 'TABI', forex: 'FX', assignment: 'ASGN', unlabelled: '—',
-  put_spread: 'BPS',
+  put_spread: 'BPS', shares: 'SHARES',
 }
 
 const LABEL_COLORS: Record<string, string> = {
   covered_calls: '#3b82f6', csp: '#10b981', leap: '#a78bfa', spx: '#f59e0b',
   rotation: '#f472b6', ptos: '#60a5fa', profit_taking: '#34d399',
-  put_spread: '#fb923c',
+  put_spread: '#fb923c', shares: '#38bdf8',
 }
 
 function StratBadge({ strategy }: { strategy?: string }) {
@@ -497,7 +497,7 @@ function Row({ pos: p, entry: e, open, cols, onToggle, editor }: {
         <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>{p.underlying}</td>
         <td style={{ textAlign: 'center' }}><StratBadge strategy={p.strategy} /></td>
         <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-          {p.contracts}× {p.strikeDisplay}
+          {p.strikeDisplay === 'SHARES' ? `${p.contracts} sh` : `${p.contracts}× ${p.strikeDisplay}`}
         </td>
         <td style={{ textAlign: 'center' }}>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', letterSpacing: '0.06em',

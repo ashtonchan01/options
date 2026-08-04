@@ -10,7 +10,7 @@ import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
 import { ActualPortfolio } from '../analytics/AnalyticsView'
 import { OverviewTab, JournalTab } from '../journal/JournalView'
-import { buildJournalPositions, closedByDate } from '../../engine/journal'
+import { buildJournalPositions, buildStockPositions, closedByDate } from '../../engine/journal'
 import { useJournalStore } from '../../store/journalStore'
 
 function NoTradeData() {
@@ -24,10 +24,13 @@ function NoTradeData() {
 export default function PortfolioView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
   const { entries, updateEntry, setups, addSetup } = useJournalStore()
 
-  const positions = useMemo(
-    () => buildJournalPositions(state.sync.trades, tradeLabels?.labels ?? {}),
-    [state.sync.trades, tradeLabels?.labels],
-  )
+  const positions = useMemo(() => {
+    const labels = tradeLabels?.labels ?? {}
+    return [
+      ...buildJournalPositions(state.sync.trades, labels),
+      ...buildStockPositions(state.sync.trades, labels),
+    ]
+  }, [state.sync.trades, tradeLabels?.labels])
   const closed = useMemo(() => closedByDate(positions), [positions])
   const hasTrades = state.sync.trades.length > 0
 
