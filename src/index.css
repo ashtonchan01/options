@@ -981,8 +981,8 @@ body {
   overflow-x: hidden;
 }
 .pf-column {
-  flex: 1 1 380px;
-  min-width: 380px;
+  flex: 1 1 620px;
+  min-width: 620px;
   height: 100%;
   overflow: hidden;
   border-right: 1px solid var(--border);
