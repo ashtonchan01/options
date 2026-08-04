@@ -40,9 +40,16 @@ function parseExpiry(s: string): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
+/** Normalizes IBKR's raw "YYYYMMDD" trade-date strings (which `new Date()` can't
+ * parse — it silently returns Invalid Date, poisoning every downstream sum with
+ * NaN) into a format the Date constructor actually understands. */
+function normalizeDateStr(s: string): string {
+  return /^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : s
+}
+
 function daysBetween(a: Date | string, b: Date | string): number {
-  const da = typeof a === 'string' ? new Date(a) : a
-  const db = typeof b === 'string' ? new Date(b) : b
+  const da = typeof a === 'string' ? new Date(normalizeDateStr(a)) : a
+  const db = typeof b === 'string' ? new Date(normalizeDateStr(b)) : b
   return Math.round((db.getTime() - da.getTime()) / 86_400_000)
 }
 
