@@ -57,17 +57,21 @@ function daysBetween(a: Date | string, b: Date | string): number {
  * trade has no manual label yet. Every SPX/SPXW position is always a bull put
  * spread here (that's the only structure ever traded on it), regardless of
  * how the legs look. For every other ticker: a genuine vertical (2+ distinct
- * strikes) is always "LEAP" here — put or call, debit or credit, this trader
- * treats any single-ticker vertical as a directional LEAP-style play, not an
- * income spread. Legs that share the same strike (a same-day roll/adjustment
- * of one position, not a real spread) collapse to their net quantity instead:
- * a net-short put is a cash-secured put, a net-short call is a covered call. */
+ * strikes AND at least one long leg opposing a short one — two independent
+ * same-direction opens sharing a day, like two unrelated CSPs on different
+ * strikes, aren't a spread) is always "LEAP" here — put or call, debit or
+ * credit, this trader treats any single-ticker vertical as a directional
+ * LEAP-style play, not an income spread. Legs that share the same strike (a
+ * same-day roll/adjustment of one position, not a real spread) collapse to
+ * their net quantity instead: a net-short put is a cash-secured put, a
+ * net-short call is a covered call. */
 function autoClassify(underlying: string, openLegs: RawTrade[]): TradeLabel | 'put_spread' | undefined {
   if (/^SPXW?/.test(underlying)) return 'put_spread'
   if (openLegs.length === 0) return undefined
 
   const distinctStrikes = new Set(openLegs.map(l => l.strike)).size
-  if (distinctStrikes > 1) return 'leap'
+  const hasOpposingLegs = openLegs.some(l => l.quantity > 0) && openLegs.some(l => l.quantity < 0)
+  if (distinctStrikes > 1 && hasOpposingLegs) return 'leap'
 
   const netQty = openLegs.reduce((s, l) => s + l.quantity, 0)
   if (netQty >= 0) return undefined
