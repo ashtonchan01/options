@@ -24,7 +24,7 @@ export interface JournalPosition {
   openFees: number
   netPremium: number
   status: PositionStatus
-  strategy?: TradeLabel       // resolved from trade labels on the opening legs
+  strategy?: TradeLabel | 'put_spread'   // resolved from trade labels, or auto-classified
   tradeIds: string[]
   // Closed/Expired only
   dateClosed?: string         // close date, or expiry for expired positions
@@ -49,20 +49,20 @@ function daysBetween(a: Date | string, b: Date | string): number {
 /** Best-guess strategy label from the opening legs alone, used only when the
  * trade has no manual label yet: a lone short put is a cash-secured put, a
  * lone short call is a covered call, a put credit spread (short + long put,
- * same expiry) on SPX is bucketed as the SPX/bull-put-spread channel, and any
- * call spread (e.g. ALAB 1x 120/110C) is a LEAP/PMCC-style setup. */
-function autoClassify(underlying: string, openLegs: RawTrade[]): TradeLabel | undefined {
+ * same expiry, any ticker — e.g. a bull put spread on SPX) is "put_spread",
+ * and a call spread (e.g. ALAB 1x 120/110C) is a LEAP/PMCC-style setup.
+ * Matches on "every leg is the same putCall" rather than a fixed leg count,
+ * so a rolled position combining several strikes in one group still counts. */
+function autoClassify(openLegs: RawTrade[]): TradeLabel | 'put_spread' | undefined {
   const sells = openLegs.filter(l => l.quantity < 0)
   const buys  = openLegs.filter(l => l.quantity > 0)
   if (sells.length === 0) return undefined
-  const putCall = sells[0].putCall
-  const isSpread = buys.some(b => b.putCall === putCall)
-  if (isSpread) {
-    if (putCall === 'C') return 'leap'
-    return /^SPXW?/.test(underlying) ? 'spx' : undefined
-  }
-  if (putCall === 'P') return 'csp'
-  if (putCall === 'C') return 'covered_calls'
+  const allPuts  = openLegs.every(l => l.putCall === 'P')
+  const allCalls = openLegs.every(l => l.putCall === 'C')
+  if (allPuts  && buys.length > 0) return 'put_spread'
+  if (allCalls && buys.length > 0) return 'leap'
+  if (allPuts  && buys.length === 0) return 'csp'
+  if (allCalls && buys.length === 0) return 'covered_calls'
   return undefined
 }
 
@@ -112,7 +112,7 @@ export function buildJournalPositions(
     const putCall = sells[0]?.putCall ?? og.legs[0]?.putCall ?? ''
 
     const tradeIds = og.legs.map(tradeId)
-    const strategy = tradeIds.map(id => labels[id]).find(Boolean) ?? autoClassify(og.underlying, openLegs)
+    const strategy = tradeIds.map(id => labels[id]).find(Boolean) ?? autoClassify(openLegs)
 
     const base = {
       id: og.key,

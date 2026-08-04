@@ -37,11 +37,13 @@ const LABEL_SHORT: Record<string, string> = {
   covered_calls: 'CC', csp: 'CSP', leap: 'LEAP', spx: 'SPX', rotation: 'ROT',
   ptos: 'PTOS', dcas: 'DCAS', profit_taking: 'PT', lilo: 'LILO',
   arb_cloud: 'ARB', tabi: 'TABI', forex: 'FX', assignment: 'ASGN', unlabelled: '—',
+  put_spread: 'BULL PUT',
 }
 
 const LABEL_COLORS: Record<string, string> = {
   covered_calls: '#3b82f6', csp: '#10b981', leap: '#a78bfa', spx: '#f59e0b',
   rotation: '#f472b6', ptos: '#60a5fa', profit_taking: '#34d399',
+  put_spread: '#fb923c',
 }
 
 function StratBadge({ strategy }: { strategy?: string }) {
