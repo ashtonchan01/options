@@ -383,7 +383,14 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const rows = useMemo(() => {
-    const sorted = [...positions].sort((a, b) => (b.dateClosed ?? b.dateOpen).localeCompare(a.dateClosed ?? a.dateOpen))
+    // Open positions first (most-recently-opened first within that group), then
+    // closed positions most-recently-closed first.
+    const sorted = [...positions].sort((a, b) => {
+      const aActive = a.status === 'Active' ? 0 : 1
+      const bActive = b.status === 'Active' ? 0 : 1
+      if (aActive !== bActive) return aActive - bActive
+      return (b.dateClosed ?? b.dateOpen).localeCompare(a.dateClosed ?? a.dateOpen)
+    })
     switch (filter) {
       case 'wins':       return sorted.filter(p => (p.pnl ?? 0) > 0 && p.status !== 'Active')
       case 'losses':     return sorted.filter(p => (p.pnl ?? 0) < 0 && p.status !== 'Active')
