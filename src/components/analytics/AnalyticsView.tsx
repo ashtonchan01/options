@@ -847,7 +847,7 @@ export function ActualPortfolio({ state, labels }: { state: AppState; labels: Re
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
 
       {/* ── Key metrics ── */}
-      <div className="db-keymetrics" style={{
+      <div className="db-keymetrics pf-keymetrics" style={{
         display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
         gap: 0, flexShrink: 0, borderBottom: '1px solid var(--border)',
       }}>

@@ -1063,6 +1063,15 @@ body {
   .jr-root { padding: 12px; }
   .jr-2col { grid-template-columns: 1fr; }
   .jr-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .pf-columns { overflow-x: hidden; }
+  .pf-column {
+    flex: 1 1 100%;
+    min-width: 0;
+    width: 100%;
+    height: auto;
+    max-height: 70vh;
+  }
+  .pf-keymetrics { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
 /* ─── Edgewonk shell — sidebar + main ─────────────────────────────────────── */
@@ -1327,6 +1336,24 @@ body {
     box-shadow: 0 0 40px rgba(0,0,0,0.5);
   }
   .ew-sidebar.open { transform: none; }
+  /* Collapsed is a desktop-only rail state; the mobile drawer must always
+     show full labels regardless of the persisted collapsed preference. */
+  .ew-sidebar.collapsed.open { width: 240px; }
+  .ew-sidebar.collapsed.open .ew-logo-name,
+  .ew-sidebar.collapsed.open .ew-logo-sub,
+  .ew-sidebar.collapsed.open .ew-nav-item span,
+  .ew-sidebar.collapsed.open .ew-nav-item .ew-chev,
+  .ew-sidebar.collapsed.open .ew-nav-item .top-nav-badge,
+  .ew-sidebar.collapsed.open .ew-nav-sub,
+  .ew-sidebar.collapsed.open .ew-sync-row span,
+  .ew-sidebar.collapsed.open .ew-collapse-btn span {
+    display: inline;
+  }
+  .ew-sidebar.collapsed.open .ew-logo { justify-content: flex-start; padding: 18px 16px 14px; }
+  .ew-sidebar.collapsed.open .ew-nav-item { justify-content: flex-start; padding: 9px 16px; }
+  .ew-sidebar.collapsed.open .ew-icon-row { flex-wrap: nowrap; justify-content: flex-start; }
+  .ew-sidebar.collapsed.open .ew-sync-row { justify-content: flex-start; }
+  .ew-collapse-btn { display: none; }
 }
 
 /* Dashboard overview — responsive wrapping grid of fixed-size cells (World-Monitor style).
