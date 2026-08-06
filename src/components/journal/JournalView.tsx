@@ -489,7 +489,7 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
   )
 }
 
-function Row({ pos: p, entry: e, open, cols, onToggle, editor }: {
+function Row({ pos: p, open, cols, onToggle, editor }: {
   pos: JournalPosition; entry: JournalEntry; open: boolean; cols: number
   onToggle: () => void; editor: React.ReactNode
 }) {
