@@ -54,7 +54,7 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
       <div className="dash-cell dash-cell-under-map">
         <LiveChartsStrip quotes={quotes} layout="row-single" />
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h3">
+      <div className="dash-cell dash-cell-w2 dash-cell-h3 dash-cell-livetv">
         <LiveTVPanel />
       </div>
       <div className="dash-cell dash-cell-h3">

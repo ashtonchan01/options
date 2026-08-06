@@ -1072,6 +1072,13 @@ body {
     max-height: 70vh;
   }
   .pf-keymetrics { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Trade Journal table has 7 columns at 10px/14px padding — doesn't fit a phone
+     width without horizontal scroll. Status is redundant with the row's own
+     background tint (urgent/open highlighting) and the Wins/Losses/Active filter
+     chips above, so drop it first; tighten padding on what's left. */
+  .trade-table th, .trade-table td { padding: 8px 4px; }
+  .jr-col-status { display: none; }
+  .jr-col-closed { max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 /* ─── Edgewonk shell — sidebar + main ─────────────────────────────────────── */
@@ -1420,6 +1427,11 @@ body {
   .dash-cell-h3 { grid-row: span 2; }
   .dash-cell-h6 { grid-row: span 4; }
   .dash-cell-h12 { grid-row: span 7; }
+  /* At single-column mobile width the panel is nearly the full viewport width
+     (~390px) but h3's 2-row height (~226px) is far short of the ~220px a 16:9
+     video alone needs once the region/channel tab rows eat their share — the
+     player pillarboxes down to a postage stamp. Give this cell dedicated room. */
+  .dash-cell-livetv { grid-row: span 5; }
 }
 
 .dash-panel {

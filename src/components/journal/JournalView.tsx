@@ -457,12 +457,12 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
           <table className="trade-table" style={{ fontSize: 12 }}>
             <thead>
               <tr>
-                <th>Closed</th>
+                <th className="jr-col-closed">Closed</th>
                 <th>Ticker</th>
                 <th style={{ textAlign: 'center' }}>Strat</th>
                 <th style={{ textAlign: 'right', maxWidth: 80 }}>Position</th>
-                <th style={{ textAlign: 'center' }}>Status</th>
-                <th style={{ textAlign: 'right' }}>DTE</th>
+                <th className="jr-col-status" style={{ textAlign: 'center' }}>Status</th>
+                <th className="jr-col-dte" style={{ textAlign: 'right' }}>DTE</th>
                 <th style={{ textAlign: 'right' }}>P&L</th>
               </tr>
             </thead>
@@ -499,7 +499,7 @@ function Row({ pos: p, open, cols, onToggle, editor }: {
   return (
     <>
       <tr onClick={onToggle} style={{ cursor: 'pointer', background: open ? 'rgba(16,185,129,0.05)' : urgent ? 'rgba(239,68,68,0.08)' : undefined }}>
-        <td className="mono" style={{ whiteSpace: 'nowrap', color: 'var(--text-3)' }}>
+        <td className="mono jr-col-closed" style={{ whiteSpace: 'nowrap', color: 'var(--text-3)' }}>
           {p.dateClosed ? fmtDate(p.dateClosed) : `opened ${fmtDate(p.dateOpen)}`}
         </td>
         <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>{p.underlying}</td>
@@ -508,13 +508,13 @@ function Row({ pos: p, open, cols, onToggle, editor }: {
           title={p.strikeDisplay === 'SHARES' ? undefined : `${p.contracts}× ${p.strikeDisplay}`}>
           {p.strikeDisplay === 'SHARES' ? `${p.contracts} sh` : `${p.contracts}× ${p.strikeDisplay}`}
         </td>
-        <td style={{ textAlign: 'center' }}>
+        <td className="jr-col-status" style={{ textAlign: 'center' }}>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', letterSpacing: '0.06em',
             color: statusColor, border: `1px solid ${statusColor}40` }}>
             {p.status}
           </span>
         </td>
-        <td className="mono" style={{ textAlign: 'right', color: urgent ? '#ef4444' : 'var(--text-3)', fontWeight: urgent ? 700 : 400 }}>
+        <td className="mono jr-col-dte" style={{ textAlign: 'right', color: urgent ? '#ef4444' : 'var(--text-3)', fontWeight: urgent ? 700 : 400 }}>
           {daysLeft != null ? `${daysLeft}d` : '—'}
         </td>
         <td className={`mono ${p.pnl != null ? pnlCls(p.pnl) : ''}`} style={{ textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
