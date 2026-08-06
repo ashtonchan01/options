@@ -1411,6 +1411,15 @@ body {
      right after the news/market cards instead, ahead of the portfolio-analytics block. */
   .dash-cell-calendar { order: 1; }
   .dash-cell-portfolio { order: 2; }
+  /* Row spans were tuned for desktop's wide multi-column cells — at single-column mobile
+     width every cell is much narrower, so panels that scale with aspect ratio (the map)
+     or don't need as much vertical room at this width leave large blank gaps under the
+     fixed 165px row unit. Shrink the unit and every span proportionally. */
+  .dash-wrap { grid-auto-rows: 110px; }
+  .dash-cell-h2 { grid-row: span 2; }
+  .dash-cell-h3 { grid-row: span 2; }
+  .dash-cell-h6 { grid-row: span 4; }
+  .dash-cell-h12 { grid-row: span 7; }
 }
 
 .dash-panel {
