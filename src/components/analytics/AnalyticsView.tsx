@@ -847,7 +847,7 @@ export function ActualPortfolio({ state, labels }: { state: AppState; labels: Re
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
 
       {/* ── Key metrics ── */}
-      <div className="db-keymetrics" style={{
+      <div className="db-keymetrics pf-keymetrics" style={{
         display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
         gap: 0, flexShrink: 0, borderBottom: '1px solid var(--border)',
       }}>
@@ -899,6 +899,7 @@ export function ActualPortfolio({ state, labels }: { state: AppState; labels: Re
             <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: 'var(--accent)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
               Stocks · {stocks.length} positions
             </div>
+            <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -940,6 +941,7 @@ export function ActualPortfolio({ state, labels }: { state: AppState; labels: Re
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         )}
 
@@ -949,6 +951,7 @@ export function ActualPortfolio({ state, labels }: { state: AppState; labels: Re
             <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: '#a855f7', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
               Options · {sortedOptions.length} legs
             </div>
+            <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -1017,6 +1020,7 @@ export function ActualPortfolio({ state, labels }: { state: AppState; labels: Re
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         )}
 
