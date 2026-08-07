@@ -8,6 +8,7 @@ import { useTradeLabelStore } from './store/tradeLabelsStore'
 import { useAuthStore } from './store/authStore'
 import DashboardView from './components/dashboard/DashboardView'
 import PortfolioView from './components/portfolio/PortfolioView'
+import CompaniesView from './components/companies/CompaniesView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import type { AppState } from './types'
 import type { TradeLabel } from './store/tradeLabelsStore'
@@ -43,6 +44,7 @@ type ViewComponent = React.FC<{ state: AppState; tradeLabels?: TradeLabels }>
 const VIEWS: Record<TabId, ViewComponent> = {
   dashboard:  DashboardView as ViewComponent,
   portfolio:  PortfolioView,
+  companies:  CompaniesView,
   scanner:    OpportunitiesView as ViewComponent,
 }
 
