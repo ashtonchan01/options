@@ -572,6 +572,10 @@ function derivePortfolio(state: AppState) {
       const ticker = p.underlyingSymbol ?? p.symbol
       byTicker.set(ticker, (byTicker.get(ticker) ?? 0) + Math.abs(p.positionValue))
     }
+    // SPX dwarfs every other position (it's an index, not a company holding) and
+    // swamps the allocation pie — excluded so the chart reads as per-company weight.
+    byTicker.delete('SPX')
+    byTicker.delete('SPXW')
     return [...byTicker.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([ticker, v], i) => ({ label: ticker, value: v, color: TICKER_PALETTE[i % TICKER_PALETTE.length] }))
