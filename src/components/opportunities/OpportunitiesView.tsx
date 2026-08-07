@@ -137,7 +137,7 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
 // previously several (DELTA, CREDIT, YIELD) were narrower than their own header
 // text, so the header overflowed left past its column and never lined up with
 // the right-aligned numbers below it.
-const GRID = '16px minmax(48px,1fr) 34px 28px 38px 44px 44px 38px 28px'
+const GRID = '16px minmax(48px,1fr) 46px 26px 36px 42px 42px 36px 26px'
 
 function OptionRow({ r, rank, nextEarnings }: { r: ScanResult; rank: number; nextEarnings: string | null }) {
   const ty = tradeYield(r)
@@ -152,7 +152,7 @@ function OptionRow({ r, rank, nextEarnings }: { r: ScanResult; rank: number; nex
       title={`Annualized: ${r.annualizedYield.toFixed(0)}% · OI: ${r.openInterest} · V/OI: ${r.volumeOiRatio.toFixed(2)}${throughEarnings ? ` · Expires the week of earnings (${fmtEr(nextEarnings!)})` : ''}`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>${r.strike}</span>
-      <span style={{ color: throughEarnings ? '#F0B429' : 'var(--text-3)', textAlign: 'right', fontWeight: throughEarnings ? 700 : 400 }}>
+      <span style={{ color: throughEarnings ? '#F0B429' : 'var(--text-3)', textAlign: 'right', fontWeight: throughEarnings ? 700 : 400, whiteSpace: 'nowrap' }}>
         {fmtExp(r.expiry)}{throughEarnings && ' ⚡'}
       </span>
       <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{r.dte}d</span>
