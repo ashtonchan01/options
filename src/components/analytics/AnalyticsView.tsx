@@ -221,10 +221,8 @@ interface DonutSlice { label: string; value: number; color: string }
 const PIE_W = 760, PIE_H = 480
 const PIE_CX = 380, PIE_CY = 240, PIE_R = 170
 const LABEL_GAP = 6 // how far outside the circle each label sits — just touching, no line
-// Slices are largest-first, so the smallest ones land back-to-back with the biggest one
-// right at the top seam (angle 0/360) — the most crowded spot for labels. Rotating the
-// whole pie counter-clockwise moves that seam away from top-center into open space.
-const PIE_ROTATION = -75
+// Pie starts straight up at 12 o'clock, largest slice first, going clockwise.
+const PIE_ROTATION = 0
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180
