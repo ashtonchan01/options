@@ -563,19 +563,18 @@ function derivePortfolio(state: AppState) {
     return (a.underlyingSymbol ?? a.symbol).localeCompare(b.underlyingSymbol ?? b.symbol)
   })
 
-  // Allocation structure for the pie: one slice per underlying ticker (stock value +
-  // any options on it combined), so labels read as position names, not strategy buckets.
+  // Allocation structure for the pie: stock holdings plus risk-reversal (LEAP) option
+  // positions only — CSPs and covered calls are short-dated income legs against cash/
+  // shares already counted elsewhere, not standalone "positions" worth a slice, so
+  // including them (alongside SPX, an index rather than a company) swamped the chart.
   const donutSlices: DonutSlice[] = (() => {
     const byTicker = new Map<string, number>()
     for (const p of stocks)  byTicker.set(p.symbol, (byTicker.get(p.symbol) ?? 0) + Math.abs(p.positionValue))
     for (const p of options) {
+      if (symbolToStratType.get(p.symbol) !== 'risk_reversal') continue
       const ticker = p.underlyingSymbol ?? p.symbol
       byTicker.set(ticker, (byTicker.get(ticker) ?? 0) + Math.abs(p.positionValue))
     }
-    // SPX dwarfs every other position (it's an index, not a company holding) and
-    // swamps the allocation pie — excluded so the chart reads as per-company weight.
-    byTicker.delete('SPX')
-    byTicker.delete('SPXW')
     return [...byTicker.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([ticker, v], i) => ({ label: ticker, value: v, color: TICKER_PALETTE[i % TICKER_PALETTE.length] }))
