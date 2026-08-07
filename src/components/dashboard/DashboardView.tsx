@@ -7,29 +7,19 @@
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
-import type { TradeLabels } from '../../App'
 import { EXCHANGES } from '../../data/exchanges'
 import { fetchMarketQuotes, type MarketQuote } from '../../services/markets'
 import WorldMapPanel from './panels/WorldMapPanel'
 import LiveChartsStrip from './panels/LiveChartsStrip'
 import LiveTVPanel from './panels/LiveTVPanel'
-import HeadlinesPanel from './panels/HeadlinesPanel'
 import TickerHeadlinesPanel from './panels/TickerHeadlinesPanel'
 import CalendarPanel from './panels/CalendarPanel'
-import {
-  ActionsSidebar,
-  PortfolioSummaryCard,
-  AllocationPieCard,
-  CashFlowCard,
-  IncomeChannelsCard,
-  StocksCard,
-  OptionsCard,
-} from '../analytics/AnalyticsView'
+import { ActionsSidebar } from '../analytics/AnalyticsView'
 
 const REFRESH_MS = 60_000
 const CHART_ONLY_SYMBOLS = ['ES=F']
 
-export default function DashboardView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
+export default function DashboardView({ state }: { state: AppState }) {
   const [quotes, setQuotes] = useState<Record<string, MarketQuote>>({})
   const [now, setNow] = useState(() => new Date())
 
@@ -58,30 +48,7 @@ export default function DashboardView({ state, tradeLabels }: { state: AppState;
         <LiveTVPanel />
       </div>
       <div className="dash-cell dash-cell-h3">
-        <HeadlinesPanel />
-      </div>
-      <div className="dash-cell dash-cell-h3">
         <TickerHeadlinesPanel />
-      </div>
-      <div className="dash-cell dash-cell-h2 dash-cell-portfolio">
-        <PortfolioSummaryCard state={state} />
-      </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h3 dash-cell-portfolio" style={{ display: 'flex', gap: 6 }}>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
-          <AllocationPieCard state={state} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
-          <CashFlowCard state={state} />
-        </div>
-      </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h3 dash-cell-portfolio">
-        <IncomeChannelsCard state={state} labels={tradeLabels?.labels ?? {}} />
-      </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-portfolio">
-        <StocksCard state={state} />
-      </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-portfolio">
-        <OptionsCard state={state} />
       </div>
       <div className="dash-cell dash-cell-h12 dash-actions-cell dash-cell-portfolio">
         <ActionsSidebar state={state} />
