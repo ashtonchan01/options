@@ -9,7 +9,7 @@
 import { useMemo, useState } from 'react'
 import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
-import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
+import { buildJournalPositions, buildStockPositions, type JournalPosition } from '../../engine/journal'
 
 function fmt(n: number, digits = 0): string {
   const abs = Math.abs(n)
@@ -23,6 +23,15 @@ function fmtDollar(n: number): string {
 }
 function pnlColor(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'var(--text-4)' }
 
+/** IBKR dates come as raw "YYYYMMDD" (no dashes) — plain string comparison against
+ * another YYYYMMDD string sorts correctly without needing to parse a Date at all. */
+function normalizeDateStr(s: string): string {
+  return /^\d{8}$/.test(s) ? s : s.replace(/-/g, '')
+}
+
+// Australian financial year: FY2025/26 runs to 30 June 2026; FY2026/27 starts 1 July 2026.
+const FY_CUTOFF = '20260701'
+
 interface CompanyRow {
   symbol: string
   realized: number
@@ -33,51 +42,67 @@ interface CompanyRow {
 }
 
 type SortKey = 'total' | 'realized' | 'unrealized' | 'symbol'
+type FyFilter = 'all' | 'fy2526' | 'fy2627'
+
+function buildRows(
+  positions: JournalPosition[],
+  livePositions: AppState['sync']['positions'],
+  fy: FyFilter,
+) {
+  const byCompany = new Map<string, CompanyRow>()
+  const get = (symbol: string) => {
+    let row = byCompany.get(symbol)
+    if (!row) {
+      row = { symbol, realized: 0, unrealized: 0, total: 0, closedTrades: 0, openPositions: 0 }
+      byCompany.set(symbol, row)
+    }
+    return row
+  }
+
+  for (const p of positions) {
+    if (p.status === 'Active') {
+      if (fy === 'all' || fy === 'fy2627') get(p.underlying).openPositions++
+      continue
+    }
+    if (p.pnl == null) continue
+    const closedFy: FyFilter = p.dateClosed && normalizeDateStr(p.dateClosed) >= FY_CUTOFF ? 'fy2627' : 'fy2526'
+    if (fy !== 'all' && fy !== closedFy) continue
+    const row = get(p.underlying)
+    row.realized += p.pnl
+    row.closedTrades++
+  }
+
+  // Unrealized P&L is a live mark-to-market snapshot of currently open positions —
+  // it has no realization date, so it only belongs to "now" (All / current FY),
+  // never to the closed-out prior financial year.
+  if (fy === 'all' || fy === 'fy2627') {
+    for (const pos of livePositions) {
+      const symbol = pos.assetClass === 'STK' ? pos.symbol : (pos.underlyingSymbol ?? pos.symbol)
+      get(symbol).unrealized += pos.unrealizedPnL
+    }
+  }
+
+  for (const row of byCompany.values()) row.total = row.realized + row.unrealized
+  return [...byCompany.values()]
+}
 
 export default function CompaniesView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
   const [sortKey, setSortKey] = useState<SortKey>('total')
   const [query, setQuery] = useState('')
+  const [fy, setFy] = useState<FyFilter>('all')
 
-  const rows = useMemo(() => {
+  const positions = useMemo(() => {
     const labels = tradeLabels?.labels ?? {}
-    const positions = [
+    return [
       ...buildJournalPositions(state.sync.trades, labels),
       ...buildStockPositions(state.sync.trades, labels),
     ]
+  }, [state.sync.trades, tradeLabels?.labels])
 
-    const byCompany = new Map<string, CompanyRow>()
-    const get = (symbol: string) => {
-      let row = byCompany.get(symbol)
-      if (!row) {
-        row = { symbol, realized: 0, unrealized: 0, total: 0, closedTrades: 0, openPositions: 0 }
-        byCompany.set(symbol, row)
-      }
-      return row
-    }
-
-    for (const p of positions) {
-      const row = get(p.underlying)
-      if (p.status === 'Active') {
-        row.openPositions++
-      } else if (p.pnl != null) {
-        row.realized += p.pnl
-        row.closedTrades++
-      }
-    }
-
-    // Unrealized P&L comes from current live positions (marked to market), not
-    // the closed-position journal — an open CSP/covered-call/stock holding has
-    // no realized pnl yet, but still needs to show its live gain/loss here.
-    for (const pos of state.sync.positions) {
-      const symbol = pos.assetClass === 'STK' ? pos.symbol : (pos.underlyingSymbol ?? pos.symbol)
-      const row = get(symbol)
-      row.unrealized += pos.unrealizedPnL
-    }
-
-    for (const row of byCompany.values()) row.total = row.realized + row.unrealized
-
-    return [...byCompany.values()]
-  }, [state.sync.trades, state.sync.positions, tradeLabels?.labels])
+  const rows = useMemo(
+    () => buildRows(positions, state.sync.positions, fy),
+    [positions, state.sync.positions, fy],
+  )
 
   const filtered = useMemo(() => {
     const q = query.trim().toUpperCase()
@@ -110,6 +135,22 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
   return (
     <div className="jr-root" style={{ maxWidth: 1100, margin: '0 auto', width: '100%' }}>
       <div className="cc-section-title" style={{ padding: 0 }}>Companies</div>
+
+      <div style={{ display: 'flex', gap: 4 }}>
+        {([
+          ['all', 'All Time'],
+          ['fy2526', 'FY 2025/26 (to 30 Jun 2026)'],
+          ['fy2627', 'FY 2026/27 (from 1 Jul 2026)'],
+        ] as [FyFilter, string][]).map(([id, label]) => (
+          <button
+            key={id}
+            className={`tl-filter-chip${fy === id ? ' active' : ''}`}
+            onClick={() => setFy(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       <div className="jr-mini-strip">
         <div className="jr-mini"><span className="label">Total P&amp;L</span><b style={{ color: pnlColor(grand.total) }}>{fmtDollar(grand.total)}</b></div>
