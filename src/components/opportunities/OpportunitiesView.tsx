@@ -4,6 +4,7 @@ import type { AppState, ScanResult, ScanFlag } from '../../types'
 import { scanAllTickersCboe } from '../../services/cboe'
 import { WATCHLIST } from '../../data/watchlist'
 import { fetchEarningsDates } from '../../services/earnings'
+import { fetchFomcDates } from '../../services/fomc'
 
 interface Props { state: AppState }
 
@@ -76,6 +77,15 @@ function expiryInEarningsWeek(expiry: string, nextEarnings: string | null): bool
   const { start, end } = weekRange(nextEarnings)
   return exp >= start && exp <= end
 }
+/** True if this option's expiry falls in the same Mon–Sun week as any upcoming FOMC
+ * rate-decision date — those weeks see outsized index/vol moves regardless of ticker. */
+function expiryInFomcWeek(expiry: string, fomcDates: string[]): boolean {
+  const exp = normalizeExpiry(expiry)
+  return fomcDates.some(d => {
+    const { start, end } = weekRange(d)
+    return exp >= start && exp <= end
+  })
+}
 const MONTH_ABBR = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
 function fmtEr(d: string): string {
   const [, m, day] = d.split('-')
@@ -139,21 +149,23 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
 // the right-aligned numbers below it.
 const GRID = '16px minmax(48px,1fr) 46px 26px 36px 42px 42px 36px 26px'
 
-function OptionRow({ r, rank, nextEarnings }: { r: ScanResult; rank: number; nextEarnings: string | null }) {
+function OptionRow({ r, rank, nextEarnings, fomcDates }: { r: ScanResult; rank: number; nextEarnings: string | null; fomcDates: string[] }) {
   const ty = tradeYield(r)
   const throughEarnings = expiryInEarningsWeek(r.expiry, nextEarnings)
+  const throughFomc = !throughEarnings && expiryInFomcWeek(r.expiry, fomcDates)
+  const flagColor = throughEarnings ? '#F0B429' : throughFomc ? '#8b5cf6' : undefined
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: GRID, gap: 3, alignItems: 'center', padding: '5px 4px', margin: '0 -4px',
       borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
-      background: throughEarnings ? '#F0B42912' : 'transparent',
-      borderLeft: throughEarnings ? '2px solid #F0B429' : '2px solid transparent',
+      background: flagColor ? `${flagColor}12` : 'transparent',
+      borderLeft: flagColor ? `2px solid ${flagColor}` : '2px solid transparent',
     }}
-      title={`Annualized: ${r.annualizedYield.toFixed(0)}% · OI: ${r.openInterest} · V/OI: ${r.volumeOiRatio.toFixed(2)}${throughEarnings ? ` · Expires the week of earnings (${fmtEr(nextEarnings!)})` : ''}`}>
+      title={`Annualized: ${r.annualizedYield.toFixed(0)}% · OI: ${r.openInterest} · V/OI: ${r.volumeOiRatio.toFixed(2)}${throughEarnings ? ` · Expires the week of earnings (${fmtEr(nextEarnings!)})` : throughFomc ? ' · Expires an FOMC decision week' : ''}`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>${r.strike}</span>
-      <span style={{ color: throughEarnings ? '#F0B429' : 'var(--text-3)', textAlign: 'right', fontWeight: throughEarnings ? 700 : 400, whiteSpace: 'nowrap' }}>
-        {fmtExp(r.expiry)}{throughEarnings && ' ⚡'}
+      <span style={{ color: flagColor ?? 'var(--text-3)', textAlign: 'right', fontWeight: flagColor ? 700 : 400, whiteSpace: 'nowrap' }}>
+        {fmtExp(r.expiry)}{throughEarnings ? ' ⚡' : throughFomc ? ' 🏛' : ''}
       </span>
       <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{r.dte}d</span>
       <span style={{ color: deltaColor(r.delta), textAlign: 'right' }}>{r.delta.toFixed(2)}</span>
@@ -177,7 +189,7 @@ function MiniHeader() {
   )
 }
 
-function StrategySection({ label, color, items, nextEarnings }: { label: string; color: string; items: ScanResult[]; nextEarnings: string | null }) {
+function StrategySection({ label, color, items, nextEarnings, fomcDates }: { label: string; color: string; items: ScanResult[]; nextEarnings: string | null; fomcDates: string[] }) {
   if (!items.length) return null
   const flags = Array.from(new Set(items.flatMap(r => r.flags)))
   return (
@@ -190,7 +202,7 @@ function StrategySection({ label, color, items, nextEarnings }: { label: string;
         </div>
       </div>
       <MiniHeader />
-      {items.map((r, i) => <OptionRow key={i} r={r} rank={i + 1} nextEarnings={nextEarnings} />)}
+      {items.map((r, i) => <OptionRow key={i} r={r} rank={i + 1} nextEarnings={nextEarnings} fomcDates={fomcDates} />)}
     </div>
   )
 }
@@ -245,6 +257,11 @@ export default function OpportunitiesView({ state }: Props) {
   useEffect(() => {
     fetchEarningsDates(tickers).then(setEarningsMap).catch(() => {})
   }, [tickers])
+
+  const [fomcDates, setFomcDates] = useState<string[]>([])
+  useEffect(() => {
+    fetchFomcDates().then(setFomcDates).catch(() => {})
+  }, [])
 
   const filtered = useMemo(() => filterByMode(results, customCfg), [results, customCfg])
   const cards    = useMemo(() => buildCards(filtered, tickers, earningsMap), [filtered, tickers, earningsMap])
@@ -473,8 +490,8 @@ export default function OpportunitiesView({ state }: Props) {
 
                 {hasData && !isCollapsed && (
                   <div style={{ padding: '8px 12px 10px' }}>
-                    {showCsp && <StrategySection label="CSP" color="#f43f5e" items={card.topCsp} nextEarnings={card.nextEarnings} />}
-                    {showCc  && <StrategySection label="CC"  color="#3b82f6" items={card.topCc} nextEarnings={card.nextEarnings} />}
+                    {showCsp && <StrategySection label="CSP" color="#f43f5e" items={card.topCsp} nextEarnings={card.nextEarnings} fomcDates={fomcDates} />}
+                    {showCc  && <StrategySection label="CC"  color="#3b82f6" items={card.topCc} nextEarnings={card.nextEarnings} fomcDates={fomcDates} />}
                   </div>
                 )}
               </div>
