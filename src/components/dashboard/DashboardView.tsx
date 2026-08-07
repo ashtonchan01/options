@@ -38,22 +38,22 @@ export default function DashboardView({ state }: { state: AppState }) {
 
   return (
     <div className="dash-wrap">
-      <div className="dash-cell dash-cell-under-map dash-cell-h3">
+      <div className="dash-cell dash-cell-under-map dash-cell-h3 dash-area-map">
         <WorldMapPanel quotes={quotes} now={now} />
       </div>
-      <div className="dash-cell dash-cell-under-map">
-        <LiveChartsStrip quotes={quotes} layout="row-single" />
+      <div className="dash-cell dash-cell-under-map dash-area-charts">
+        <LiveChartsStrip quotes={quotes} layout="column" />
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h3 dash-cell-livetv">
+      <div className="dash-cell dash-cell-w2 dash-cell-h3 dash-cell-livetv dash-area-livetv">
         <LiveTVPanel />
       </div>
-      <div className="dash-cell dash-cell-h3">
+      <div className="dash-cell dash-cell-h3 dash-area-headlines">
         <TickerHeadlinesPanel />
       </div>
-      <div className="dash-cell dash-cell-h12 dash-actions-cell dash-cell-portfolio">
+      <div className="dash-cell dash-cell-h12 dash-actions-cell dash-cell-portfolio dash-area-actions">
         <ActionsSidebar state={state} />
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-calendar">
+      <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-calendar dash-area-calendar">
         <CalendarPanel state={state} />
       </div>
     </div>

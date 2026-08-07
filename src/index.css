@@ -1434,6 +1434,34 @@ body {
   .dash-cell-livetv { grid-row: span 5; }
 }
 
+/* Desktop: the auto-fill dense-pack grid above sizes rows in fixed 165px units that
+ * don't add up evenly against real viewport heights — depending on exact window size
+ * that leaves stray unfilled tracks (gaps between panels) or a total content height
+ * taller than the screen (forcing a scrollbar, with the Actions panel's 12-row span
+ * the worst offender). Above 900px, replace it with an explicit named-area grid sized
+ * entirely in fr units against the actual available height — it always exactly fills
+ * one screen, no scrolling, no gaps. The ticker-card strip becomes a narrow vertical
+ * column next to the map (LiveChartsStrip's "column" layout) instead of a horizontal
+ * row, and Calendar's own side list sits in the same row as Headlines/Actions instead
+ * of stacking under the calendar grid, so nothing needs more vertical room than a
+ * single screen has to give. */
+@media (min-width: 901px) {
+  .dash-wrap {
+    grid-template-columns: 1.7fr 0.5fr 1.05fr 0.9fr;
+    grid-template-rows: 1.5fr 1fr;
+    grid-template-areas:
+      "map      charts   livetv    livetv"
+      "calendar calendar headlines actions";
+    overflow: hidden;
+  }
+  .dash-area-map       { grid-area: map; }
+  .dash-area-charts    { grid-area: charts; }
+  .dash-area-livetv    { grid-area: livetv; }
+  .dash-area-calendar  { grid-area: calendar; }
+  .dash-area-headlines { grid-area: headlines; }
+  .dash-area-actions   { grid-area: actions; }
+}
+
 .dash-panel {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -1463,14 +1491,20 @@ body {
   color: var(--text-4);
 }
 
-/* Calendar column: force CalendarView's own side-by-side layout (grid + activity list)
- * into a stacked one (grid on top, list directly below, no gap) regardless of viewport width.
- * calendar-main is shrunk to its natural content height (nav + aspect-ratio grid) instead of
- * flex-growing, so the sidebar list can start immediately below it instead of leaving a gap. */
-.dash-calendar-embed .calendar-layout { flex-direction: column !important; }
-.dash-calendar-embed .calendar-main { flex: none !important; padding: 12px !important; overflow: visible !important; }
-.dash-calendar-embed .calendar-sidebar {
-  width: 100% !important; border-left: none !important;
-  border-top: 1px solid var(--border) !important;
-  flex: 1 !important; max-height: none !important; min-height: 0 !important;
+/* Calendar column: below the 901px desktop-grid breakpoint the dashboard cell is too
+ * narrow for CalendarView's natural side-by-side layout (grid + 300px activity list),
+ * so force it into a stacked one there (grid on top, list directly below, no gap).
+ * calendar-main is shrunk to its natural content height (nav + aspect-ratio grid)
+ * instead of flex-growing, so the sidebar list can start immediately below it instead
+ * of leaving a gap. At 901px+ the dedicated named-area grid gives this cell a wide,
+ * short box — CalendarView's own default side-by-side layout (grid left, list right)
+ * fits that shape far better than a stack would, so it's left alone there. */
+@media (max-width: 900px) {
+  .dash-calendar-embed .calendar-layout { flex-direction: column !important; }
+  .dash-calendar-embed .calendar-main { flex: none !important; padding: 12px !important; overflow: visible !important; }
+  .dash-calendar-embed .calendar-sidebar {
+    width: 100% !important; border-left: none !important;
+    border-top: 1px solid var(--border) !important;
+    flex: 1 !important; max-height: none !important; min-height: 0 !important;
+  }
 }
