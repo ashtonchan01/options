@@ -77,9 +77,11 @@ const CHANNELS: { id: string; name: string; region: Region; videoId: string }[] 
   { id: 'abcaus',      name: 'ABC News Australia', region: 'oceania', videoId: 'vOTiJkg1voo' },
 ]
 
+const DEFAULT_CHANNEL = CHANNELS.find(c => c.id === 'abcaus')!
+
 export default function LiveTVPanel() {
-  const [region, setRegion] = useState<Region>('na')
-  const [active, setActive] = useState(CHANNELS[0])
+  const [region, setRegion] = useState<Region>(DEFAULT_CHANNEL.region)
+  const [active, setActive] = useState(DEFAULT_CHANNEL)
   const shown = CHANNELS.filter(c => c.region === region)
 
   return (
