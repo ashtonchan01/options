@@ -1447,7 +1447,7 @@ body {
  * single screen has to give. */
 @media (min-width: 901px) {
   .dash-wrap {
-    grid-template-columns: 2.2fr 1.05fr 0.9fr;
+    grid-template-columns: 1.5fr 1.75fr 0.9fr;
     grid-template-rows: 1.15fr 0.35fr 1fr;
     grid-template-areas:
       "map      calendar  actions"
@@ -1492,16 +1492,20 @@ body {
   color: var(--text-4);
 }
 
-/* Calendar column: the dashboard cell is a narrow, tall box (it now occupies the
- * old Live TV slot), too narrow for CalendarView's natural side-by-side layout
- * (grid + 300px activity list) — force it into a stacked one instead (grid on
- * top, list directly below, no gap). calendar-main is shrunk to its natural
- * content height (nav + aspect-ratio grid) instead of flex-growing, so the
- * sidebar list can start immediately below it instead of leaving a gap. */
-.dash-calendar-embed .calendar-layout { flex-direction: column !important; }
-.dash-calendar-embed .calendar-main { flex: none !important; padding: 12px !important; overflow: visible !important; }
-.dash-calendar-embed .calendar-sidebar {
-  width: 100% !important; border-left: none !important;
-  border-top: 1px solid var(--border) !important;
-  flex: 1 !important; max-height: none !important; min-height: 0 !important;
+/* Calendar column: below the 901px desktop-grid breakpoint the dashboard cell is too
+ * narrow for CalendarView's natural side-by-side layout (grid + 300px activity list),
+ * so force it into a stacked one there (grid on top, list directly below, no gap).
+ * calendar-main is shrunk to its natural content height (nav + aspect-ratio grid)
+ * instead of flex-growing, so the sidebar list can start immediately below it instead
+ * of leaving a gap. At 901px+ the named-area grid's calendar column is wide enough
+ * for CalendarView's own default side-by-side layout (grid left, list right), so
+ * it's left alone there. */
+@media (max-width: 900px) {
+  .dash-calendar-embed .calendar-layout { flex-direction: column !important; }
+  .dash-calendar-embed .calendar-main { flex: none !important; padding: 12px !important; overflow: visible !important; }
+  .dash-calendar-embed .calendar-sidebar {
+    width: 100% !important; border-left: none !important;
+    border-top: 1px solid var(--border) !important;
+    flex: 1 !important; max-height: none !important; min-height: 0 !important;
+  }
 }
