@@ -1447,11 +1447,12 @@ body {
  * single screen has to give. */
 @media (min-width: 901px) {
   .dash-wrap {
-    grid-template-columns: 1.7fr 0.5fr 1.05fr 0.9fr;
-    grid-template-rows: 1.5fr 1fr;
+    grid-template-columns: 2.2fr 1.05fr 0.9fr;
+    grid-template-rows: 1.15fr 0.35fr 1fr;
     grid-template-areas:
-      "map      charts   livetv    livetv"
-      "calendar calendar headlines actions";
+      "map      livetv    livetv"
+      "charts   livetv    livetv"
+      "calendar headlines actions";
     overflow: hidden;
   }
   .dash-area-map       { grid-area: map; }

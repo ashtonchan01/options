@@ -42,7 +42,7 @@ export default function DashboardView({ state }: { state: AppState }) {
         <WorldMapPanel quotes={quotes} now={now} />
       </div>
       <div className="dash-cell dash-cell-under-map dash-area-charts">
-        <LiveChartsStrip quotes={quotes} layout="column" />
+        <LiveChartsStrip quotes={quotes} layout="row-single" />
       </div>
       <div className="dash-cell dash-cell-w2 dash-cell-h3 dash-cell-livetv dash-area-livetv">
         <LiveTVPanel />
