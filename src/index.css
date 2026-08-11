@@ -1078,6 +1078,9 @@ body {
      chips above, so drop it first; tighten padding on what's left. */
   .trade-table th, .trade-table td { padding: 8px 4px; }
   .jr-col-status { display: none; }
+  /* Open date is the least essential of the two date columns on a phone-width
+     table — Closed/DTE already tell you whether a position is live. */
+  .jr-col-open { display: none; }
   .jr-col-closed { max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 

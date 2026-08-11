@@ -396,6 +396,66 @@ function EntryEditor({ pos, entry, updateEntry, setups, addSetup }: {
   )
 }
 
+/** Collapses every SHARES lot (buy/sell FIFO-matched pairs plus any still-open
+ * remainder — buildStockPositions emits one JournalPosition per lot) down to a
+ * single display row per ticker, so a stock traded in and out repeatedly doesn't
+ * flood the table with one row per lot. Realized P&L sums across closed lots;
+ * an aggregate row is "Active" if any lot still holds shares. This is a display-
+ * only merge — it doesn't touch the underlying per-lot data other tabs rely on. */
+function aggregateShares(positions: JournalPosition[]): JournalPosition[] {
+  const shareLots = positions.filter(p => p.strikeDisplay === 'SHARES')
+  const others = positions.filter(p => p.strikeDisplay !== 'SHARES')
+  if (shareLots.length === 0) return positions
+
+  const byTicker = new Map<string, JournalPosition[]>()
+  for (const p of shareLots) {
+    if (!byTicker.has(p.underlying)) byTicker.set(p.underlying, [])
+    byTicker.get(p.underlying)!.push(p)
+  }
+
+  const merged: JournalPosition[] = []
+  for (const [ticker, lots] of byTicker) {
+    const activeLots = lots.filter(l => l.status === 'Active')
+    const closedLots = lots.filter(l => l.status !== 'Active')
+    const anyActive = activeLots.length > 0
+    const totalContracts = (anyActive ? activeLots : lots).reduce((s, l) => s + l.contracts, 0)
+    const hasClosedPnl = closedLots.some(l => l.pnl != null)
+    merged.push({
+      id: `shares-agg|${ticker}`,
+      underlying: ticker,
+      contracts: totalContracts,
+      strikeDisplay: 'SHARES',
+      putCall: '',
+      expiry: '',
+      dateOpen: lots.reduce((min, l) => (l.dateOpen < min ? l.dateOpen : min), lots[0].dateOpen),
+      initialDTE: 0,
+      openFees: lots.reduce((s, l) => s + l.openFees, 0),
+      netPremium: lots.reduce((s, l) => s + l.netPremium, 0),
+      status: anyActive ? 'Active' : 'Closed',
+      strategy: 'shares',
+      tradeIds: lots.flatMap(l => l.tradeIds),
+      dateClosed: anyActive ? undefined : closedLots.reduce((max, l) => (l.dateClosed && l.dateClosed > max ? l.dateClosed : max), closedLots[0]?.dateClosed ?? ''),
+      closeFees: closedLots.reduce((s, l) => s + (l.closeFees ?? 0), 0),
+      pnl: hasClosedPnl ? closedLots.reduce((s, l) => s + (l.pnl ?? 0), 0) : undefined,
+      holdDays: undefined,
+    })
+  }
+  return [...others, ...merged]
+}
+
+const STRAT_GROUP_ORDER = [
+  'leap', 'csp', 'covered_calls', 'put_spread', 'spx', 'shares',
+  'rotation', 'ptos', 'dcas', 'profit_taking', 'lilo', 'arb_cloud', 'tabi', 'forex', 'assignment',
+]
+function stratGroupRank(strategy?: string) {
+  const i = STRAT_GROUP_ORDER.indexOf(strategy ?? 'unlabelled')
+  return i === -1 ? STRAT_GROUP_ORDER.length : i
+}
+function stratGroupLabel(strategy?: string) {
+  const key = strategy ?? 'unlabelled'
+  return LABEL_SHORT[key] ?? key.toUpperCase()
+}
+
 export function JournalTab({ positions, entries, updateEntry, setups, addSetup }: {
   positions: JournalPosition[]
   entries: Record<string, JournalEntry>
@@ -404,33 +464,39 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
   addSetup: (s: string) => void
 }) {
   const [filter, setFilter] = useState<JFilter>('all')
+  const [hideClosed, setHideClosed] = useState(false)
+  const [groupByStrategy, setGroupByStrategy] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
+
+  const displayPositions = useMemo(() => aggregateShares(positions), [positions])
 
   const rows = useMemo(() => {
     // Open positions first (most-recently-opened first within that group), then
     // closed positions most-recently-closed first.
-    const sorted = [...positions].sort((a, b) => {
+    const sorted = [...displayPositions].sort((a, b) => {
       const aActive = a.status === 'Active' ? 0 : 1
       const bActive = b.status === 'Active' ? 0 : 1
       if (aActive !== bActive) return aActive - bActive
       return (b.dateClosed ?? b.dateOpen).localeCompare(a.dateClosed ?? a.dateOpen)
     })
+    let filtered: JournalPosition[]
     switch (filter) {
-      case 'wins':       return sorted.filter(p => (p.pnl ?? 0) > 0 && p.status !== 'Active')
-      case 'losses':     return sorted.filter(p => (p.pnl ?? 0) < 0 && p.status !== 'Active')
-      case 'active':     return sorted.filter(p => p.status === 'Active')
-      case 'unreviewed': return sorted.filter(p => p.status !== 'Active' && !isReviewed(entries[p.id]))
-      default:           return sorted
+      case 'wins':       filtered = sorted.filter(p => (p.pnl ?? 0) > 0 && p.status !== 'Active'); break
+      case 'losses':     filtered = sorted.filter(p => (p.pnl ?? 0) < 0 && p.status !== 'Active'); break
+      case 'active':     filtered = sorted.filter(p => p.status === 'Active'); break
+      case 'unreviewed': filtered = sorted.filter(p => p.status !== 'Active' && !isReviewed(entries[p.id])); break
+      default:           filtered = sorted
     }
-  }, [positions, filter, entries])
+    return hideClosed ? filtered.filter(p => p.status === 'Active') : filtered
+  }, [displayPositions, filter, entries, hideClosed])
 
   const counts = useMemo(() => ({
-    all: positions.length,
-    wins: positions.filter(p => (p.pnl ?? 0) > 0 && p.status !== 'Active').length,
-    losses: positions.filter(p => (p.pnl ?? 0) < 0 && p.status !== 'Active').length,
-    active: positions.filter(p => p.status === 'Active').length,
-    unreviewed: positions.filter(p => p.status !== 'Active' && !isReviewed(entries[p.id])).length,
-  }), [positions, entries])
+    all: displayPositions.length,
+    wins: displayPositions.filter(p => (p.pnl ?? 0) > 0 && p.status !== 'Active').length,
+    losses: displayPositions.filter(p => (p.pnl ?? 0) < 0 && p.status !== 'Active').length,
+    active: displayPositions.filter(p => p.status === 'Active').length,
+    unreviewed: displayPositions.filter(p => p.status !== 'Active' && !isReviewed(entries[p.id])).length,
+  }), [displayPositions, entries])
 
   const FILTERS: { id: JFilter; label: string }[] = [
     { id: 'all', label: `All (${counts.all})` },
@@ -440,16 +506,37 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
     { id: 'unreviewed', label: `Unreviewed (${counts.unreviewed})` },
   ]
 
-  const COLS = 7
+  const groups = useMemo(() => {
+    if (!groupByStrategy) return [{ label: null as string | null, rows }]
+    const byStrat = new Map<string, JournalPosition[]>()
+    for (const p of rows) {
+      const key = p.strategy ?? 'unlabelled'
+      if (!byStrat.has(key)) byStrat.set(key, [])
+      byStrat.get(key)!.push(p)
+    }
+    return [...byStrat.entries()]
+      .sort((a, b) => stratGroupRank(a[0]) - stratGroupRank(b[0]))
+      .map(([key, groupRows]) => ({ label: stratGroupLabel(key), rows: groupRows }))
+  }, [rows, groupByStrategy])
+
+  const COLS = 8
 
   return (
     <>
-      <div className="tl-filter-row">
+      <div className="tl-filter-row" style={{ alignItems: 'center' }}>
         {FILTERS.map(f => (
           <button key={f.id} className={`tl-filter-chip${filter === f.id ? ' active' : ''}`} onClick={() => setFilter(f.id)}>
             {f.label}
           </button>
         ))}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-3)', marginLeft: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+          <input type="checkbox" checked={hideClosed} onChange={e => setHideClosed(e.target.checked)} />
+          Hide closed
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-3)', marginLeft: 8, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+          <input type="checkbox" checked={groupByStrategy} onChange={e => setGroupByStrategy(e.target.checked)} />
+          Group by strategy
+        </label>
       </div>
 
       <div className="cc-section cc-table-section" style={{ flexShrink: 1 }}>
@@ -457,6 +544,7 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
           <table className="trade-table" style={{ fontSize: 12 }}>
             <thead>
               <tr>
+                <th className="jr-col-open">Open</th>
                 <th className="jr-col-closed">Closed</th>
                 <th>Ticker</th>
                 <th style={{ textAlign: 'center' }}>Strat</th>
@@ -467,17 +555,28 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
               </tr>
             </thead>
             <tbody>
-              {rows.map(p => {
-                const e = entries[p.id] ?? {}
-                const open = expanded === p.id
-                return (
-                  <Row key={p.id} pos={p} entry={e} open={open} cols={COLS}
-                    onToggle={() => setExpanded(open ? null : p.id)}
-                    editor={
-                      <EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
-                    } />
-                )
-              })}
+              {groups.map(g => (
+                <FragmentGroup key={g.label ?? 'all'}>
+                  {g.label && (
+                    <tr>
+                      <td colSpan={COLS} style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--text-4)', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
+                        {g.label} · {g.rows.length}
+                      </td>
+                    </tr>
+                  )}
+                  {g.rows.map(p => {
+                    const e = entries[p.id] ?? {}
+                    const open = expanded === p.id
+                    return (
+                      <Row key={p.id} pos={p} entry={e} open={open} cols={COLS}
+                        onToggle={() => setExpanded(open ? null : p.id)}
+                        editor={
+                          <EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
+                        } />
+                    )
+                  })}
+                </FragmentGroup>
+              ))}
               {rows.length === 0 && (
                 <tr><td colSpan={COLS} style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>Nothing here</td></tr>
               )}
@@ -487,6 +586,12 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
       </div>
     </>
   )
+}
+
+// tbody can't nest a wrapping element other than <tr>/fragments — this just
+// gives each group a stable React key without adding a DOM node.
+function FragmentGroup({ children }: { children: React.ReactNode }) {
+  return <>{children}</>
 }
 
 function Row({ pos: p, open, cols, onToggle, editor }: {
@@ -499,8 +604,11 @@ function Row({ pos: p, open, cols, onToggle, editor }: {
   return (
     <>
       <tr onClick={onToggle} style={{ cursor: 'pointer', background: open ? 'rgba(16,185,129,0.05)' : urgent ? 'rgba(239,68,68,0.08)' : undefined }}>
+        <td className="mono jr-col-open" style={{ whiteSpace: 'nowrap', color: 'var(--text-3)' }}>
+          {fmtDate(p.dateOpen)}
+        </td>
         <td className="mono jr-col-closed" style={{ whiteSpace: 'nowrap', color: 'var(--text-3)' }}>
-          {p.dateClosed ? fmtDate(p.dateClosed) : `opened ${fmtDate(p.dateOpen)}`}
+          {p.dateClosed ? fmtDate(p.dateClosed) : '—'}
         </td>
         <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>{p.underlying}</td>
         <td style={{ textAlign: 'center' }}><StratBadge strategy={p.strategy} /></td>
