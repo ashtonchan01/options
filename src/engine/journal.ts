@@ -188,15 +188,33 @@ export function buildJournalPositions(
       }
     }
 
+    // Same-day close: the closing leg(s) were marked 'C' but share this group's
+    // exact open date, so they never formed a separate closeGroup for the
+    // findIndex search above (that search requires cg.date > og.date, strictly
+    // later) — this was previously only handled for genuine 0DTE *expiration*
+    // (below), leaving any position manually opened and closed within the same
+    // calendar day stuck "Active" forever even though it isn't 0DTE at all.
+    if (settlementLegs.length > 0) {
+      const settlementNetCash = settlementLegs.reduce((s, l) => s + l.netCash, 0)
+      const settlementFees    = settlementLegs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0)
+      return {
+        ...base,
+        status: 'Closed' as const,
+        dateClosed: og.date,
+        closeFees: settlementFees,
+        pnl: openingNetCash + settlementNetCash,
+        holdDays: 0,
+      }
+    }
+
     const expired = expDate ? expDate < TODAY : false
     if (expired) {
-      const settlementNetCash = settlementLegs.reduce((s, l) => s + l.netCash, 0)
       const closeDate = expDate!.toISOString().slice(0, 10)
       return {
         ...base,
         status: 'Expired' as const,
         dateClosed: closeDate,
-        pnl: openingNetCash + settlementNetCash,
+        pnl: openingNetCash,
         holdDays: Math.max(0, daysBetween(og.date, expDate!)),
       }
     }
