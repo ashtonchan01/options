@@ -1461,7 +1461,13 @@ body {
   .dash-area-map       { grid-area: map; }
   .dash-area-charts    { grid-area: charts; }
   .dash-area-livetv    { grid-area: livetv; }
-  .dash-area-calendar  { grid-area: calendar; }
+  /* Unlike every other cell, Calendar's content has a fixed intrinsic height (nav +
+     16:9-ratio box) that doesn't grow to fill extra space — left stretched to match
+     its spanned grid rows, the activity list beside it (which does stretch) ended up
+     far taller than the calendar box itself. align-self: start lets this cell size to
+     its own content instead, so the list — which stretches to match its sibling
+     within that shrunk box — settles at the same height as the calendar. */
+  .dash-area-calendar  { grid-area: calendar; align-self: start; }
   .dash-area-headlines { grid-area: headlines; }
   .dash-area-actions   { grid-area: actions; }
 }
