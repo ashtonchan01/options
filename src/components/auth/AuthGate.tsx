@@ -45,8 +45,14 @@ export default function AuthGate({ error, onLogin, onSignup }: Props) {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 600 }}>Email address</span>
+            {/* No autoFocus — on iOS home-screen standalone apps, a focus()
+                call that isn't the direct result of a real touch/click
+                doesn't bring up the keyboard, and can leave the WebView's
+                keyboard subsystem stuck for the rest of the session (every
+                input silently failing to respond to taps afterward, not
+                just this one). */}
             <input
-              type="email" required autoFocus value={email}
+              type="email" required value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
               style={inputStyle}
