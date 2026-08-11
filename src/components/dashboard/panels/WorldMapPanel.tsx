@@ -119,15 +119,15 @@ function CityMarker({
       <circle r={6 * scale} fill="transparent" />
       <circle r={1.6 * scale} fill={dotColor} stroke="var(--bg-surface)" strokeWidth={0.6 * scale} />
 
-      {/* Font size is deliberately NOT multiplied by `scale` (unlike the dots) —
-          `scale` shrinks as you zoom into a region (crop.width gets smaller),
-          which was cancelling out the viewBox's own zoom magnification and
-          leaving regional labels just as tiny as the global view. Keeping
-          text a fixed SVG-unit size means it grows naturally with the zoom,
-          same as the country shapes underneath it. */}
+      {/* Font size uses sqrt(scale) rather than `scale` itself (like the dots)
+          or a fixed size (tried and reverted — a flat size stayed constant in
+          SVG units while the viewBox zoomed in by up to ~5x on Europe, so the
+          rendered text ballooned into the huge overlapping labels a fixed
+          size produces). sqrt(scale) still grows into a region instead of
+          shrinking, just far more mildly than the viewBox's own magnification. */}
       <text x={labelX} y={labelY} textAnchor={textAnchor}
-        fontSize={6.5} fontFamily="Inter, sans-serif" fontWeight={500} fill="var(--text-3)"
-        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 1.4 }}>
+        fontSize={5.5 * Math.sqrt(scale)} fontFamily="Inter, sans-serif" fontWeight={500} fill="var(--text-3)"
+        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 1.3 * Math.sqrt(scale) }}>
         {group.exchanges.length > 1 ? group.city : group.exchanges[0].name}
         {leadQuote && (
           <tspan fill={changeColor} fontWeight={400}>
