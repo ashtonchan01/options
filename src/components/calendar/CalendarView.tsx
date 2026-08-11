@@ -580,6 +580,23 @@ export default function CalendarView({ state }: Props) {
   const [month, setMonth]   = useState(today.getMonth())
   const [selected, setSelected] = useState<string | null>(null)
 
+  // The sidebar must never grow past the calendar box's own height (a long
+  // trade day list was pushing the whole card taller than the calendar and
+  // overlapping the row below it) — measure the calendar's actual rendered
+  // height and cap the sidebar to it, scrolling internally instead.
+  const calMainRef = useRef<HTMLDivElement>(null)
+  const [calHeight, setCalHeight] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const el = calMainRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      const h = entries[0]?.contentRect.height
+      if (h) setCalHeight(h)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   // Earnings dates (fetched once, cached 6h) — the static WATCHLIST plus every
   // ticker actually held (stock symbol or option underlying), so positions outside
   // the watchlist (e.g. SPCX) still get their earnings date pulled and shown.
@@ -652,7 +669,7 @@ export default function CalendarView({ state }: Props) {
       <div className="calendar-layout" style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
 
         {/* Calendar grid */}
-        <div className="calendar-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto', padding: '16px 20px' }}>
+        <div ref={calMainRef} className="calendar-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto', padding: '16px 20px' }}>
 
           {/* Month nav */}
           <div className="calendar-nav" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexShrink: 0 }}>
@@ -720,7 +737,12 @@ export default function CalendarView({ state }: Props) {
         </div>
 
         {/* Activity sidebar */}
-        <div className="calendar-sidebar" style={{ width: 300, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="calendar-sidebar" style={{
+          width: 300, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column',
+          overflow: 'hidden', flexShrink: 0,
+          height: calHeight ? `${calHeight}px` : '100%',
+          maxHeight: calHeight ? `${calHeight}px` : undefined,
+        }}>
           <ActivitySidebar events={events} dailyTrades={dailyTrades} earningsByDateMap={earningsByDateMap} econEventMap={econEventMap} selectedDate={selected} year={year} month={month} />
         </div>
       </div>
