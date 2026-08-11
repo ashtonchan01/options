@@ -1024,9 +1024,13 @@ body {
   align-items: stretch;
 }
 
+/* Exactly 4 breakdown cards now (By Underlying, By Strategy, By Entry DTE,
+   By Hold Time) — a fixed 2x2 grid instead of auto-fill so they always pair
+   up evenly instead of wrapping into an uneven last row. */
 .jr-break-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(2, auto);
   gap: 10px;
 }
 

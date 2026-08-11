@@ -1,5 +1,6 @@
 import type { AppState, Action, UrgencyLevel, StrategyType, RawTrade } from '../../types'
 import { tradeId } from '../../store/tradeLabelsStore'
+import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
 
 // ─── Urgency config ───────────────────────────────────────────────────────────
 
@@ -215,6 +216,11 @@ function fmtMonthShort(ym: string) {
   const MONTHS = ['J','F','M','A','M','J','J','A','S','O','N','D']
   return MONTHS[parseInt(m, 10) - 1] ?? ym
 }
+function fmtMonthFull(ym: string) {
+  const [y, m] = ym.split('-')
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  return `${MONTHS[parseInt(m, 10) - 1] ?? ym} ${y}`
+}
 
 interface DonutSlice { label: string; value: number; color: string }
 
@@ -305,32 +311,53 @@ function MonthlyFlowBars({ trades }: { trades: RawTrade[] }) {
   const rows = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-8)
   if (rows.length === 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No trade history yet</div>
 
-  const W = 380, H = 150, PL = 42, PR = 8, PT = 10, PB = 20
+  const W = 380, H = 168, PL = 42, PR = 8, PT = 22, PB = 20
   const maxAbs = Math.max(...rows.map(([, v]) => Math.abs(v)), 1)
   const y0 = PT + (H - PT - PB) / 2
   const scale = (H - PT - PB) / 2 / maxAbs
   const bw = (W - PL - PR) / rows.length
+  const total = rows.reduce((s, [, v]) => s + v, 0)
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
-      <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="var(--border-light)" strokeWidth="1" />
-      <text x={PL - 6} y={PT + 8} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">{fmtDollar(maxAbs)}</text>
-      <text x={PL - 6} y={y0 + 3} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">$0</text>
-      {rows.map(([key, val], i) => {
-        const h = Math.abs(val) * scale
-        const bx = PL + i * bw + bw * 0.2
-        const by = val >= 0 ? y0 - h : y0
-        return (
-          <g key={key}>
-            <rect x={bx} y={by} width={bw * 0.6} height={Math.max(h, 1)} rx={2}
-              fill={val >= 0 ? '#10b981' : '#ef4444'} opacity={0.85} />
-            <text x={bx + bw * 0.3} y={H - 6} textAnchor="middle" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">
-              {fmtMonthShort(key)}
-            </text>
-          </g>
-        )
-      })}
-    </svg>
+    <div style={{ width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px 2px', fontFamily: 'Inter, sans-serif' }}>
+        <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Last {rows.length} months</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: total >= 0 ? '#10b981' : '#ef4444' }}>
+          Net {total >= 0 ? '+' : ''}{fmtDollar(total)}
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
+        {/* Gridlines at +max / 0 / -max, each labeled on the y-axis */}
+        <line x1={PL} x2={W - PR} y1={PT} y2={PT} stroke="var(--border-light)" strokeWidth="0.5" strokeDasharray="2,2" />
+        <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="var(--border-light)" strokeWidth="1" />
+        <line x1={PL} x2={W - PR} y1={H - PB} y2={H - PB} stroke="var(--border-light)" strokeWidth="0.5" strokeDasharray="2,2" />
+        <text x={PL - 6} y={PT + 3} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">{fmtDollar(maxAbs)}</text>
+        <text x={PL - 6} y={y0 + 3} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">$0</text>
+        <text x={PL - 6} y={H - PB + 3} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">-{fmtDollar(maxAbs)}</text>
+        {rows.map(([key, val], i) => {
+          const h = Math.abs(val) * scale
+          const bx = PL + i * bw + bw * 0.2
+          const by = val >= 0 ? y0 - h : y0
+          const labelY = val >= 0 ? by - 4 : by + h + 10
+          return (
+            <g key={key}>
+              <rect x={bx} y={by} width={bw * 0.6} height={Math.max(h, 1)} rx={2}
+                fill={val >= 0 ? '#10b981' : '#ef4444'} opacity={0.85}>
+                <title>{fmtMonthFull(key)}: {val >= 0 ? '+' : ''}{fmtDollar(val)}</title>
+              </rect>
+              {/* Per-bar $ value, so exact monthly P&L reads at a glance instead of
+                  only being eyeballed off the bar height against the axis. */}
+              <text x={bx + bw * 0.3} y={labelY} textAnchor="middle" fill={val >= 0 ? '#10b981' : '#ef4444'} fontSize="8" fontWeight="600" fontFamily="Inter, sans-serif">
+                {val >= 0 ? '+' : '-'}{fmt(Math.abs(val))}
+              </text>
+              <text x={bx + bw * 0.3} y={H - 6} textAnchor="middle" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">
+                {fmtMonthShort(key)}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
   )
 }
 
@@ -537,11 +564,18 @@ function derivePortfolio(state: AppState) {
   const stockCost= stocks.reduce((s, p) => s + p.costBasisMoney, 0)
   const optionMV = options.reduce((s, p) => s + p.positionValue, 0)
   const optionPnL = options.reduce((s, p) => s + p.unrealizedPnL, 0)
-  // Realized P&L must only count expired/closed positions — summing netCash across
-  // ALL trades (as before) wrongly included opening credit on still-open short options.
-  const realizedPnL = trades
-    .filter(t => t.assetClass === 'OPT' && isExpiredDash(t))
-    .reduce((s, t) => s + t.netCash, 0)
+  // Realized P&L uses the same closed-position engine as the Companies/Journal
+  // tabs (open/close matching by strike+putCall, FIFO share lots) instead of a
+  // flat "sum netCash of every expired OPT leg" filter — that older filter
+  // summed BOTH opening and closing legs of a position (double-counting) and
+  // missed anything closed early by buyback rather than left to expire,
+  // producing a wildly different number from every other realized-P&L figure
+  // in the app (verified: this tile showed +$3.3K while Companies' All Time
+  // total for the same data was +$48.2K).
+  const journalPositions = [...buildJournalPositions(trades, {}), ...buildStockPositions(trades, {})]
+  const realizedPnL = journalPositions
+    .filter(p => p.status !== 'Active' && p.pnl != null)
+    .reduce((s, p) => s + p.pnl!, 0)
   const netLiq   = netLiquidation ?? (stockMV + optionMV + cashBalance)
   // Full account unrealized P&L — stocks + options (was stock-only, undercounting badly)
   const totalUnrealized = stockPnL + optionPnL

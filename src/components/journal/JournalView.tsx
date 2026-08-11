@@ -7,7 +7,7 @@
 import { useMemo, useState } from 'react'
 import {
   computeStats, equityCurve, breakdown, openPremiumTotal,
-  byUnderlying, byStrategy, byWeekday, byMonth, byDteBucket, byHoldBucket,
+  byUnderlying, byStrategy, byMonth, byDteBucket, byHoldBucket,
   edgeInsights,
   type JournalPosition, type EquityPoint, type BreakdownRow,
 } from '../../engine/journal'
@@ -307,7 +307,6 @@ export function OverviewTab({ closed, positions, entries }: {
       <div className="jr-break-grid">
         <BreakTable title="By Underlying"  keyHeader="Ticker"   rows={breakdown(closed, byUnderlying)} />
         <BreakTable title="By Strategy"    keyHeader="Strategy" rows={breakdown(closed, byStrategy)} fmtKey={k => LABEL_SHORT[k] ?? k} />
-        <BreakTable title="By Entry Weekday" keyHeader="Day"    rows={breakdown(closed, byWeekday)} />
         <BreakTable title="By Entry DTE"   keyHeader="DTE"      rows={breakdown(closed, byDteBucket)} />
         <BreakTable title="By Hold Time"   keyHeader="Held"     rows={breakdown(closed, byHoldBucket)} />
       </div>
