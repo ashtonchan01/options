@@ -40,6 +40,35 @@ function savePersisted(sessionKey: string, data: PersistedData) {
   }
 }
 
+/** Server-side copy of the same data, keyed to the signed-in account — survives
+ * clearing browser storage or switching devices, which localStorage alone can't.
+ * Best-effort: a signed-out session (sessionKey === null, e.g. viewing without an
+ * account) simply has nothing to save to, and network errors are swallowed since
+ * localStorage remains the source of truth for the running session either way. */
+async function fetchServerPersisted(): Promise<PersistedData | null> {
+  try {
+    const res = await fetch('/api/portfolio-data', { credentials: 'include' })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data && Array.isArray(data.trades) ? data as PersistedData : null
+  } catch {
+    return null
+  }
+}
+
+async function saveServerPersisted(data: PersistedData) {
+  try {
+    await fetch('/api/portfolio-data', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+  } catch (e) {
+    console.warn('[Store] Failed to save portfolio data to server:', e)
+  }
+}
+
 /** IBKR's Flex report only covers a rolling 365-day window, so every sync/upload
  * would otherwise silently drop trade history older than a year. Union new trades
  * into whatever's already stored (deduped by the same composite tradeId used for
@@ -108,6 +137,31 @@ export function useAppStore(sessionKey: string | null) {
   // Reload (or clear) portfolio data whenever the signed-in account changes
   useEffect(() => {
     setState(initialStateFor(sessionKey))
+    if (!sessionKey) return
+
+    // The local cache loads instantly above; the server copy (which is what
+    // actually survives a cleared browser or a different device) arrives a
+    // moment later and gets merged in — whichever side has more trade
+    // history wins on trades (union), and whichever synced most recently
+    // wins on the live snapshot (positions/cash/net liq).
+    let cancelled = false
+    fetchServerPersisted().then(server => {
+      if (cancelled || !server) return
+      setState(s => {
+        const mergedTrades = mergeTrades(s.sync.trades, server.trades)
+        const serverIsNewer = server.lastSync > (s.sync.lastSync ?? 0)
+        const positions      = serverIsNewer ? server.positions      : s.sync.positions
+        const cashBalance    = serverIsNewer ? server.cashBalance    : s.sync.cashBalance
+        const netLiquidation = serverIsNewer ? server.netLiquidation : s.sync.netLiquidation
+        const lastSync       = Math.max(server.lastSync, s.sync.lastSync ?? 0)
+        if (mergedTrades.length === s.sync.trades.length && !serverIsNewer) return s
+        const merged: PersistedData = { positions, trades: mergedTrades, cashBalance, netLiquidation, lastSync }
+        savePersisted(sessionKey, merged)
+        console.log(`[Store] Merged server copy: ${server.trades.length} server trades → ${mergedTrades.length} total retained`)
+        return { ...s, ...buildState(merged) }
+      })
+    })
+    return () => { cancelled = true }
   }, [sessionKey])
 
   /** Fetch live prices for any underlyings not in IBKR positions, then re-generate actions */
@@ -153,7 +207,11 @@ export function useAppStore(sessionKey: string | null) {
       // already stored rather than replaced, since IBKR's Flex export only covers
       // the trailing 365 days and would otherwise erase everything older on sync.
       const mergedTrades = mergeTrades(s.sync.trades, trades)
-      if (sessionKey) savePersisted(sessionKey, { positions, trades: mergedTrades, cashBalance, netLiquidation, lastSync })
+      const merged: PersistedData = { positions, trades: mergedTrades, cashBalance, netLiquidation, lastSync }
+      if (sessionKey) {
+        savePersisted(sessionKey, merged)
+        saveServerPersisted(merged)
+      }
       console.log(`[Store] ${trades.length} trades from this sync → ${mergedTrades.length} total retained`)
       return {
         ...s,

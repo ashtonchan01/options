@@ -36,6 +36,17 @@ export async function ensureSchema() {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `
+      // Synced portfolio data (positions, trades, cash) — lives server-side so it
+      // survives clearing browser storage or switching devices, and so trade
+      // history from outside IBKR's rolling 365-day Flex export window doesn't
+      // get lost once a sync no longer reports it.
+      await db`
+        CREATE TABLE IF NOT EXISTS user_portfolio_data (
+          user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `
     })()
   }
   return schemaReady
