@@ -30,7 +30,7 @@ export default function TickerHeadlinesPanel() {
   return (
     <div className="dash-panel" style={{ flex: 1 }}>
       <div className="dash-panel-header"><span>Ticker Headlines</span></div>
-      <div style={{ flex: 1, overflowY: 'auto', columnCount: 2, columnGap: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', columnCount: 2, columnGap: 10 }}>
         {headlines.length === 0 && (
           <div style={{ padding: '12px 4px', fontSize: 12, color: 'var(--text-4)' }}>
             Loading headlines for your followed tickers…
@@ -38,9 +38,9 @@ export default function TickerHeadlinesPanel() {
         )}
         {headlines.map((h, i) => (
           <a key={h.link + i} href={h.link} target="_blank" rel="noreferrer" style={{
-            display: 'block', padding: '8px 4px', textDecoration: 'none',
-            borderTop: '1px solid var(--border-light)',
-            breakInside: 'avoid',
+            display: 'block', padding: '8px 9px', textDecoration: 'none',
+            background: 'var(--bg-elevated)', border: '1px solid var(--border-light)', borderRadius: 8,
+            marginBottom: 8, breakInside: 'avoid',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
               <span style={{

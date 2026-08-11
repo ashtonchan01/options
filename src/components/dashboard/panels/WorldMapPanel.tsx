@@ -129,8 +129,8 @@ function CityMarker({
           Europe specifically) attempts miscalibrate. This keeps rendered
           text a genuinely constant pixel size across every region. */}
       <text x={labelX} y={labelY} textAnchor={textAnchor}
-        fontSize={9 * textScale} fontFamily="Inter, sans-serif" fontWeight={500} fill="var(--text-3)"
-        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 2 * textScale }}>
+        fontSize={13 * textScale} fontFamily="Inter, sans-serif" fontWeight={500} fill="var(--text-3)"
+        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 2.8 * textScale }}>
         {group.exchanges.length > 1 ? group.city : group.exchanges[0].name}
         {leadQuote && (
           <tspan fill={changeColor} fontWeight={400}>
