@@ -8,7 +8,7 @@ const FLEX_PROXY = 'https://options-jade.vercel.app'
 export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number }> {
   const text = await file.text()
   const doc = new DOMParser().parseFromString(text, 'application/xml')
-  return { positions: parsePositions(doc), trades: parseTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc) }
+  return { positions: parsePositions(doc), trades: allTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc) }
 }
 
 // ─── Flex API ─────────────────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<{
 
   const xml = text
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
-  return { positions: parsePositions(doc), trades: parseTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc) }
+  return { positions: parsePositions(doc), trades: allTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc) }
 }
 
 // ─── Ping ─────────────────────────────────────────────────────────────────────
@@ -141,4 +141,61 @@ function parseTrades(doc: Document): RawTrade[] {
     netCash:          Number(el.getAttribute('netCash') ?? 0),
     openClose:        (el.getAttribute('openCloseIndicator') || undefined) as RawTrade['openClose'],
   }))
+}
+
+/** Option Exercises, Assignments & Expirations (and SPX/SPXW-style cash
+ * settlements) never appear as a plain <Trade> — an assigned/exercised/expired
+ * option, or the stock position that results from a put/call assignment, is
+ * booked as an <OptionEAE> record instead. Ignoring these silently drops the
+ * closing leg of any assigned/expired position (it stays "Active" forever)
+ * and drops the resulting share acquisition/delivery (share counts undercount
+ * or a ticker vanishes from the journal entirely) even though the Flex Query
+ * date range and "Trades" section are both correctly configured — the data
+ * was simply never in <Trade> to begin with. */
+function parseOptionEAE(doc: Document): RawTrade[] {
+  return Array.from(doc.querySelectorAll('OptionEAE')).map(el => {
+    const assetClass    = (attr(el, 'assetCategory') ?? 'STK') as RawTrade['assetClass']
+    const transactionType = el.getAttribute('transactionType') ?? ''
+    const rawQty         = Number(el.getAttribute('quantity') ?? 0)
+    const proceeds        = Number(el.getAttribute('proceeds') ?? 0)
+    const commissions     = Number(el.getAttribute('commisionsAndTax') ?? 0)
+
+    // STK leg (shares bought/delivered via assignment): sign matters for the
+    // FIFO lot matcher — Buy opens a lot, Sell closes one.
+    // OPT leg (the option's own exercise/assignment/expiration/cash-settlement):
+    // this always fully closes the position, and the matcher only checks
+    // openClose === 'C' for it (quantity sign isn't load-bearing there), so a
+    // plain magnitude is fine.
+    const quantity = assetClass === 'STK'
+      ? (transactionType === 'Sell' ? -Math.abs(rawQty) : Math.abs(rawQty))
+      : Math.abs(rawQty)
+
+    return {
+      tradeDate:        el.getAttribute('date') ?? '',
+      symbol:           (el.getAttribute('symbol') ?? '').trim(),
+      underlyingSymbol: el.getAttribute('underlyingSymbol') || undefined,
+      assetClass,
+      putCall:          (el.getAttribute('putCall') || undefined) as RawTrade['putCall'],
+      strike:           el.getAttribute('strike') ? Number(el.getAttribute('strike')) : undefined,
+      expiry:           el.getAttribute('expiry') || undefined,
+      quantity,
+      tradePrice:       Number(el.getAttribute('tradePrice') ?? 0),
+      proceeds,
+      commissions,
+      // Regular <Trade> records carry IBKR's own netCash; OptionEAE doesn't
+      // have that attribute, so it's derived the same way IBKR derives it —
+      // proceeds minus commissions. For a plain assignment/exercise/expiration
+      // proceeds is 0 (the option itself changes no cash; the economics move
+      // into the resulting stock position's cost basis), correctly leaving the
+      // full original premium as the position's P&L. For an SPX/SPXW cash
+      // settlement, proceeds carries the actual settlement payment.
+      netCash:          proceeds - Math.abs(commissions),
+      // Every OptionEAE event is terminal for that option — always a close.
+      openClose:        assetClass === 'OPT' ? 'C' as const : undefined,
+    }
+  })
+}
+
+function allTrades(doc: Document): RawTrade[] {
+  return [...parseTrades(doc), ...parseOptionEAE(doc)]
 }
