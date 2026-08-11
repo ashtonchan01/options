@@ -311,10 +311,15 @@ function MonthlyFlowBars({ trades }: { trades: RawTrade[] }) {
   const rows = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-8)
   if (rows.length === 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No trade history yet</div>
 
-  const W = 380, H = 168, PL = 42, PR = 8, PT = 22, PB = 20
+  const W = 380, H = 178, PL = 42, PR = 8, PT = 22, PB = 26
   const maxAbs = Math.max(...rows.map(([, v]) => Math.abs(v)), 1)
   const y0 = PT + (H - PT - PB) / 2
-  const scale = (H - PT - PB) / 2 / maxAbs
+  // Reserve headroom on each side of the zero line for the per-bar value label —
+  // without it, a bar near max height puts its label right on top of the
+  // gridline/month-label below (or above) it instead of inside the plot area.
+  const LABEL_ROOM = 16
+  const halfHeight = (H - PT - PB) / 2 - LABEL_ROOM
+  const scale = halfHeight / maxAbs
   const bw = (W - PL - PR) / rows.length
   const total = rows.reduce((s, [, v]) => s + v, 0)
 
