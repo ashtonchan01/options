@@ -133,7 +133,7 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
   const losers  = filtered.filter(r => r.total < 0).length
 
   return (
-    <div className="jr-root" style={{ maxWidth: 1100, margin: '0 auto', width: '100%' }}>
+    <div className="jr-root">
       <div className="cc-section-title" style={{ padding: 0 }}>Companies</div>
 
       <div style={{ display: 'flex', gap: 4 }}>
