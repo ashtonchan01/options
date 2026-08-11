@@ -240,7 +240,12 @@ function BreakTable({ title, rows, keyHeader, fmtKey }: {
   return (
     <div className="panel" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div className="db-panel-header">{title}</div>
-      <div style={{ overflow: 'auto', maxHeight: 240 }}>
+      {/* A fixed height (not maxHeight) means every card scrolls internally
+          whenever it has more rows than fit, instead of relying on the outer
+          page to have scrolled far enough to reveal a card that happened to
+          sit right at the bottom of the viewport (By Entry DTE / By Hold
+          Time's rows were getting cut off with no way to reach them). */}
+      <div style={{ overflow: 'auto', height: 200 }}>
         <table className="trade-table" style={{ fontSize: 11 }}>
           <thead>
             <tr>
