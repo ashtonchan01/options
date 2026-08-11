@@ -47,14 +47,21 @@ export default function DashboardView({ state }: { state: AppState }) {
       <div className="dash-cell dash-cell-w2 dash-cell-h3 dash-cell-livetv dash-area-livetv">
         <LiveTVPanel />
       </div>
-      <div className="dash-cell dash-cell-h3 dash-area-headlines">
-        <TickerHeadlinesPanel />
-      </div>
-      <div className="dash-cell dash-cell-h12 dash-actions-cell dash-cell-portfolio dash-area-actions">
-        <ActionsSidebar state={state} />
-      </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-calendar dash-area-calendar">
+      {/* Calendar sits on top at its own natural height; Headlines + Actions
+          share the row below it and stretch to fill whatever vertical space
+          is left, so there's no dead gap between the calendar and the rest
+          of the screen the way there was when each had its own fixed grid
+          row track independent of the calendar's actual rendered height. */}
+      <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-calendar dash-area-rightside">
         <CalendarPanel state={state} />
+        <div className="dash-rightside-bottom">
+          <div className="dash-cell dash-cell-h3 dash-area-headlines">
+            <TickerHeadlinesPanel />
+          </div>
+          <div className="dash-cell dash-cell-h12 dash-actions-cell dash-cell-portfolio dash-area-actions">
+            <ActionsSidebar state={state} />
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -1451,32 +1451,52 @@ body {
 @media (min-width: 901px) {
   .dash-wrap {
     /* Third column is fixed at the same 300px the calendar's own activity list
-       uses (--cal-list-width, set on CalendarView) — Actions sits directly
-       below that list at the same width, and Headlines takes the middle
-       column so it lines up with the calendar's own box above it. */
+       uses — Actions sits directly below that list at the same width, and
+       Headlines takes the middle column so it lines up with the calendar's
+       own box above it. */
     grid-template-columns: 1.5fr 1.7fr 300px;
     /* Charts row is a fixed height matching its content (100px cards + panel/row
        padding) instead of an fr share — an fr track stretches taller than the
        row-single strip actually needs, leaving dead space below the cards. */
     grid-template-rows: 1.3fr 128px 1fr;
     grid-template-areas:
-      "map      calendar  calendar"
-      "charts   calendar  calendar"
-      "livetv   headlines actions";
+      "map      rightside rightside"
+      "charts   rightside rightside"
+      "livetv   rightside rightside";
     overflow: hidden;
   }
   .dash-area-map       { grid-area: map; }
   .dash-area-charts    { grid-area: charts; }
   .dash-area-livetv    { grid-area: livetv; }
-  /* Unlike every other cell, Calendar's content has a fixed intrinsic height (nav +
-     16:9-ratio box) that doesn't grow to fill extra space — left stretched to match
-     its spanned grid rows, the activity list beside it (which does stretch) ended up
-     far taller than the calendar box itself. align-self: start lets this cell size to
-     its own content instead, so the list — which stretches to match its sibling
-     within that shrunk box — settles at the same height as the calendar. */
-  .dash-area-calendar  { grid-area: calendar; align-self: start; }
-  .dash-area-headlines { grid-area: headlines; }
-  .dash-area-actions   { grid-area: actions; }
+  /* Calendar + Headlines + Actions share one grid cell spanning all 3 rows,
+     laid out as a flex column instead of 3 independent grid areas — the
+     calendar's content has a fixed intrinsic height (nav + 16:9-ratio box)
+     that doesn't grow to fill extra space, so pinning Headlines/Actions to
+     their own fixed row tracks left a dead gap between the calendar's actual
+     bottom and wherever those tracks started. Stacking them in one flex
+     column instead means the calendar takes its natural height and the
+     Headlines/Actions row below it (flex: 1) fills exactly what's left. */
+  .dash-area-rightside {
+    grid-area: rightside;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    gap: 6px;
+  }
+  /* .dash-cell > * defaults every direct child to flex: 1 — override so the
+     calendar keeps its own natural height instead of stretching to match
+     the Headlines/Actions row. */
+  .dash-area-rightside > .dash-calendar-embed { flex: 0 0 auto; }
+  .dash-area-rightside > .dash-rightside-bottom { flex: 1; }
+  .dash-rightside-bottom {
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+    gap: 6px;
+  }
+  .dash-area-headlines { flex: 1.7; min-width: 0; }
+  .dash-area-actions   { width: 300px; flex-shrink: 0; }
 }
 
 .dash-panel {
