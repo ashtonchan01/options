@@ -1447,7 +1447,7 @@ body {
  * single screen has to give. */
 @media (min-width: 901px) {
   .dash-wrap {
-    grid-template-columns: 1.5fr 1.75fr 0.9fr;
+    grid-template-columns: 1.5fr 1.95fr 0.7fr;
     /* Charts row is a fixed height matching its content (100px cards + panel/row
        padding) instead of an fr share — an fr track stretches taller than the
        row-single strip actually needs, leaving dead space below the cards. */
@@ -1512,10 +1512,3 @@ body {
     flex: 1 !important; max-height: none !important; min-height: 0 !important;
   }
 }
-
-/* CalendarView's own aspect-ratio box (16/9) is sized for its standalone Calendar
- * tab, not this dashboard cell — capping it there left blank space below the grid
- * whenever the cell was taller than a 16:9 box needs, while the activity list beside
- * it (which has no such cap) stretched the full cell height. Let the grid itself fill
- * the available height instead, so both sides end flush. */
-.dash-calendar-embed .calendar-ratio-box { aspect-ratio: auto !important; flex: 1 !important; min-height: 0 !important; }
