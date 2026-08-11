@@ -1450,14 +1450,18 @@ body {
  * single screen has to give. */
 @media (min-width: 901px) {
   .dash-wrap {
-    grid-template-columns: 1.5fr 1.95fr 0.7fr;
+    /* Third column is fixed at the same 300px the calendar's own activity list
+       uses (--cal-list-width, set on CalendarView) — Actions sits directly
+       below that list at the same width, and Headlines takes the middle
+       column so it lines up with the calendar's own box above it. */
+    grid-template-columns: 1.5fr 1.7fr 300px;
     /* Charts row is a fixed height matching its content (100px cards + panel/row
        padding) instead of an fr share — an fr track stretches taller than the
        row-single strip actually needs, leaving dead space below the cards. */
     grid-template-rows: 1.3fr 128px 1fr;
     grid-template-areas:
-      "map      calendar  actions"
-      "charts   calendar  actions"
+      "map      calendar  calendar"
+      "charts   calendar  calendar"
       "livetv   headlines actions";
     overflow: hidden;
   }
