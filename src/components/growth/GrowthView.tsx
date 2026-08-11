@@ -69,7 +69,7 @@ function buildMonthlyData(trades: RawTrade[]): MonthData[] {
   const map = new Map<string, MonthData>()
 
   for (const t of trades) {
-    if (!t.tradeDate) continue
+    if (!t.tradeDate || t.isTransfer) continue
     const key = monthKey(t.tradeDate)
     if (!map.has(key)) map.set(key, { key, label: monthLabel(key), optionPnL: 0, stockPnL: 0, total: 0, tradeCount: 0 })
     const m = map.get(key)!

@@ -39,6 +39,8 @@ export interface RawTrade {
   commissions: number
   netCash: number
   openClose?: OpenClose
+  /** True for ACATS/internal position-transfer records (not real trading activity) — used to exclude them from daily activity aggregations while still feeding share-count reconstruction. */
+  isTransfer?: boolean
 }
 
 // ─── Classified Strategy ─────────────────────────────────────────────────────

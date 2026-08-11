@@ -124,7 +124,7 @@ function deriveEvents(strategies: Strategy[]): ExpiryEvent[] {
 function buildDailyTrades(trades: RawTrade[]): Record<string, DailyTradeData> {
   const map: Record<string, DailyTradeData> = {}
   for (const t of trades) {
-    if (!t.tradeDate) continue
+    if (!t.tradeDate || t.isTransfer) continue
     const date = normalizeDate(t.tradeDate)
     if (!map[date]) map[date] = { date, netCash: 0, tradeCount: 0, optionPnL: 0, stockPnL: 0, trades: [] }
     map[date].netCash += t.netCash

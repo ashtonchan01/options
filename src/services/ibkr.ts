@@ -237,6 +237,7 @@ function parseTransfers(doc: Document): RawTrade[] {
         proceeds:         netCash,
         commissions:      0,
         netCash,
+        isTransfer:       true,
       }
     })
 }

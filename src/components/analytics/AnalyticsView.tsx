@@ -297,6 +297,7 @@ function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSli
 function MonthlyFlowBars({ trades }: { trades: RawTrade[] }) {
   const byMonth = new Map<string, number>()
   for (const t of trades) {
+    if (t.isTransfer) continue
     const key = monthKey(t.tradeDate)
     if (!key) continue
     byMonth.set(key, (byMonth.get(key) ?? 0) + t.netCash)
