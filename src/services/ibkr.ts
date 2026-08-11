@@ -208,11 +208,44 @@ function parseOptionEAE(doc: Document, usedTradeIds: Set<string>): RawTrade[] {
   })
 }
 
+/** Shares moved in/out of the account via ACATS or an internal transfer (e.g.
+ * an option that settled by delivering the underlying into this account from
+ * elsewhere) never appear as a <Trade> or <OptionEAE> either — they're a
+ * <Transfer> record with its own direction/quantity/positionAmount fields.
+ * Verified against a real account: two <Transfer> records (TSLA +42, NVDA
+ * +10, both "IN") fully explained share counts that otherwise looked
+ * undercounted with no error anywhere else in the data. */
+function parseTransfers(doc: Document): RawTrade[] {
+  return Array.from(doc.querySelectorAll('Transfer'))
+    .filter(el => (attr(el, 'assetCategory') ?? 'STK') === 'STK')
+    .map(el => {
+      const direction = el.getAttribute('direction') ?? 'IN'
+      const rawQty = Number(el.getAttribute('quantity') ?? 0)
+      const quantity = direction === 'OUT' ? -Math.abs(rawQty) : Math.abs(rawQty)
+      const positionAmount = Math.abs(Number(el.getAttribute('positionAmount') ?? 0))
+      const tradePrice = rawQty !== 0 ? positionAmount / Math.abs(rawQty) : 0
+      // Shares coming IN cost the account money (like a buy, negative cash);
+      // shares going OUT return value (like a sell, positive cash).
+      const netCash = quantity > 0 ? -positionAmount : positionAmount
+      return {
+        tradeDate:        el.getAttribute('date') ?? '',
+        symbol:           (el.getAttribute('symbol') ?? '').trim(),
+        underlyingSymbol: el.getAttribute('underlyingSymbol') || undefined,
+        assetClass:       'STK' as RawTrade['assetClass'],
+        quantity,
+        tradePrice,
+        proceeds:         netCash,
+        commissions:      0,
+        netCash,
+      }
+    })
+}
+
 function allTrades(doc: Document): RawTrade[] {
   const usedTradeIds = new Set(
     Array.from(doc.querySelectorAll('Trade'))
       .map(el => el.getAttribute('tradeID'))
       .filter((id): id is string => id !== null),
   )
-  return [...parseTrades(doc), ...parseOptionEAE(doc, usedTradeIds)]
+  return [...parseTrades(doc), ...parseOptionEAE(doc, usedTradeIds), ...parseTransfers(doc)]
 }

@@ -115,7 +115,38 @@ export function buildJournalPositions(
   }
 
   openGroups.sort((a, b) => a.date.localeCompare(b.date))
-  const usedCloses = new Set<number>()
+
+  // A close group's legs can satisfy more than one open position: the same
+  // strikes get opened twice on different dates (e.g. adding to a LEAP a
+  // second time at the same strikes months later), then both closed together
+  // in a single closing transaction — verified against a real account where
+  // exactly this happened (two separate risk-reversal entries, same 130C/140P
+  // strikes, closed in one 2-lot-per-leg transaction). Matching whole groups
+  // 1:1 let only the earlier position claim that transaction, leaving the
+  // second stuck "Active" forever with nothing left to match against. Instead,
+  // each close group tracks remaining per-leg quantity (keyed by strike+
+  // putCall) that open positions draw down as they're matched, FIFO by close
+  // date, so one closing transaction can satisfy however many open positions
+  // it actually covers.
+  const legKeyOf = (l: RawTrade) => `${l.strike}${l.putCall}`
+  const closePools = closeGroups.map(cg => {
+    const remaining = new Map<string, number>()
+    const netCashPerUnit = new Map<string, number>()
+    const feesPerUnit = new Map<string, number>()
+    const byLeg = new Map<string, RawTrade[]>()
+    for (const l of cg.legs) {
+      const k = legKeyOf(l)
+      if (!byLeg.has(k)) byLeg.set(k, [])
+      byLeg.get(k)!.push(l)
+    }
+    for (const [k, legs] of byLeg) {
+      const qty = legs.reduce((s, l) => s + Math.abs(l.quantity), 0)
+      remaining.set(k, qty)
+      netCashPerUnit.set(k, qty > 0 ? legs.reduce((s, l) => s + l.netCash, 0) / qty : 0)
+      feesPerUnit.set(k, qty > 0 ? legs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0) / qty : 0)
+    }
+    return { cg, remaining, netCashPerUnit, feesPerUnit }
+  })
 
   return openGroups.map(og => {
     const expDate = parseExpiry(og.expiry)
@@ -130,7 +161,15 @@ export function buildJournalPositions(
     const settlementLegs = og.legs.filter(l => l.openClose === 'C' && openContracts.has(`${l.strike}${l.putCall}`))
     const sells = openLegs.filter(l => l.quantity < 0)
 
-    const contracts      = sells.length > 0 ? Math.abs(sells[0].quantity) : 1
+    // A single order can fill across several separate trade records at the
+    // same strike (partial fills, all same day/leg) — reading only sells[0]'s
+    // own quantity undercounts to whatever that one execution happened to be
+    // (verified: a real 3-lot order, each execution -1, read as 1 contract
+    // instead of 3). Sum every execution sharing the anchor leg's strike+
+    // putCall instead.
+    const contracts = sells.length > 0
+      ? openLegs.filter(l => legKeyOf(l) === legKeyOf(sells[0])).reduce((s, l) => s + Math.abs(l.quantity), 0)
+      : 1
     const openFees       = openLegs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0)
     const openingNetCash = openLegs.reduce((s, l) => s + l.netCash, 0)
 
@@ -166,18 +205,23 @@ export function buildJournalPositions(
       tradeIds,
     }
 
-    const closeIdx = closeGroups.findIndex((cg, i) =>
-      !usedCloses.has(i) &&
-      cg.expiry === og.expiry &&
-      cg.underlying === og.underlying &&
-      cg.date > og.date
-    )
+    // Earliest-available closing transaction (by date) that still has enough
+    // remaining quantity on every one of this position's own leg strikes.
+    const pool = closePools
+      .filter(p => p.cg.expiry === og.expiry && p.cg.underlying === og.underlying && p.cg.date > og.date)
+      .sort((a, b) => a.cg.date.localeCompare(b.cg.date))
+      .find(p => openLegs.every(l => (p.remaining.get(legKeyOf(l)) ?? 0) >= contracts))
 
-    if (closeIdx >= 0) {
-      usedCloses.add(closeIdx)
-      const cg = closeGroups[closeIdx]
-      const closeFees    = cg.legs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0)
-      const closeNetCash = cg.legs.reduce((s, l) => s + l.netCash, 0)
+    if (pool) {
+      let closeFees = 0
+      let closeNetCash = 0
+      for (const l of openLegs) {
+        const k = legKeyOf(l)
+        pool.remaining.set(k, (pool.remaining.get(k) ?? 0) - contracts)
+        closeNetCash += (pool.netCashPerUnit.get(k) ?? 0) * contracts
+        closeFees    += (pool.feesPerUnit.get(k) ?? 0) * contracts
+      }
+      const cg = pool.cg
       return {
         ...base,
         status: 'Closed' as const,
