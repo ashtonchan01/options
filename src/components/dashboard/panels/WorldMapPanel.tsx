@@ -4,7 +4,7 @@
  * city gets an inline label; hovering a city brings its label to the
  * front (drawn last) so it reads clearly even over crowded neighbors.
  */
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useLayoutEffect } from 'react'
 import { geoEquirectangular, geoPath } from 'd3-geo'
 import { feature, mesh } from 'topojson-client'
 import type { Topology, GeometryCollection, Objects } from 'topojson-specification'
@@ -81,12 +81,13 @@ function leadExchange(group: CityGroup, quotes: Record<string, MarketQuote>): Ex
 }
 
 function CityMarker({
-  group, quotes, now, scale, onHover,
+  group, quotes, now, scale, textScale, onHover,
 }: {
   group: CityGroup
   quotes: Record<string, MarketQuote>
   now: Date
   scale: number
+  textScale: number
   onHover: (group: CityGroup | null) => void
 }) {
   const pt = projection([group.lon, group.lat])
@@ -119,15 +120,17 @@ function CityMarker({
       <circle r={6 * scale} fill="transparent" />
       <circle r={1.6 * scale} fill={dotColor} stroke="var(--bg-surface)" strokeWidth={0.6 * scale} />
 
-      {/* Font size uses sqrt(scale) rather than `scale` itself (like the dots)
-          or a fixed size (tried and reverted — a flat size stayed constant in
-          SVG units while the viewBox zoomed in by up to ~5x on Europe, so the
-          rendered text ballooned into the huge overlapping labels a fixed
-          size produces). sqrt(scale) still grows into a region instead of
-          shrinking, just far more mildly than the viewBox's own magnification. */}
+      {/* textScale is derived from the SVG's actual measured on-screen pixels
+          per viewBox unit (see WorldMapPanel), not guessed from crop width
+          alone — a width-only ratio was wrong whenever a region's aspect
+          ratio forced the *height* to be the binding "meet" dimension
+          instead (Europe's wide-short crop), which is what made both the
+          scale-based (too small) and sqrt-scale-based (still too big on
+          Europe specifically) attempts miscalibrate. This keeps rendered
+          text a genuinely constant pixel size across every region. */}
       <text x={labelX} y={labelY} textAnchor={textAnchor}
-        fontSize={5.5 * Math.sqrt(scale)} fontFamily="Inter, sans-serif" fontWeight={500} fill="var(--text-3)"
-        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 1.3 * Math.sqrt(scale) }}>
+        fontSize={9 * textScale} fontFamily="Inter, sans-serif" fontWeight={500} fill="var(--text-3)"
+        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 2 * textScale }}>
         {group.exchanges.length > 1 ? group.city : group.exchanges[0].name}
         {leadQuote && (
           <tspan fill={changeColor} fontWeight={400}>
@@ -147,6 +150,31 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
 
   const crop = useMemo(() => getCrop(region), [region])
   const scale = crop.width / GLOBAL_CROP_WIDTH
+
+  // The width-only `scale` ratio above only matches the SVG's actual
+  // magnification when width is the binding "meet" dimension — Europe's
+  // crop is much wider-than-tall relative to the panel, so height ends up
+  // binding instead, and text sized off `scale` alone came out wrong just
+  // for that region. Measure the real rendered px-per-viewBox-unit ratio
+  // instead, so text can be sized to a genuinely constant on-screen pixel
+  // size in every region regardless of which dimension is binding.
+  const svgWrapRef = useRef<HTMLDivElement>(null)
+  const [magnification, setMagnification] = useState(1)
+  useLayoutEffect(() => {
+    const el = svgWrapRef.current
+    if (!el) return
+    const measure = () => {
+      const { width, height } = el.getBoundingClientRect()
+      if (width === 0 || height === 0) return
+      setMagnification(Math.min(width / crop.width, height / crop.height))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [crop])
+  // Desired constant on-screen text size, expressed back in SVG units.
+  const textScale = 1 / magnification
 
   // Draw the hovered city last so its label renders on top of any crowded neighbors.
   const orderedCityGroups = useMemo(() => {
@@ -184,7 +212,7 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
         ))}
       </div>
 
-      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+      <div ref={svgWrapRef} style={{ flex: 1, position: 'relative', minHeight: 0 }}>
         <svg viewBox={`${crop.x0} ${crop.y0} ${crop.width} ${crop.height}`} style={{ width: '100%', height: '100%', display: 'block' }}>
           <rect x={crop.x0} y={crop.y0} width={crop.width} height={crop.height} fill="var(--bg-surface)" />
           <path d={countriesPath} fill="var(--bg-active)" fillRule="evenodd" />
@@ -196,6 +224,7 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
               quotes={quotes}
               now={now}
               scale={scale}
+              textScale={textScale}
               onHover={setHover}
             />
           ))}
