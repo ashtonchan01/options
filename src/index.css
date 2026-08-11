@@ -608,7 +608,10 @@ body {
   border-radius: 6px;
   color: var(--text-2);
   font-family: 'Inter', sans-serif;
-  font-size: 13px;
+  /* >= 16px — below that, iOS Safari as an installed home-screen app has a
+     known bug where focusing a text <input> (this class is shared with the
+     ticker filter box) never brings up the on-screen keyboard at all. */
+  font-size: 16px;
   padding: 7px 10px;
   cursor: pointer;
   outline: none;

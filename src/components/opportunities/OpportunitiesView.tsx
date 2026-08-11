@@ -207,7 +207,10 @@ function StrategySection({ label, color, items, nextEarnings, fomcDates }: { lab
   )
 }
 
-const inputStyle: React.CSSProperties = { width: 54, padding: '3px 6px', fontSize: 11, textAlign: 'right', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }
+// fontSize must be >= 16px — below that, iOS Safari running as an installed
+// home-screen app has a known bug where focusing the input never brings up
+// the on-screen keyboard at all.
+const inputStyle: React.CSSProperties = { width: 60, padding: '3px 6px', fontSize: 16, textAlign: 'right', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }
 const labelStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text-3)', fontFamily: 'Inter, sans-serif' }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -322,11 +325,16 @@ export default function OpportunitiesView({ state }: Props) {
           {scanning ? 'Scanning…' : 'Scan'}
         </button>
 
+        {/* fontSize must be >= 16px — below that, iOS Safari running as an
+            installed home-screen app (apple-mobile-web-app-capable) has a
+            known bug where focusing the input triggers its auto-zoom-to-16px
+            behavior but the on-screen keyboard never actually appears. */}
         <input type="text" value={tickerInput}
           onChange={e => setTickerInput(e.target.value.toUpperCase())}
           onKeyDown={e => e.key === 'Enter' && addTicker()}
           placeholder="+ TICKER"
-          style={{ width: 80, padding: '5px 8px', fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }}
+          autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
+          style={{ width: 90, padding: '5px 8px', fontSize: 16, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }}
         />
 
         {/* Strategy toggle — show CSP, CC, or both */}

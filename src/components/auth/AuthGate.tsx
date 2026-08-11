@@ -92,8 +92,11 @@ export default function AuthGate({ error, onLogin, onSignup }: Props) {
   )
 }
 
+// fontSize must be >= 16px — below that, iOS Safari running as an installed
+// home-screen app has a known bug where focusing the input never brings up
+// the on-screen keyboard at all.
 const inputStyle: React.CSSProperties = {
-  padding: '8px 10px', fontSize: 13, background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+  padding: '8px 10px', fontSize: 16, background: 'var(--bg-elevated)', border: '1px solid var(--border)',
   color: 'var(--text-1)', borderRadius: 6, outline: 'none', fontFamily: 'inherit',
 }
 

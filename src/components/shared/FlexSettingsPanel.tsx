@@ -8,13 +8,16 @@ interface Props {
   onClose: () => void
 }
 
+// fontSize must be >= 16px — below that, iOS Safari running as an installed
+// home-screen app has a known bug where focusing the input never brings up
+// the on-screen keyboard at all.
 const inputStyle: React.CSSProperties = {
   width: '100%',
   background: 'var(--bg-page)',
   border: '1px solid var(--border)',
   color: 'var(--text-1)',
   padding: '10px 14px',
-  fontSize: 13,
+  fontSize: 16,
   fontFamily: 'Inter, sans-serif',
   outline: 'none',
   borderRadius: 6,
