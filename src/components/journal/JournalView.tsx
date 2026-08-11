@@ -92,7 +92,7 @@ function KpiStrip({ closed, openPremium }: { closed: JournalPosition[]; openPrem
     { label: 'Max Drawdown',  value: fmt$(-s.maxDrawdown),           color: '#f59e0b' },
   ]
   const minis = [
-    { label: 'Realized P&L',  value: fmt$(s.netPnl) },
+    { label: 'Realised P&L',  value: fmt$(s.netPnl) },
     { label: 'Open Premium',  value: fmt$(openPremium) },
     { label: 'Closed Trades', value: String(s.trades) },
     { label: 'Streak',        value: s.currentStreak === 0 ? '—' : `${s.currentStreak > 0 ? 'W' : 'L'}${Math.abs(s.currentStreak)}` },
@@ -282,7 +282,7 @@ export function OverviewTab({ closed, positions, entries }: {
       <KpiStrip closed={closed} openPremium={openPremium} />
 
       <div className="cc-section">
-        <div className="cc-section-title" style={{ padding: 0 }}>Equity Curve — Realized P&L</div>
+        <div className="cc-section-title" style={{ padding: 0 }}>Equity Curve — Realised P&L</div>
         <div className="panel" style={{ padding: '10px 12px 4px' }}>
           <EquityChart points={curve} />
         </div>

@@ -215,8 +215,13 @@ export function buildJournalPositions(
     if (pool) {
       let closeFees = 0
       let closeNetCash = 0
-      for (const l of openLegs) {
-        const k = legKeyOf(l)
+      // openLegs can hold several partial-fill rows at the same strike/putCall
+      // (e.g. a 3-lot order filled as three separate -1 executions) — walking
+      // every row here would charge this position's close cost once per row
+      // instead of once per distinct leg, tripling it. Consume the pool once
+      // per unique leg key instead, by this position's own `contracts` size.
+      const uniqueKeys = new Set(openLegs.map(legKeyOf))
+      for (const k of uniqueKeys) {
         pool.remaining.set(k, (pool.remaining.get(k) ?? 0) - contracts)
         closeNetCash += (pool.netCashPerUnit.get(k) ?? 0) * contracts
         closeFees    += (pool.feesPerUnit.get(k) ?? 0) * contracts

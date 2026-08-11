@@ -2,7 +2,7 @@
  * Companies tab — every underlying you've ever traded (stock or option),
  * with realized P&L (closed positions), unrealized P&L (current open
  * positions), and the combined total, sorted biggest winner to biggest
- * loser. Mirrors the "Realized & Unrealized Performance Summary" section
+ * loser. Mirrors the "Realised & Unrealised Performance Summary" section
  * of an IBKR account statement, grouped by underlying instead of by
  * individual option contract.
  */
@@ -154,8 +154,8 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
 
       <div className="jr-mini-strip">
         <div className="jr-mini"><span className="label">Total P&amp;L</span><b style={{ color: pnlColor(grand.total) }}>{fmtDollar(grand.total)}</b></div>
-        <div className="jr-mini"><span className="label">Realized</span><b style={{ color: pnlColor(grand.realized) }}>{fmtDollar(grand.realized)}</b></div>
-        <div className="jr-mini"><span className="label">Unrealized</span><b style={{ color: pnlColor(grand.unrealized) }}>{fmtDollar(grand.unrealized)}</b></div>
+        <div className="jr-mini"><span className="label">Realised</span><b style={{ color: pnlColor(grand.realized) }}>{fmtDollar(grand.realized)}</b></div>
+        <div className="jr-mini"><span className="label">Unrealised</span><b style={{ color: pnlColor(grand.unrealized) }}>{fmtDollar(grand.unrealized)}</b></div>
         <div className="jr-mini"><span className="label">Winners</span><b style={{ color: '#10b981' }}>{winners}</b></div>
         <div className="jr-mini"><span className="label">Losers</span><b style={{ color: '#ef4444' }}>{losers}</b></div>
       </div>
@@ -175,7 +175,7 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
               className={`tl-filter-chip${sortKey === k ? ' active' : ''}`}
               onClick={() => setSortKey(k)}
             >
-              {k === 'total' ? 'Total P&L' : k === 'realized' ? 'Realized' : k === 'unrealized' ? 'Unrealized' : 'A–Z'}
+              {k === 'total' ? 'Total P&L' : k === 'realized' ? 'Realised' : k === 'unrealized' ? 'Unrealised' : 'A–Z'}
             </button>
           ))}
         </div>
@@ -187,8 +187,8 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
             <thead>
               <tr>
                 <th>Company</th>
-                <th style={{ textAlign: 'right' }}>Realized</th>
-                <th style={{ textAlign: 'right' }}>Unrealized</th>
+                <th style={{ textAlign: 'right' }}>Realised</th>
+                <th style={{ textAlign: 'right' }}>Unrealised</th>
                 <th style={{ textAlign: 'right' }}>Total P&amp;L</th>
                 <th style={{ textAlign: 'right' }}>Closed Trades</th>
                 <th style={{ textAlign: 'right' }}>Open</th>

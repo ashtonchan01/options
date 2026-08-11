@@ -207,7 +207,7 @@ export default function GrowthView({ state }: Props) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, flexShrink: 0 }}>
         {[
           { label: 'PREMIUM COLLECTED', value: fmt$(totalPremiumCollected), color: '#10b981' },
-          { label: 'REALIZED P&L', value: fmt$(totalRealizedPnL), color: totalRealizedPnL >= 0 ? '#10b981' : '#f43f5e' },
+          { label: 'REALISED P&L', value: fmt$(totalRealizedPnL), color: totalRealizedPnL >= 0 ? '#10b981' : '#f43f5e' },
           { label: 'AVG MONTHLY', value: fmt$(avgMonthlyIncome), color: avgMonthlyIncome >= 0 ? '#10b981' : '#f43f5e' },
           { label: 'COMMISSIONS', value: fmt$(Math.abs(totalCommissions)), color: '#f43f5e' },
           { label: 'BEST MONTH', value: bestMonth ? fmt$(bestMonth.total) : '—', color: '#10b981' },

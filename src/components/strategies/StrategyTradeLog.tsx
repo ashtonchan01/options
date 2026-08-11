@@ -274,7 +274,7 @@ function SummaryStrip({ positions }: { positions: Position[] }) {
     { label: 'Closed',        value: String(closed.length),              color: '#f59e0b'       },
     { label: 'Expired',       value: String(expired.length),             color: 'var(--text-4)' },
     { label: 'Open Premium',  value: fmt$(openPrem, 0),                  color: openPrem >= 0 ? '#10b981' : '#f43f5e' },
-    { label: 'Realized P&L',  value: fmt$(realized, 0),                  color: realized >= 0 ? '#10b981' : '#f43f5e' },
+    { label: 'Realised P&L',  value: fmt$(realized, 0),                  color: realized >= 0 ? '#10b981' : '#f43f5e' },
     { label: 'Total P&L',     value: fmt$(totalPnl, 0),                  color: totalPnl >= 0 ? '#10b981' : '#f43f5e' },
     { label: 'Win Rate',      value: (closed.length + expired.length) > 0 ? `${winRate.toFixed(0)}%` : '—',
                               color: winRate >= 70 ? '#10b981' : winRate >= 50 ? '#f59e0b' : '#f43f5e' },

@@ -180,7 +180,7 @@ export default function PlanView({ state }: Props) {
             { label: 'NET LIQUIDATION',  value: capital > 0 ? fmt$(capital) : '—',  color: 'var(--text-1)' },
             { label: 'AVG MONTHLY',      value: fmt$(avgMonthly),                   color: onTrack ? '#10b981' : '#f59e0b' },
             { label: 'PREMIUM COLLECTED',value: fmt$(totalPremium),                 color: '#10b981' },
-            { label: 'REALIZED P&L',     value: fmt$(totalPnL),                     color: totalPnL >= 0 ? '#10b981' : '#f43f5e' },
+            { label: 'REALISED P&L',     value: fmt$(totalPnL),                     color: totalPnL >= 0 ? '#10b981' : '#f43f5e' },
           ].map(s => (
             <div key={s.label} className="stat-card">
               <div className="stat-label">{s.label}</div>

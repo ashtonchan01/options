@@ -446,7 +446,7 @@ function IncomeChannelStrip({ trades, labels, symbolToStratType }: { trades: Raw
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Realized</span>
+                <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Realised</span>
                 <span style={{ fontSize: 12, fontFamily: 'Inter, sans-serif', fontWeight: 600, color: realizedPnL >= 0 ? '#10b981' : '#f43f5e' }}>
                   {fmtDollar(realizedPnL)}
                 </span>
@@ -648,8 +648,8 @@ export function PortfolioSummaryCard({ state }: { state: AppState }) {
       }}>
         {[
           { label: 'Net Liquidation', value: fmtDollar(netLiq), color: 'var(--text-1)' },
-          { label: 'Unrealized P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
-          { label: 'Realized P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
+          { label: 'Unrealised P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
+          { label: 'Realised P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
           { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ padding: '10px 16px', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
@@ -717,7 +717,7 @@ export function StocksCard({ state }: { state: AppState }) {
                 <th style={{ ...TH, textAlign: 'right' }}>Avg Cost</th>
                 <th style={{ ...TH, textAlign: 'right' }}>Last</th>
                 <th style={{ ...TH, textAlign: 'right' }}>Market Value</th>
-                <th style={{ ...TH, textAlign: 'right' }}>Unrealized P&L</th>
+                <th style={{ ...TH, textAlign: 'right' }}>Unrealised P&L</th>
                 <th style={{ ...TH, textAlign: 'right' }}>%</th>
               </tr>
             </thead>
@@ -773,7 +773,7 @@ export function OptionsCard({ state }: { state: AppState }) {
                 <th style={{ ...TH, textAlign: 'right' }}>Mark</th>
                 <th style={{ ...TH, textAlign: 'right' }}>Mkt Value</th>
                 <th style={{ ...TH, textAlign: 'right' }}>Cost Basis</th>
-                <th style={{ ...TH, textAlign: 'right' }}>Unrealized</th>
+                <th style={{ ...TH, textAlign: 'right' }}>Unrealised</th>
               </tr>
             </thead>
             <tbody>
@@ -851,8 +851,8 @@ export function PortfolioSummaryPanel({ state }: { state: AppState }) {
       }}>
         {[
           { label: 'Net Liquidation', value: fmtDollar(netLiq), color: 'var(--text-1)' },
-          { label: 'Unrealized P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
-          { label: 'Realized P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
+          { label: 'Unrealised P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
+          { label: 'Realised P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
           { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
         ].map(({ label, value, color }, i, arr) => (
           <div key={label} style={{
@@ -921,7 +921,7 @@ export function PortfolioHoldingsPanel({ state, labels }: { state: AppState; lab
                   <th style={{ ...TH, textAlign: 'right' }}>Avg Cost</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Last</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Market Value</th>
-                  <th style={{ ...TH, textAlign: 'right' }}>Unrealized P&L</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Unrealised P&L</th>
                   <th style={{ ...TH, textAlign: 'right' }}>%</th>
                 </tr>
               </thead>
@@ -974,7 +974,7 @@ export function PortfolioHoldingsPanel({ state, labels }: { state: AppState; lab
                   <th style={{ ...TH, textAlign: 'right' }}>Mark</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Mkt Value</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Cost Basis</th>
-                  <th style={{ ...TH, textAlign: 'right' }}>Unrealized</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Unrealised</th>
                 </tr>
               </thead>
               <tbody>

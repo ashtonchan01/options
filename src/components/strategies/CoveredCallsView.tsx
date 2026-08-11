@@ -94,7 +94,7 @@ function SummaryStrip({ trades }: { trades: RawTrade[] }) {
     { label: 'Active',        value: String(active.length),  color: '#10b981' },
     { label: 'Expired',       value: String(expired.length), color: 'var(--text-4)' },
     { label: 'Open Premium',  value: fmt$(openPrem, 0),  color: openPrem >= 0 ? '#10b981' : '#f43f5e' },
-    { label: 'Realized P&L',  value: fmt$(realized, 0),  color: realized >= 0 ? '#10b981' : '#f43f5e' },
+    { label: 'Realised P&L',  value: fmt$(realized, 0),  color: realized >= 0 ? '#10b981' : '#f43f5e' },
     { label: 'Net Cash',      value: fmt$(totalNet, 0),  color: totalNet >= 0 ? '#10b981' : '#f43f5e' },
     { label: 'Win Rate',      value: sells.length ? `${winRate.toFixed(0)}%` : '—', color: winRate >= 70 ? '#10b981' : winRate >= 50 ? '#f59e0b' : '#f43f5e' },
     { label: 'Open Fees',     value: fmt$(openFees, 2),  color: '#f59e0b' },
