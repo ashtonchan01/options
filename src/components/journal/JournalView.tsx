@@ -25,6 +25,15 @@ function fmtDate(s: string) {
   return isNaN(d.getTime()) ? s : d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: '2-digit' })
 }
 
+/** IBKR's raw "YYYYMMDD" dates (no separators) fail `new Date()` silently —
+ * it returns Invalid Date rather than throwing, so callers that don't guard
+ * for it end up printing the raw digit string untouched. Normalize first. */
+function fmtMonthYear(s: string) {
+  const iso = /^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : s
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? s : d.toLocaleDateString('en-AU', { month: 'short', year: 'numeric' })
+}
+
 function fmtMonth(ym: string) {
   const d = new Date(`${ym}-01`)
   return isNaN(d.getTime()) ? ym : d.toLocaleDateString('en-AU', { month: 'short', year: '2-digit' })
@@ -168,7 +177,7 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
       {[points[0], mid, last].map((p, i) => (
         <text key={i} x={x(i === 0 ? 0 : i === 1 ? Math.floor(points.length / 2) : points.length - 1)} y={H - 8}
           textAnchor={i === 0 ? 'start' : i === 1 ? 'middle' : 'end'} fill="var(--text-4)" fontSize="10" fontFamily="Inter, sans-serif">
-          {fmtDate(p.date)}
+          {fmtMonthYear(p.date)}
         </text>
       ))}
     </svg>
