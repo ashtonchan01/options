@@ -144,16 +144,28 @@ function parseTrades(doc: Document): RawTrade[] {
 }
 
 /** Option Exercises, Assignments & Expirations (and SPX/SPXW-style cash
- * settlements) never appear as a plain <Trade> — an assigned/exercised/expired
- * option, or the stock position that results from a put/call assignment, is
- * booked as an <OptionEAE> record instead. Ignoring these silently drops the
- * closing leg of any assigned/expired position (it stays "Active" forever)
- * and drops the resulting share acquisition/delivery (share counts undercount
- * or a ticker vanishes from the journal entirely) even though the Flex Query
- * date range and "Trades" section are both correctly configured — the data
- * was simply never in <Trade> to begin with. */
-function parseOptionEAE(doc: Document): RawTrade[] {
-  return Array.from(doc.querySelectorAll('OptionEAE')).map(el => {
+ * settlements) can be missing from plain <Trade> records — an assigned/
+ * exercised/expired option, or the stock position that results from a put/
+ * call assignment, is sometimes booked as an <OptionEAE> record instead.
+ * Ignoring these silently drops the closing leg of any assigned/expired
+ * position (it stays "Active" forever) and drops the resulting share
+ * acquisition/delivery (share counts undercount or a ticker vanishes from
+ * the journal entirely).
+ *
+ * BUT many accounts' Flex reports list the *same* event in both sections —
+ * the same execution shows up as both a <Trade> and an <OptionEAE> row,
+ * sharing the same tradeID. Adding both double-counts it (verified: a real
+ * account showed MSTR shares double from 500 to 1000 this way). `usedTradeIds`
+ * is every tradeID already present among the plain <Trade> records; any
+ * OptionEAE row carrying one of those IDs is the account's own duplicate
+ * report of a trade already counted, and is skipped. */
+function parseOptionEAE(doc: Document, usedTradeIds: Set<string>): RawTrade[] {
+  return Array.from(doc.querySelectorAll('OptionEAE'))
+    .filter(el => {
+      const id = el.getAttribute('tradeID')
+      return !id || !usedTradeIds.has(id)
+    })
+    .map(el => {
     const assetClass    = (attr(el, 'assetCategory') ?? 'STK') as RawTrade['assetClass']
     const transactionType = el.getAttribute('transactionType') ?? ''
     const rawQty         = Number(el.getAttribute('quantity') ?? 0)
@@ -197,5 +209,10 @@ function parseOptionEAE(doc: Document): RawTrade[] {
 }
 
 function allTrades(doc: Document): RawTrade[] {
-  return [...parseTrades(doc), ...parseOptionEAE(doc)]
+  const usedTradeIds = new Set(
+    Array.from(doc.querySelectorAll('Trade'))
+      .map(el => el.getAttribute('tradeID'))
+      .filter((id): id is string => id !== null),
+  )
+  return [...parseTrades(doc), ...parseOptionEAE(doc, usedTradeIds)]
 }
