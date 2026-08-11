@@ -4,6 +4,7 @@ import { syncFromXML, syncFromFlexAPI } from '../services/ibkr'
 import { classifyPositions } from '../engine/classifier'
 import { generateActions } from '../engine/actions'
 import { fetchStockPrices } from '../services/stockPrice'
+import { tradeId } from './tradeLabelsStore'
 
 const STORAGE_PREFIX = 'options_sync_data'
 const PRICE_REFRESH_MS = 60 * 1000 // refresh live prices every 60 seconds
@@ -37,6 +38,18 @@ function savePersisted(sessionKey: string, data: PersistedData) {
   } catch (e) {
     console.warn('[Store] Failed to persist sync data:', e)
   }
+}
+
+/** IBKR's Flex report only covers a rolling 365-day window, so every sync/upload
+ * would otherwise silently drop trade history older than a year. Union new trades
+ * into whatever's already stored (deduped by the same composite tradeId used for
+ * labels) instead of replacing wholesale — once a trade has been seen in any past
+ * sync it stays in the journal permanently, even after IBKR stops reporting it. */
+function mergeTrades(existing: RawTrade[], incoming: RawTrade[]): RawTrade[] {
+  const map = new Map<string, RawTrade>()
+  for (const t of existing) map.set(tradeId(t), t)
+  for (const t of incoming) map.set(tradeId(t), t)
+  return [...map.values()]
 }
 
 /** All underlyings with short option legs — always fetch live, IBKR mark price is stale */
@@ -134,14 +147,21 @@ export function useAppStore(sessionKey: string | null) {
     const lastSync   = Date.now()
     console.log(`[Store] ${positions.length} positions → ${strategies.length} strategies, ${actions.length} actions`)
 
-    if (sessionKey) savePersisted(sessionKey, { positions, trades, cashBalance, netLiquidation, lastSync })
-
-    setState(s => ({
-      ...s,
-      sync: { ...s.sync, status: 'success', lastSync, positions, trades, cashBalance, netLiquidation },
-      strategies,
-      actions,
-    }))
+    setState(s => {
+      // Positions are a live snapshot (current holdings), always taken fresh from
+      // this sync — but trades are historical, so they're unioned with whatever's
+      // already stored rather than replaced, since IBKR's Flex export only covers
+      // the trailing 365 days and would otherwise erase everything older on sync.
+      const mergedTrades = mergeTrades(s.sync.trades, trades)
+      if (sessionKey) savePersisted(sessionKey, { positions, trades: mergedTrades, cashBalance, netLiquidation, lastSync })
+      console.log(`[Store] ${trades.length} trades from this sync → ${mergedTrades.length} total retained`)
+      return {
+        ...s,
+        sync: { ...s.sync, status: 'success', lastSync, positions, trades: mergedTrades, cashBalance, netLiquidation },
+        strategies,
+        actions,
+      }
+    })
 
     // Fetch live prices immediately after sync
     refreshPrices(strategies, positions)
