@@ -224,79 +224,82 @@ function fmtMonthFull(ym: string) {
 
 interface DonutSlice { label: string; value: number; color: string }
 
-const PIE_W = 760, PIE_H = 480
-const PIE_CX = 380, PIE_CY = 240, PIE_R = 170
-const LABEL_GAP = 6 // how far outside the circle each label sits — just touching, no line
-// Pie starts straight up at 12 o'clock, largest slice first, going clockwise.
-const PIE_ROTATION = 0
+// Matches the Allocation page's PortfolioPie: donut with labels sitting
+// outside the circle on bent leader lines instead of a separate legend list,
+// sized tightly around the donut + labels rather than a big arbitrary box.
+const PIE_W = 440, PIE_H = 260, PIE_CX = 190, PIE_CY = 130, PIE_R = 60
+const LABEL_ROW_H = 15
+const ELBOW_R = PIE_R + 12
+const OUTER_X = PIE_R + 62
 
-function polar(cx: number, cy: number, r: number, angleDeg: number) {
-  const rad = ((angleDeg - 90) * Math.PI) / 180
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
-}
-
-/** Full pie (no donut hole) with each slice's name + % printed just outside the circle at
- * its own angle — no connecting line, so the pie is sized generously (enlarge PIE_R rather
- * than crowd) to leave enough arc length between neighboring labels. */
+/** Donut with each slice's name + % printed just outside the circle on a bent
+ * leader line, bucketed left/right by which side the wedge's midpoint angle
+ * falls on and nudged apart vertically so tightly-packed small slices don't
+ * print their labels on top of each other. */
 function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSlice[]; centerLabel: string; centerValue: string }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
   if (total <= 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No allocation data</div>
 
-  let angle = PIE_ROTATION
+  let angle = -90
   const wedges = slices.filter(s => s.value > 0).map(s => {
     const frac = s.value / total
-    const startAngle = angle
-    const endAngle = angle + frac * 360
-    angle = endAngle
-    const midAngle = (startAngle + endAngle) / 2
-    return { ...s, frac, startAngle, endAngle, midAngle }
+    const start = angle
+    const end = angle + frac * 360
+    const mid = (start + end) / 2
+    angle = end
+    const p0 = { x: PIE_CX + PIE_R * Math.cos(start * Math.PI / 180), y: PIE_CY + PIE_R * Math.sin(start * Math.PI / 180) }
+    const p1 = { x: PIE_CX + PIE_R * Math.cos(end * Math.PI / 180), y: PIE_CY + PIE_R * Math.sin(end * Math.PI / 180) }
+    const largeArc = end - start > 180 ? 1 : 0
+    const midRad = mid * Math.PI / 180
+    const edge = { x: PIE_CX + PIE_R * Math.cos(midRad), y: PIE_CY + PIE_R * Math.sin(midRad) }
+    const elbow = { x: PIE_CX + ELBOW_R * Math.cos(midRad), y: PIE_CY + ELBOW_R * Math.sin(midRad) }
+    const side: 'left' | 'right' = Math.cos(midRad) >= 0 ? 'right' : 'left'
+    return {
+      ...s, frac,
+      path: `M${PIE_CX},${PIE_CY} L${p0.x},${p0.y} A${PIE_R},${PIE_R} 0 ${largeArc} 1 ${p1.x},${p1.y} Z`,
+      edge, elbow, side, idealY: elbow.y,
+    }
   })
 
-  // Path for each wedge (pie slice, not stroked arc)
-  function wedgePath(startAngle: number, endAngle: number) {
-    const p0 = polar(PIE_CX, PIE_CY, PIE_R, startAngle)
-    const p1 = polar(PIE_CX, PIE_CY, PIE_R, endAngle)
-    const largeArc = endAngle - startAngle > 180 ? 1 : 0
-    return `M${PIE_CX},${PIE_CY} L${p0.x},${p0.y} A${PIE_R},${PIE_R} 0 ${largeArc} 1 ${p1.x},${p1.y} Z`
+  const labeled = wedges.filter(w => w.frac >= 0.012)
+  for (const side of ['left', 'right'] as const) {
+    const group = labeled.filter(w => w.side === side).sort((a, b) => a.idealY - b.idealY)
+    for (let i = 1; i < group.length; i++) {
+      const min = group[i - 1].idealY + LABEL_ROW_H
+      if (group[i].idealY < min) group[i].idealY = min
+    }
+    const overflow = group.length > 0 ? group[group.length - 1].idealY - (PIE_H - 12) : 0
+    if (overflow > 0) for (const w of group) w.idealY -= overflow
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-      <div>
-        <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase' }}>{centerLabel}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', marginLeft: 8 }}>{centerValue}</span>
-      </div>
-      <svg viewBox={`0 0 ${PIE_W} ${PIE_H}`} style={{ width: '100%', height: 'auto', maxWidth: PIE_W }}>
-        {wedges.map((w, i) => (
-          <path key={i} d={wedgePath(w.startAngle, w.endAngle)} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />
-        ))}
-        {wedges.map((w, i) => {
-          const pt = polar(PIE_CX, PIE_CY, PIE_R + LABEL_GAP, w.midAngle)
-          const onLeft = pt.x < PIE_CX
-          return (
-            <text key={`label-${i}`} x={pt.x} y={pt.y} textAnchor={onLeft ? 'end' : 'start'} dominantBaseline="middle"
-              fontSize={11} fontFamily="Inter, sans-serif">
-              <tspan fontWeight={700} fill={w.color}>{w.label}</tspan>
-              <tspan fill="var(--text-4)" fontSize={10}> {(w.frac * 100).toFixed(1)}%</tspan>
+    <svg viewBox={`0 0 ${PIE_W} ${PIE_H}`} style={{ width: '100%', maxWidth: PIE_W, display: 'block', margin: '0 auto', overflow: 'visible' }}>
+      {wedges.map((w, i) => <path key={i} d={w.path} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />)}
+      <circle cx={PIE_CX} cy={PIE_CY} r={30} fill="var(--bg-card)" />
+      <text x={PIE_CX} y={PIE_CY - 5} textAnchor="middle" fontSize="8" fill="var(--text-4)" fontFamily="Inter, sans-serif" letterSpacing="1px">
+        {centerLabel.toUpperCase()}
+      </text>
+      <text x={PIE_CX} y={PIE_CY + 9} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--text-1)" fontFamily="Inter, sans-serif">
+        {centerValue}
+      </text>
+      {labeled.map((w, i) => {
+        const outX = w.side === 'right' ? PIE_CX + OUTER_X : PIE_CX - OUTER_X
+        const textX = w.side === 'right' ? outX + 4 : outX - 4
+        return (
+          <g key={i}>
+            <polyline
+              points={`${w.edge.x},${w.edge.y} ${w.elbow.x},${w.elbow.y} ${outX},${w.idealY}`}
+              fill="none" stroke="var(--text-5)" strokeWidth={0.75}
+            />
+            <text x={textX} y={w.idealY} dy={3} textAnchor={w.side === 'right' ? 'start' : 'end'}
+              fontSize="10" fontFamily="Inter, sans-serif" fontWeight={600} fill="var(--text-2)">
+              {w.label}
+              <tspan fill="var(--text-4)" fontWeight={400}> {(w.frac * 100).toFixed(1)}%</tspan>
             </text>
-          )
-        })}
-      </svg>
-
-      {/* Color-coded legend, same order as the pie (largest slice first) */}
-      <div style={{
-        display: 'flex', flexWrap: 'wrap', gap: '4px 16px', justifyContent: 'center',
-        width: '100%', maxWidth: PIE_W, paddingTop: 4, borderTop: '1px solid var(--border-light)',
-      }}>
-        {wedges.map((w, i) => (
-          <div key={`legend-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: 'Inter, sans-serif' }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: w.color, flexShrink: 0 }} />
-            <span style={{ color: 'var(--text-2)', fontWeight: 600 }}>{w.label}</span>
-            <span style={{ color: 'var(--text-4)' }}>{(w.frac * 100).toFixed(1)}%</span>
-          </div>
-        ))}
-      </div>
-    </div>
+          </g>
+        )
+      })}
+    </svg>
   )
 }
 
@@ -629,12 +632,18 @@ function derivePortfolio(state: AppState) {
 
 const PIE_CARD_SIZE = 260
 const PIE_CARD_CX = 130, PIE_CARD_CY = 130, PIE_CARD_R = 116
+const PIE_CARD_ROTATION = 0
+
+function pieCardPolar(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+}
 
 function AllocationPieRightLegend({ slices, centerLabel, centerValue }: { slices: DonutSlice[]; centerLabel: string; centerValue: string }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
   if (total <= 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No allocation data</div>
 
-  let angle = PIE_ROTATION
+  let angle = PIE_CARD_ROTATION
   const wedges = slices.filter(s => s.value > 0).map(s => {
     const frac = s.value / total
     const startAngle = angle
@@ -644,8 +653,8 @@ function AllocationPieRightLegend({ slices, centerLabel, centerValue }: { slices
   })
 
   function wedgePath(startAngle: number, endAngle: number) {
-    const p0 = polar(PIE_CARD_CX, PIE_CARD_CY, PIE_CARD_R, startAngle)
-    const p1 = polar(PIE_CARD_CX, PIE_CARD_CY, PIE_CARD_R, endAngle)
+    const p0 = pieCardPolar(PIE_CARD_CX, PIE_CARD_CY, PIE_CARD_R, startAngle)
+    const p1 = pieCardPolar(PIE_CARD_CX, PIE_CARD_CY, PIE_CARD_R, endAngle)
     const largeArc = endAngle - startAngle > 180 ? 1 : 0
     return `M${PIE_CARD_CX},${PIE_CARD_CY} L${p0.x},${p0.y} A${PIE_CARD_R},${PIE_CARD_R} 0 ${largeArc} 1 ${p1.x},${p1.y} Z`
   }

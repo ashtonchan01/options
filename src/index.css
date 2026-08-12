@@ -1644,3 +1644,10 @@ body {
     flex: none !important; height: 380px !important; max-height: none !important;
   }
 }
+
+/* Scanner param/ticker inputs must stay >=16px on mobile so iOS Safari (as an
+   installed home-screen app) actually brings up the keyboard on focus — but
+   that same 16px reads oversized on desktop, where no such bug applies. */
+@media (min-width: 901px) {
+  .scanner-param-input { font-size: 12px !important; }
+}

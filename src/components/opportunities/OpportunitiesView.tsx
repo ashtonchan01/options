@@ -210,7 +210,8 @@ function StrategySection({ label, color, items, nextEarnings, fomcDates }: { lab
 // fontSize must be >= 16px — below that, iOS Safari running as an installed
 // home-screen app has a known bug where focusing the input never brings up
 // the on-screen keyboard at all.
-const inputStyle: React.CSSProperties = { width: 60, padding: '3px 6px', fontSize: 16, textAlign: 'right', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }
+const inputStyle: React.CSSProperties = { width: 52, padding: '3px 6px', fontSize: 16, textAlign: 'right', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }
+const inputClassName = 'scanner-param-input'
 const labelStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text-3)', fontFamily: 'Inter, sans-serif' }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -334,6 +335,7 @@ export default function OpportunitiesView({ state }: Props) {
           onKeyDown={e => e.key === 'Enter' && addTicker()}
           placeholder="+ TICKER"
           autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
+          className={inputClassName}
           style={{ width: 90, padding: '5px 8px', fontSize: 16, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }}
         />
 
@@ -378,11 +380,11 @@ export default function OpportunitiesView({ state }: Props) {
         {/* ── Scan params (manual) ────────────────────────────────────────────── */}
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, flexShrink: 0, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--signature)', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>PARAMS</span>
-          <label style={labelStyle}>Δ min <input type="number" value={customCfg.deltaMin} step={0.01} min={0.01} max={0.49} onChange={e => updateCustom({ deltaMin: +e.target.value })} style={inputStyle} /></label>
-          <label style={labelStyle}>Δ max <input type="number" value={customCfg.deltaMax} step={0.01} min={0.02} max={0.55} onChange={e => updateCustom({ deltaMax: +e.target.value })} style={inputStyle} /></label>
-          <label style={labelStyle}>DTE min <input type="number" value={customCfg.dteMin} step={1} min={1} max={59} onChange={e => updateCustom({ dteMin: +e.target.value })} style={inputStyle} /></label>
-          <label style={labelStyle}>DTE max <input type="number" value={customCfg.dteMax} step={1} min={2} max={90} onChange={e => updateCustom({ dteMax: +e.target.value })} style={inputStyle} /></label>
-          <label style={labelStyle}>Min bid <input type="number" value={customCfg.minBid} step={0.01} min={0.01} max={5} onChange={e => updateCustom({ minBid: +e.target.value })} style={inputStyle} /></label>
+          <label style={labelStyle}>Δ min <input type="number" value={customCfg.deltaMin} step={0.01} min={0.01} max={0.49} onChange={e => updateCustom({ deltaMin: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
+          <label style={labelStyle}>Δ max <input type="number" value={customCfg.deltaMax} step={0.01} min={0.02} max={0.55} onChange={e => updateCustom({ deltaMax: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
+          <label style={labelStyle}>DTE min <input type="number" value={customCfg.dteMin} step={1} min={1} max={59} onChange={e => updateCustom({ dteMin: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
+          <label style={labelStyle}>DTE max <input type="number" value={customCfg.dteMax} step={1} min={2} max={90} onChange={e => updateCustom({ dteMax: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
+          <label style={labelStyle}>Min bid <input type="number" value={customCfg.minBid} step={0.01} min={0.01} max={5} onChange={e => updateCustom({ minBid: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
         </div>
 
         {/* ── Tickers (add/remove) ────────────────────────────────────────────── */}
