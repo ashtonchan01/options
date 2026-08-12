@@ -291,8 +291,18 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
               <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
                 {((recommendation.high52! - recommendation.price) / recommendation.high52! * 100).toFixed(0)}% below its 52-week high
                 (${recommendation.price.toFixed(2)} vs ${recommendation.high52!.toFixed(2)}) — currently {(recommendation.actualValue / actualTotal * 100).toFixed(1)}% of your
-                portfolio vs a {recommendation.targetPct.toFixed(1)}% target share.
+                portfolio vs a {recommendation.targetPct.toFixed(1)}% target share ({fmt$(recommendation.targetPct / 100 * actualTotal)} of your current {fmt$(actualTotal)} portfolio).
               </div>
+              {(() => {
+                const idealAtCurrentSize = recommendation.targetPct / 100 * actualTotal
+                const buyDollar = idealAtCurrentSize - recommendation.actualValue
+                const buyShares = recommendation.price > 0 ? Math.round(buyDollar / recommendation.price) : 0
+                return buyDollar > 0 && buyShares > 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 4, fontWeight: 600 }}>
+                    Buy ≈ {fmt$(buyDollar)} (~{buyShares.toLocaleString()} shares) to reach that share of your current portfolio.
+                  </div>
+                ) : null
+              })()}
             </div>
           </div>
         )}
