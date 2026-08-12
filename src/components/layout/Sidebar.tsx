@@ -5,14 +5,14 @@
  */
 import { useState, useRef } from 'react'
 import {
-  LayoutDashboard, Briefcase, Radar, BookOpen, ArrowRightLeft,
+  LayoutDashboard, Briefcase, Radar, BookOpen,
   Menu, X, RefreshCw, Upload, Settings,
   Sun, Moon, LogOut, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
 
-export const TAB_IDS = ['dashboard', 'portfolio', 'journal', 'scanner', 'pairs'] as const
+export const TAB_IDS = ['dashboard', 'portfolio', 'journal', 'scanner'] as const
 export type TabId = typeof TAB_IDS[number]
 
 const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
@@ -20,7 +20,6 @@ const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'portfolio',  label: 'Portfolio',  icon: <Briefcase size={17} /> },
   { id: 'journal',    label: 'Journal',    icon: <BookOpen size={17} /> },
   { id: 'scanner',    label: 'Scanner',    icon: <Radar size={17} /> },
-  { id: 'pairs',      label: 'Pair Trading', icon: <ArrowRightLeft size={17} /> },
 ]
 
 function relativeTime(ms: number): string {

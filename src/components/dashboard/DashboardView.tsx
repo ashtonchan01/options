@@ -14,6 +14,7 @@ import LiveChartsStrip from './panels/LiveChartsStrip'
 import LiveTVPanel from './panels/LiveTVPanel'
 import TickerHeadlinesPanel from './panels/TickerHeadlinesPanel'
 import CalendarPanel from './panels/CalendarPanel'
+import PairTradingPanel from './panels/PairTradingPanel'
 import { ActionsSidebar } from '../analytics/AnalyticsView'
 
 const REFRESH_MS = 60_000
@@ -57,6 +58,9 @@ export default function DashboardView({ state }: { state: AppState }) {
         <div className="dash-rightside-bottom">
           <div className="dash-cell dash-cell-h3 dash-area-headlines">
             <TickerHeadlinesPanel />
+          </div>
+          <div className="dash-cell dash-cell-h3 dash-area-pairs">
+            <PairTradingPanel state={state} />
           </div>
           <div className="dash-cell dash-cell-h12 dash-actions-cell dash-cell-portfolio dash-area-actions">
             <ActionsSidebar state={state} />

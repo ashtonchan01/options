@@ -10,7 +10,6 @@ import DashboardView from './components/dashboard/DashboardView'
 import PortfolioView from './components/portfolio/PortfolioView'
 import JournalPageView from './components/journal/JournalPageView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
-import PairTradingView from './components/pairs/PairTradingView'
 import type { AppState } from './types'
 import type { TradeLabel } from './store/tradeLabelsStore'
 
@@ -47,7 +46,6 @@ const VIEWS: Record<TabId, ViewComponent> = {
   portfolio:  PortfolioView,
   journal:    JournalPageView,
   scanner:    OpportunitiesView as ViewComponent,
-  pairs:      PairTradingView as ViewComponent,
 }
 
 export default function App() {

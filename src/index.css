@@ -1502,7 +1502,8 @@ body {
     overflow: hidden;
     gap: 6px;
   }
-  .dash-area-headlines { flex: 1.7; min-width: 0; }
+  .dash-area-headlines { flex: 1; min-width: 0; }
+  .dash-area-pairs     { flex: 0.7; min-width: 0; }
   .dash-area-actions   { width: 300px; flex-shrink: 0; }
 }
 
