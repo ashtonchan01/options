@@ -4,7 +4,7 @@
  * open-source default channel list (github.com/koala73/worldmonitor,
  * src/components/LiveNewsPanel.ts) rather than guessed IDs.
  */
-import { useState } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
 
 type Region = 'na' | 'eu' | 'latam' | 'asia' | 'me' | 'africa' | 'oceania'
 
@@ -84,6 +84,29 @@ export default function LiveTVPanel() {
   const [active, setActive] = useState(DEFAULT_CHANNEL)
   const shown = CHANNELS.filter(c => c.region === region)
 
+  const videoWrapRef = useRef<HTMLDivElement>(null)
+  const [videoSize, setVideoSize] = useState<{ w: number; h: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const el = videoWrapRef.current
+    if (!el) return
+    const measure = () => {
+      const { width, height } = el.getBoundingClientRect()
+      if (width <= 0 || height <= 0) return
+      // width:100% + aspect-ratio computes height from width alone, then
+      // maxHeight clips that box without shrinking width to match — so the
+      // video (rendered by YouTube at true 16:9) gets cut off instead of the
+      // whole box scaling down. Measuring the real container box and picking
+      // whichever dimension is the binding constraint keeps both in sync.
+      const w = Math.min(width, height * 16 / 9)
+      setVideoSize({ w, h: w * 9 / 16 })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div className="dash-panel">
       <div className="dash-panel-header">
@@ -121,24 +144,30 @@ export default function LiveTVPanel() {
           lot of dead vertical space that YouTube's own embed fills with
           extra native chrome (title/description above, related-video strip
           below) instead of just the stream. */}
-      <div style={{ flex: '0 0 auto', width: '100%', aspectRatio: '16 / 9', maxHeight: '100%', borderRadius: 6, overflow: 'hidden', background: '#000' }}>
-        {/* sandbox deliberately omits allow-top-navigation(-by-user-activation) —
-            embedded ads on live news streams are a known vector for malvertising
-            that tries to hijack the WHOLE page (not just the iframe) via a
-            top.location redirect to some scam/affiliate "sign in" page, which is
-            exactly what a stray password-autofill prompt for an unrelated site
-            popping up on load looks like. Everything YouTube's own player needs
-            (scripts, same-origin storage, fullscreen, popups for share links) is
-            still allowed — only escaping the frame to redirect this page is not. */}
-        <iframe
-          key={active.id}
-          src={`https://www.youtube-nocookie.com/embed/${active.videoId}?autoplay=1&mute=1&playsinline=1`}
-          title={active.name}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-          allowFullScreen
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox allow-forms"
-          style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-        />
+      <div ref={videoWrapRef} style={{ flex: '1 1 auto', minHeight: 0, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <div style={{
+          width: videoSize ? videoSize.w : '100%',
+          height: videoSize ? videoSize.h : '100%',
+          borderRadius: 6, overflow: 'hidden', background: '#000',
+        }}>
+          {/* sandbox deliberately omits allow-top-navigation(-by-user-activation) —
+              embedded ads on live news streams are a known vector for malvertising
+              that tries to hijack the WHOLE page (not just the iframe) via a
+              top.location redirect to some scam/affiliate "sign in" page, which is
+              exactly what a stray password-autofill prompt for an unrelated site
+              popping up on load looks like. Everything YouTube's own player needs
+              (scripts, same-origin storage, fullscreen, popups for share links) is
+              still allowed — only escaping the frame to redirect this page is not. */}
+          <iframe
+            key={active.id}
+            src={`https://www.youtube-nocookie.com/embed/${active.videoId}?autoplay=1&mute=1&playsinline=1`}
+            title={active.name}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            allowFullScreen
+            sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox allow-forms"
+            style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+          />
+        </div>
       </div>
     </div>
   )
