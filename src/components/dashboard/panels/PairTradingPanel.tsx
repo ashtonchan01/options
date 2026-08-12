@@ -22,6 +22,22 @@ function rsiColor(rsi: number): string {
 
 interface RsiRow { symbol: string; rsi: number }
 
+function RsiRowLine({ row }: { row: RsiRow }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, fontFamily: 'Inter, sans-serif',
+      padding: '4px 7px', border: '1px solid var(--border-light)', borderRadius: 5, background: 'var(--bg-elevated)',
+    }}>
+      <span style={{ color: 'var(--text-2)', fontWeight: 600, width: 46 }}>{row.symbol}</span>
+      <div style={{ flex: 1, position: 'relative', height: 4, background: 'var(--bg-card)', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', left: `${OVERSOLD}%`, width: `${OVERBOUGHT - OVERSOLD}%`, top: 0, bottom: 0, background: 'var(--border-light)' }} />
+        <div style={{ position: 'absolute', left: `calc(${Math.min(Math.max(row.rsi, 0), 100)}% - 1.5px)`, top: -1, bottom: -1, width: 3, borderRadius: 2, background: rsiColor(row.rsi) }} />
+      </div>
+      <span style={{ color: rsiColor(row.rsi), fontWeight: 700, width: 28, textAlign: 'right' }}>{row.rsi.toFixed(0)}</span>
+    </div>
+  )
+}
+
 export default function PairTradingPanel({ state }: { state: AppState }) {
   const [rsiMap, setRsiMap] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
@@ -69,7 +85,9 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
   }, [overbought, oversold])
 
   const top = pairs[0]
-  const alternates = pairs.slice(1, 3)
+
+  const top5Overbought = [...rows].sort((a, b) => b.rsi - a.rsi).slice(0, 5)
+  const top5Oversold   = [...rows].sort((a, b) => a.rsi - b.rsi).slice(0, 5)
 
   return (
     <div className="dash-panel" style={{ flex: 1 }}>
@@ -111,30 +129,22 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
               </div>
             </div>
 
-            {alternates.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, borderTop: '1px solid var(--border-light)', paddingTop: 7 }}>
-                {alternates.map((p, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontFamily: 'Inter, sans-serif' }}>
-                    <span style={{ color: '#ef4444', fontWeight: 600 }}>{p.sell.symbol}</span>
-                    <ArrowRightLeft size={9} style={{ color: 'var(--text-5)' }} />
-                    <span style={{ color: '#10b981', fontWeight: 600 }}>{p.buy.symbol}</span>
-                    <span style={{ color: 'var(--text-4)', marginLeft: 'auto' }}>{p.spread.toFixed(1)}</span>
-                  </div>
-                ))}
+            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 7 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 4 }}>
+                TOP 5 OVERBOUGHT
               </div>
-            )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {top5Overbought.map(r => <RsiRowLine key={r.symbol} row={r} />)}
+              </div>
+            </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, borderTop: '1px solid var(--border-light)', paddingTop: 7 }}>
-              {rows.slice().sort((a, b) => b.rsi - a.rsi).slice(0, 6).map(r => (
-                <div key={r.symbol} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, fontFamily: 'Inter, sans-serif' }}>
-                  <span style={{ color: 'var(--text-2)', fontWeight: 600, width: 46 }}>{r.symbol}</span>
-                  <div style={{ flex: 1, position: 'relative', height: 4, background: 'var(--bg-elevated)', borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', left: `${OVERSOLD}%`, width: `${OVERBOUGHT - OVERSOLD}%`, top: 0, bottom: 0, background: 'var(--border-light)' }} />
-                    <div style={{ position: 'absolute', left: `calc(${Math.min(Math.max(r.rsi, 0), 100)}% - 1.5px)`, top: -1, bottom: -1, width: 3, borderRadius: 2, background: rsiColor(r.rsi) }} />
-                  </div>
-                  <span style={{ color: rsiColor(r.rsi), fontWeight: 700, width: 28, textAlign: 'right' }}>{r.rsi.toFixed(0)}</span>
-                </div>
-              ))}
+            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 7 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.06em', marginBottom: 4 }}>
+                TOP 5 OVERSOLD
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {top5Oversold.map(r => <RsiRowLine key={r.symbol} row={r} />)}
+              </div>
             </div>
           </>
         )}
