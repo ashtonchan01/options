@@ -105,13 +105,27 @@ export function buildJournalPositions(
     // is a genuine close only if every leg in it is explicitly marked closing);
     // fall back to the buy/sell heuristic only when that field isn't populated,
     // so naked-leg closes (a plain buy, no close flag) still work as before.
-    const allMarkedClose = legs.length > 0 && legs.every(l => l.openClose === 'C')
-    const hasSell = legs.some(l => l.quantity < 0)
-    const hasBuy  = legs.some(l => l.quantity > 0)
+    //
+    // A same-day roll (buy-to-close an old strike + sell-to-open a new one,
+    // same underlying/expiry, filed as one order) used to fall entirely into
+    // the "hasSell → openGroups" branch below, discarding the marked-close leg
+    // and leaving the OLD position stuck "Active" forever — verified against a
+    // real account where an MSTR CC roll and an AVGO CSP roll both left the
+    // original leg open. Splitting the marked-close legs out into their own
+    // closeGroup entry (regardless of whether the rest of the group opens
+    // something new) lets that leg do its job of closing the earlier position,
+    // while og.legs below still carries the full leg set unchanged so its own
+    // openLegs/settlementLegs filtering (by openClose) works exactly as before.
     const [date, expiry, underlying] = key.split('|')
-    if (allMarkedClose) closeGroups.push({ date, expiry, underlying, legs })
-    else if (hasSell) openGroups.push({ key, date, expiry, underlying, legs })
-    else if (hasBuy) closeGroups.push({ date, expiry, underlying, legs })
+    const closeLegs = legs.filter(l => l.openClose === 'C')
+    const otherLegs = legs.filter(l => l.openClose !== 'C')
+    if (closeLegs.length > 0) closeGroups.push({ date, expiry, underlying, legs: closeLegs })
+    if (otherLegs.length > 0) {
+      const hasSell = otherLegs.some(l => l.quantity < 0)
+      const hasBuy  = otherLegs.some(l => l.quantity > 0)
+      if (hasSell) openGroups.push({ key, date, expiry, underlying, legs })
+      else if (hasBuy) closeGroups.push({ date, expiry, underlying, legs: otherLegs })
+    }
   }
 
   openGroups.sort((a, b) => a.date.localeCompare(b.date))
