@@ -1103,7 +1103,7 @@ body {
      with next to no visible height, and swipes on that tiny internal-scroll
      sliver went nowhere, reading as "no table / can't scroll" rather than
      just a cramped table. Full height, part of the page's own scroll. */
-  .jr-gap-table-panel { flex: none !important; overflow: visible !important; }
+  .jr-gap-table-panel { flex: none !important; overflow: visible !important; height: auto !important; }
   .jr-gap-table-scroll { flex: none !important; overflow: visible !important; }
   .pf-keymetrics { grid-template-columns: repeat(2, 1fr) !important; }
   /* Trade Journal table has 7 columns at 10px/14px padding — doesn't fit a phone

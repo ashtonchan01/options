@@ -53,13 +53,16 @@ interface Slice { label: string; value: number; color: string }
  * don't print their labels on top of each other. */
 function PortfolioPie({ slices, centerLabel, centerValue }: { slices: Slice[]; centerLabel: string; centerValue: string }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
-  // Wide margins either side of the circle for the label text itself — an
-  // earlier version sized these too tight and every label (both sides) got
-  // clipped at the viewBox edge instead of just fitting inside it.
-  const W = 520, H = 340, CX = 220, CY = 168, R = 90
-  const LABEL_ROW_H = 16
-  const ELBOW_R = R + 14
-  const OUTER_X = R + 80 // horizontal distance from center to the label text column
+  // Letting this scale to the panel's full ~900px column width (no cap)
+  // blew everything up uniformly — dots, leader lines, and text all ~2x
+  // too big, with the actual donut a small island in a sea of empty
+  // margin. A capped width, sized tightly around the donut + labels
+  // instead of a big arbitrary box, keeps it compact and proportioned
+  // regardless of how wide its column is.
+  const W = 440, H = 260, CX = 190, CY = 130, R = 60
+  const LABEL_ROW_H = 15
+  const ELBOW_R = R + 12
+  const OUTER_X = R + 62 // horizontal distance from center to the label text column
 
   if (total <= 0) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: H, color: 'var(--text-4)', fontSize: 12 }}>No data</div>
@@ -102,13 +105,13 @@ function PortfolioPie({ slices, centerLabel, centerValue }: { slices: Slice[]; c
   }
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block', margin: '0 auto', overflow: 'visible' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 440, display: 'block', margin: '0 auto', overflow: 'visible' }}>
       {wedges.map((w, i) => <path key={i} d={w.path} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />)}
-      <circle cx={CX} cy={CY} r={42} fill="var(--bg-card)" />
-      <text x={CX} y={CY - 6} textAnchor="middle" fontSize="9.5" fill="var(--text-4)" fontFamily="Inter, sans-serif" letterSpacing="1px">
+      <circle cx={CX} cy={CY} r={30} fill="var(--bg-card)" />
+      <text x={CX} y={CY - 5} textAnchor="middle" fontSize="8" fill="var(--text-4)" fontFamily="Inter, sans-serif" letterSpacing="1px">
         {centerLabel.toUpperCase()}
       </text>
-      <text x={CX} y={CY + 11} textAnchor="middle" fontSize="15" fontWeight="700" fill="var(--text-1)" fontFamily="Inter, sans-serif">
+      <text x={CX} y={CY + 9} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--text-1)" fontFamily="Inter, sans-serif">
         {centerValue}
       </text>
       {labeled.map((w, i) => {
@@ -309,7 +312,11 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
       </div>
 
       {/* ── Gap table ─────────────────────────────────────────────────────── */}
-      <div className="panel jr-gap-table-panel" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Pinned to half the viewport height regardless of how tall the pies
+          above happen to be — previously flex:1 just took whatever space was
+          left after the (then oversized) pie panels, squeezing it down to
+          a sliver. */}
+      <div className="panel jr-gap-table-panel" style={{ height: '50vh', flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '12px 18px 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em' }}>
           GAP TO TARGET
         </div>
