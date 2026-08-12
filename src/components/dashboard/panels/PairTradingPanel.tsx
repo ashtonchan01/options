@@ -129,21 +129,23 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
               </div>
             </div>
 
-            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 7 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 4 }}>
-                TOP 5 OVERBOUGHT
+            <div style={{ display: 'flex', gap: 10, borderTop: '1px solid var(--border-light)', paddingTop: 7 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 4 }}>
+                  TOP 5 OVERBOUGHT
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {top5Overbought.map(r => <RsiRowLine key={r.symbol} row={r} />)}
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {top5Overbought.map(r => <RsiRowLine key={r.symbol} row={r} />)}
-              </div>
-            </div>
 
-            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 7 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.06em', marginBottom: 4 }}>
-                TOP 5 OVERSOLD
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {top5Oversold.map(r => <RsiRowLine key={r.symbol} row={r} />)}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.06em', marginBottom: 4 }}>
+                  TOP 5 OVERSOLD
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {top5Oversold.map(r => <RsiRowLine key={r.symbol} row={r} />)}
+                </div>
               </div>
             </div>
           </>
