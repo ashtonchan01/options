@@ -514,6 +514,31 @@ export function JournalTab({ positions, livePositions, entries, updateEntry, set
 
   const displayPositions = useMemo(() => aggregateActiveOptionLots(aggregateShares(positions)), [positions])
 
+  // A single live IBKR leg (one strike) can be shared by two different
+  // display rows — e.g. two verticals with different long strikes but the
+  // SAME short strike (a 20-lot and a 2-lot spread both short the same
+  // 7525P) — since IBKR only reports one combined -22 lot position for that
+  // strike, not two. Attributing that whole leg's value/uPnL to EACH row
+  // that references it (rather than splitting it by how many of those
+  // contracts are actually this row's own) double- and triple-counts it —
+  // verified against a real account where a 2-lot spread showed a wildly
+  // wrong +11,797% unrealized because it was credited the FULL -22-lot
+  // leg's P&L instead of its own 2/22 share. This map totals how many
+  // contracts, across every active row, use each (underlying, expiry,
+  // strike) — Row divides its own contracts by this total to get its
+  // rightful share of any leg it doesn't exclusively own.
+  const strikeUsage = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const p of displayPositions) {
+      if (p.status !== 'Active' || p.strikeDisplay === 'SHARES') continue
+      for (const strike of p.strikes) {
+        const key = `${p.underlying}|${p.expiry}|${strike}`
+        m.set(key, (m.get(key) ?? 0) + p.contracts)
+      }
+    }
+    return m
+  }, [displayPositions])
+
   const rows = useMemo(() => {
     // Open positions first (most-recently-opened first within that group), then
     // closed positions most-recently-closed first.
@@ -615,7 +640,7 @@ export function JournalTab({ positions, livePositions, entries, updateEntry, set
                     const e = entries[p.id] ?? {}
                     const open = expanded === p.id
                     return (
-                      <Row key={p.id} pos={p} livePositions={livePositions} entry={e} open={open} cols={COLS}
+                      <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} entry={e} open={open} cols={COLS}
                         onToggle={() => setExpanded(open ? null : p.id)}
                         editor={
                           <EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
@@ -641,8 +666,9 @@ function FragmentGroup({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function Row({ pos: p, livePositions, open, cols, onToggle, editor }: {
-  pos: JournalPosition; livePositions: RawPosition[]; entry: JournalEntry; open: boolean; cols: number
+function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor }: {
+  pos: JournalPosition; livePositions: RawPosition[]; strikeUsage: Map<string, number>
+  entry: JournalEntry; open: boolean; cols: number
   onToggle: () => void; editor: React.ReactNode
 }) {
   const daysLeft = dte(p.expiry)
@@ -661,19 +687,26 @@ function Row({ pos: p, livePositions, open, cols, onToggle, editor }: {
 
   // Market price/value/unrealized only make sense for still-open positions —
   // matched against this sync's live IBKR snapshot by underlying/expiry/
-  // strike (multi-leg spreads sum every matching leg's own positionValue/
-  // unrealizedPnL rather than inventing a single-leg number, since IBKR's own
-  // per-leg figures are already fee/lot-accurate in a way recomputing from
-  // just this position's stored premium wouldn't be).
+  // strike. A leg's own positionValue/unrealizedPnL is scaled by this row's
+  // share of that strike's total usage across all rows (via strikeUsage) —
+  // IBKR reports one combined live position per strike, so a strike shared
+  // by two different display rows (e.g. two verticals with different long
+  // legs but the same short strike) must have that leg's numbers split
+  // between them, not credited in full to each.
   const liveLegs = p.status !== 'Active' ? [] : isShares
     ? livePositions.filter(lp => lp.assetClass === 'STK' && lp.symbol === p.underlying)
     : livePositions.filter(lp => lp.assetClass === 'OPT'
         && (lp.underlyingSymbol ?? lp.symbol) === p.underlying
         && lp.expiry === p.expiry
         && p.strikes.includes(lp.strike ?? -1))
+  const shareOf = (lp: RawPosition) => {
+    if (isShares) return 1
+    const total = strikeUsage.get(`${p.underlying}|${p.expiry}|${lp.strike}`) ?? p.contracts
+    return total > 0 ? p.contracts / total : 1
+  }
   const hasLive = liveLegs.length > 0
-  const marketPrice = hasLive && units > 0 ? Math.abs(liveLegs.reduce((s, lp) => s + lp.positionValue, 0)) / units : null
-  const unrealized = hasLive ? liveLegs.reduce((s, lp) => s + lp.unrealizedPnL, 0) : null
+  const marketPrice = hasLive && units > 0 ? Math.abs(liveLegs.reduce((s, lp) => s + lp.positionValue * shareOf(lp), 0)) / units : null
+  const unrealized = hasLive ? liveLegs.reduce((s, lp) => s + lp.unrealizedPnL * shareOf(lp), 0) : null
   const unrealizedPct = unrealized != null && costBasis !== 0 ? (unrealized / Math.abs(costBasis)) * 100 : null
 
   return (
