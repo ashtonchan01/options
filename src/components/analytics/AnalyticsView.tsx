@@ -937,7 +937,7 @@ export function PortfolioHoldingsPanel({ state, labels }: { state: AppState; lab
   void optionPnL
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+    <div className="pf-holdings-panel" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
 
       {/* ── Income channels ── */}
       <IncomeChannelStrip trades={trades} labels={labels} symbolToStratType={symbolToStratType} />

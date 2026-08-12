@@ -1077,13 +1077,34 @@ body {
   .jr-2col { grid-template-columns: 1fr; }
   .jr-kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .pf-columns { overflow-x: hidden; }
+  /* Each column used to cap at 70vh and scroll internally — full height with
+     the whole page scrolling as one instead, so nothing on the Portfolio or
+     Journal tabs needs its own separate internal scrollbar. */
   .pf-column {
     flex: 1 1 100%;
     min-width: 0;
     width: 100%;
     height: auto;
-    max-height: 70vh;
+    max-height: none;
+    overflow: visible !important;
   }
+  .pf-column .jr-root { height: auto; overflow: visible; }
+  .jr-break-table-scroll { height: auto !important; overflow: visible !important; }
+  .jr-trade-table-scroll { overflow: visible !important; }
+  /* Portfolio tab's right column (Income Channels / Stocks / Options tables)
+     had each of its 3 sub-panels internally scrolling to share a fixed
+     height — same "just grow, let the page scroll" treatment as everywhere
+     else on this page. */
+  .pf-holdings-panel { overflow: visible !important; height: auto !important; }
+  .pf-holdings-panel > * { overflow: visible !important; min-height: 0 !important; }
+  .pf-holdings-panel .dash-panel { overflow: visible !important; }
+  /* Portfolio Allocation's Gap-to-Target table was the same "flex:1 fighting
+     for space in a scrollable column" pattern — at mobile it could end up
+     with next to no visible height, and swipes on that tiny internal-scroll
+     sliver went nowhere, reading as "no table / can't scroll" rather than
+     just a cramped table. Full height, part of the page's own scroll. */
+  .jr-gap-table-panel { flex: none !important; overflow: visible !important; }
+  .jr-gap-table-scroll { flex: none !important; overflow: visible !important; }
   .pf-keymetrics { grid-template-columns: repeat(2, 1fr) !important; }
   /* Trade Journal table has 7 columns at 10px/14px padding — doesn't fit a phone
      width without horizontal scroll. Status is redundant with the row's own

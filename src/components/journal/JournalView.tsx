@@ -254,7 +254,7 @@ function BreakTable({ title, rows, keyHeader, fmtKey }: {
           page to have scrolled far enough to reveal a card that happened to
           sit right at the bottom of the viewport (By Entry DTE / By Hold
           Time's rows were getting cut off with no way to reach them). */}
-      <div style={{ overflow: 'auto', height: 200 }}>
+      <div className="jr-break-table-scroll" style={{ overflow: 'auto', height: 200 }}>
         <table className="trade-table" style={{ fontSize: 11 }}>
           <thead>
             <tr>
@@ -553,7 +553,7 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
       </div>
 
       <div className="cc-section cc-table-section" style={{ flexShrink: 1 }}>
-        <div style={{ overflow: 'auto' }}>
+        <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
           <table className="trade-table" style={{ fontSize: 12 }}>
             <thead>
               <tr>
