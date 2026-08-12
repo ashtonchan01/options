@@ -457,6 +457,44 @@ function aggregateShares(positions: JournalPosition[]): JournalPosition[] {
   return [...others, ...merged]
 }
 
+/** Multiple still-open positions at the exact same underlying/expiry/strikes
+ * are the same logical trade scaled into over time (e.g. a 10-lot vertical
+ * added to with another 10-lot at identical strikes weeks later) — collapses
+ * them into one display row with the combined contract count and premium,
+ * same spirit as aggregateShares above. Closed/Expired lots are left
+ * itemized (their own dateClosed/pnl/holdDays are lot-specific and
+ * shouldn't be blended together). */
+function aggregateActiveOptionLots(positions: JournalPosition[]): JournalPosition[] {
+  const isMergeable = (p: JournalPosition) => p.status === 'Active' && p.strikeDisplay !== 'SHARES'
+  const activeOpts = positions.filter(isMergeable)
+  const others = positions.filter(p => !isMergeable(p))
+  if (activeOpts.length === 0) return positions
+
+  const byKey = new Map<string, JournalPosition[]>()
+  for (const p of activeOpts) {
+    const key = `${p.underlying}|${p.expiry}|${p.strikeDisplay}`
+    if (!byKey.has(key)) byKey.set(key, [])
+    byKey.get(key)!.push(p)
+  }
+
+  const merged: JournalPosition[] = []
+  for (const [key, lots] of byKey) {
+    if (lots.length === 1) { merged.push(lots[0]); continue }
+    const first = lots[0]
+    merged.push({
+      ...first,
+      id: `opt-agg|${key}`,
+      contracts: lots.reduce((s, l) => s + l.contracts, 0),
+      dateOpen: lots.reduce((min, l) => (l.dateOpen < min ? l.dateOpen : min), first.dateOpen),
+      initialDTE: Math.max(...lots.map(l => l.initialDTE)),
+      openFees: lots.reduce((s, l) => s + l.openFees, 0),
+      netPremium: lots.reduce((s, l) => s + l.netPremium, 0),
+      tradeIds: lots.flatMap(l => l.tradeIds),
+    })
+  }
+  return [...others, ...merged]
+}
+
 const STRAT_GROUP_ORDER = [
   'leap', 'csp', 'covered_calls', 'put_spread', 'spx', 'shares',
   'rotation', 'ptos', 'dcas', 'profit_taking', 'lilo', 'arb_cloud', 'tabi', 'forex', 'assignment',
@@ -482,7 +520,7 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
   const [groupByStrategy, setGroupByStrategy] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  const displayPositions = useMemo(() => aggregateShares(positions), [positions])
+  const displayPositions = useMemo(() => aggregateActiveOptionLots(aggregateShares(positions)), [positions])
 
   const rows = useMemo(() => {
     // Open positions first (most-recently-opened first within that group), then
@@ -563,7 +601,7 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
                 <th>Ticker</th>
                 <th style={{ textAlign: 'center' }}>Strat</th>
                 <th style={{ textAlign: 'right', maxWidth: 80 }}>Position</th>
-                <th style={{ textAlign: 'center' }}>Cr/Db</th>
+                <th style={{ textAlign: 'right' }}>Premium</th>
                 <th style={{ textAlign: 'right' }}>Yield</th>
                 <th className="jr-col-status" style={{ textAlign: 'center' }}>Status</th>
                 <th className="jr-col-dte" style={{ textAlign: 'right' }}>DTE</th>
@@ -648,13 +686,8 @@ function Row({ pos: p, open, cols, onToggle, editor }: {
           title={p.strikeDisplay === 'SHARES' ? undefined : `${p.contracts}× ${p.strikeDisplay}`}>
           {p.strikeDisplay === 'SHARES' ? `${p.contracts} sh` : `${p.contracts}× ${p.strikeDisplay}`}
         </td>
-        <td style={{ textAlign: 'center' }}>
-          {(isCredit || isDebit) && (
-            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', letterSpacing: '0.06em',
-              color: isCredit ? '#10b981' : '#f59e0b', border: `1px solid ${isCredit ? '#10b98140' : '#f59e0b40'}` }}>
-              {isCredit ? 'CR' : 'DB'}
-            </span>
-          )}
+        <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap', color: isCredit ? '#10b981' : isDebit ? '#f59e0b' : 'var(--text-4)' }}>
+          {(isCredit || isDebit) ? `${isCredit ? 'CR' : 'DB'} ${fmt$(Math.abs(p.netPremium), 2)}` : '—'}
         </td>
         <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>
           {yieldPct != null ? `${yieldPct >= 0 ? '+' : ''}${yieldPct.toFixed(1)}%` : '—'}

@@ -86,6 +86,55 @@ function autoClassify(underlying: string, openLegs: RawTrade[]): TradeLabel | 'p
 
 const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0)
 
+/** Two unrelated verticals sharing the same short strike, opened the same day
+ * (e.g. adding 10 more lots to an existing 7525P/7520P spread, then separately
+ * opening a fresh 2-lot 7525P/7500P spread minutes later) land in the same
+ * (date, expiry, underlying) bucket and — with no per-order id to tell them
+ * apart — get treated as one blob with the short leg's full combined quantity
+ * and only one of the long strikes in its display, e.g. a real 20-lot +
+ * 2-lot pair showing as a single fake "22-lot" position. Splits `legs` back
+ * into one cluster per distinct long (buy) strike, each holding its matching
+ * share of the shared short-strike quantity — the one pattern this can
+ * resolve unambiguously from strike + quantity data alone. Left as a single
+ * cluster for anything more exotic (multiple distinct short strikes, or non-
+ * option legs), same as before this existed, rather than guessing. */
+function splitByLongStrike(legs: RawTrade[]): RawTrade[][] {
+  const buys  = legs.filter(l => l.quantity > 0 && l.strike != null)
+  const sells = legs.filter(l => l.quantity < 0 && l.strike != null)
+  const buyStrikes  = [...new Set(buys.map(l => l.strike))]
+  const sellStrikes = [...new Set(sells.map(l => l.strike))]
+  if (buyStrikes.length <= 1 || sellStrikes.length !== 1) return [legs]
+
+  const untouched = legs.filter(l => l.strike == null)
+  // Consume sell rows (whole rows first, splitting a row's own quantity only
+  // when it straddles two clusters) in original order, in proportion to each
+  // buy-strike cluster's own quantity — prorating cash/fees by the fraction
+  // of that row's quantity assigned to this cluster, same technique the
+  // close-pool matcher above already uses for partial-row attribution.
+  const pool = [...sells]
+  let rowIdx = 0
+  let rowRemaining = pool[0] ? Math.abs(pool[0].quantity) : 0
+
+  const clusters = buyStrikes.map(strike => {
+    const buyLegs = buys.filter(l => l.strike === strike)
+    let need = buyLegs.reduce((s, l) => s + l.quantity, 0)
+    const sellLegs: RawTrade[] = []
+    while (need > 0 && rowIdx < pool.length) {
+      const row = pool[rowIdx]
+      const rowQty = Math.abs(row.quantity)
+      const take = Math.min(need, rowRemaining)
+      const frac = rowQty > 0 ? take / rowQty : 0
+      sellLegs.push({ ...row, quantity: -take, netCash: row.netCash * frac, proceeds: row.proceeds * frac, commissions: (row.commissions ?? 0) * frac })
+      rowRemaining -= take
+      need -= take
+      if (rowRemaining <= 0) { rowIdx++; rowRemaining = pool[rowIdx] ? Math.abs(pool[rowIdx].quantity) : 0 }
+    }
+    return [...buyLegs, ...sellLegs]
+  })
+  if (untouched.length > 0) clusters[0].push(...untouched)
+  return clusters
+}
+
 export function buildJournalPositions(
   trades: RawTrade[],
   labels: Record<string, TradeLabel>,
@@ -134,7 +183,20 @@ export function buildJournalPositions(
     if (otherLegs.length > 0) {
       const hasSell = otherLegs.some(l => l.quantity < 0)
       const hasBuy  = otherLegs.some(l => l.quantity > 0)
-      if (hasSell) openGroups.push({ key, date, expiry, underlying, legs })
+      if (hasSell) {
+        const clusters = splitByLongStrike(otherLegs)
+        // closeLegs (this same group's own same-day settlement legs, if any)
+        // aren't part of the split — reattach to the first cluster only, same
+        // og.legs shape downstream code already expects; which cluster
+        // carries them doesn't matter since each position's own
+        // openContracts/settlementLegs match is derived by strike, not by
+        // which array slot they happen to sit in.
+        if (clusters.length > 0) clusters[0].push(...closeLegs)
+        clusters.forEach((clusterLegs, i) => {
+          const clusterKey = clusters.length > 1 ? `${key}#s${i}` : key
+          openGroups.push({ key: clusterKey, date, expiry, underlying, legs: clusterLegs })
+        })
+      }
       else if (hasBuy) closeGroups.push({ date, expiry, underlying, legs: otherLegs })
     }
   }
