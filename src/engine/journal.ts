@@ -17,6 +17,10 @@ export interface JournalPosition {
   underlying: string
   contracts: number
   strikeDisplay: string
+  /** Distinct opening strikes, sorted descending — feeds the yield calc
+   * (highest-lowest = spread width for defined-risk strategies, single value
+   * = full strike for a naked CSP/CC) without re-parsing strikeDisplay. */
+  strikes: number[]
   putCall: string
   expiry: string
   dateOpen: string
@@ -88,9 +92,16 @@ export function buildJournalPositions(
 ): JournalPosition[] {
   const optTrades = trades.filter(t => t.assetClass === 'OPT')
 
+  // tradeTime (when the report includes it) disambiguates two unrelated
+  // spreads opened minutes apart on the same underlying/expiry/day — without
+  // it they'd share a grouping key and get lumped into one blob (verified: a
+  // 10-lot spread opened at 17:29:36 and an unrelated 2-lot spread on
+  // different strikes opened at 17:30:25, same day/expiry, merged into a
+  // single fake "12-lot" position). Falls back to date-only grouping for
+  // records with no tradeTime (OptionEAE/Transfer), same as before.
   const groups = new Map<string, RawTrade[]>()
   for (const t of optTrades) {
-    const key = `${t.tradeDate}|${t.expiry ?? ''}|${t.underlyingSymbol ?? t.symbol}`
+    const key = `${t.tradeDate}|${t.tradeTime ?? ''}|${t.expiry ?? ''}|${t.underlyingSymbol ?? t.symbol}`
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key)!.push(t)
   }
@@ -116,7 +127,7 @@ export function buildJournalPositions(
     // something new) lets that leg do its job of closing the earlier position,
     // while og.legs below still carries the full leg set unchanged so its own
     // openLegs/settlementLegs filtering (by openClose) works exactly as before.
-    const [date, expiry, underlying] = key.split('|')
+    const [date, , expiry, underlying] = key.split('|')
     const closeLegs = legs.filter(l => l.openClose === 'C')
     const otherLegs = legs.filter(l => l.openClose !== 'C')
     if (closeLegs.length > 0) closeGroups.push({ date, expiry, underlying, legs: closeLegs })
@@ -128,7 +139,25 @@ export function buildJournalPositions(
     }
   }
 
-  openGroups.sort((a, b) => a.date.localeCompare(b.date))
+  openGroups.sort((a, b) => a.date.localeCompare(b.date) || a.key.localeCompare(b.key))
+
+  // Position ids feed the JournalEntry review store (ratings/mistakes/setup
+  // tags, keyed by id) and must stay stable across syncs. The base id below
+  // is the pre-existing date|expiry|underlying — unchanged from before
+  // tradeTime-based grouping was added, so the overwhelming majority of
+  // positions (one order per day) keep the exact id they always had and
+  // don't lose their saved reviews. Only the rare day with more than one
+  // distinct order on the same underlying/expiry gets the extras suffixed
+  // (`#2`, `#3`, ...), ordered by execution time, since those never had a
+  // stable single id to begin with (previously merged into one wrong blob).
+  const baseIdSeen = new Map<string, number>()
+  const idFor = new Map<string, string>() // og.key -> assigned id
+  for (const og of openGroups) {
+    const base = `${og.date}|${og.expiry}|${og.underlying}`
+    const n = (baseIdSeen.get(base) ?? 0) + 1
+    baseIdSeen.set(base, n)
+    idFor.set(og.key, n === 1 ? base : `${base}#${n}`)
+  }
 
   // A close group's legs can satisfy more than one open position: the same
   // strikes get opened twice on different dates (e.g. adding to a LEAP a
@@ -201,15 +230,16 @@ export function buildJournalPositions(
     const strikeDisplay = uniqueLegs.length > 0
       ? uniqueLegs.map(l => `${l.strike! % 1 === 0 ? l.strike!.toFixed(0) : l.strike!.toFixed(2)}${l.putCall}`).join('/')
       : '—'
+    const strikes = uniqueLegs.map(l => l.strike!)
     const putCall = sells[0]?.putCall ?? openLegs[0]?.putCall ?? ''
 
     const tradeIds = og.legs.map(tradeId)
     const strategy = tradeIds.map(id => labels[id]).find(Boolean) ?? autoClassify(og.underlying, openLegs)
 
     const base = {
-      id: og.key,
+      id: idFor.get(og.key)!,
       underlying: og.underlying,
-      contracts, strikeDisplay, putCall,
+      contracts, strikeDisplay, strikes, putCall,
       expiry: og.expiry,
       dateOpen: og.date,
       initialDTE: expDate ? daysBetween(og.date, expDate) : 0,
@@ -337,6 +367,7 @@ export function buildStockPositions(
           underlying: ticker,
           contracts: matched,
           strikeDisplay: 'SHARES',
+        strikes: [],
           putCall: '',
           expiry: '',
           dateOpen: buyTrade.tradeDate,
@@ -367,6 +398,7 @@ export function buildStockPositions(
         underlying: ticker,
         contracts: lot.remaining,
         strikeDisplay: 'SHARES',
+        strikes: [],
         putCall: '',
         expiry: '',
         dateOpen: buyTrade.tradeDate,

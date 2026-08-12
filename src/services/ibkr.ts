@@ -129,6 +129,7 @@ function parseTrades(doc: Document): RawTrade[] {
   return Array.from(doc.querySelectorAll('Trade')).map(el => ({
     execId:           el.getAttribute('tradeID') ?? undefined,
     tradeDate:        el.getAttribute('tradeDate') ?? '',
+    tradeTime:        el.getAttribute('tradeTime') ?? undefined,
     symbol:           el.getAttribute('symbol') ?? '',
     underlyingSymbol: el.getAttribute('underlyingSymbol') ?? undefined,
     assetClass:       (attr(el, 'assetCategory', 'assetClass') ?? 'STK') as RawTrade['assetClass'],

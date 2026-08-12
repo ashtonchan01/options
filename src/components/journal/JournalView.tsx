@@ -438,6 +438,7 @@ function aggregateShares(positions: JournalPosition[]): JournalPosition[] {
       underlying: ticker,
       contracts: totalContracts,
       strikeDisplay: 'SHARES',
+      strikes: [],
       putCall: '',
       expiry: '',
       dateOpen: lots.reduce((min, l) => (l.dateOpen < min ? l.dateOpen : min), lots[0].dateOpen),
@@ -532,7 +533,7 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
       .map(([key, groupRows]) => ({ label: stratGroupLabel(key), rows: groupRows }))
   }, [rows, groupByStrategy])
 
-  const COLS = 8
+  const COLS = 10
 
   return (
     <>
@@ -562,6 +563,8 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
                 <th>Ticker</th>
                 <th style={{ textAlign: 'center' }}>Strat</th>
                 <th style={{ textAlign: 'right', maxWidth: 80 }}>Position</th>
+                <th style={{ textAlign: 'center' }}>Cr/Db</th>
+                <th style={{ textAlign: 'right' }}>Yield</th>
                 <th className="jr-col-status" style={{ textAlign: 'center' }}>Status</th>
                 <th className="jr-col-dte" style={{ textAlign: 'right' }}>DTE</th>
                 <th style={{ textAlign: 'right' }}>P&L</th>
@@ -614,6 +617,22 @@ function Row({ pos: p, open, cols, onToggle, editor }: {
   const statusColor = p.status === 'Active' ? '#10b981' : p.status === 'Closed' ? '#f59e0b' : 'var(--text-4)'
   const daysLeft = dte(p.expiry)
   const urgent = p.status === 'Active' && daysLeft != null && daysLeft <= 7
+
+  // Credit = premium banked at entry, debit = premium paid — sign of the
+  // opening cash flow alone, regardless of how the position later performs.
+  const isCredit = p.netPremium > 0
+  const isDebit = p.netPremium < 0
+
+  // Return on capital at risk: single strike = full cash-secured notional
+  // (CSP/covered call convention), 2+ strikes = the spread's width (defined-
+  // risk convention) — both standard "yield" conventions options traders use.
+  // Shares and any position with no captured strikes have no such basis.
+  const strikeBasis = p.strikes.length >= 2
+    ? Math.abs(p.strikes[0] - p.strikes[p.strikes.length - 1])
+    : p.strikes[0]
+  const capitalAtRisk = strikeBasis ? strikeBasis * 100 * p.contracts : 0
+  const yieldPct = capitalAtRisk > 0 ? (p.netPremium / capitalAtRisk) * 100 : null
+
   return (
     <>
       <tr onClick={onToggle} style={{ cursor: 'pointer', background: open ? 'rgba(16,185,129,0.05)' : urgent ? 'rgba(239,68,68,0.08)' : undefined }}>
@@ -628,6 +647,17 @@ function Row({ pos: p, open, cols, onToggle, editor }: {
         <td className="mono" style={{ textAlign: 'right', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
           title={p.strikeDisplay === 'SHARES' ? undefined : `${p.contracts}× ${p.strikeDisplay}`}>
           {p.strikeDisplay === 'SHARES' ? `${p.contracts} sh` : `${p.contracts}× ${p.strikeDisplay}`}
+        </td>
+        <td style={{ textAlign: 'center' }}>
+          {(isCredit || isDebit) && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', letterSpacing: '0.06em',
+              color: isCredit ? '#10b981' : '#f59e0b', border: `1px solid ${isCredit ? '#10b98140' : '#f59e0b40'}` }}>
+              {isCredit ? 'CR' : 'DB'}
+            </span>
+          )}
+        </td>
+        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>
+          {yieldPct != null ? `${yieldPct >= 0 ? '+' : ''}${yieldPct.toFixed(1)}%` : '—'}
         </td>
         <td className="jr-col-status" style={{ textAlign: 'center' }}>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', letterSpacing: '0.06em',

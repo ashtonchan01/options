@@ -27,6 +27,11 @@ export interface RawPosition {
 
 export interface RawTrade {
   tradeDate: string
+  /** IBKR's own execution time ("HHMMSS"), when the report includes it. Two
+   * unrelated spreads opened minutes apart on the same day share a tradeDate
+   * but not a tradeTime — used to keep the position matcher from lumping them
+   * into one group just because the date matches. */
+  tradeTime?: string
   symbol: string
   underlyingSymbol?: string
   assetClass: AssetClass
