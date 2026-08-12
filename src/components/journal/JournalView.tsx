@@ -12,6 +12,7 @@ import {
   type JournalPosition, type EquityPoint, type BreakdownRow,
 } from '../../engine/journal'
 import { MISTAKES, type JournalEntry } from '../../store/journalStore'
+import type { RawPosition } from '../../types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -508,8 +509,9 @@ function stratGroupLabel(strategy?: string) {
   return LABEL_SHORT[key] ?? key.toUpperCase()
 }
 
-export function JournalTab({ positions, entries, updateEntry, setups, addSetup }: {
+export function JournalTab({ positions, livePositions, entries, updateEntry, setups, addSetup }: {
   positions: JournalPosition[]
+  livePositions: RawPosition[]
   entries: Record<string, JournalEntry>
   updateEntry: (id: string, patch: Partial<JournalEntry>) => void
   setups: string[]
@@ -571,7 +573,7 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
       .map(([key, groupRows]) => ({ label: stratGroupLabel(key), rows: groupRows }))
   }, [rows, groupByStrategy])
 
-  const COLS = 10
+  const COLS = 13
 
   return (
     <>
@@ -601,8 +603,11 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
                 <th>Ticker</th>
                 <th style={{ textAlign: 'center' }}>Strat</th>
                 <th style={{ textAlign: 'right', maxWidth: 80 }}>Position</th>
-                <th style={{ textAlign: 'right' }}>Premium</th>
-                <th style={{ textAlign: 'right' }}>Yield</th>
+                <th style={{ textAlign: 'right' }}>Avg Price</th>
+                <th style={{ textAlign: 'right' }}>Cost Basis</th>
+                <th style={{ textAlign: 'right' }}>Market Price</th>
+                <th style={{ textAlign: 'right' }}>Unrealised</th>
+                <th style={{ textAlign: 'right' }}>%</th>
                 <th className="jr-col-status" style={{ textAlign: 'center' }}>Status</th>
                 <th className="jr-col-dte" style={{ textAlign: 'right' }}>DTE</th>
                 <th style={{ textAlign: 'right' }}>P&L</th>
@@ -622,7 +627,7 @@ export function JournalTab({ positions, entries, updateEntry, setups, addSetup }
                     const e = entries[p.id] ?? {}
                     const open = expanded === p.id
                     return (
-                      <Row key={p.id} pos={p} entry={e} open={open} cols={COLS}
+                      <Row key={p.id} pos={p} livePositions={livePositions} entry={e} open={open} cols={COLS}
                         onToggle={() => setExpanded(open ? null : p.id)}
                         editor={
                           <EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
@@ -648,28 +653,41 @@ function FragmentGroup({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function Row({ pos: p, open, cols, onToggle, editor }: {
-  pos: JournalPosition; entry: JournalEntry; open: boolean; cols: number
+function Row({ pos: p, livePositions, open, cols, onToggle, editor }: {
+  pos: JournalPosition; livePositions: RawPosition[]; entry: JournalEntry; open: boolean; cols: number
   onToggle: () => void; editor: React.ReactNode
 }) {
   const statusColor = p.status === 'Active' ? '#10b981' : p.status === 'Closed' ? '#f59e0b' : 'var(--text-4)'
   const daysLeft = dte(p.expiry)
   const urgent = p.status === 'Active' && daysLeft != null && daysLeft <= 7
+  const isShares = p.strikeDisplay === 'SHARES'
 
-  // Credit = premium banked at entry, debit = premium paid — sign of the
-  // opening cash flow alone, regardless of how the position later performs.
-  const isCredit = p.netPremium > 0
-  const isDebit = p.netPremium < 0
+  // IBKR convention: Avg Price is always a positive per-unit price; Cost
+  // Basis carries the position's own sign (negative for a short/credit
+  // position — you'd have to pay to buy it back — positive for a long/debit
+  // one you paid to acquire) — which is just -netPremium, since a credit
+  // (netPremium > 0, cash received from selling) is exactly a short
+  // position's negative cost basis, and vice versa for a debit.
+  const units = isShares ? p.contracts : p.contracts * 100
+  const avgPrice = units > 0 ? Math.abs(p.netPremium) / units : 0
+  const costBasis = -p.netPremium
 
-  // Return on capital at risk: single strike = full cash-secured notional
-  // (CSP/covered call convention), 2+ strikes = the spread's width (defined-
-  // risk convention) — both standard "yield" conventions options traders use.
-  // Shares and any position with no captured strikes have no such basis.
-  const strikeBasis = p.strikes.length >= 2
-    ? Math.abs(p.strikes[0] - p.strikes[p.strikes.length - 1])
-    : p.strikes[0]
-  const capitalAtRisk = strikeBasis ? strikeBasis * 100 * p.contracts : 0
-  const yieldPct = capitalAtRisk > 0 ? (p.netPremium / capitalAtRisk) * 100 : null
+  // Market price/value/unrealized only make sense for still-open positions —
+  // matched against this sync's live IBKR snapshot by underlying/expiry/
+  // strike (multi-leg spreads sum every matching leg's own positionValue/
+  // unrealizedPnL rather than inventing a single-leg number, since IBKR's own
+  // per-leg figures are already fee/lot-accurate in a way recomputing from
+  // just this position's stored premium wouldn't be).
+  const liveLegs = p.status !== 'Active' ? [] : isShares
+    ? livePositions.filter(lp => lp.assetClass === 'STK' && lp.symbol === p.underlying)
+    : livePositions.filter(lp => lp.assetClass === 'OPT'
+        && (lp.underlyingSymbol ?? lp.symbol) === p.underlying
+        && lp.expiry === p.expiry
+        && p.strikes.includes(lp.strike ?? -1))
+  const hasLive = liveLegs.length > 0
+  const marketPrice = hasLive && units > 0 ? Math.abs(liveLegs.reduce((s, lp) => s + lp.positionValue, 0)) / units : null
+  const unrealized = hasLive ? liveLegs.reduce((s, lp) => s + lp.unrealizedPnL, 0) : null
+  const unrealizedPct = unrealized != null && costBasis !== 0 ? (unrealized / Math.abs(costBasis)) * 100 : null
 
   return (
     <>
@@ -686,11 +704,20 @@ function Row({ pos: p, open, cols, onToggle, editor }: {
           title={p.strikeDisplay === 'SHARES' ? undefined : `${p.contracts}× ${p.strikeDisplay}`}>
           {p.strikeDisplay === 'SHARES' ? `${p.contracts} sh` : `${p.contracts}× ${p.strikeDisplay}`}
         </td>
-        <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap', color: isCredit ? '#10b981' : isDebit ? '#f59e0b' : 'var(--text-4)' }}>
-          {(isCredit || isDebit) ? `${isCredit ? 'CR' : 'DB'} ${fmt$(Math.abs(p.netPremium), 2)}` : '—'}
+        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>
+          {fmt$(avgPrice, 2)}
         </td>
-        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>
-          {yieldPct != null ? `${yieldPct >= 0 ? '+' : ''}${yieldPct.toFixed(1)}%` : '—'}
+        <td className="mono" style={{ textAlign: 'right', color: costBasis < 0 ? '#10b981' : costBasis > 0 ? '#f59e0b' : 'var(--text-4)' }}>
+          {fmt$(costBasis, 2)}
+        </td>
+        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>
+          {marketPrice != null ? fmt$(marketPrice, 2) : '—'}
+        </td>
+        <td className={`mono ${unrealized != null ? pnlCls(unrealized) : ''}`} style={{ textAlign: 'right', fontWeight: 600 }}>
+          {unrealized != null ? fmt$(unrealized, 2) : '—'}
+        </td>
+        <td className="mono" style={{ textAlign: 'right', color: unrealizedPct != null ? pnlColor(unrealizedPct) : 'var(--text-4)', fontSize: 12 }}>
+          {unrealizedPct != null ? `${unrealizedPct >= 0 ? '+' : ''}${unrealizedPct.toFixed(1)}%` : '—'}
         </td>
         <td className="jr-col-status" style={{ textAlign: 'center' }}>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', letterSpacing: '0.06em',
