@@ -321,7 +321,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
           GAP TO TARGET
         </div>
         <div className="jr-gap-table-scroll" style={{ flex: 1, overflow: 'auto' }}>
-          <table className="trade-table" style={{ width: '100%', fontSize: 12 }}>
+          <table className="trade-table jr-gap-table" style={{ width: '100%', fontSize: 12 }}>
             <thead>
               <tr>
                 <th>Ticker</th>

@@ -1104,7 +1104,15 @@ body {
      sliver went nowhere, reading as "no table / can't scroll" rather than
      just a cramped table. Full height, part of the page's own scroll. */
   .jr-gap-table-panel { flex: none !important; overflow: visible !important; height: auto !important; }
-  .jr-gap-table-scroll { flex: none !important; overflow: visible !important; }
+  .jr-gap-table-scroll { flex: none !important; overflow-y: visible !important; overflow-x: auto !important; }
+  /* Wide gap table (10 columns) can't fit a phone screen — pin the Ticker
+     column so it stays visible while the rest scrolls horizontally, instead
+     of scrolling off and leaving unlabeled numbers. */
+  .jr-gap-table th:first-child, .jr-gap-table td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    background: var(--bg-card);
+    box-shadow: 1px 0 0 var(--border);
+  }
   .pf-keymetrics { grid-template-columns: repeat(2, 1fr) !important; }
   /* Trade Journal table has 7 columns at 10px/14px padding — doesn't fit a phone
      width without horizontal scroll. Status is redundant with the row's own
