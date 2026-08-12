@@ -122,12 +122,21 @@ export default function LiveTVPanel() {
           extra native chrome (title/description above, related-video strip
           below) instead of just the stream. */}
       <div style={{ flex: '0 0 auto', width: '100%', aspectRatio: '16 / 9', maxHeight: '100%', borderRadius: 6, overflow: 'hidden', background: '#000' }}>
+        {/* sandbox deliberately omits allow-top-navigation(-by-user-activation) —
+            embedded ads on live news streams are a known vector for malvertising
+            that tries to hijack the WHOLE page (not just the iframe) via a
+            top.location redirect to some scam/affiliate "sign in" page, which is
+            exactly what a stray password-autofill prompt for an unrelated site
+            popping up on load looks like. Everything YouTube's own player needs
+            (scripts, same-origin storage, fullscreen, popups for share links) is
+            still allowed — only escaping the frame to redirect this page is not. */}
         <iframe
           key={active.id}
           src={`https://www.youtube-nocookie.com/embed/${active.videoId}?autoplay=1&mute=1&playsinline=1`}
           title={active.name}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
           allowFullScreen
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox allow-forms"
           style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
         />
       </div>
