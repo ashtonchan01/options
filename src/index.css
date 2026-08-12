@@ -1503,9 +1503,10 @@ body {
   .dash-area-headlines { min-height: 320px; }
   .dash-area-pairs     { min-height: 420px; }
   .dash-area-actions   { min-height: 500px; }
-  /* 4 columns of headline cards each ~90px wide is unreadable on a phone —
-     a single column, stacked in normal reading order, top to bottom. */
-  .dash-headlines-cols { column-count: 1 !important; }
+  /* Below the auto-fill minmax floor this naturally collapses to 1 column
+     anyway, but pin it explicitly so a phone never tries to fit 2 skinny
+     ~90px columns. */
+  .dash-headlines-grid { grid-template-columns: 1fr !important; }
   /* Both panels had an internal overflow:auto scroll box — sensible on
      desktop where they share a fixed-height row, pointless now that they
      each get their own full-width stacked row with room to just grow. A
@@ -1516,7 +1517,16 @@ body {
   .dash-area-actions .db-sidebar { max-height: none !important; overflow: visible !important; }
   .dash-area-actions .db-sidebar-body { overflow: visible !important; }
 }
-.dash-headlines-cols { column-count: 4; }
+/* auto-fill + a minmax floor: as many ~220px rectangular columns as fit
+   (typically 2-4 at dashboard widths), collapsing to 1 on a narrow column
+   without needing a separate breakpoint rule for it. */
+.dash-headlines-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-auto-rows: min-content;
+  gap: 8px;
+  align-content: start;
+}
 
 /* Desktop: the auto-fill dense-pack grid above sizes rows in fixed 165px units that
  * don't add up evenly against real viewport heights — depending on exact window size

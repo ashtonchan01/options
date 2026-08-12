@@ -47,27 +47,27 @@ export default function TickerHeadlinesPanel() {
   return (
     <div className="dash-panel" style={{ flex: 1 }}>
       <div className="dash-panel-header"><span>Ticker Headlines</span></div>
-      <div className="dash-headlines-cols" style={{ flex: 1, overflowY: 'auto', columnGap: 10 }}>
+      {/* CSS multi-column (column-count) kept splitting cards across columns
+          in Safari — break-inside:avoid has a long-standing WebKit bug where
+          it's ignored under various conditions, and proved unreliable even
+          after working around the specific overflow trigger. A grid has no
+          such failure mode at all: each ticker is simply a cell, auto-fill
+          reflows to however many rectangular columns actually fit (down to
+          1, scrolling, once nothing else fits). */}
+      <div className="dash-headlines-grid" style={{ flex: 1, overflowY: 'auto' }}>
         {groups.length === 0 && (
           <div style={{ padding: '12px 4px', fontSize: 12, color: 'var(--text-4)' }}>
             Loading headlines for your followed tickers…
           </div>
         )}
         {groups.map(g => (
-          // No `overflow: hidden` here — Safari has a long-standing bug where
-          // CSS multi-column `break-inside: avoid` is ignored on any element
-          // whose overflow isn't `visible`, which was splitting these cards
-          // across columns instead of keeping each one intact. Rounding just
-          // the header's top corners gets the same visual look without
-          // needing to clip the whole card.
           <div key={g.ticker} style={{
             background: 'var(--bg-elevated)', border: '1px solid var(--border-light)', borderRadius: 8,
-            marginBottom: 8, breakInside: 'avoid',
+            overflow: 'hidden', display: 'flex', flexDirection: 'column',
           }}>
             <div style={{
               fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-dim)',
-              borderBottom: '1px solid var(--accent-border)', padding: '4px 9px',
-              borderTopLeftRadius: 7, borderTopRightRadius: 7,
+              borderBottom: '1px solid var(--accent-border)', padding: '4px 9px', flexShrink: 0,
             }}>
               {g.ticker}
             </div>
