@@ -70,6 +70,24 @@ async function fetchTicker(ticker) {
   }
 }
 
+/** Google News RSS `<link>` values are a news.google.com redirect, not the
+ * publisher URL — following that redirect chain server-side (and handing
+ * the client the final resolved URL) avoids the client's browser ever
+ * visiting whatever ad/affiliate hops sit between Google's redirector and
+ * the actual article (one of which was triggering iOS's password-autofill
+ * prompt for an unrelated site on the way through). Falls back to the
+ * original Google link if resolution fails or times out. */
+async function resolveLink(item) {
+  try {
+    const res = await fetch(item.link, {
+      method: 'HEAD', redirect: 'follow', headers: { 'User-Agent': UA },
+      signal: AbortSignal.timeout(3000),
+    })
+    if (res.url) return { ...item, link: res.url }
+  } catch { /* keep original link below */ }
+  return item
+}
+
 export default async function handler(req) {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
 
@@ -85,7 +103,8 @@ export default async function handler(req) {
   }
 
   const results = await Promise.all(tickers.map(fetchTicker))
-  const merged = results.flat().sort((a, b) => b.time - a.time).slice(0, 60)
+  const topItems = results.flat().sort((a, b) => b.time - a.time).slice(0, 60)
+  const merged = await Promise.all(topItems.map(resolveLink))
 
   cache = { key: cacheKey, at: Date.now(), body: merged }
   return jsonResponse(merged)

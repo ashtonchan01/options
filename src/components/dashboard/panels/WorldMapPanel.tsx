@@ -81,13 +81,14 @@ function leadExchange(group: CityGroup, quotes: Record<string, MarketQuote>): Ex
 }
 
 function CityMarker({
-  group, quotes, now, scale, textScale, onHover,
+  group, quotes, now, scale, textScale, showLabel, onHover,
 }: {
   group: CityGroup
   quotes: Record<string, MarketQuote>
   now: Date
   scale: number
   textScale: number
+  showLabel: boolean
   onHover: (group: CityGroup | null) => void
 }) {
   const pt = projection([group.lon, group.lat])
@@ -128,16 +129,18 @@ function CityMarker({
           scale-based (too small) and sqrt-scale-based (still too big on
           Europe specifically) attempts miscalibrate. This keeps rendered
           text a genuinely constant pixel size across every region. */}
-      <text x={labelX} y={labelY} textAnchor={textAnchor}
-        fontSize={13 * textScale} fontFamily="Inter, sans-serif" fontWeight={500} fill="var(--text-3)"
-        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 2.8 * textScale }}>
-        {group.exchanges.length > 1 ? group.city : group.exchanges[0].name}
-        {leadQuote && (
-          <tspan fill={changeColor} fontWeight={400}>
-            {'  '}{leadQuote.changePercent >= 0 ? '+' : ''}{leadQuote.changePercent.toFixed(2)}%
-          </tspan>
-        )}
-      </text>
+      {showLabel && (
+        <text x={labelX} y={labelY} textAnchor={textAnchor}
+          fontSize={13 * textScale} fontFamily="Inter, sans-serif" fontWeight={500} fill="var(--text-3)"
+          style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 2.8 * textScale }}>
+          {group.exchanges.length > 1 ? group.city : group.exchanges[0].name}
+          {leadQuote && (
+            <tspan fill={changeColor} fontWeight={400}>
+              {'  '}{leadQuote.changePercent >= 0 ? '+' : ''}{leadQuote.changePercent.toFixed(2)}%
+            </tspan>
+          )}
+        </text>
+      )}
     </g>
   )
 }
@@ -187,6 +190,45 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
     })
   }, [cityGroups, hover])
 
+  // Global view crams ~20 city labels into a box that's especially short and
+  // narrow on mobile — rendering every label unconditionally just piled them
+  // on top of each other into unreadable mush. Greedily accept labels
+  // (open markets first, since those are the ones actually worth reading
+  // right now) and skip any whose estimated bounding box collides with one
+  // already placed; skipped cities still show their dot, just no text.
+  const labelVisibility = useMemo(() => {
+    const visible = new Set<string>()
+    const placed: { x0: number; y0: number; x1: number; y1: number }[] = []
+    const AVG_CHAR_W_PX = 6.4
+    const LABEL_H_PX = 13
+    const priority = [...cityGroups].sort((a, b) => {
+      const aOpen = a.exchanges.some(ex => isExchangeOpen(ex, now)) ? 1 : 0
+      const bOpen = b.exchanges.some(ex => isExchangeOpen(ex, now)) ? 1 : 0
+      return bOpen - aOpen
+    })
+    for (const g of priority) {
+      const pt = projection([g.lon, g.lat])
+      if (!pt) continue
+      const [x, y] = pt
+      const label = g.exchanges.length > 1 ? g.city : g.exchanges[0].name
+      const textWidth = (label.length + 6) * AVG_CHAR_W_PX * textScale // +6 chars ~ the "  +0.00%" suffix
+      const textHeight = LABEL_H_PX * textScale
+      const anchor = LABEL_ANCHOR[g.city] ?? 'right'
+      const labelX = anchor === 'left' ? -6 * scale : anchor === 'right' ? 6 * scale : 0
+      const labelY = anchor === 'top' ? -7 * scale : anchor === 'bottom' ? 8.5 * scale : 2 * scale
+      const boxX0 = x + labelX - (anchor === 'left' ? textWidth : anchor === 'right' ? 0 : textWidth / 2)
+      const boxX1 = boxX0 + textWidth
+      const boxY0 = y + labelY - textHeight * 0.8
+      const boxY1 = boxY0 + textHeight
+      const collides = placed.some(p => boxX0 < p.x1 && boxX1 > p.x0 && boxY0 < p.y1 && boxY1 > p.y0)
+      if (!collides) {
+        placed.push({ x0: boxX0, y0: boxY0, x1: boxX1, y1: boxY1 })
+        visible.add(`${g.city}|${g.country}`)
+      }
+    }
+    return visible
+  }, [cityGroups, now, scale, textScale])
+
   return (
     <div className="dash-panel dash-map-panel">
       <div className="dash-panel-header">
@@ -217,17 +259,21 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
           <rect x={crop.x0} y={crop.y0} width={crop.width} height={crop.height} fill="var(--bg-surface)" />
           <path d={countriesPath} fill="var(--bg-active)" fillRule="evenodd" />
           <path d={bordersPath} fill="none" stroke="var(--border)" strokeWidth={0.5} />
-          {orderedCityGroups.map(g => (
-            <CityMarker
-              key={`${g.city}|${g.country}`}
-              group={g}
-              quotes={quotes}
-              now={now}
-              scale={scale}
-              textScale={textScale}
-              onHover={setHover}
-            />
-          ))}
+          {orderedCityGroups.map(g => {
+            const key = `${g.city}|${g.country}`
+            return (
+              <CityMarker
+                key={key}
+                group={g}
+                quotes={quotes}
+                now={now}
+                scale={scale}
+                textScale={textScale}
+                showLabel={hover ? key === `${hover.city}|${hover.country}` || labelVisibility.has(key) : labelVisibility.has(key)}
+                onHover={setHover}
+              />
+            )
+          })}
         </svg>
       </div>
     </div>

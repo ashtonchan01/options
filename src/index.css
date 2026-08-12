@@ -1437,38 +1437,45 @@ body {
   .dash-cell-h3 { grid-row: span 2; }
   .dash-cell-h6 { grid-row: span 4; }
   .dash-cell-h12 { grid-row: span 7; }
-  /* At single-column mobile width the panel is nearly the full viewport width
-     (~390px) but h3's 2-row height (~226px) is far short of the ~220px a 16:9
-     video alone needs once the region/channel tab rows eat their share — the
-     player pillarboxes down to a postage stamp. Give this cell dedicated room. */
-  .dash-cell-livetv { grid-row: span 5; }
+  /* The video itself is now sized by aspect-ratio (16:9, see LiveTVPanel),
+     not stretched to fill the cell — so this only needs enough room for the
+     header + region/channel tab rows + that 16:9 box, not a much taller
+     span (which used to leave dead space YouTube's own embed chrome filled
+     in, and even now would just be wasted empty space below the video). */
+  .dash-cell-livetv { grid-row: span 3; }
 }
 
-/* Calendar + Headlines/Pairs/Actions are nested into one flex column purely as a
- * desktop (901px+) space-saving trick (see the flex rules below) — below that
- * width the auto-fill dense-pack grid above is what's actually laying things
- * out, and that nesting has no meaning to it: the wrapper wouldn't get any
- * grid sizing of its own (it's not a `.dash-cell-h*`/`w*` element), so its
- * content would render squished into a single default-height row instead of
- * the four stacked panels each has room to need. `display: contents` unwraps
- * both wrapper levels at mobile widths so Calendar, Headlines, Pairs, and
- * Actions become direct grid children again, each sized and ordered like any
- * other mobile dashboard cell. */
+/* Calendar + Headlines/Pairs/Actions are nested into one flex column purely as
+ * a desktop (901px+) space-saving trick (see the flex rules below). A first
+ * attempt at unwrapping this for mobile used `display: contents` on both
+ * wrapper levels to turn all four into direct grid children again — but
+ * that relies on nested `display: contents` correctly forwarding grid-item
+ * status two levels down, which iOS Safari handles unreliably (Calendar and
+ * Headlines stayed squeezed into a shared row while Pairs/Actions further
+ * down worked fine, in testing). Simpler and more robust: keep the nesting,
+ * but make BOTH wrapper levels a full-width, single-column flex stack
+ * instead of trying to flatten them — Calendar, Headlines, Pairs, and
+ * Actions each get their own full-width row inside one grid cell. That grid
+ * cell is the last item in DOM order, so a generous (rather than exact)
+ * row-span is safe: any leftover space just extends the page's own scroll,
+ * with nothing positioned below it to overlap. */
 @media (max-width: 900px) {
-  .dash-area-rightside, .dash-rightside-bottom { display: contents; }
-  .dash-calendar-embed, .dash-area-headlines, .dash-area-pairs, .dash-area-actions {
+  .dash-area-rightside {
     grid-column: 1 / -1;
+    grid-row: span 30;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
-  .dash-calendar-embed { grid-row: span 6; order: 1; }
-  .dash-area-headlines { grid-row: span 3; order: 2; }
-  .dash-area-pairs     { grid-row: span 3; order: 3; }
-  .dash-area-actions   { grid-row: span 12; order: 4; }
-}
-@media (max-width: 650px) {
-  .dash-calendar-embed { grid-row: span 4; }
-  .dash-area-headlines { grid-row: span 2; }
-  .dash-area-pairs     { grid-row: span 2; }
-  .dash-area-actions   { grid-row: span 7; }
+  .dash-area-rightside > .dash-calendar-embed { flex: 0 0 auto; }
+  .dash-rightside-bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .dash-area-headlines { min-height: 320px; }
+  .dash-area-pairs     { min-height: 420px; }
+  .dash-area-actions   { min-height: 500px; }
 }
 
 /* Desktop: the auto-fill dense-pack grid above sizes rows in fixed 165px units that

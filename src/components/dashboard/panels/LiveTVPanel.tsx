@@ -115,7 +115,13 @@ export default function LiveTVPanel() {
           </button>
         ))}
       </div>
-      <div style={{ flex: 1, minHeight: 0, borderRadius: 6, overflow: 'hidden', background: '#000' }}>
+      {/* aspect-ratio (not flex:1 filling whatever height the cell happens to
+          have) keeps this a normal 16:9 video — letting it stretch to fill a
+          much-taller-than-video cell (as mobile's row-span gave it) left a
+          lot of dead vertical space that YouTube's own embed fills with
+          extra native chrome (title/description above, related-video strip
+          below) instead of just the stream. */}
+      <div style={{ flex: '0 0 auto', width: '100%', aspectRatio: '16 / 9', maxHeight: '100%', borderRadius: 6, overflow: 'hidden', background: '#000' }}>
         <iframe
           key={active.id}
           src={`https://www.youtube-nocookie.com/embed/${active.videoId}?autoplay=1&mute=1&playsinline=1`}

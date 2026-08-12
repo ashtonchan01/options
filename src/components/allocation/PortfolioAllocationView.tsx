@@ -45,44 +45,87 @@ interface Row {
 
 interface Slice { label: string; value: number; color: string }
 
+/** Google-Sheets-style pie: labels sit outside the circle with a bent leader
+ * line back to the wedge, instead of a separate legend list — matching the
+ * user's own reference chart. Labels are bucketed to the left/right half by
+ * which side their wedge's midpoint angle falls on, then nudged apart
+ * vertically (greedy, sorted top-to-bottom) so tightly-packed small slices
+ * don't print their labels on top of each other. */
 function PortfolioPie({ slices, centerLabel, centerValue }: { slices: Slice[]; centerLabel: string; centerValue: string }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
-  const SIZE = 200, CX = 100, CY = 100, R = 92
+  const W = 380, H = 300, CX = 190, CY = 150, R = 78
+  const LABEL_ROW_H = 15
+  const ELBOW_R = R + 14
+  const OUTER_X = R + 92 // horizontal distance from center to the label text column
+
   if (total <= 0) {
-    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: SIZE, color: 'var(--text-4)', fontSize: 12 }}>No data</div>
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: H, color: 'var(--text-4)', fontSize: 12 }}>No data</div>
   }
+
   let angle = -90
   const wedges = slices.filter(s => s.value > 0).map(s => {
     const frac = s.value / total
     const start = angle
     const end = angle + frac * 360
+    const mid = (start + end) / 2
     angle = end
     const p0 = { x: CX + R * Math.cos(start * Math.PI / 180), y: CY + R * Math.sin(start * Math.PI / 180) }
     const p1 = { x: CX + R * Math.cos(end * Math.PI / 180), y: CY + R * Math.sin(end * Math.PI / 180) }
     const largeArc = end - start > 180 ? 1 : 0
-    return { ...s, frac, path: `M${CX},${CY} L${p0.x},${p0.y} A${R},${R} 0 ${largeArc} 1 ${p1.x},${p1.y} Z` }
+    const midRad = mid * Math.PI / 180
+    const edge = { x: CX + R * Math.cos(midRad), y: CY + R * Math.sin(midRad) }
+    const elbow = { x: CX + ELBOW_R * Math.cos(midRad), y: CY + ELBOW_R * Math.sin(midRad) }
+    const side: 'left' | 'right' = Math.cos(midRad) >= 0 ? 'right' : 'left'
+    return {
+      ...s, frac,
+      path: `M${CX},${CY} L${p0.x},${p0.y} A${R},${R} 0 ${largeArc} 1 ${p1.x},${p1.y} Z`,
+      edge, elbow, side, idealY: elbow.y,
+    }
   })
+
+  // Skip labels for slivers too thin to read (dot+leader line would just
+  // overlap neighbors regardless of vertical spacing).
+  const labeled = wedges.filter(w => w.frac >= 0.012)
+  for (const side of ['left', 'right'] as const) {
+    const group = labeled.filter(w => w.side === side).sort((a, b) => a.idealY - b.idealY)
+    for (let i = 1; i < group.length; i++) {
+      const min = group[i - 1].idealY + LABEL_ROW_H
+      if (group[i].idealY < min) group[i].idealY = min
+    }
+    // Re-run top-down after a bottom-heavy cluster could push labels past H;
+    // pull the whole group back up if the last one overflows.
+    const overflow = group.length > 0 ? group[group.length - 1].idealY - (H - 12) : 0
+    if (overflow > 0) for (const w of group) w.idealY -= overflow
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-      <div style={{ position: 'relative', width: SIZE, flexShrink: 0 }}>
-        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ width: '100%', display: 'block' }}>
-          {wedges.map((w, i) => <path key={i} d={w.path} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />)}
-        </svg>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase' }}>{centerLabel}</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{centerValue}</span>
-        </div>
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 10px', justifyContent: 'center', maxWidth: 320 }}>
-        {wedges.filter(w => w.frac >= 0.008).map((w, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontFamily: 'Inter, sans-serif' }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: w.color, flexShrink: 0 }} />
-            <span style={{ color: 'var(--text-2)', fontWeight: 600 }}>{w.label}</span>
-            <span style={{ color: 'var(--text-4)' }}>{(w.frac * 100).toFixed(1)}%</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 420, display: 'block', margin: '0 auto' }}>
+      {wedges.map((w, i) => <path key={i} d={w.path} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />)}
+      <circle cx={CX} cy={CY} r={30} fill="var(--bg-card)" />
+      <text x={CX} y={CY - 5} textAnchor="middle" fontSize="8" fill="var(--text-4)" fontFamily="Inter, sans-serif" letterSpacing="1px">
+        {centerLabel.toUpperCase()}
+      </text>
+      <text x={CX} y={CY + 9} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--text-1)" fontFamily="Inter, sans-serif">
+        {centerValue}
+      </text>
+      {labeled.map((w, i) => {
+        const outX = w.side === 'right' ? CX + OUTER_X : CX - OUTER_X
+        const textX = w.side === 'right' ? outX + 4 : outX - 4
+        return (
+          <g key={i}>
+            <polyline
+              points={`${w.edge.x},${w.edge.y} ${w.elbow.x},${w.elbow.y} ${outX},${w.idealY}`}
+              fill="none" stroke="var(--text-5)" strokeWidth={0.75}
+            />
+            <text x={textX} y={w.idealY} dy={3} textAnchor={w.side === 'right' ? 'start' : 'end'}
+              fontSize="10" fontFamily="Inter, sans-serif" fontWeight={600} fill="var(--text-2)">
+              {w.label}
+              <tspan fill="var(--text-4)" fontWeight={400}> {(w.frac * 100).toFixed(1)}%</tspan>
+            </text>
+          </g>
+        )
+      })}
+    </svg>
   )
 }
 
@@ -153,19 +196,29 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
     ...rows.map(r => ({ label: r.symbol, value: r.actualValue, color: r.color })),
   ]
 
-  // Recommendation: among tickers with a real underweight gap (target well
-  // above actual), the best "value buy" right now is whichever is trading
-  // furthest below its own 52-week high — cheap relative to its own recent
-  // range, not just cheap in absolute terms.
+  // Recommendation is scaled to the CURRENT portfolio, not the fixed $1M
+  // target — comparing against $1M would flag "underweight" on nearly
+  // everything until the account actually grows to that size. Instead,
+  // compare each ticker's share of what's actually held right now against
+  // its target share of the $1M plan: whichever is furthest below its own
+  // target *proportion* is the one that keeps the portfolio on track to
+  // grow into the $1M shape over time, regardless of current total size.
+  // Among those meaningfully underweight, the best "value buy" right now is
+  // whichever is trading furthest below its own 52-week high.
   const recommendation = useMemo(() => {
-    const underweight = rows.filter(r => r.high52 != null && r.price > 0 && r.targetValue - r.actualValue > r.targetValue * 0.15)
+    if (actualTotal <= 0) return null
+    const underweight = rows.filter(r => {
+      if (r.high52 == null || r.price <= 0) return false
+      const currentPct = r.actualValue / actualTotal * 100
+      return r.targetPct - currentPct > 1 // at least 1 percentage point underweight
+    })
     if (underweight.length === 0) return null
     return [...underweight].sort((a, b) => {
       const da = (a.high52! - a.price) / a.high52!
       const db = (b.high52! - b.price) / b.high52!
       return db - da
     })[0]
-  }, [rows])
+  }, [rows, actualTotal])
 
   const gaps = [...rows]
     .map(r => ({ ...r, gap: r.targetValue - r.actualValue }))
@@ -218,7 +271,8 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
               <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{recommendation.symbol}</div>
               <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
                 {((recommendation.high52! - recommendation.price) / recommendation.high52! * 100).toFixed(0)}% below its 52-week high
-                (${recommendation.price.toFixed(2)} vs ${recommendation.high52!.toFixed(2)}) — and {fmt$(recommendation.targetValue - recommendation.actualValue)} under target.
+                (${recommendation.price.toFixed(2)} vs ${recommendation.high52!.toFixed(2)}) — currently {(recommendation.actualValue / actualTotal * 100).toFixed(1)}% of your
+                portfolio vs a {recommendation.targetPct.toFixed(1)}% target share.
               </div>
             </div>
           </div>
@@ -237,6 +291,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
                 <th>Ticker</th>
                 <th style={{ textAlign: 'right' }}>Price</th>
                 <th style={{ textAlign: 'right' }}>Target %</th>
+                <th style={{ textAlign: 'right' }}>Current %</th>
                 <th style={{ textAlign: 'right' }}>Target Shares</th>
                 <th style={{ textAlign: 'right' }}>Target $</th>
                 <th style={{ textAlign: 'right' }}>Actual Shares</th>
@@ -250,6 +305,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
                 <td className="mono" style={{ fontWeight: 700 }}>CASH</td>
                 <td className="mono" style={{ textAlign: 'right' }}>—</td>
                 <td className="mono" style={{ textAlign: 'right' }}>{CASH_PCT.toFixed(1)}%</td>
+                <td className="mono" style={{ textAlign: 'right' }}>{actualTotal > 0 ? `${(actualCash / actualTotal * 100).toFixed(1)}%` : '—'}</td>
                 <td className="mono" style={{ textAlign: 'right' }}>—</td>
                 <td className="mono" style={{ textAlign: 'right' }}>{fmt$(targetCash)}</td>
                 <td className="mono" style={{ textAlign: 'right' }}>—</td>
@@ -269,6 +325,9 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
                     </td>
                     <td className="mono" style={{ textAlign: 'right' }}>{r.price > 0 ? `$${r.price.toFixed(2)}` : (loading ? '…' : '—')}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{r.targetPct.toFixed(1)}%</td>
+                    <td className="mono" style={{ textAlign: 'right', color: actualTotal > 0 && r.targetPct - (r.actualValue / actualTotal * 100) > 1 ? '#ef4444' : undefined }}>
+                      {actualTotal > 0 ? `${(r.actualValue / actualTotal * 100).toFixed(1)}%` : '—'}
+                    </td>
                     <td className="mono" style={{ textAlign: 'right' }}>{r.targetShares.toLocaleString()}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{fmt$(r.targetValue)}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>
