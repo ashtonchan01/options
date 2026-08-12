@@ -86,8 +86,8 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
 
   const top = pairs[0]
 
-  const top5Overbought = [...rows].sort((a, b) => b.rsi - a.rsi).slice(0, 5)
-  const top5Oversold   = [...rows].sort((a, b) => a.rsi - b.rsi).slice(0, 5)
+  const top10Overbought = [...rows].sort((a, b) => b.rsi - a.rsi).slice(0, 10)
+  const top10Oversold   = [...rows].sort((a, b) => a.rsi - b.rsi).slice(0, 10)
 
   return (
     <div className="dash-panel" style={{ flex: 1 }}>
@@ -132,19 +132,19 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
             <div style={{ display: 'flex', gap: 10, borderTop: '1px solid var(--border-light)', paddingTop: 7 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 4 }}>
-                  TOP 5 OVERBOUGHT
+                  TOP 10 OVERBOUGHT
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {top5Overbought.map(r => <RsiRowLine key={r.symbol} row={r} />)}
+                  {top10Overbought.map(r => <RsiRowLine key={r.symbol} row={r} />)}
                 </div>
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.06em', marginBottom: 4 }}>
-                  TOP 5 OVERSOLD
+                  TOP 10 OVERSOLD
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {top5Oversold.map(r => <RsiRowLine key={r.symbol} row={r} />)}
+                  {top10Oversold.map(r => <RsiRowLine key={r.symbol} row={r} />)}
                 </div>
               </div>
             </div>
