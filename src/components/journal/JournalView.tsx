@@ -61,24 +61,6 @@ const LABEL_SHORT: Record<string, string> = {
   put_spread: 'BPS', shares: 'SHARES',
 }
 
-const LABEL_COLORS: Record<string, string> = {
-  covered_calls: '#3b82f6', csp: '#10b981', leap: '#a78bfa', spx: '#f59e0b',
-  rotation: '#f472b6', ptos: '#60a5fa', profit_taking: '#34d399',
-  put_spread: '#fb923c', shares: '#38bdf8',
-}
-
-function StratBadge({ strategy }: { strategy?: string }) {
-  const key = strategy ?? 'unlabelled'
-  const color = LABEL_COLORS[key] ?? 'var(--text-4)'
-  return (
-    <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', letterSpacing: '0.06em',
-      color, background: `${strategy ? color + '14' : 'transparent'}`,
-      border: `1px solid ${strategy ? color + '40' : 'var(--border)'}` }}>
-      {LABEL_SHORT[key] ?? key.toUpperCase().slice(0, 4)}
-    </span>
-  )
-}
-
 // ─── KPI strip ────────────────────────────────────────────────────────────────
 
 function KpiStrip({ closed, openPremium }: { closed: JournalPosition[]; openPremium: number }) {
@@ -444,8 +426,16 @@ function aggregateShares(positions: JournalPosition[]): JournalPosition[] {
       expiry: '',
       dateOpen: lots.reduce((min, l) => (l.dateOpen < min ? l.dateOpen : min), lots[0].dateOpen),
       initialDTE: 0,
-      openFees: lots.reduce((s, l) => s + l.openFees, 0),
-      netPremium: lots.reduce((s, l) => s + l.netPremium, 0),
+      // Cost basis of a ticker still being held must reflect only the shares
+      // still held — summing every lot's netPremium (including shares bought
+      // and already sold off in earlier round-trips) inflated cost basis to
+      // the total ever spent on the ticker, not what's actually in the
+      // account now (verified: a real account's MSTR row showed $151,500
+      // instead of IBKR's own $115,244 cost basis for the 500 shares actually
+      // held). Once fully closed (nothing held), fall back to all lots so a
+      // closed ticker still shows its real total cost.
+      openFees: (anyActive ? activeLots : lots).reduce((s, l) => s + l.openFees, 0),
+      netPremium: (anyActive ? activeLots : lots).reduce((s, l) => s + l.netPremium, 0),
       status: anyActive ? 'Active' : 'Closed',
       strategy: 'shares',
       tradeIds: lots.flatMap(l => l.tradeIds),
@@ -518,7 +508,7 @@ export function JournalTab({ positions, livePositions, entries, updateEntry, set
   addSetup: (s: string) => void
 }) {
   const [filter, setFilter] = useState<JFilter>('all')
-  const [hideClosed, setHideClosed] = useState(false)
+  const [hideClosed, setHideClosed] = useState(true)
   const [groupByStrategy, setGroupByStrategy] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
 
@@ -573,7 +563,7 @@ export function JournalTab({ positions, livePositions, entries, updateEntry, set
       .map(([key, groupRows]) => ({ label: stratGroupLabel(key), rows: groupRows }))
   }, [rows, groupByStrategy])
 
-  const COLS = 13
+  const COLS = 11
 
   return (
     <>
@@ -601,14 +591,12 @@ export function JournalTab({ positions, livePositions, entries, updateEntry, set
                 <th className="jr-col-open">Open</th>
                 <th className="jr-col-closed">Closed</th>
                 <th>Ticker</th>
-                <th style={{ textAlign: 'center' }}>Strat</th>
-                <th style={{ textAlign: 'right', maxWidth: 80 }}>Position</th>
+                <th style={{ textAlign: 'right' }}>Position</th>
                 <th style={{ textAlign: 'right' }}>Avg Price</th>
                 <th style={{ textAlign: 'right' }}>Cost Basis</th>
                 <th style={{ textAlign: 'right' }}>Market Price</th>
                 <th style={{ textAlign: 'right' }}>Unrealised</th>
                 <th style={{ textAlign: 'right' }}>%</th>
-                <th className="jr-col-status" style={{ textAlign: 'center' }}>Status</th>
                 <th className="jr-col-dte" style={{ textAlign: 'right' }}>DTE</th>
                 <th style={{ textAlign: 'right' }}>P&L</th>
               </tr>
@@ -657,7 +645,6 @@ function Row({ pos: p, livePositions, open, cols, onToggle, editor }: {
   pos: JournalPosition; livePositions: RawPosition[]; entry: JournalEntry; open: boolean; cols: number
   onToggle: () => void; editor: React.ReactNode
 }) {
-  const statusColor = p.status === 'Active' ? '#10b981' : p.status === 'Closed' ? '#f59e0b' : 'var(--text-4)'
   const daysLeft = dte(p.expiry)
   const urgent = p.status === 'Active' && daysLeft != null && daysLeft <= 7
   const isShares = p.strikeDisplay === 'SHARES'
@@ -699,9 +686,7 @@ function Row({ pos: p, livePositions, open, cols, onToggle, editor }: {
           {p.dateClosed ? fmtDate(p.dateClosed) : '—'}
         </td>
         <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>{p.underlying}</td>
-        <td style={{ textAlign: 'center' }}><StratBadge strategy={p.strategy} /></td>
-        <td className="mono" style={{ textAlign: 'right', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-          title={p.strikeDisplay === 'SHARES' ? undefined : `${p.contracts}× ${p.strikeDisplay}`}>
+        <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
           {p.strikeDisplay === 'SHARES' ? `${p.contracts} sh` : `${p.contracts}× ${p.strikeDisplay}`}
         </td>
         <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>
@@ -718,12 +703,6 @@ function Row({ pos: p, livePositions, open, cols, onToggle, editor }: {
         </td>
         <td className="mono" style={{ textAlign: 'right', color: unrealizedPct != null ? pnlColor(unrealizedPct) : 'var(--text-4)', fontSize: 12 }}>
           {unrealizedPct != null ? `${unrealizedPct >= 0 ? '+' : ''}${unrealizedPct.toFixed(1)}%` : '—'}
-        </td>
-        <td className="jr-col-status" style={{ textAlign: 'center' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', letterSpacing: '0.06em',
-            color: statusColor, border: `1px solid ${statusColor}40` }}>
-            {p.status}
-          </span>
         </td>
         <td className="mono jr-col-dte" style={{ textAlign: 'right', color: urgent ? '#ef4444' : 'var(--text-3)', fontWeight: urgent ? 700 : 400 }}>
           {daysLeft != null ? `${daysLeft}d` : '—'}
