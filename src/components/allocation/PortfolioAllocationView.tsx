@@ -59,10 +59,10 @@ function PortfolioPie({ slices, centerLabel, centerValue }: { slices: Slice[]; c
   // margin. A capped width, sized tightly around the donut + labels
   // instead of a big arbitrary box, keeps it compact and proportioned
   // regardless of how wide its column is.
-  const W = 440, H = 260, CX = 190, CY = 130, R = 60
+  const W = 440, H = 260, CX = 220, CY = 130, R = 68
   const LABEL_ROW_H = 15
-  const ELBOW_R = R + 12
-  const OUTER_X = R + 62 // horizontal distance from center to the label text column
+  const ELBOW_R = R + 10
+  const OUTER_X = R + 42 // horizontal distance from center to the label text column
 
   if (total <= 0) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: H, color: 'var(--text-4)', fontSize: 12 }}>No data</div>
