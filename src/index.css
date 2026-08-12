@@ -1444,6 +1444,33 @@ body {
   .dash-cell-livetv { grid-row: span 5; }
 }
 
+/* Calendar + Headlines/Pairs/Actions are nested into one flex column purely as a
+ * desktop (901px+) space-saving trick (see the flex rules below) — below that
+ * width the auto-fill dense-pack grid above is what's actually laying things
+ * out, and that nesting has no meaning to it: the wrapper wouldn't get any
+ * grid sizing of its own (it's not a `.dash-cell-h*`/`w*` element), so its
+ * content would render squished into a single default-height row instead of
+ * the four stacked panels each has room to need. `display: contents` unwraps
+ * both wrapper levels at mobile widths so Calendar, Headlines, Pairs, and
+ * Actions become direct grid children again, each sized and ordered like any
+ * other mobile dashboard cell. */
+@media (max-width: 900px) {
+  .dash-area-rightside, .dash-rightside-bottom { display: contents; }
+  .dash-calendar-embed, .dash-area-headlines, .dash-area-pairs, .dash-area-actions {
+    grid-column: 1 / -1;
+  }
+  .dash-calendar-embed { grid-row: span 6; order: 1; }
+  .dash-area-headlines { grid-row: span 3; order: 2; }
+  .dash-area-pairs     { grid-row: span 3; order: 3; }
+  .dash-area-actions   { grid-row: span 12; order: 4; }
+}
+@media (max-width: 650px) {
+  .dash-calendar-embed { grid-row: span 4; }
+  .dash-area-headlines { grid-row: span 2; }
+  .dash-area-pairs     { grid-row: span 2; }
+  .dash-area-actions   { grid-row: span 7; }
+}
+
 /* Desktop: the auto-fill dense-pack grid above sizes rows in fixed 165px units that
  * don't add up evenly against real viewport heights — depending on exact window size
  * that leaves stray unfilled tracks (gaps between panels) or a total content height
