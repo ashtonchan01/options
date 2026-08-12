@@ -535,6 +535,12 @@ body {
   .db-action-card-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; }
   .db-action-card { margin: 0 4px 8px; }
 }
+/* Two columns at 768px reads fine on a tablet-width strip, but a phone-width
+   Actions panel (dashboard's embedded ActionsSidebar) squeezes each card's
+   multi-line reasoning text down to almost nothing — back to 1 column. */
+@media (max-width: 480px) {
+  .db-action-card-list { grid-template-columns: 1fr; }
+}
 
 /* ─── Covered Calls View ──────────────────────────────────────────────────── */
 
