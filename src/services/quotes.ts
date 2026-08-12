@@ -6,7 +6,14 @@
 
 const PROXY = 'https://options-jade.vercel.app'
 
-export interface Quote { price: number; high52: number | null }
+export interface Quote {
+  price: number
+  high52: number | null
+  low52: number | null
+  prevClose: number | null
+  volume: number | null
+  avgVolume: number | null
+}
 
 export async function fetchQuotes(symbols: string[]): Promise<Record<string, Quote>> {
   if (symbols.length === 0) return {}

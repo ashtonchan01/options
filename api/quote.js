@@ -52,8 +52,19 @@ export default async function handler(req) {
         const meta = json?.chart?.result?.[0]?.meta
         const price = meta?.regularMarketPrice
         const high52 = meta?.fiftyTwoWeekHigh
+        const low52 = meta?.fiftyTwoWeekLow
+        const prevClose = meta?.chartPreviousClose ?? meta?.previousClose
+        const volume = meta?.regularMarketVolume
+        const avgVolume = meta?.averageDailyVolume10Day ?? meta?.averageDailyVolume3Month
         if (typeof price !== 'number' || price <= 0) return [sym, null]
-        return [sym, { price, high52: typeof high52 === 'number' && high52 > 0 ? high52 : null }]
+        return [sym, {
+          price,
+          high52: typeof high52 === 'number' && high52 > 0 ? high52 : null,
+          low52: typeof low52 === 'number' && low52 > 0 ? low52 : null,
+          prevClose: typeof prevClose === 'number' && prevClose > 0 ? prevClose : null,
+          volume: typeof volume === 'number' ? volume : null,
+          avgVolume: typeof avgVolume === 'number' ? avgVolume : null,
+        }]
       } catch {
         return [sym, null]
       }

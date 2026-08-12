@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import type { AppState, Action, UrgencyLevel, StrategyType, RawTrade } from '../../types'
 import { tradeId } from '../../store/tradeLabelsStore'
 import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
+import { fetchQuotes, type Quote } from '../../services/quotes'
 
 // ─── Urgency config ───────────────────────────────────────────────────────────
 
@@ -945,6 +947,24 @@ export function PortfolioHoldingsPanel({ state, labels }: { state: AppState; lab
   } = derivePortfolio(state)
   void optionPnL
 
+  // Daily change / volume / 52-week range — same live Yahoo quote the
+  // Allocation page already pulls (price + 52w high), just reading the extra
+  // fields off it. IBKR's own dashboard streams these live; this app has no
+  // live feed, so it's a periodic snapshot, refreshed each time positions
+  // change (a full page reload effectively).
+  const [quotes, setQuotes] = useState<Record<string, Quote>>({})
+  const stockSymbols = stocks.map(p => p.symbol)
+  const optionUnderlyings = [...new Set(sortedOptions.map(p => p.underlyingSymbol ?? p.symbol))]
+  const quoteSymbolsKey = [...new Set([...stockSymbols, ...optionUnderlyings])].sort().join(',')
+  useEffect(() => {
+    const symbols = quoteSymbolsKey ? quoteSymbolsKey.split(',') : []
+    if (symbols.length === 0) return
+    let cancelled = false
+    fetchQuotes(symbols).then(q => { if (!cancelled) setQuotes(q) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteSymbolsKey])
+
   return (
     <div className="pf-holdings-panel" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
 
@@ -968,23 +988,47 @@ export function PortfolioHoldingsPanel({ state, labels }: { state: AppState; lab
                   <th style={{ ...TH, textAlign: 'right' }}>Shares</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Avg Cost</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Last</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Change</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Change %</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Daily P&L</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Market Value</th>
                   <th style={{ ...TH, textAlign: 'right' }}>Unrealised P&L</th>
                   <th style={{ ...TH, textAlign: 'right' }}>%</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>Volume</th>
+                  <th style={{ ...TH, textAlign: 'right' }}>52W Range</th>
                 </tr>
               </thead>
               <tbody>
                 {stocks.map((p, i) => {
                   const unrealPct = p.costBasisMoney !== 0 ? p.unrealizedPnL / Math.abs(p.costBasisMoney) : 0
+                  const q = quotes[p.symbol]
+                  const change = q?.prevClose ? p.markPrice - q.prevClose : null
+                  const changePct = q?.prevClose ? (change! / q.prevClose) * 100 : null
+                  const dailyPnl = change != null ? change * p.quantity : null
                   return (
                     <tr key={i} style={{ background: i % 2 ? 'var(--bg-surface)' : 'transparent' }}>
                       <td style={{ ...TD, fontWeight: 700, color: 'var(--text-1)' }}>{p.symbol}</td>
                       <td style={{ ...TDR, color: 'var(--text-2)' }}>{p.quantity.toLocaleString()}</td>
                       <td style={{ ...TDR, color: 'var(--text-3)' }}>{fmtDollar(p.costBasisPrice)}</td>
                       <td style={{ ...TDR, color: 'var(--text-1)', fontWeight: 600 }}>{fmtDollar(p.markPrice)}</td>
+                      <td style={{ ...TDR, color: change != null ? pnlColor(change) : 'var(--text-5)' }}>
+                        {change != null ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}` : '—'}
+                      </td>
+                      <td style={{ ...TDR, color: changePct != null ? pnlColor(changePct) : 'var(--text-5)', fontSize: 12 }}>
+                        {changePct != null ? `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%` : '—'}
+                      </td>
+                      <td style={{ ...TDR, color: dailyPnl != null ? pnlColor(dailyPnl) : 'var(--text-5)' }}>
+                        {dailyPnl != null ? fmtDollar(dailyPnl) : '—'}
+                      </td>
                       <td style={{ ...TDR, color: 'var(--text-1)' }}>{fmtDollar(p.positionValue)}</td>
                       <td style={{ ...TDR, color: pnlColor(p.unrealizedPnL), fontWeight: 600 }}>{fmtDollar(p.unrealizedPnL)}</td>
                       <td style={{ ...TDR, color: pnlColor(unrealPct), fontSize: 12 }}>{(unrealPct * 100).toFixed(1)}%</td>
+                      <td style={{ ...TDR, color: 'var(--text-3)', fontSize: 12 }}>
+                        {q?.volume != null ? q.volume.toLocaleString() : '—'}
+                      </td>
+                      <td style={{ ...TDR, color: 'var(--text-3)', fontSize: 11, whiteSpace: 'nowrap' }}>
+                        {q?.low52 != null && q?.high52 != null ? `${q.low52.toFixed(0)}–${q.high52.toFixed(0)}` : '—'}
+                      </td>
                     </tr>
                   )
                 })}
@@ -994,11 +1038,16 @@ export function PortfolioHoldingsPanel({ state, labels }: { state: AppState; lab
                   <td style={TDR}></td>
                   <td style={TDR}></td>
                   <td style={TDR}></td>
+                  <td style={TDR}></td>
+                  <td style={TDR}></td>
+                  <td style={TDR}></td>
                   <td style={{ ...TDR, fontWeight: 700, color: 'var(--text-1)' }}>{fmtDollar(stockMV)}</td>
                   <td style={{ ...TDR, fontWeight: 700, color: pnlColor(stockPnL) }}>{fmtDollar(stockPnL)}</td>
                   <td style={{ ...TDR, color: pnlColor(stockPnL / Math.abs(stockCost || 1)), fontSize: 12 }}>
                     {(stockPnL / Math.abs(stockCost || 1) * 100).toFixed(1)}%
                   </td>
+                  <td style={TDR}></td>
+                  <td style={TDR}></td>
                 </tr>
               </tbody>
             </table>
