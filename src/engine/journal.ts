@@ -8,6 +8,25 @@ import type { RawTrade } from '../types'
 import type { TradeLabel } from '../store/tradeLabelsStore'
 import { tradeId } from '../store/tradeLabelsStore'
 
+/** Cash impact of one option leg, recomputed directly from quantity/price/
+ * commission rather than trusting the trade's own stored `netCash` — IBKR's
+ * Flex report has a known quirk where legs of a multi-leg COMBO order (e.g.
+ * a risk-reversal: buy a call + sell a put in one order) can carry a netCash
+ * sign reflecting the combo's overall order direction rather than that
+ * leg's own true economics, silently flipping the sign for exactly the buy
+ * leg (or the sell leg) of a mixed put+call position — verified against a
+ * real account where a "sell put, buy call" risk-reversal that the user
+ * confirmed paying a net debit for showed up with a net CREDIT (flipped
+ * sign, same magnitude) using the stored netCash field. Quantity sign
+ * (positive=buy, negative=sell) is unaffected by this quirk — confirmed by
+ * every position's contracts/strikeDisplay/putCall deriving correctly from
+ * it — so recomputing cash flow from quantity + tradePrice directly (the
+ * same proceeds formula IBKR itself documents: proceeds = -quantity ×
+ * multiplier × price) sidesteps the unreliable field entirely. */
+function legNetCash(l: RawTrade): number {
+  return -l.quantity * l.tradePrice * 100 - Math.abs(l.commissions ?? 0)
+}
+
 // ─── Position model ───────────────────────────────────────────────────────────
 
 export type PositionStatus = 'Active' | 'Closed' | 'Expired'
@@ -247,7 +266,7 @@ export function buildJournalPositions(
     for (const [k, legs] of byLeg) {
       const qty = legs.reduce((s, l) => s + Math.abs(l.quantity), 0)
       remaining.set(k, qty)
-      netCashPerUnit.set(k, qty > 0 ? legs.reduce((s, l) => s + l.netCash, 0) / qty : 0)
+      netCashPerUnit.set(k, qty > 0 ? legs.reduce((s, l) => s + legNetCash(l), 0) / qty : 0)
       feesPerUnit.set(k, qty > 0 ? legs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0) / qty : 0)
     }
     return { cg, remaining, netCashPerUnit, feesPerUnit }
@@ -276,7 +295,7 @@ export function buildJournalPositions(
       ? openLegs.filter(l => legKeyOf(l) === legKeyOf(sells[0])).reduce((s, l) => s + Math.abs(l.quantity), 0)
       : 1
     const openFees       = openLegs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0)
-    const openingNetCash = openLegs.reduce((s, l) => s + l.netCash, 0)
+    const openingNetCash = openLegs.reduce((s, l) => s + legNetCash(l), 0)
 
     // Each leg gets its own put/call suffix — a risk-reversal/LEAP combo (long
     // call + short put on different strikes) must show as e.g. "120P/110C",
@@ -350,7 +369,7 @@ export function buildJournalPositions(
     // (below), leaving any position manually opened and closed within the same
     // calendar day stuck "Active" forever even though it isn't 0DTE at all.
     if (settlementLegs.length > 0) {
-      const settlementNetCash = settlementLegs.reduce((s, l) => s + l.netCash, 0)
+      const settlementNetCash = settlementLegs.reduce((s, l) => s + legNetCash(l), 0)
       const settlementFees    = settlementLegs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0)
       return {
         ...base,
