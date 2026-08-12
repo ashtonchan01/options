@@ -41,6 +41,13 @@ export interface RawTrade {
   openClose?: OpenClose
   /** True for ACATS/internal position-transfer records (not real trading activity) — used to exclude them from daily activity aggregations while still feeding share-count reconstruction. */
   isTransfer?: boolean
+  /** IBKR's own unique execution ID (Flex XML `tradeID`), when available. Used
+   * to tell apart genuinely distinct executions that share the same date/
+   * symbol/quantity/price — the composite `tradeId()` key alone collapses
+   * those into one, silently undercounting a multi-lot order that filled at
+   * a single uniform price (verified: a real 3-lot CSP sell, each execution
+   * -1 @ the same price, merged down to 2 distinct rows). */
+  execId?: string
 }
 
 // ─── Classified Strategy ─────────────────────────────────────────────────────

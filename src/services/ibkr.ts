@@ -127,6 +127,7 @@ function parseNetLiq(doc: Document): number | undefined {
 
 function parseTrades(doc: Document): RawTrade[] {
   return Array.from(doc.querySelectorAll('Trade')).map(el => ({
+    execId:           el.getAttribute('tradeID') ?? undefined,
     tradeDate:        el.getAttribute('tradeDate') ?? '',
     symbol:           el.getAttribute('symbol') ?? '',
     underlyingSymbol: el.getAttribute('underlyingSymbol') ?? undefined,
@@ -183,6 +184,7 @@ function parseOptionEAE(doc: Document, usedTradeIds: Set<string>): RawTrade[] {
       : Math.abs(rawQty)
 
     return {
+      execId:           el.getAttribute('tradeID') ?? undefined,
       tradeDate:        el.getAttribute('date') ?? '',
       symbol:           (el.getAttribute('symbol') ?? '').trim(),
       underlyingSymbol: el.getAttribute('underlyingSymbol') || undefined,

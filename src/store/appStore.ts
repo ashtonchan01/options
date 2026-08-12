@@ -71,13 +71,35 @@ async function saveServerPersisted(data: PersistedData) {
 
 /** IBKR's Flex report only covers a rolling 365-day window, so every sync/upload
  * would otherwise silently drop trade history older than a year. Union new trades
- * into whatever's already stored (deduped by the same composite tradeId used for
- * labels) instead of replacing wholesale — once a trade has been seen in any past
- * sync it stays in the journal permanently, even after IBKR stops reporting it. */
+ * into whatever's already stored instead of replacing wholesale — once a trade
+ * has been seen in any past sync it stays in the journal permanently, even after
+ * IBKR stops reporting it.
+ *
+ * Deduped by IBKR's own execId when available, NOT the composite tradeId() used
+ * for labels — that composite key (date|symbol|quantity|price) collapses two
+ * genuinely distinct executions that share the same date/qty/price into one,
+ * silently undercounting a multi-lot order that filled at a single uniform
+ * price (verified: a real 3-lot CSP sell, each execution -1 @ the same price,
+ * merged down to 2 rows, undercounting the position by a contract). Falls back
+ * to the composite key only for records with no execId (Transfers). */
+function mergeKey(t: RawTrade): string {
+  return t.execId ?? tradeId(t)
+}
 function mergeTrades(existing: RawTrade[], incoming: RawTrade[]): RawTrade[] {
+  // Trades persisted before execId was captured have no execId of their own,
+  // keyed only by the lossy composite tradeId(). A fresh sync's incoming set
+  // (execId-aware) describes those same date/symbol/qty/price buckets with
+  // full per-execution granularity now — keeping the old collapsed placeholder
+  // around alongside the new distinct rows would double-count them. Drop any
+  // execId-less existing row the incoming sync now covers; anything outside
+  // the incoming sync's window (older than IBKR's 365-day report) is left
+  // untouched since nothing here supersedes it.
+  const incomingComposite = new Set(incoming.map(t => tradeId(t)))
+  const survivors = existing.filter(t => t.execId || !incomingComposite.has(tradeId(t)))
+
   const map = new Map<string, RawTrade>()
-  for (const t of existing) map.set(tradeId(t), t)
-  for (const t of incoming) map.set(tradeId(t), t)
+  for (const t of survivors) map.set(mergeKey(t), t)
+  for (const t of incoming) map.set(mergeKey(t), t)
   return [...map.values()]
 }
 
