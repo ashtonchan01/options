@@ -14,6 +14,12 @@ const OVERBOUGHT = 70
 const OVERSOLD = 30
 const EXTRA_TICKERS = ['BTC-USD']
 
+/** Display-only — the RSI fetch still uses the real ticker (BTC-USD), just
+ * dropping the "-USD" suffix in the UI since "BTC" reads cleaner. */
+function displaySymbol(symbol: string): string {
+  return symbol.replace(/-USD$/, '')
+}
+
 function rsiColor(rsi: number): string {
   if (rsi >= OVERBOUGHT) return '#ef4444'
   if (rsi <= OVERSOLD) return '#10b981'
@@ -28,7 +34,7 @@ function RsiRowLine({ row }: { row: RsiRow }) {
       display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, fontFamily: 'Inter, sans-serif',
       padding: '4px 7px', border: '1px solid var(--border-light)', borderRadius: 5, background: 'var(--bg-elevated)',
     }}>
-      <span style={{ color: 'var(--text-2)', fontWeight: 600, width: 46 }}>{row.symbol}</span>
+      <span style={{ color: 'var(--text-2)', fontWeight: 600, width: 46 }}>{displaySymbol(row.symbol)}</span>
       <div style={{ flex: 1, position: 'relative', height: 4, background: 'var(--bg-card)', borderRadius: 2, overflow: 'hidden' }}>
         <div style={{ position: 'absolute', left: `${OVERSOLD}%`, width: `${OVERBOUGHT - OVERSOLD}%`, top: 0, bottom: 0, background: 'var(--border-light)' }} />
         <div style={{ position: 'absolute', left: `calc(${Math.min(Math.max(row.rsi, 0), 100)}% - 1.5px)`, top: -1, bottom: -1, width: 3, borderRadius: 2, background: rsiColor(row.rsi) }} />
@@ -103,7 +109,7 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
         </button>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className="dash-pairs-scroll" style={{ flex: 1, overflow: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {!top ? (
           <div style={{ fontSize: 12, color: 'var(--text-4)' }}>
             {loading ? 'Loading RSI data…' : 'Not enough data yet.'}
@@ -115,12 +121,12 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{top.sell.symbol}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{displaySymbol(top.sell.symbol)}</div>
                 <div style={{ fontSize: 10.5, color: '#ef4444', fontWeight: 700 }}>SELL · {top.sell.rsi.toFixed(1)}</div>
               </div>
               <ArrowRightLeft size={13} style={{ color: 'var(--text-5)', flexShrink: 0 }} />
               <div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{top.buy.symbol}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{displaySymbol(top.buy.symbol)}</div>
                 <div style={{ fontSize: 10.5, color: '#10b981', fontWeight: 700 }}>BUY · {top.buy.rsi.toFixed(1)}</div>
               </div>
               <div style={{ marginLeft: 'auto', textAlign: 'right' }}>

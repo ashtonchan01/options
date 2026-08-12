@@ -38,7 +38,7 @@ interface Row {
   targetValue: number
   targetShares: number
   actualShares: number
-  actualLeapShares: number
+  actualLeapContracts: number
   actualValue: number
   color: string
 }
@@ -53,10 +53,13 @@ interface Slice { label: string; value: number; color: string }
  * don't print their labels on top of each other. */
 function PortfolioPie({ slices, centerLabel, centerValue }: { slices: Slice[]; centerLabel: string; centerValue: string }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
-  const W = 380, H = 300, CX = 190, CY = 150, R = 78
+  // Wide margins either side of the circle for the label text itself — the
+  // first version sized these too tight and every label (both sides) got
+  // clipped at the viewBox edge instead of just fitting inside it.
+  const W = 480, H = 300, CX = 200, CY = 148, R = 62
   const LABEL_ROW_H = 15
   const ELBOW_R = R + 14
-  const OUTER_X = R + 92 // horizontal distance from center to the label text column
+  const OUTER_X = R + 70 // horizontal distance from center to the label text column
 
   if (total <= 0) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: H, color: 'var(--text-4)', fontSize: 12 }}>No data</div>
@@ -99,7 +102,7 @@ function PortfolioPie({ slices, centerLabel, centerValue }: { slices: Slice[]; c
   }
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 420, display: 'block', margin: '0 auto' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 500, display: 'block', margin: '0 auto', overflow: 'visible' }}>
       {wedges.map((w, i) => <path key={i} d={w.path} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />)}
       <circle cx={CX} cy={CY} r={30} fill="var(--bg-card)" />
       <text x={CX} y={CY - 5} textAnchor="middle" fontSize="8" fill="var(--text-4)" fontFamily="Inter, sans-serif" letterSpacing="1px">
@@ -159,12 +162,18 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
       const targetDollar = targetPct / 100 * TARGET_PORTFOLIO_VALUE
       const targetShares = price > 0 ? Math.max(t.lotSize, Math.round(targetDollar / price / t.lotSize) * t.lotSize) : 0
 
-      const stockShares = state.sync.positions
-        .filter(p => p.assetClass === 'STK' && p.symbol === t.symbol)
+      const stockPositions = state.sync.positions.filter(p => p.assetClass === 'STK' && p.symbol === t.symbol)
+      const stockShares = stockPositions.reduce((s, p) => s + p.quantity, 0)
+      const stockValue = stockPositions.reduce((s, p) => s + p.positionValue, 0)
+
+      const optPositions = state.sync.positions.filter(p => p.assetClass === 'OPT' && (p.underlyingSymbol ?? p.symbol) === t.symbol)
+      // Real mark-to-market option value (can be negative for short puts/
+      // spreads) — not a notional "contracts x 100 = shares" guess, which
+      // wildly overstated actual dollar exposure for anything not deep ITM.
+      const optValue = optPositions.reduce((s, p) => s + p.positionValue, 0)
+      const leapContracts = optPositions
+        .filter(p => p.putCall === 'C' && p.quantity > 0)
         .reduce((s, p) => s + p.quantity, 0)
-      const leapShares = state.sync.positions
-        .filter(p => p.assetClass === 'OPT' && p.putCall === 'C' && p.quantity > 0 && (p.underlyingSymbol ?? p.symbol) === t.symbol)
-        .reduce((s, p) => s + p.quantity * (p.multiplier ?? 100), 0)
 
       return {
         symbol: t.symbol,
@@ -174,8 +183,8 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
         targetValue: targetShares * price,
         targetShares,
         actualShares: stockShares,
-        actualLeapShares: leapShares,
-        actualValue: (stockShares + leapShares) * price,
+        actualLeapContracts: leapContracts,
+        actualValue: stockValue + optValue,
         color: tickerColor(i, t.category),
       }
     })
@@ -185,7 +194,16 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
   const targetCash = CASH_PCT / 100 * TARGET_PORTFOLIO_VALUE
 
   const targetTotal = rows.reduce((s, r) => s + r.targetValue, 0) + targetCash
-  const actualTotal = rows.reduce((s, r) => s + r.actualValue, 0) + actualCash
+
+  // Actual total is the account's real net liquidation (same figure shown
+  // everywhere else in the app) — not just the sum of our 16 target tickers,
+  // which would silently exclude SPX spreads, other CSPs, and anything else
+  // held outside this specific list. Whatever that total doesn't account for
+  // (matched tickers + cash) falls into an "Other" slice instead of just
+  // vanishing, so the actual pie's total always reconciles to something real.
+  const matchedValue = rows.reduce((s, r) => s + r.actualValue, 0) + actualCash
+  const actualTotal = state.sync.netLiquidation ?? matchedValue
+  const otherValue = Math.max(0, actualTotal - matchedValue)
 
   const targetSlices: Slice[] = [
     { label: 'CASH', value: targetCash, color: CATEGORY_COLOR.cash },
@@ -194,6 +212,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
   const actualSlices: Slice[] = [
     { label: 'CASH', value: actualCash, color: CATEGORY_COLOR.cash },
     ...rows.map(r => ({ label: r.symbol, value: r.actualValue, color: r.color })),
+    ...(otherValue > 0 ? [{ label: 'OTHER', value: otherValue, color: 'var(--text-5)' }] : []),
   ]
 
   // Recommendation is scaled to the CURRENT portfolio, not the fixed $1M
@@ -332,7 +351,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
                     <td className="mono" style={{ textAlign: 'right' }}>{fmt$(r.targetValue)}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>
                       {r.actualShares.toLocaleString()}
-                      {r.actualLeapShares > 0 && <span style={{ color: 'var(--text-4)' }}> (+{r.actualLeapShares.toLocaleString()} LEAP)</span>}
+                      {r.actualLeapContracts > 0 && <span style={{ color: 'var(--text-4)' }}> (+{r.actualLeapContracts.toLocaleString()} LEAP ct.)</span>}
                     </td>
                     <td className="mono" style={{ textAlign: 'right' }}>{fmt$(r.actualValue)}</td>
                     <td className={`mono ${r.gap > 0 ? 'pos' : r.gap < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right', fontWeight: 700 }}>{fmt$(r.gap)}</td>

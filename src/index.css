@@ -1476,7 +1476,20 @@ body {
   .dash-area-headlines { min-height: 320px; }
   .dash-area-pairs     { min-height: 420px; }
   .dash-area-actions   { min-height: 500px; }
+  /* 4 columns of headline cards each ~90px wide is unreadable on a phone —
+     a single column, stacked in normal reading order, top to bottom. */
+  .dash-headlines-cols { column-count: 1 !important; }
+  /* Both panels had an internal overflow:auto scroll box — sensible on
+     desktop where they share a fixed-height row, pointless now that they
+     each get their own full-width stacked row with room to just grow. A
+     stray `.db-sidebar { max-height: 380px }` mobile rule elsewhere in this
+     file (written for a different page reusing the same class) was capping
+     Actions specifically; override it back off here. */
+  .dash-pairs-scroll { overflow: visible !important; }
+  .dash-area-actions .db-sidebar { max-height: none !important; overflow: visible !important; }
+  .dash-area-actions .db-sidebar-body { overflow: visible !important; }
 }
+.dash-headlines-cols { column-count: 4; }
 
 /* Desktop: the auto-fill dense-pack grid above sizes rows in fixed 165px units that
  * don't add up evenly against real viewport heights — depending on exact window size
@@ -1579,11 +1592,18 @@ body {
  * for CalendarView's own default side-by-side layout (grid left, list right), so
  * it's left alone there. */
 @media (max-width: 900px) {
-  .dash-calendar-embed .calendar-layout { flex-direction: column !important; }
+  /* CalendarView's own root div is `height: 100%` inline — with this cell now
+     sized to its own content (flex: 0 0 auto) instead of stretched against a
+     parent height, 100% has nothing definite to resolve against and the
+     whole thing (including the activity list below the grid) was collapsing
+     away instead of just shrink-wrapping. Force auto so it sizes to its
+     actual content top to bottom. */
+  .dash-calendar-embed > div { height: auto !important; }
+  .dash-calendar-embed .calendar-layout { flex-direction: column !important; height: auto !important; }
   .dash-calendar-embed .calendar-main { flex: none !important; padding: 12px !important; overflow: visible !important; }
   .dash-calendar-embed .calendar-sidebar {
     width: 100% !important; border-left: none !important;
     border-top: 1px solid var(--border) !important;
-    flex: 1 !important; max-height: none !important; min-height: 0 !important;
+    flex: none !important; height: 380px !important; max-height: none !important;
   }
 }

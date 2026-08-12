@@ -47,7 +47,7 @@ export default function TickerHeadlinesPanel() {
   return (
     <div className="dash-panel" style={{ flex: 1 }}>
       <div className="dash-panel-header"><span>Ticker Headlines</span></div>
-      <div style={{ flex: 1, overflowY: 'auto', columnCount: 4, columnGap: 10 }}>
+      <div className="dash-headlines-cols" style={{ flex: 1, overflowY: 'auto', columnGap: 10 }}>
         {groups.length === 0 && (
           <div style={{ padding: '12px 4px', fontSize: 12, color: 'var(--text-4)' }}>
             Loading headlines for your followed tickers…
