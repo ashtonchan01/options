@@ -54,13 +54,20 @@ export default function TickerHeadlinesPanel() {
           </div>
         )}
         {groups.map(g => (
+          // No `overflow: hidden` here — Safari has a long-standing bug where
+          // CSS multi-column `break-inside: avoid` is ignored on any element
+          // whose overflow isn't `visible`, which was splitting these cards
+          // across columns instead of keeping each one intact. Rounding just
+          // the header's top corners gets the same visual look without
+          // needing to clip the whole card.
           <div key={g.ticker} style={{
             background: 'var(--bg-elevated)', border: '1px solid var(--border-light)', borderRadius: 8,
-            marginBottom: 8, breakInside: 'avoid', overflow: 'hidden',
+            marginBottom: 8, breakInside: 'avoid',
           }}>
             <div style={{
               fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-dim)',
               borderBottom: '1px solid var(--accent-border)', padding: '4px 9px',
+              borderTopLeftRadius: 7, borderTopRightRadius: 7,
             }}>
               {g.ticker}
             </div>
