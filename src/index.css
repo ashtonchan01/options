@@ -1127,17 +1127,21 @@ body {
   flex: 1 1 50%;
   overflow: hidden;
   display: flex;
-  align-items: center;
+  align-items: stretch;
 }
+/* Grid with equal-width, equal-height columns — flex-grow gave every chip
+   a different width based on its own content length, which read as messy/
+   uneven. A grid forces all 9 into identically-sized cells. */
 .jr-kpi-col .jr-kpi-row {
-  flex-wrap: nowrap;
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
   width: 100%;
+  height: 100%;
 }
 .jr-kpi-col .jr-kpi-chip {
-  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
+  justify-content: center;
 }
 .jr-kpi-col .jr-kpi-chip-label,
 .jr-kpi-col .jr-kpi-chip-value {
