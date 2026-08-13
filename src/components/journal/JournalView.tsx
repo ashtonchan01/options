@@ -696,20 +696,34 @@ function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor 
     return total > 0 ? p.contracts / total : 1
   }
   const hasLive = liveLegs.length > 0
+  // A strike this position shares with another active row (see strikeUsage
+  // above) has no honest per-row split of IBKR's own blended cost basis —
+  // proportioning by contract count assumes both rows entered at the same
+  // price, which isn't generally true (verified: two SPX verticals sharing
+  // a short 7525P strike, opened at different prices — splitting IBKR's
+  // live combined cost basis by contract count gave -$5,096/-$558, while
+  // the real per-combo entry economics were -$3,699/-$1,955, matching this
+  // position's own recorded trade-history premium almost exactly). Only use
+  // IBKR's live cost basis when every one of this position's strikes is
+  // exclusively its own.
+  const hasSharedStrike = !isShares && p.strikes.some(strike => {
+    const total = strikeUsage.get(`${p.underlying}|${p.expiry}|${strike}`) ?? p.contracts
+    return total > p.contracts
+  })
 
   // IBKR's own live costBasisMoney/Price (already correctly signed — negative
   // for a short position, positive for a long one) is authoritative and used
-  // whenever a live match exists — it reflects IBKR's actual cost-basis
-  // accounting (their default is average-cost, not FIFO), which can legally
-  // diverge from a FIFO reconstruction off trade history whenever a position
-  // has had a partial close along the way (verified: a real MSTR share
-  // position with one partial sell in its history showed a FIFO-derived
-  // $235.00 avg / $117,500 cost basis in this app vs IBKR's own reported
-  // $230.49 avg / $115,244 average-cost basis — same trades, different valid
-  // accounting method, and IBKR's own number is the one that matters here).
-  // Falls back to this position's own recorded premium only when nothing
-  // live matches (already-closed positions, or a symbol with no live leg).
-  const liveCostBasis = hasLive ? liveLegs.reduce((s, lp) => s + lp.costBasisMoney * shareOf(lp), 0) : null
+  // whenever a live match exists and no strike is shared — it reflects
+  // IBKR's actual cost-basis accounting (their default is average-cost, not
+  // FIFO), which can legally diverge from a FIFO reconstruction off trade
+  // history whenever a position has had a partial close along the way
+  // (verified: a real MSTR share position with one partial sell in its
+  // history showed a FIFO-derived $235.00 avg / $117,500 cost basis in this
+  // app vs IBKR's own reported $230.49 avg / $115,244 average-cost basis —
+  // same trades, different valid accounting method, and IBKR's own number is
+  // the one that matters here). Falls back to this position's own recorded
+  // premium when nothing live matches, or a strike is shared (see above).
+  const liveCostBasis = hasLive && !hasSharedStrike ? liveLegs.reduce((s, lp) => s + lp.costBasisMoney * shareOf(lp), 0) : null
   const costBasis = liveCostBasis ?? -p.netPremium
   const avgPrice = units > 0 ? Math.abs(costBasis) / units : 0
 
