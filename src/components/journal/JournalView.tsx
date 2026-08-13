@@ -59,9 +59,31 @@ const LABEL_SHORT: Record<string, string> = {
 // Single compact row (not the old two-tier cards+mini-strip layout) — the
 // Journal Overview strip is capped to a fixed height with no scroll, so
 // everything has to fit on one line instead of stacking.
-function KpiStrip({ closed, openPremium }: { closed: JournalPosition[]; openPremium: number }) {
+/** IBKR's raw "YYYYMMDD" dateOpen (no separators) fails `new Date()` silently. */
+function parseJrDate(s: string): Date | null {
+  const iso = /^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : s
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? null : d
+}
+
+function KpiStrip({ closed, openPremium, netLiquidation }: { closed: JournalPosition[]; openPremium: number; netLiquidation?: number }) {
   const s = useMemo(() => computeStats(closed), [closed])
   const pf = s.profitFactor === Infinity ? '∞' : s.profitFactor.toFixed(2)
+
+  // Simple (non-compounding) annualized return: net realized P&L as a share
+  // of current account size, scaled from however many days the trade
+  // history actually spans up to a full year — the only "starting capital"
+  // figure available is the account's current net liquidation (no daily
+  // balance history to compute a true day-by-day CAGR from).
+  const annualYield = useMemo(() => {
+    if (!netLiquidation || netLiquidation <= 0 || closed.length === 0) return null
+    const opens = closed.map(p => parseJrDate(p.dateOpen)).filter((d): d is Date => d !== null)
+    if (opens.length === 0) return null
+    const earliest = new Date(Math.min(...opens.map(d => d.getTime())))
+    const days = Math.max(1, (Date.now() - earliest.getTime()) / 86_400_000)
+    return (s.netPnl / netLiquidation) * (365 / days) * 100
+  }, [closed, netLiquidation, s.netPnl])
+
   const stats = [
     { label: 'Net P&L',       value: fmt$(s.netPnl),       color: pnlColor(s.netPnl) },
     { label: 'Win Rate',      value: s.trades ? `${s.winRate.toFixed(0)}%` : '—',
@@ -72,7 +94,7 @@ function KpiStrip({ closed, openPremium }: { closed: JournalPosition[]; openPrem
     { label: 'Max DD',        value: fmt$(-s.maxDrawdown), color: '#f59e0b' },
     { label: 'Open Premium',  value: fmt$(openPremium),    color: 'var(--text-1)' },
     { label: 'Closed',        value: String(s.trades),     color: 'var(--text-1)' },
-    { label: 'Streak',        value: s.currentStreak === 0 ? '—' : `${s.currentStreak > 0 ? 'W' : 'L'}${Math.abs(s.currentStreak)}`, color: 'var(--text-1)' },
+    { label: 'Annual Yield',  value: annualYield != null ? `${annualYield >= 0 ? '+' : ''}${annualYield.toFixed(1)}%` : '—', color: annualYield != null ? pnlColor(annualYield) : 'var(--text-1)' },
   ]
   return (
     <div className="jr-kpi-row">
@@ -139,8 +161,8 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
 
 // ─── Overview sub-view ────────────────────────────────────────────────────────
 
-export function OverviewTab({ closed, positions }: {
-  closed: JournalPosition[]; positions: JournalPosition[]; entries: Record<string, JournalEntry>
+export function OverviewTab({ closed, positions, netLiquidation }: {
+  closed: JournalPosition[]; positions: JournalPosition[]; entries: Record<string, JournalEntry>; netLiquidation?: number
 }) {
   const curve = useMemo(() => equityCurve(closed), [closed])
   const openPremium = useMemo(() => openPremiumTotal(positions), [positions])
@@ -151,9 +173,9 @@ export function OverviewTab({ closed, positions }: {
     <div className="jr-overview-compact">
       <div className="jr-overview-row">
         <div className="jr-kpi-col">
-          <KpiStrip closed={closed} openPremium={openPremium} />
+          <KpiStrip closed={closed} openPremium={openPremium} netLiquidation={netLiquidation} />
         </div>
-        <div className="jr-overview-cell" style={{ flex: '1 1 35%' }}>
+        <div className="jr-overview-cell" style={{ flex: 1 }}>
           <div className="jr-overview-cell-title">Equity Curve</div>
           <div className="jr-overview-cell-body"><EquityChart points={curve} /></div>
         </div>
