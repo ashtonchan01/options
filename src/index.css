@@ -726,7 +726,7 @@ body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+  grid-template-columns: 1fr;
   grid-auto-rows: min-content;
   gap: 10px;
   overflow-y: auto;
@@ -1073,10 +1073,74 @@ body {
   min-height: 0;
 }
 
-.jr-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 8px;
+/* Journal Overview — compact, fixed-height, no-scroll layout: one KPI row
+   plus one row of Equity Curve / Monthly P&L / Edge Finder side by side. */
+.jr-overview-compact {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+.jr-kpi-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.jr-kpi-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.jr-kpi-chip-label {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+.jr-kpi-chip-value {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+}
+.jr-overview-row {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+.jr-overview-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.jr-overview-cell-title {
+  padding: 4px 10px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-4);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.jr-overview-cell-body {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 8px;
 }
 
 .jr-mini-strip {
@@ -1102,15 +1166,6 @@ body {
   align-items: stretch;
 }
 
-/* Exactly 4 breakdown cards now (By Underlying, By Strategy, By Entry DTE,
-   By Hold Time) — a fixed 2x2 grid instead of auto-fill so they always pair
-   up evenly instead of wrapping into an uneven last row. */
-.jr-break-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: repeat(2, auto);
-  gap: 10px;
-}
 
 .jr-editor {
   display: flex;
@@ -1144,7 +1199,14 @@ body {
 @media (max-width: 768px) {
   .jr-root { padding: 12px; }
   .jr-2col { grid-template-columns: 1fr; }
-  .jr-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  /* The desktop "fixed 20% height, no scroll, 3-across row" layout doesn't
+     fit a phone screen — stack Equity Curve/Monthly P&L/Edge Finder instead
+     and let the KPI chips wrap, same "just grow" treatment as everywhere
+     else on mobile rather than cramming a 3-column row into ~380px. */
+  .jr-overview-compact { height: auto; }
+  .jr-kpi-row { flex-wrap: wrap; overflow-x: visible; }
+  .jr-overview-row { flex-direction: column; }
+  .jr-overview-cell { min-height: 160px; }
   .pf-columns { overflow-x: hidden; }
   /* Each column used to cap at 70vh and scroll internally — full height with
      the whole page scrolling as one instead, so nothing on the Portfolio or

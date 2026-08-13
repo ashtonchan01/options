@@ -7,9 +7,9 @@
 import { useMemo, useState } from 'react'
 import {
   computeStats, equityCurve, breakdown, openPremiumTotal,
-  byUnderlying, byStrategy, byMonth, byDteBucket, byHoldBucket,
+  byMonth,
   edgeInsights,
-  type JournalPosition, type EquityPoint, type BreakdownRow,
+  type JournalPosition, type EquityPoint,
 } from '../../engine/journal'
 import { MISTAKES, type JournalEntry } from '../../store/journalStore'
 import type { RawPosition } from '../../types'
@@ -63,56 +63,33 @@ const LABEL_SHORT: Record<string, string> = {
 
 // ─── KPI strip ────────────────────────────────────────────────────────────────
 
+// Single compact row (not the old two-tier cards+mini-strip layout) — the
+// Journal Overview strip is capped to a fixed height with no scroll, so
+// everything has to fit on one line instead of stacking.
 function KpiStrip({ closed, openPremium }: { closed: JournalPosition[]; openPremium: number }) {
   const s = useMemo(() => computeStats(closed), [closed])
   const pf = s.profitFactor === Infinity ? '∞' : s.profitFactor.toFixed(2)
-  // Tried folding open-position net premium into this figure to match the
-  // spreadsheet's per-row convention, but verified against real data it makes
-  // the total wildly wrong (the spreadsheet's own weekly/monthly tally is
-  // realized-P&L-only, despite showing raw premium in the per-position table)
-  // — so Net P&L stays realized-only; open premium is a separate reference
-  // stat below instead.
-  const cards = [
-    { label: 'Net P&L',       value: fmt$(s.netPnl),                 color: pnlColor(s.netPnl) },
+  const stats = [
+    { label: 'Net P&L',       value: fmt$(s.netPnl),       color: pnlColor(s.netPnl) },
     { label: 'Win Rate',      value: s.trades ? `${s.winRate.toFixed(0)}%` : '—',
       color: s.winRate >= 65 ? '#10b981' : s.winRate >= 50 ? '#f59e0b' : '#ef4444' },
-    { label: 'Profit Factor', value: s.trades ? pf : '—',            color: s.profitFactor >= 1.5 ? '#10b981' : s.profitFactor >= 1 ? '#f59e0b' : '#ef4444' },
-    { label: 'Expectancy',    value: fmt$(s.expectancy),             color: pnlColor(s.expectancy) },
-    { label: 'Avg Win',       value: fmt$(s.avgWin),                 color: '#10b981' },
-    { label: 'Avg Loss',      value: fmt$(s.avgLoss),                color: '#ef4444' },
-    { label: 'Payoff Ratio',  value: s.payoff ? s.payoff.toFixed(2) : '—', color: 'var(--text-1)' },
-    { label: 'Max Drawdown',  value: fmt$(-s.maxDrawdown),           color: '#f59e0b' },
-  ]
-  const minis = [
-    { label: 'Realised P&L',  value: fmt$(s.netPnl) },
-    { label: 'Open Premium',  value: fmt$(openPremium) },
-    { label: 'Closed Trades', value: String(s.trades) },
-    { label: 'Streak',        value: s.currentStreak === 0 ? '—' : `${s.currentStreak > 0 ? 'W' : 'L'}${Math.abs(s.currentStreak)}` },
-    { label: 'Best Streak',   value: `W${s.longestWinStreak} / L${s.longestLossStreak}` },
-    { label: 'Best Trade',    value: fmt$(s.bestTrade) },
-    { label: 'Worst Trade',   value: fmt$(s.worstTrade) },
-    { label: 'Avg Hold',      value: `${s.avgHoldDays.toFixed(1)}d` },
-    { label: 'Total Fees',    value: fmt$(s.totalFees, 2) },
+    { label: 'Profit Factor', value: s.trades ? pf : '—', color: s.profitFactor >= 1.5 ? '#10b981' : s.profitFactor >= 1 ? '#f59e0b' : '#ef4444' },
+    { label: 'Avg Win',       value: fmt$(s.avgWin),       color: '#10b981' },
+    { label: 'Avg Loss',      value: fmt$(s.avgLoss),      color: '#ef4444' },
+    { label: 'Max DD',        value: fmt$(-s.maxDrawdown), color: '#f59e0b' },
+    { label: 'Open Premium',  value: fmt$(openPremium),    color: 'var(--text-1)' },
+    { label: 'Closed',        value: String(s.trades),     color: 'var(--text-1)' },
+    { label: 'Streak',        value: s.currentStreak === 0 ? '—' : `${s.currentStreak > 0 ? 'W' : 'L'}${Math.abs(s.currentStreak)}`, color: 'var(--text-1)' },
   ]
   return (
-    <>
-      <div className="jr-kpi-grid">
-        {cards.map(c => (
-          <div key={c.label} className="stat-card" style={{ padding: '10px 14px' }}>
-            <div className="stat-label">{c.label}</div>
-            <div className="stat-value" style={{ fontSize: 19, color: c.color }}>{c.value}</div>
-          </div>
-        ))}
-      </div>
-      <div className="jr-mini-strip">
-        {minis.map(m => (
-          <div key={m.label} className="jr-mini">
-            <span className="label">{m.label}</span>
-            <span className="mono" style={{ color: 'var(--text-1)', fontWeight: 600 }}>{m.value}</span>
-          </div>
-        ))}
-      </div>
-    </>
+    <div className="jr-kpi-row">
+      {stats.map(c => (
+        <div key={c.label} className="jr-kpi-chip">
+          <span className="jr-kpi-chip-label">{c.label}</span>
+          <span className="jr-kpi-chip-value" style={{ color: c.color }}>{c.value}</span>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -122,7 +99,7 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
   if (points.length < 2) {
     return <div className="db-empty-msg" style={{ minHeight: 140 }}>Need at least 2 closed trades to draw the curve</div>
   }
-  const W = 1000, H = 230, PL = 58, PR = 14, PT = 16, PB = 26
+  const W = 1000, H = 140, PL = 58, PR = 14, PT = 12, PB = 22
   const min = Math.min(0, ...points.map(p => p.equity))
   const max = Math.max(1, ...points.map(p => p.equity))
   const x = (i: number) => PL + (i / (points.length - 1)) * (W - PL - PR)
@@ -135,7 +112,7 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
   const mid = points[Math.floor(points.length / 2)]
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }}>
       <defs>
         <linearGradient id="jr-eq-fill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
@@ -175,14 +152,14 @@ function MonthlyBars({ closed }: { closed: JournalPosition[] }) {
     [closed],
   )
   if (rows.length === 0) return <div className="db-empty-msg" style={{ minHeight: 120 }}>No closed trades yet</div>
-  const W = 560, H = 190, PL = 50, PR = 8, PT = 12, PB = 24
+  const W = 560, H = 140, PL = 50, PR = 8, PT = 10, PB = 20
   const maxAbs = Math.max(...rows.map(r => Math.abs(r.netPnl)), 1)
   const y0 = PT + (H - PT - PB) / 2
   const scale = (H - PT - PB) / 2 / maxAbs
   const bw = (W - PL - PR) / rows.length
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }}>
       <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="rgba(16,185,129,0.18)" strokeWidth="1" />
       <text x={PL - 5} y={y0 - maxAbs * scale + 4} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">{fmt$(maxAbs)}</text>
       <text x={PL - 5} y={y0 + 3} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">$0</text>
@@ -224,49 +201,6 @@ function EdgeFinder({ closed, entries }: { closed: JournalPosition[]; entries: R
   )
 }
 
-// ─── Breakdown table ──────────────────────────────────────────────────────────
-
-function BreakTable({ title, rows, keyHeader, fmtKey }: {
-  title: string; rows: BreakdownRow[]; keyHeader: string; fmtKey?: (k: string) => string
-}) {
-  return (
-    <div className="panel" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <div className="db-panel-header">{title}</div>
-      {/* A fixed height (not maxHeight) means every card scrolls internally
-          whenever it has more rows than fit, instead of relying on the outer
-          page to have scrolled far enough to reveal a card that happened to
-          sit right at the bottom of the viewport (By Entry DTE / By Hold
-          Time's rows were getting cut off with no way to reach them). */}
-      <div className="jr-break-table-scroll" style={{ overflow: 'auto', height: 200 }}>
-        <table className="trade-table" style={{ fontSize: 11 }}>
-          <thead>
-            <tr>
-              <th>{keyHeader}</th>
-              <th style={{ textAlign: 'right' }}>Trades</th>
-              <th style={{ textAlign: 'right' }}>Win%</th>
-              <th style={{ textAlign: 'right' }}>Net P&L</th>
-              <th style={{ textAlign: 'right' }}>Avg</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(r => (
-              <tr key={r.key}>
-                <td className="mono" style={{ color: 'var(--text-1)', fontWeight: 600 }}>{fmtKey ? fmtKey(r.key) : r.key}</td>
-                <td className="mono" style={{ textAlign: 'right' }}>{r.trades}</td>
-                <td className="mono" style={{ textAlign: 'right', color: r.winRate >= 65 ? '#10b981' : r.winRate >= 50 ? '#f59e0b' : '#ef4444' }}>
-                  {r.winRate.toFixed(0)}%
-                </td>
-                <td className={`mono ${pnlCls(r.netPnl)}`} style={{ textAlign: 'right', fontWeight: 700 }}>{fmt$(r.netPnl)}</td>
-                <td className={`mono ${pnlCls(r.avgPnl)}`} style={{ textAlign: 'right' }}>{fmt$(r.avgPnl)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
 // ─── Overview sub-view ────────────────────────────────────────────────────────
 
 export function OverviewTab({ closed, positions, entries }: {
@@ -274,40 +208,27 @@ export function OverviewTab({ closed, positions, entries }: {
 }) {
   const curve = useMemo(() => equityCurve(closed), [closed])
   const openPremium = useMemo(() => openPremiumTotal(positions), [positions])
+  // Capped to a fixed-height strip with no internal scroll — a single
+  // compact KPI row plus one row of Equity Curve / Monthly P&L / Edge
+  // Finder side by side, sized to fit that height rather than stack.
   return (
-    <>
+    <div className="jr-overview-compact">
       <KpiStrip closed={closed} openPremium={openPremium} />
-
-      <div className="cc-section">
-        <div className="cc-section-title" style={{ padding: 0 }}>Equity Curve — Realised P&L</div>
-        <div className="panel" style={{ padding: '10px 12px 4px' }}>
-          <EquityChart points={curve} />
+      <div className="jr-overview-row">
+        <div className="jr-overview-cell" style={{ flex: 2 }}>
+          <div className="jr-overview-cell-title">Equity Curve</div>
+          <div className="jr-overview-cell-body"><EquityChart points={curve} /></div>
+        </div>
+        <div className="jr-overview-cell" style={{ flex: 1 }}>
+          <div className="jr-overview-cell-title">Monthly P&L</div>
+          <div className="jr-overview-cell-body"><MonthlyBars closed={closed} /></div>
+        </div>
+        <div className="jr-overview-cell" style={{ flex: 1.2 }}>
+          <div className="jr-overview-cell-title">Edge Finder</div>
+          <div className="jr-overview-cell-body" style={{ overflow: 'auto' }}><EdgeFinder closed={closed} entries={entries} /></div>
         </div>
       </div>
-
-      <div className="jr-2col">
-        <div>
-          <div className="cc-section-title" style={{ padding: 0 }}>Monthly P&L</div>
-          <div className="panel" style={{ padding: '10px 12px 4px' }}>
-            <MonthlyBars closed={closed} />
-          </div>
-        </div>
-        <div>
-          <div className="cc-section-title" style={{ padding: 0 }}>Edge Finder</div>
-          <div className="panel">
-            <EdgeFinder closed={closed} entries={entries} />
-          </div>
-        </div>
-      </div>
-
-      <div className="cc-section-title" style={{ padding: 0, marginBottom: 0 }}>Edge Breakdown</div>
-      <div className="jr-break-grid">
-        <BreakTable title="By Underlying"  keyHeader="Ticker"   rows={breakdown(closed, byUnderlying)} />
-        <BreakTable title="By Strategy"    keyHeader="Strategy" rows={breakdown(closed, byStrategy)} fmtKey={k => LABEL_SHORT[k] ?? k} />
-        <BreakTable title="By Entry DTE"   keyHeader="DTE"      rows={breakdown(closed, byDteBucket)} />
-        <BreakTable title="By Hold Time"   keyHeader="Held"     rows={breakdown(closed, byHoldBucket)} />
-      </div>
-    </>
+    </div>
   )
 }
 
