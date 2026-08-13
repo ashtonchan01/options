@@ -1122,7 +1122,7 @@ body {
    trimmed down from the base chip so 3 short rows have room to breathe
    instead of bunching up against each other in a strip this short. */
 .jr-kpi-col {
-  flex: 1 1 50%;
+  flex: 1 1 65%;
   overflow: hidden;
   display: flex;
   align-items: stretch;

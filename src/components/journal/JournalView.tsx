@@ -153,7 +153,7 @@ export function OverviewTab({ closed, positions }: {
         <div className="jr-kpi-col">
           <KpiStrip closed={closed} openPremium={openPremium} />
         </div>
-        <div className="jr-overview-cell" style={{ flex: 1 }}>
+        <div className="jr-overview-cell" style={{ flex: '1 1 35%' }}>
           <div className="jr-overview-cell-title">Equity Curve</div>
           <div className="jr-overview-cell-body"><EquityChart points={curve} /></div>
         </div>
