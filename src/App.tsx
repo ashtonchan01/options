@@ -43,11 +43,11 @@ export interface TradeLabels {
 type ViewComponent = React.FC<{ state: AppState; tradeLabels?: TradeLabels }>
 
 const VIEWS: Record<TabId, ViewComponent> = {
-  dashboard:  DashboardView as ViewComponent,
-  portfolio:  PortfolioView,
-  journal:    JournalPageView,
-  scanner:    OpportunitiesView as ViewComponent,
-  allocation: PortfolioAllocationView as ViewComponent,
+  dashboard: DashboardView as ViewComponent,
+  calendar:  PortfolioView,
+  journal:   JournalPageView,
+  scanner:   OpportunitiesView as ViewComponent,
+  portfolio: PortfolioAllocationView as ViewComponent,
 }
 
 export default function App() {

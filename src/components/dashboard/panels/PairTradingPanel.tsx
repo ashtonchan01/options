@@ -162,21 +162,23 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
               </div>
             </div>
 
-            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 8 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 6 }}>
-                TOP 10 OVERBOUGHT
+            <div style={{ display: 'flex', gap: 12, borderTop: '1px solid var(--border-light)', paddingTop: 8, flex: 1, minHeight: 0 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 6 }}>
+                  TOP 10 OVERBOUGHT
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {top10Overbought.map(r => <RsiCard key={r.symbol} row={r} />)}
+                </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 6 }}>
-                {top10Overbought.map(r => <RsiCard key={r.symbol} row={r} />)}
-              </div>
-            </div>
 
-            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 8 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.06em', marginBottom: 6 }}>
-                TOP 10 OVERSOLD
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 6 }}>
-                {top10Oversold.map(r => <RsiCard key={r.symbol} row={r} />)}
+              <div style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--border-light)', paddingLeft: 12 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.06em', marginBottom: 6 }}>
+                  TOP 10 OVERSOLD
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {top10Oversold.map(r => <RsiCard key={r.symbol} row={r} />)}
+                </div>
               </div>
             </div>
           </>

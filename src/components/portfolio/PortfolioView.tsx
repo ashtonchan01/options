@@ -11,7 +11,7 @@ import CompaniesView from '../companies/CompaniesView'
 export default function PortfolioView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
   return (
     <div className="pf-columns">
-      <div className="pf-column">
+      <div className="pf-column" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <CalendarPanel state={state} />
       </div>
       <div className="pf-column" style={{ display: 'flex', flexDirection: 'column', overflow: 'auto' }}>

@@ -1827,12 +1827,12 @@ body {
   .dash-area-actions .db-sidebar { max-height: none !important; overflow: visible !important; }
   .dash-area-actions .db-sidebar-body { overflow: visible !important; }
 }
-/* auto-fill + a minmax floor: as many ~220px rectangular columns as fit
-   (typically 2-4 at dashboard widths), collapsing to 1 on a narrow column
-   without needing a separate breakpoint rule for it. */
+/* Single column — the Headlines column now shares the dashboard's right side
+   with a full-height Pair Trading column, leaving it too narrow for the
+   old 2-4 across auto-fill grid to read comfortably. */
 .dash-headlines-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: 1fr;
   grid-auto-rows: min-content;
   gap: 8px;
   align-content: start;
@@ -1945,16 +1945,19 @@ body {
  * directly below, no gap) rather than CalendarView's own default side-by-side
  * layout (grid + 300px list) — the Portfolio column isn't wide enough for
  * both side by side without squeezing the grid. calendar-main is shrunk to
- * its natural content height (nav + aspect-ratio grid) instead of
- * flex-growing, so the list can start immediately below it instead of
- * leaving a gap. */
-.dash-calendar-embed > div { height: auto !important; }
-.dash-calendar-embed .calendar-layout { flex-direction: column !important; height: auto !important; }
+ * its natural content height (nav + aspect-ratio grid); the activity list
+ * below it is flex:1 (not a fixed 380px) so it fills whatever's left of the
+ * pf-column's full height instead of stopping short and leaving dead space
+ * underneath with its own internal scroll doing more work than it needs to.
+ * The embed's own root div and .calendar-layout stay height:100% (the
+ * default from CalendarView itself) so that leftover space exists for the
+ * sidebar to actually flex into. */
+.dash-calendar-embed .calendar-layout { flex-direction: column !important; }
 .dash-calendar-embed .calendar-main { flex: none !important; padding: 12px !important; overflow: visible !important; }
 .dash-calendar-embed .calendar-sidebar {
   width: 100% !important; border-left: none !important;
   border-top: 1px solid var(--border) !important;
-  flex: none !important; height: 380px !important; max-height: none !important;
+  flex: 1 !important; height: auto !important; max-height: none !important; min-height: 0 !important;
 }
 
 /* Scanner param/ticker inputs must stay >=16px on mobile so iOS Safari (as an

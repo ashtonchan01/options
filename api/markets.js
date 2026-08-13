@@ -43,7 +43,26 @@ async function fetchOne(symbol) {
       const changePercent = prevClose ? (change / prevClose) * 100 : 0
 
       const closes = result?.indicators?.quote?.[0]?.close ?? []
-      const sparkline = closes.filter(c => typeof c === 'number')
+      let sparkline = closes.filter(c => typeof c === 'number')
+
+      // Yahoo's intraday chart for a closed market sometimes hasn't rolled
+      // over to today's just-finished session yet even though `meta` already
+      // has — the "1d" bars it returns can still be yesterday's (down) day
+      // while regularMarketPrice/previousClose already reflect today's (up)
+      // close, so the sparkline visibly trends the opposite way from the %
+      // shown next to it (verified against a user report: Nikkei showing
+      // +1.16% with a strictly-declining chart). If the bars' own net
+      // direction disagrees with the authoritative change sign, they're not
+      // trustworthy — fall back to a straight two-point line from
+      // previousClose to price, which is guaranteed to agree.
+      if (sparkline.length >= 2) {
+        const barsDelta = sparkline[sparkline.length - 1] - sparkline[0]
+        if (Math.sign(barsDelta) !== Math.sign(change) && change !== 0 && barsDelta !== 0) {
+          sparkline = [prevClose, price]
+        }
+      } else {
+        sparkline = [prevClose, price]
+      }
 
       return {
         price,
