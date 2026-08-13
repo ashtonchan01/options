@@ -1933,3 +1933,16 @@ body {
 @media (min-width: 901px) {
   .scanner-param-input { font-size: 12px !important; }
 }
+/* Mobile can't just shrink font-size (breaks the keyboard) — CSS transform:
+   scale() renders the text visually smaller while the actual font-size stays
+   16px, so iOS still sees a >=16px input at the moment of focus. Widening
+   the box by 1/0.75 and scaling from the left edge keeps its visual size and
+   left-aligned position the same as the unscaled 52px box (only its layout
+   footprint is wider, which the label's flex gap already gives it room for). */
+@media (max-width: 900px) {
+  .scanner-param-input {
+    width: 70px !important;
+    transform: scale(0.75);
+    transform-origin: left center;
+  }
+}
