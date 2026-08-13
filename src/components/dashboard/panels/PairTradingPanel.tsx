@@ -53,19 +53,24 @@ function RsiSparkline({ series, color }: { series: number[]; color: string }) {
 }
 
 /** Rectangular box per ticker: symbol + current RSI, with its recent rolling
- * RSI plotted as a small live chart instead of the old single-bar gauge. */
+ * RSI plotted as a live chart instead of the old single-bar gauge. Tinted
+ * background + left accent bar in the same red/green as the RSI reading
+ * give the grid some colour instead of a flat monochrome list, and flex:1
+ * lets each card stretch to fill the column's full height instead of
+ * stopping at a fixed size with dead space below the last row. */
 function RsiCard({ row }: { row: RsiRow }) {
+  const color = rsiColor(row.rsi)
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'Inter, sans-serif',
-      padding: '7px 9px', border: '1px solid var(--border-light)', borderRadius: 6, background: 'var(--bg-elevated)',
+      flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'Inter, sans-serif',
+      padding: '7px 9px', borderLeft: `3px solid ${color}`, borderRadius: 6, background: `${color}14`,
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
         <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 700 }}>{displaySymbol(row.symbol)}</span>
-        <span style={{ fontSize: 12.5, color: rsiColor(row.rsi), fontWeight: 800 }}>{row.rsi.toFixed(0)}</span>
+        <span style={{ fontSize: 12.5, color, fontWeight: 800 }}>{row.rsi.toFixed(0)}</span>
       </div>
-      <div style={{ height: SPARK_H }}>
-        <RsiSparkline series={row.series} color={rsiColor(row.rsi)} />
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <RsiSparkline series={row.series} color={color} />
       </div>
     </div>
   )
@@ -162,21 +167,21 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 12, borderTop: '1px solid var(--border-light)', paddingTop: 8, flex: 1, minHeight: 0 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 6 }}>
+            <div style={{ display: 'flex', gap: 16, borderTop: '1px solid var(--border-light)', paddingTop: 8, flex: 1, minHeight: 0 }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 6, flexShrink: 0 }}>
                   TOP 10 OVERBOUGHT
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0 }}>
                   {top10Overbought.map(r => <RsiCard key={r.symbol} row={r} />)}
                 </div>
               </div>
 
-              <div style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--border-light)', paddingLeft: 12 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.06em', marginBottom: 6 }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.06em', marginBottom: 6, flexShrink: 0 }}>
                   TOP 10 OVERSOLD
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0 }}>
                   {top10Oversold.map(r => <RsiCard key={r.symbol} row={r} />)}
                 </div>
               </div>
