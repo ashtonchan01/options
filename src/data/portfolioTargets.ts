@@ -23,7 +23,7 @@ export interface TargetTicker {
   lotSize: number
 }
 
-export const REST_TICKERS = ['ALAB', 'AMD', 'ARM', 'ASML', 'AVGO', 'GOOG', 'MRVL', 'MU', 'NVDA', 'PLTR', 'TSM', 'UMAC'] as const
+export const REST_TICKERS = ['ALAB', 'AMD', 'ARM', 'ASML', 'AVGO', 'GOOGL', 'MRVL', 'MU', 'NVDA', 'PLTR', 'TSM', 'UMAC'] as const
 const REST_PCT_EACH = 25 / REST_TICKERS.length
 const BIG_TICKET_LOT: Record<string, number> = { MU: 10, ASML: 10 }
 

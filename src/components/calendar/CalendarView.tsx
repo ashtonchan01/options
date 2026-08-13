@@ -68,6 +68,7 @@ interface DayData {
   earnings: string[]     // ticker symbols reporting earnings
   holiday: string | null // CBOE holiday name or null
   econEvents: EconEvent[] // macro events (FOMC, etc.)
+  spxReminder: boolean // 3rd Monday of the month — enter a new SPX trade
 }
 
 interface CalendarWeek {
@@ -88,6 +89,13 @@ function normalizeDate(s: string): string {
 
 function todayYMD(): string {
   return new Date().toISOString().slice(0, 10)
+}
+
+/** True for the 3rd Monday of the month — a standing reminder to enter a
+ * new SPX trade, not tied to any real trade/earnings/holiday data. */
+function isThirdSpxMonday(date: string): boolean {
+  const d = new Date(date + 'T12:00:00')
+  return d.getDay() === 1 && Math.ceil(d.getDate() / 7) === 3
 }
 
 function isoWeek(d: Date): number {
@@ -194,7 +202,7 @@ function DayCell({
   if (!date) return <div style={{ background: 'var(--bg-surface)' }} />
 
   const dayNum = parseInt(date.split('-')[2])
-  const { events, trades, hasActivity, earnings, holiday, econEvents } = data
+  const { events, trades, hasActivity, earnings, holiday, econEvents, spxReminder } = data
   const hasPnL = trades && trades.netCash !== 0
   const isHoliday = !!holiday
 
@@ -218,8 +226,8 @@ function DayCell({
       onClick={onClick}
       style={{
         position: 'relative',
-        background: isHoliday ? '#f43f5e08' : isSelected ? 'var(--bg-active)' : hasActivity ? 'var(--bg-card)' : 'var(--bg-surface)',
-        border: `1px solid ${isSelected ? '#312e81' : isToday ? '#3b82f6' : isHoliday ? '#f43f5e30' : 'var(--bg-active)'}`,
+        background: isHoliday ? '#f43f5e08' : isSelected ? 'var(--bg-active)' : spxReminder ? 'var(--accent-dim)' : hasActivity ? 'var(--bg-card)' : 'var(--bg-surface)',
+        border: `1px solid ${isSelected ? '#312e81' : isToday ? '#3b82f6' : isHoliday ? '#f43f5e30' : spxReminder ? 'var(--accent-border)' : 'var(--bg-active)'}`,
         padding: '4px 6px',
         cursor: hasActivity ? 'pointer' : 'default',
         overflow: 'hidden',
@@ -264,6 +272,19 @@ function DayCell({
             textAlign: 'center', border: '1px solid #f43f5e30', flexShrink: 0,
           }}>
             CLOSED
+          </div>
+        )}
+
+        {/* 3rd-Monday SPX trade reminder */}
+        {spxReminder && (
+          <div data-cal-item style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
+            color: 'var(--accent)', background: 'var(--accent-dim)',
+            padding: '1px 4px', marginBottom: 1, borderRadius: 3,
+            textAlign: 'center', border: '1px solid var(--accent-border)', flexShrink: 0,
+            fontFamily: 'Inter, sans-serif',
+          }}>
+            NEW SPX TRADE
           </div>
         )}
 
@@ -435,8 +456,15 @@ function ActivitySidebar({
     for (const d of Object.keys(econEventMap)) {
       if (d.startsWith(monthPrefix)) dateSet.add(d)
     }
+    // 3rd-Monday SPX trade reminder
+    const cursor = new Date(year, month, 1, 12)
+    while (cursor.getMonth() === month) {
+      const d = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
+      if (isThirdSpxMonday(d) && !HOLIDAY_MAP[d]) { dateSet.add(d); break }
+      cursor.setDate(cursor.getDate() + 1)
+    }
     return [...dateSet].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
-  }, [dailyTrades, earningsByDateMap, econEventMap, monthPrefix])
+  }, [dailyTrades, earningsByDateMap, econEventMap, monthPrefix, year, month])
 
   const displayDates = selectedDate ? [selectedDate] : monthDates
 
@@ -463,7 +491,8 @@ function ActivitySidebar({
           const dayEarnings = earningsByDateMap[date] ?? []
           const dayHoliday = HOLIDAY_MAP[date] ?? null
           const dayEcon = econEventMap[date] ?? []
-          if (!dayEvents.length && !dayTrades && !dayEarnings.length && !dayHoliday && !dayEcon.length) return null
+          const dayReminder = !dayHoliday && isThirdSpxMonday(date)
+          if (!dayEvents.length && !dayTrades && !dayEarnings.length && !dayHoliday && !dayEcon.length && !dayReminder) return null
 
           const d = new Date(date + 'T12:00:00')
           const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
@@ -491,6 +520,15 @@ function ActivitySidebar({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderTop: '1px solid var(--border-light)', fontSize: 13 }}>
                   <div style={{ width: 3, height: 24, background: '#f43f5e', flexShrink: 0, borderRadius: 1 }} />
                   <span style={{ color: '#f43f5e', fontWeight: 600, fontSize: 12 }}>{dayHoliday}</span>
+                </div>
+              )}
+
+              {/* 3rd-Monday SPX trade reminder detail */}
+              {dayReminder && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderTop: '1px solid var(--border-light)', fontSize: 13 }}>
+                  <div style={{ width: 3, height: 24, background: 'var(--accent)', flexShrink: 0, borderRadius: 1 }} />
+                  <span style={{ fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', fontSize: 13 }}>Enter new SPX trade</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-dim)', padding: '1px 6px', borderRadius: 3, border: '1px solid var(--accent-border)' }}>REMINDER</span>
                 </div>
               )}
 
@@ -651,15 +689,16 @@ export default function CalendarView({ state }: Props) {
   // Calendar always renders (holidays + earnings are always available)
 
   function getDayData(date: string | null): DayData {
-    if (!date) return { events: [], trades: null, totalPnL: 0, hasActivity: false, earnings: [], holiday: null, econEvents: [] }
+    if (!date) return { events: [], trades: null, totalPnL: 0, hasActivity: false, earnings: [], holiday: null, econEvents: [], spxReminder: false }
     const evs = eventsByDate[date] ?? []
     const tr = dailyTrades[date] ?? null
     const totalPnL = (tr?.netCash ?? 0) + evs.reduce((s, e) => s + e.unrealizedPnL, 0)
     const earnings = earningsByDateMap[date] ?? []
     const holiday = HOLIDAY_MAP[date] ?? null
     const econEvents = econEventMap[date] ?? []
-    const hasActivity = evs.length > 0 || (tr !== null && tr.tradeCount > 0) || earnings.length > 0 || holiday !== null || econEvents.length > 0
-    return { events: evs, trades: tr, totalPnL, hasActivity, earnings, holiday, econEvents }
+    const spxReminder = !holiday && isThirdSpxMonday(date)
+    const hasActivity = evs.length > 0 || (tr !== null && tr.tradeCount > 0) || earnings.length > 0 || holiday !== null || econEvents.length > 0 || spxReminder
+    return { events: evs, trades: tr, totalPnL, hasActivity, earnings, holiday, econEvents, spxReminder }
   }
 
   return (
