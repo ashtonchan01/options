@@ -161,6 +161,9 @@ body {
    height panel — pin the header row so it stays readable while scrolling
    through the ticker list instead of scrolling off after the first screen. */
 .jr-gap-table th { position: sticky; top: 0; z-index: 2; }
+/* Companies table scrolls within its own panel too — pin its header row the
+   same way, so it stays readable while scrolling through the ticker list. */
+.jr-companies-table th { position: sticky; top: 0; z-index: 2; }
 .trade-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-2); }
 .trade-table tr:hover td { background: var(--bg-elevated); color: var(--text-1); }
 

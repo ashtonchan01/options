@@ -183,7 +183,7 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
 
       <div className="cc-section cc-table-section" style={{ flexShrink: 1 }}>
         <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
-          <table className="trade-table" style={{ fontSize: 13 }}>
+          <table className="trade-table jr-companies-table" style={{ fontSize: 13 }}>
             <thead>
               <tr>
                 <th>Company</th>

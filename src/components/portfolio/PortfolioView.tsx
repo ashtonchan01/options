@@ -17,7 +17,7 @@ export default function PortfolioView({ state, tradeLabels }: { state: AppState;
         <CompaniesView state={state} tradeLabels={tradeLabels} />
       </div>
       <div className="pf-column">
-        <PortfolioHoldingsPanel state={state} labels={tradeLabels?.labels ?? {}} />
+        <PortfolioHoldingsPanel state={state} />
       </div>
     </div>
   )

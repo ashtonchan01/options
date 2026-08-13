@@ -939,9 +939,9 @@ export function PortfolioSummaryPanel({ state }: { state: AppState }) {
 }
 
 /** Below-the-pie detail block: income channels + stocks/options/cash holdings. */
-export function PortfolioHoldingsPanel({ state, labels }: { state: AppState; labels: Record<string, string> }) {
+export function PortfolioHoldingsPanel({ state }: { state: AppState }) {
   const {
-    stocks, sortedOptions, trades, cashBalance,
+    stocks, sortedOptions, cashBalance,
     stockMV, stockPnL, stockCost, optionMV, optionPnL, netLiq,
     symbolToStratType,
   } = derivePortfolio(state)
@@ -967,9 +967,6 @@ export function PortfolioHoldingsPanel({ state, labels }: { state: AppState; lab
 
   return (
     <div className="pf-holdings-panel" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
-
-      {/* ── Income channels ── */}
-      <IncomeChannelStrip trades={trades} labels={labels} symbolToStratType={symbolToStratType} />
 
       {/* ── Content ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
