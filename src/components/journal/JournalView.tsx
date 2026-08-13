@@ -444,6 +444,7 @@ export function JournalTab({ positions, livePositions, entries, updateEntry, set
   return (
     <>
       <div className="tl-filter-row" style={{ alignItems: 'center' }}>
+        <div className="cc-section-title" style={{ padding: 0, marginRight: 4, flexShrink: 0 }}>Trade Journal</div>
         {FILTERS.map(f => (
           <button key={f.id} className={`tl-filter-chip${filter === f.id ? ' active' : ''}`} onClick={() => setFilter(f.id)}>
             {f.label}
