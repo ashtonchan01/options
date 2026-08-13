@@ -674,25 +674,16 @@ function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor 
   const daysLeft = dte(p.expiry)
   const urgent = p.status === 'Active' && daysLeft != null && daysLeft <= 7
   const isShares = p.strikeDisplay === 'SHARES'
-
-  // IBKR convention: Avg Price is always a positive per-unit price; Cost
-  // Basis carries the position's own sign (negative for a short/credit
-  // position — you'd have to pay to buy it back — positive for a long/debit
-  // one you paid to acquire) — which is just -netPremium, since a credit
-  // (netPremium > 0, cash received from selling) is exactly a short
-  // position's negative cost basis, and vice versa for a debit.
   const units = isShares ? p.contracts : p.contracts * 100
-  const avgPrice = units > 0 ? Math.abs(p.netPremium) / units : 0
-  const costBasis = -p.netPremium
 
-  // Market price/value/unrealized only make sense for still-open positions —
-  // matched against this sync's live IBKR snapshot by underlying/expiry/
-  // strike. A leg's own positionValue/unrealizedPnL is scaled by this row's
-  // share of that strike's total usage across all rows (via strikeUsage) —
-  // IBKR reports one combined live position per strike, so a strike shared
-  // by two different display rows (e.g. two verticals with different long
-  // legs but the same short strike) must have that leg's numbers split
-  // between them, not credited in full to each.
+  // Market price/value/unrealized/cost-basis only make sense for still-open
+  // positions — matched against this sync's live IBKR snapshot by underlying/
+  // expiry/strike. A leg's own positionValue/unrealizedPnL/costBasisMoney is
+  // scaled by this row's share of that strike's total usage across all rows
+  // (via strikeUsage) — IBKR reports one combined live position per strike,
+  // so a strike shared by two different display rows (e.g. two verticals
+  // with different long legs but the same short strike) must have that
+  // leg's numbers split between them, not credited in full to each.
   const liveLegs = p.status !== 'Active' ? [] : isShares
     ? livePositions.filter(lp => lp.assetClass === 'STK' && lp.symbol === p.underlying)
     : livePositions.filter(lp => lp.assetClass === 'OPT'
@@ -705,6 +696,23 @@ function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor 
     return total > 0 ? p.contracts / total : 1
   }
   const hasLive = liveLegs.length > 0
+
+  // IBKR's own live costBasisMoney/Price (already correctly signed — negative
+  // for a short position, positive for a long one) is authoritative and used
+  // whenever a live match exists — it reflects IBKR's actual cost-basis
+  // accounting (their default is average-cost, not FIFO), which can legally
+  // diverge from a FIFO reconstruction off trade history whenever a position
+  // has had a partial close along the way (verified: a real MSTR share
+  // position with one partial sell in its history showed a FIFO-derived
+  // $235.00 avg / $117,500 cost basis in this app vs IBKR's own reported
+  // $230.49 avg / $115,244 average-cost basis — same trades, different valid
+  // accounting method, and IBKR's own number is the one that matters here).
+  // Falls back to this position's own recorded premium only when nothing
+  // live matches (already-closed positions, or a symbol with no live leg).
+  const liveCostBasis = hasLive ? liveLegs.reduce((s, lp) => s + lp.costBasisMoney * shareOf(lp), 0) : null
+  const costBasis = liveCostBasis ?? -p.netPremium
+  const avgPrice = units > 0 ? Math.abs(costBasis) / units : 0
+
   const marketPrice = hasLive && units > 0 ? Math.abs(liveLegs.reduce((s, lp) => s + lp.positionValue * shareOf(lp), 0)) / units : null
   const unrealized = hasLive ? liveLegs.reduce((s, lp) => s + lp.unrealizedPnL * shareOf(lp), 0) : null
   const unrealizedPct = unrealized != null && costBasis !== 0 ? (unrealized / Math.abs(costBasis)) * 100 : null

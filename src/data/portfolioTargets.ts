@@ -6,7 +6,7 @@
  *   - TSLA + SPCX combined: 50% (20/20 base, +10% swing to whichever looks
  *     the better value buy right now — see valueSwing() in the view)
  *   - Crypto (MSTR/IBIT/BSOL): 20% (10/5/5)
- *   - Everything else: 25%, split evenly across the 11 tickers
+ *   - Everything else: 25%, split evenly across the 12 tickers
  * Every ticker rounds to a whole lot (100 shares; 10 for MU/ASML since
  * they're expensive enough that 100 shares would badly overshoot).
  */
@@ -23,7 +23,7 @@ export interface TargetTicker {
   lotSize: number
 }
 
-export const REST_TICKERS = ['ALAB', 'AMD', 'ARM', 'ASML', 'AVGO', 'GOOG', 'MRVL', 'MU', 'NVDA', 'PLTR', 'TSM'] as const
+export const REST_TICKERS = ['ALAB', 'AMD', 'ARM', 'ASML', 'AVGO', 'GOOG', 'MRVL', 'MU', 'NVDA', 'PLTR', 'TSM', 'UMAC'] as const
 const REST_PCT_EACH = 25 / REST_TICKERS.length
 const BIG_TICKET_LOT: Record<string, number> = { MU: 10, ASML: 10 }
 
