@@ -1052,6 +1052,27 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+/* Journal tab — Journal Overview stacked on top of Trade Journal, both full
+   width, instead of side-by-side columns. Overview is capped to 20% of the
+   available height (scrolling internally — its own content, equity curve
+   included, is much taller than that) so Trade Journal gets the remaining
+   80% to work with. */
+.jr-stacked {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.jr-stacked-top {
+  flex: 0 0 20%;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+}
+.jr-stacked-bottom {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .jr-kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -1137,6 +1158,10 @@ body {
     overflow: visible !important;
   }
   .pf-column .jr-root { height: auto; overflow: visible; }
+  .jr-stacked { height: auto; overflow: visible; }
+  .jr-stacked-top, .jr-stacked-bottom {
+    flex: 1 1 100%; height: auto !important; max-height: none; overflow: visible !important;
+  }
   .jr-break-table-scroll { height: auto !important; overflow: visible !important; }
   .jr-trade-table-scroll { overflow: visible !important; }
   /* Same "just grow, let the page scroll" treatment for the grouped-by-

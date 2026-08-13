@@ -31,12 +31,12 @@ export default function JournalPageView({ state, tradeLabels }: { state: AppStat
   const hasTrades = state.sync.trades.length > 0
 
   return (
-    <div className="pf-columns">
-      <div className="pf-column jr-root">
+    <div className="jr-stacked">
+      <div className="jr-stacked-top jr-root">
         <div className="cc-section-title" style={{ padding: 0 }}>Journal Overview</div>
         {hasTrades ? <OverviewTab closed={closed} positions={positions} entries={entries} /> : <NoTradeData />}
       </div>
-      <div className="pf-column jr-root">
+      <div className="jr-stacked-bottom jr-root">
         <div className="cc-section-title" style={{ padding: 0 }}>Trade Journal</div>
         {hasTrades ? (
           <JournalTab positions={positions} livePositions={state.sync.positions} entries={entries} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
