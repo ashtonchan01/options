@@ -312,11 +312,13 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
       </div>
 
       {/* ── Gap table ─────────────────────────────────────────────────────── */}
-      {/* Pinned to half the viewport height regardless of how tall the pies
-          above happen to be — previously flex:1 just took whatever space was
-          left after the (then oversized) pie panels, squeezing it down to
-          a sliver. */}
-      <div className="panel jr-gap-table-panel" style={{ height: '50vh', flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* flex:1 (not a fixed height) — fills whatever's left below the pies
+          and recommendation panel instead of stopping at a fixed 50vh and
+          leaving the rest of the screen blank underneath it. min-height:0
+          keeps it from being pushed taller than the viewport by its own
+          content; the inner .jr-gap-table-scroll still scrolls internally
+          for whatever doesn't fit. */}
+      <div className="panel jr-gap-table-panel" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '12px 18px 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em' }}>
           GAP TO TARGET
         </div>
