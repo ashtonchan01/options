@@ -1098,8 +1098,9 @@ body {
   overflow: hidden;
 }
 .jr-stacked-top {
-  flex: 0 0 25%;
+  flex: 0 0 45%;
   min-height: 0;
+  overflow-y: auto;
   border-bottom: 1px solid var(--border);
 }
 .jr-stacked-bottom {
@@ -1107,19 +1108,17 @@ body {
   min-height: 0;
 }
 
-/* Journal Overview — compact, fixed-height, no-scroll layout: one KPI row
-   plus one row of Equity Curve / Monthly P&L / Edge Finder side by side. */
+/* Journal Overview — KPI + Equity Curve row, plus the Portfolio Summary
+   panel (key metrics + allocation/cash-flow charts) stacked below it. The
+   row keeps a fixed height (rather than flex:1) now that it shares this
+   section with Portfolio Summary — flex:1 would otherwise fight the summary
+   panel for space and get squeezed toward 0. Total content can exceed
+   .jr-stacked-top's own height; that's fine, it scrolls (see .jr-root). */
 .jr-overview-compact {
-  /* flex:1 (not height:100%) — as a flex-column child of .jr-root alongside
-     the "Journal Overview" title bar, height:100% measured against the
-     whole strip while the title ALSO takes its own space made the two
-     together taller than the strip, silently reintroducing the scroll this
-     layout was built to avoid. flex:1 takes exactly what's left after the
-     title instead. */
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   min-height: 0;
 }
 .jr-kpi-row {
@@ -1209,6 +1208,14 @@ body {
   gap: 10px;
   flex: 1;
   min-height: 0;
+}
+/* Desktop only — mobile stacks kpi-col/chart-cell inside this row itself
+   (flex-direction:column, see the 768px block below), so it needs to keep
+   growing there. At 769px+, now that Portfolio Summary sits below this row
+   inside the same scrolling section, a fixed height stops the two from
+   fighting over space (flex:1 would squeeze this row toward 0). */
+@media (min-width: 769px) {
+  .jr-overview-row { flex: 0 0 220px; }
 }
 .jr-overview-cell {
   display: flex;

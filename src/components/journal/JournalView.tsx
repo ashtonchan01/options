@@ -11,7 +11,8 @@ import {
 } from '../../engine/journal'
 import { MISTAKES, type JournalEntry } from '../../store/journalStore'
 import { tradeId } from '../../store/tradeLabelsStore'
-import type { RawPosition, RawTrade } from '../../types'
+import type { AppState, RawPosition, RawTrade } from '../../types'
+import { PortfolioSummaryPanel } from '../analytics/AnalyticsView'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -140,14 +141,16 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
 
 // ─── Overview sub-view ────────────────────────────────────────────────────────
 
-export function OverviewTab({ closed, positions }: {
-  closed: JournalPosition[]; positions: JournalPosition[]; entries: Record<string, JournalEntry>
+export function OverviewTab({ closed, positions, state }: {
+  closed: JournalPosition[]; positions: JournalPosition[]; entries: Record<string, JournalEntry>; state: AppState
 }) {
   const curve = useMemo(() => equityCurve(closed), [closed])
   const openPremium = useMemo(() => openPremiumTotal(positions), [positions])
   // Single row: KPI chips on the left, Equity Curve filling the rest —
   // Monthly P&L and Edge Finder dropped so everything fits in one row
-  // instead of a KPI row plus a second row of cells.
+  // instead of a KPI row plus a second row of cells. Portfolio Summary
+  // (key metrics + allocation/cash-flow charts, formerly on the Portfolio
+  // tab) sits below that row.
   return (
     <div className="jr-overview-compact">
       <div className="jr-overview-row">
@@ -159,6 +162,7 @@ export function OverviewTab({ closed, positions }: {
           <div className="jr-overview-cell-body"><EquityChart points={curve} /></div>
         </div>
       </div>
+      <PortfolioSummaryPanel state={state} />
     </div>
   )
 }

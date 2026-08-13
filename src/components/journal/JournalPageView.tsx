@@ -36,7 +36,7 @@ export default function JournalPageView({ state, tradeLabels }: { state: AppStat
       <div className="jr-stacked">
         <div className="jr-stacked-top jr-root">
           <div className="cc-section-title" style={{ padding: 0 }}>Journal Overview</div>
-          {hasTrades ? <OverviewTab closed={closed} positions={positions} entries={entries} /> : <NoTradeData />}
+          {hasTrades ? <OverviewTab closed={closed} positions={positions} entries={entries} state={state} /> : <NoTradeData />}
         </div>
         <div className="jr-stacked-bottom jr-root">
           {hasTrades ? (
