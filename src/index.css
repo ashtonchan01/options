@@ -1804,9 +1804,14 @@ body {
     gap: 6px;
   }
   .dash-area-rightside > .dash-calendar-embed { flex: 0 0 auto; }
-  .dash-area-rightside > .dash-rightside-livetv { flex: 0 0 320px; min-height: 0; }
-  .dash-area-article      { min-height: 420px; }
-  .dash-area-pairs-bottom { min-height: 420px; }
+  .dash-rightside-top-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .dash-rightside-top-row > .dash-rightside-livetv { flex: 0 0 320px; min-height: 0; }
+  .dash-area-pairs-top { min-height: 420px; }
+  .dash-area-article   { min-height: 420px; }
   /* Below the auto-fill minmax floor this naturally collapses to 1 column
      anyway, but pin it explicitly so a phone never tries to fit 2 skinny
      ~90px columns. */
@@ -1821,12 +1826,13 @@ body {
   .dash-area-actions .db-sidebar { max-height: none !important; overflow: visible !important; }
   .dash-area-actions .db-sidebar-body { overflow: visible !important; }
 }
-/* Single column — the Headlines column now shares the dashboard's right side
-   with a full-height Pair Trading column, leaving it too narrow for the
-   old 2-4 across auto-fill grid to read comfortably. */
+/* auto-fill + a minmax floor: as many ~220px rectangular columns as fit
+   (typically 2-4 at dashboard widths), collapsing to 1 on a narrow column
+   without needing a separate breakpoint rule for it — Headlines is back on
+   the wide left column (under the map/charts), not the narrow right side. */
 .dash-headlines-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   grid-auto-rows: min-content;
   gap: 8px;
   align-content: start;
@@ -1862,12 +1868,8 @@ body {
   .dash-area-map            { grid-area: map; }
   .dash-area-charts         { grid-area: charts; }
   .dash-area-headlines-left { grid-area: headlines; }
-  /* Live TV / Article / Pair Trading stack top to bottom, spanning the full
-     right-side width — Article replaces Headlines' old spot (Headlines
-     moved to the left column) and now spans both of the right side's grid
-     columns instead of sharing width with a separate Pair Trading column.
-     Live TV keeps its own natural height, Pair Trading is a short fixed
-     strip (just top 5, not top 10), and Article fills whatever's left. */
+  /* Live TV + Pair Trading (top 5) share a row at the top of the right
+     side; Article fills whatever's left below them. */
   .dash-area-rightside {
     grid-area: rightside;
     display: flex;
@@ -1876,9 +1878,15 @@ body {
     overflow: hidden;
     gap: 6px;
   }
-  .dash-area-rightside > .dash-rightside-livetv  { flex: 0 0 300px; min-height: 0; }
-  .dash-area-rightside > .dash-area-article      { flex: 1; min-height: 0; }
-  .dash-area-rightside > .dash-area-pairs-bottom { flex: 0 0 220px; min-height: 0; }
+  .dash-rightside-top-row {
+    display: flex;
+    flex: 0 0 300px;
+    min-height: 0;
+    gap: 6px;
+  }
+  .dash-rightside-top-row > .dash-rightside-livetv  { flex: 1.6; min-width: 0; }
+  .dash-rightside-top-row > .dash-area-pairs-top    { flex: 1; min-width: 0; }
+  .dash-area-rightside > .dash-area-article { flex: 1; min-height: 0; }
 }
 
 .dash-panel {

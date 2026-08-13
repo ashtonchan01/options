@@ -3,10 +3,10 @@
  * fixed-size cells (see .dash-wrap in index.css). Cells flow to the next
  * row as the screen narrows; wide/tall cells span 2 tracks where space
  * allows. Left side: World Map, a single-row Live Charts strip, then Ticker
- * Headlines filling the rest. Right side: Live TV, then an in-dashboard
- * Article reader (filled by clicking a headline, instead of opening a new
- * tab) spanning the full right-side width, then a compact Pair Trading
- * strip (top 5) along the bottom.
+ * Headlines (multi-column) filling the rest. Right side: Live TV next to a
+ * compact Pair Trading strip (top 5), then an in-dashboard Article reader
+ * (filled by clicking a headline, instead of opening a new tab) filling
+ * whatever's left below them.
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
@@ -52,14 +52,16 @@ export default function DashboardView({ state }: { state: AppState }) {
         <TickerHeadlinesPanel onSelect={setSelectedHeadline} selectedUrl={selectedHeadline?.url} />
       </div>
       <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-calendar dash-area-rightside">
-        <div className="dash-cell dash-rightside-livetv">
-          <LiveTVPanel />
+        <div className="dash-rightside-top-row">
+          <div className="dash-cell dash-rightside-livetv">
+            <LiveTVPanel />
+          </div>
+          <div className="dash-cell dash-area-pairs-top">
+            <PairTradingPanel state={state} topN={5} />
+          </div>
         </div>
         <div className="dash-cell dash-area-article">
           <ArticleReaderPanel selected={selectedHeadline} />
-        </div>
-        <div className="dash-cell dash-area-pairs-bottom">
-          <PairTradingPanel state={state} topN={5} />
         </div>
       </div>
     </div>

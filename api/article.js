@@ -13,6 +13,16 @@
 export const config = { runtime: 'edge' }
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+/** A plain UA alone gets a 403 from a fair number of news sites' basic bot
+ * filters — the rest of a real browser's request headers (Accept,
+ * Accept-Language, and a Referer that isn't blank) are also checked by some
+ * of them, so send the full set instead of just User-Agent. */
+const FETCH_HEADERS = {
+  'User-Agent': UA,
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Referer': 'https://www.google.com/',
+}
 const RESPONSE_TTL = 10 * 60 * 1000 // 10 min in-isolate cache
 
 const CORS = {
@@ -97,7 +107,7 @@ export default async function handler(req) {
   if (cached && Date.now() - cached.at < RESPONSE_TTL) return jsonResponse(cached.body)
 
   try {
-    const res = await fetch(target, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(10000) })
+    const res = await fetch(target, { headers: FETCH_HEADERS, redirect: 'follow', signal: AbortSignal.timeout(10000) })
     if (!res.ok) return jsonResponse({ error: `Fetch failed (${res.status})` }, 502)
     const html = await res.text()
 
@@ -110,6 +120,15 @@ export default async function handler(req) {
     const block = extractContentBlock(cleaned)
     let paragraphs = extractParagraphs(block)
     if (paragraphs.length === 0) paragraphs = extractParagraphs(cleaned) // article/main missed the real body — fall back to whole page
+
+    // Some pages (client-rendered SPAs especially) have no real <p> content
+    // in the server-sent HTML at all — rather than a hard failure, fall back
+    // to the page's own og:description/meta description summary, which is
+    // usually still a real (if short) excerpt of the story.
+    if (paragraphs.length === 0) {
+      const desc = extractMeta(html, 'og:description') ?? extractMeta(html, 'description')
+      if (desc) paragraphs = [decodeEntities(desc).trim()]
+    }
     if (paragraphs.length === 0) return jsonResponse({ error: 'Could not extract article text' }, 422)
 
     const body = { title, byline, paragraphs: paragraphs.slice(0, 80), url: target }
