@@ -13,7 +13,6 @@ import WorldMapPanel from './panels/WorldMapPanel'
 import LiveChartsStrip from './panels/LiveChartsStrip'
 import LiveTVPanel from './panels/LiveTVPanel'
 import TickerHeadlinesPanel from './panels/TickerHeadlinesPanel'
-import CalendarPanel from './panels/CalendarPanel'
 import PairTradingPanel from './panels/PairTradingPanel'
 
 const REFRESH_MS = 60_000
@@ -47,13 +46,9 @@ export default function DashboardView({ state }: { state: AppState }) {
       <div className="dash-cell dash-cell-w2 dash-cell-h3 dash-cell-livetv dash-area-livetv">
         <LiveTVPanel />
       </div>
-      {/* Calendar sits on top at its own natural height; Headlines + Pairs
-          share the row below it and stretch to fill whatever vertical space
-          is left, so there's no dead gap between the calendar and the rest
-          of the screen the way there was when each had its own fixed grid
-          row track independent of the calendar's actual rendered height. */}
+      {/* Calendar moved to the Portfolio tab — Headlines + Pairs now fill
+          this whole right-side column themselves. */}
       <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-calendar dash-area-rightside">
-        <CalendarPanel state={state} />
         <div className="dash-rightside-bottom">
           <div className="dash-cell dash-cell-h3 dash-area-headlines">
             <TickerHeadlinesPanel />
