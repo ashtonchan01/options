@@ -763,19 +763,19 @@ function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor 
         <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
           {p.strikeDisplay === 'SHARES' ? `${p.contracts} sh` : `${p.contracts}× ${p.strikeDisplay}`}
         </td>
-        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>
+        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
           {fmt$(avgPrice, 2)}
         </td>
-        <td className="mono" style={{ textAlign: 'right', color: costBasis < 0 ? '#10b981' : costBasis > 0 ? '#f59e0b' : 'var(--text-4)' }}>
+        <td className="mono" style={{ textAlign: 'right', color: costBasis < 0 ? '#10b981' : costBasis > 0 ? '#f59e0b' : 'var(--text-4)', whiteSpace: 'nowrap' }}>
           {fmt$(costBasis, 2)}
         </td>
-        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>
+        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
           {marketPrice != null ? fmt$(marketPrice, 2) : '—'}
         </td>
-        <td className={`mono ${unrealized != null ? pnlCls(unrealized) : ''}`} style={{ textAlign: 'right', fontWeight: 600 }}>
+        <td className={`mono ${unrealized != null ? pnlCls(unrealized) : ''}`} style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
           {unrealized != null ? fmt$(unrealized, 2) : '—'}
         </td>
-        <td className="mono" style={{ textAlign: 'right', color: unrealizedPct != null ? pnlColor(unrealizedPct) : 'var(--text-4)', fontSize: 12 }}>
+        <td className="mono" style={{ textAlign: 'right', color: unrealizedPct != null ? pnlColor(unrealizedPct) : 'var(--text-4)', fontSize: 12, whiteSpace: 'nowrap' }}>
           {unrealizedPct != null ? `${unrealizedPct >= 0 ? '+' : ''}${unrealizedPct.toFixed(1)}%` : '—'}
         </td>
         <td className="mono jr-col-dte" style={{ textAlign: 'right', color: urgent ? '#ef4444' : 'var(--text-3)', fontWeight: urgent ? 700 : 400 }}>
