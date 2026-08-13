@@ -248,9 +248,11 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
 
   return (
     <div className="jr-root">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span className="cc-section-title" style={{ padding: 0 }}>Portfolio Allocation</span>
-        <span style={{ fontSize: 11, color: 'var(--text-4)' }}>Target $1M · vs actual IBKR holdings (shares + LEAP calls)</span>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+        <div>
+          <div className="cc-section-title" style={{ padding: 0 }}>Portfolio Allocation</div>
+          <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 3 }}>Target $1M · vs actual IBKR holdings (shares + LEAP calls)</div>
+        </div>
         <button onClick={load} disabled={loading} style={{
           marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px',
           fontSize: 11, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
