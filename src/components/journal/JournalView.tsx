@@ -10,7 +10,8 @@ import {
   type JournalPosition, type EquityPoint,
 } from '../../engine/journal'
 import { MISTAKES, type JournalEntry } from '../../store/journalStore'
-import type { RawPosition } from '../../types'
+import { tradeId } from '../../store/tradeLabelsStore'
+import type { RawPosition, RawTrade } from '../../types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -243,6 +244,53 @@ function EntryEditor({ pos, entry, updateEntry, setups, addSetup }: {
   )
 }
 
+/** Shown in place of the setup/mistakes/notes editor when a SHARES row is
+ * expanded — a ticker's aggregate row hides exactly which trades built up
+ * the position, so instead of freeform notes this lists every buy/sell
+ * (including option assignments, which land in the Flex report as ordinary
+ * STK trades with zero commission) that contributed to it, oldest first. */
+function SharesTradesTable({ pos, tradesByKey }: { pos: JournalPosition; tradesByKey: Map<string, RawTrade> }) {
+  const rows = pos.tradeIds
+    .map(id => tradesByKey.get(id))
+    .filter((t): t is RawTrade => t != null)
+    .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate))
+
+  if (rows.length === 0) {
+    return <div style={{ padding: '14px 16px', color: 'var(--text-4)', fontSize: 12 }}>No trade history found for this position.</div>
+  }
+
+  return (
+    <div style={{ padding: '10px 16px' }}>
+      <table className="mono" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ color: 'var(--text-4)', textAlign: 'left' }}>
+            <th style={{ fontWeight: 500, padding: '3px 8px 3px 0' }}>Date</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px' }}>Action</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Qty</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Price</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((t, i) => {
+            const assigned = Math.abs(t.commissions ?? 0) < 0.005
+            const action = `${t.quantity > 0 ? 'Buy' : 'Sell'}${assigned ? ' (assigned)' : ''}`
+            return (
+              <tr key={`${t.tradeDate}|${i}`} style={{ borderTop: '1px solid var(--border)' }}>
+                <td style={{ padding: '4px 8px 4px 0', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtDate(t.tradeDate)}</td>
+                <td style={{ padding: '4px 8px', color: t.quantity > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>{action}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right' }}>{Math.abs(t.quantity)}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right' }}>{fmt$(t.tradePrice, 2)}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-2)' }}>{fmt$(Math.abs(t.quantity) * t.tradePrice, 2)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 /** Collapses every SHARES lot (buy/sell FIFO-matched pairs plus any still-open
  * remainder — buildStockPositions emits one JournalPosition per lot) down to a
  * single display row per ticker, so a stock traded in and out repeatedly doesn't
@@ -350,9 +398,10 @@ function stratGroupLabel(strategy?: string) {
   return LABEL_SHORT[key] ?? key.toUpperCase()
 }
 
-export function JournalTab({ positions, livePositions, entries, updateEntry, setups, addSetup }: {
+export function JournalTab({ positions, livePositions, trades, entries, updateEntry, setups, addSetup }: {
   positions: JournalPosition[]
   livePositions: RawPosition[]
+  trades: RawTrade[]
   entries: Record<string, JournalEntry>
   updateEntry: (id: string, patch: Partial<JournalEntry>) => void
   setups: string[]
@@ -364,6 +413,12 @@ export function JournalTab({ positions, livePositions, entries, updateEntry, set
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const displayPositions = useMemo(() => aggregateActiveOptionLots(aggregateShares(positions)), [positions])
+
+  const tradesByKey = useMemo(() => {
+    const m = new Map<string, RawTrade>()
+    for (const t of trades) if (t.assetClass === 'STK') m.set(tradeId(t), t)
+    return m
+  }, [trades])
 
   // A single live IBKR leg (one strike) can be shared by two different
   // display rows — e.g. two verticals with different long strikes but the
@@ -480,7 +535,9 @@ export function JournalTab({ positions, livePositions, entries, updateEntry, set
                       return (
                         <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} entry={e} open={open} cols={COLS}
                           onToggle={() => setExpanded(open ? null : p.id)}
-                          editor={<EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />} />
+                          editor={p.strikeDisplay === 'SHARES'
+                            ? <SharesTradesTable pos={p} tradesByKey={tradesByKey} />
+                            : <EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />} />
                       )
                     })}
                   </tbody>
@@ -502,7 +559,9 @@ export function JournalTab({ positions, livePositions, entries, updateEntry, set
                   return (
                     <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} entry={e} open={open} cols={COLS}
                       onToggle={() => setExpanded(open ? null : p.id)}
-                      editor={<EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />} />
+                      editor={p.strikeDisplay === 'SHARES'
+                        ? <SharesTradesTable pos={p} tradesByKey={tradesByKey} />
+                        : <EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />} />
                   )
                 })}
                 {rows.length === 0 && (

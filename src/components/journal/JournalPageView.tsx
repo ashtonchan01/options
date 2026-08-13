@@ -40,7 +40,7 @@ export default function JournalPageView({ state, tradeLabels }: { state: AppStat
         </div>
         <div className="jr-stacked-bottom jr-root">
           {hasTrades ? (
-            <JournalTab positions={positions} livePositions={state.sync.positions} entries={entries} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
+            <JournalTab positions={positions} livePositions={state.sync.positions} trades={state.sync.trades} entries={entries} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
           ) : (
             <>
               <div className="cc-section-title" style={{ padding: 0 }}>Trade Journal</div>
