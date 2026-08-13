@@ -1917,29 +1917,20 @@ body {
   color: var(--text-4);
 }
 
-/* Calendar column: below the 901px desktop-grid breakpoint the dashboard cell is too
- * narrow for CalendarView's natural side-by-side layout (grid + 300px activity list),
- * so force it into a stacked one there (grid on top, list directly below, no gap).
- * calendar-main is shrunk to its natural content height (nav + aspect-ratio grid)
- * instead of flex-growing, so the sidebar list can start immediately below it instead
- * of leaving a gap. At 901px+ the named-area grid's calendar column is wide enough
- * for CalendarView's own default side-by-side layout (grid left, list right), so
- * it's left alone there. */
-@media (max-width: 900px) {
-  /* CalendarView's own root div is `height: 100%` inline — with this cell now
-     sized to its own content (flex: 0 0 auto) instead of stretched against a
-     parent height, 100% has nothing definite to resolve against and the
-     whole thing (including the activity list below the grid) was collapsing
-     away instead of just shrink-wrapping. Force auto so it sizes to its
-     actual content top to bottom. */
-  .dash-calendar-embed > div { height: auto !important; }
-  .dash-calendar-embed .calendar-layout { flex-direction: column !important; height: auto !important; }
-  .dash-calendar-embed .calendar-main { flex: none !important; padding: 12px !important; overflow: visible !important; }
-  .dash-calendar-embed .calendar-sidebar {
-    width: 100% !important; border-left: none !important;
-    border-top: 1px solid var(--border) !important;
-    flex: none !important; height: 380px !important; max-height: none !important;
-  }
+/* Calendar column (Portfolio tab): always stacked (grid on top, activity list
+ * directly below, no gap) rather than CalendarView's own default side-by-side
+ * layout (grid + 300px list) — the Portfolio column isn't wide enough for
+ * both side by side without squeezing the grid. calendar-main is shrunk to
+ * its natural content height (nav + aspect-ratio grid) instead of
+ * flex-growing, so the list can start immediately below it instead of
+ * leaving a gap. */
+.dash-calendar-embed > div { height: auto !important; }
+.dash-calendar-embed .calendar-layout { flex-direction: column !important; height: auto !important; }
+.dash-calendar-embed .calendar-main { flex: none !important; padding: 12px !important; overflow: visible !important; }
+.dash-calendar-embed .calendar-sidebar {
+  width: 100% !important; border-left: none !important;
+  border-top: 1px solid var(--border) !important;
+  flex: none !important; height: 380px !important; max-height: none !important;
 }
 
 /* Scanner param/ticker inputs must stay >=16px on mobile so iOS Safari (as an
