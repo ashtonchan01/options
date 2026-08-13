@@ -1851,10 +1851,12 @@ body {
  * single screen has to give. */
 @media (min-width: 901px) {
   .dash-wrap {
-    /* Map/Charts/Headlines column is 60% of the total width, the right side
+    /* Map/Charts/Headlines column is 50% of the total width, the right side
        (Live TV / Article / Pair Trading, spanning the other two grid columns
-       as one flex box, see .dash-area-rightside) the remaining 40%. */
-    grid-template-columns: 6fr 2.5fr 1.5fr;
+       as one flex box, see .dash-area-rightside) the remaining 50% — was
+       60/40, but that left Live TV too narrow relative to its row height to
+       fill a 16:9 box (empty bars either side of the video). */
+    grid-template-columns: 5fr 2.8fr 2.2fr;
     /* Map keeps most of the left column's height; Live Charts is now a
        single-row strip (fixed height, not an fr share); Ticker Headlines
        fills whatever's left. */
@@ -1879,8 +1881,11 @@ body {
     gap: 6px;
   }
   .dash-rightside-top-row {
+    /* Taller (was 300px) so Live TV's 16:9 box has more height to scale up
+       against — at the old height it hit the width cap first, leaving
+       empty bars on both sides of the video instead of filling its column. */
     display: flex;
-    flex: 0 0 300px;
+    flex: 0 0 420px;
     min-height: 0;
     gap: 6px;
   }

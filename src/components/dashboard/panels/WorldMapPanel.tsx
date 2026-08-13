@@ -26,7 +26,11 @@ const bordersPath = pathGen(countryBorders) ?? ''
 
 type Region = 'global' | 'america' | 'europe' | 'asia'
 const REGIONS: Record<Region, { label: string; lonMin: number; lonMax: number; latMin: number; latMax: number }> = {
-  global:  { label: 'Global',  lonMin: -110, lonMax: 165, latMin: -58, latMax: 75 },
+  /* lonMin/lonMax trimmed close to the real westmost/eastmost exchanges
+     (Toronto -79.4, Sydney 151.2) plus a modest margin — the previous
+     -110/165 left a wide strip of empty ocean on both sides with no
+     markers in it at all, especially on the west edge. */
+  global:  { label: 'Global',  lonMin: -92, lonMax: 158, latMin: -58, latMax: 75 },
   america: { label: 'America', lonMin: -125, lonMax: -35, latMin: -35, latMax: 58 },
   europe:  { label: 'Europe',  lonMin: -15,  lonMax: 42,  latMin: 33,  latMax: 62 },
   asia:    { label: 'Asia',    lonMin: 65,   lonMax: 155, latMin: -40, latMax: 45 },
