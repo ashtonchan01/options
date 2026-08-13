@@ -608,62 +608,81 @@ export function JournalTab({ positions, livePositions, entries, updateEntry, set
         </label>
       </div>
 
-      <div className="cc-section cc-table-section" style={{ flexShrink: 1 }}>
-        <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
-          <table className="trade-table" style={{ fontSize: 12 }}>
-            <thead>
-              <tr>
-                <th className="jr-col-open">Open</th>
-                <th className="jr-col-closed">Closed</th>
-                <th>Ticker</th>
-                <th style={{ textAlign: 'right' }}>Position</th>
-                <th style={{ textAlign: 'right' }}>Avg Price</th>
-                <th style={{ textAlign: 'right' }}>Cost Basis</th>
-                <th style={{ textAlign: 'right' }}>Market Price</th>
-                <th style={{ textAlign: 'right' }}>Unrealised</th>
-                <th style={{ textAlign: 'right' }}>%</th>
-                <th className="jr-col-dte" style={{ textAlign: 'right' }}>DTE</th>
-                <th style={{ textAlign: 'right' }}>P&L</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map(g => (
-                <FragmentGroup key={g.label ?? 'all'}>
-                  {g.label && (
-                    <tr>
-                      <td colSpan={COLS} style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--text-4)', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
-                        {g.label} · {g.rows.length}
-                      </td>
-                    </tr>
-                  )}
-                  {g.rows.map(p => {
-                    const e = entries[p.id] ?? {}
-                    const open = expanded === p.id
-                    return (
-                      <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} entry={e} open={open} cols={COLS}
-                        onToggle={() => setExpanded(open ? null : p.id)}
-                        editor={
-                          <EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
-                        } />
-                    )
-                  })}
-                </FragmentGroup>
-              ))}
-              {rows.length === 0 && (
-                <tr><td colSpan={COLS} style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>Nothing here</td></tr>
-              )}
-            </tbody>
-          </table>
+      {groupByStrategy ? (
+        // One independently-scrollable cell per strategy — a flat list with
+        // inline group headers meant scrolling past LEAP/CSP/CC just to reach
+        // a strategy further down (e.g. SPX/BPS) buried near the bottom.
+        // Each cell caps its own height so every strategy stays reachable at
+        // a glance instead of one long shared scroll.
+        <div className="jr-strategy-grid">
+          {groups.map(g => (
+            <div key={g.label} className="jr-strategy-cell">
+              <div className="jr-strategy-cell-header">{g.label} · {g.rows.length}</div>
+              <div className="jr-strategy-cell-scroll">
+                <table className="trade-table" style={{ fontSize: 12 }}>
+                  <TableHead />
+                  <tbody>
+                    {g.rows.map(p => {
+                      const e = entries[p.id] ?? {}
+                      const open = expanded === p.id
+                      return (
+                        <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} entry={e} open={open} cols={COLS}
+                          onToggle={() => setExpanded(open ? null : p.id)}
+                          editor={<EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />} />
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+          {rows.length === 0 && <div style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>Nothing here</div>}
         </div>
-      </div>
+      ) : (
+        <div className="cc-section cc-table-section" style={{ flexShrink: 1 }}>
+          <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
+            <table className="trade-table" style={{ fontSize: 12 }}>
+              <TableHead />
+              <tbody>
+                {rows.map(p => {
+                  const e = entries[p.id] ?? {}
+                  const open = expanded === p.id
+                  return (
+                    <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} entry={e} open={open} cols={COLS}
+                      onToggle={() => setExpanded(open ? null : p.id)}
+                      editor={<EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />} />
+                  )
+                })}
+                {rows.length === 0 && (
+                  <tr><td colSpan={COLS} style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>Nothing here</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </>
   )
 }
 
-// tbody can't nest a wrapping element other than <tr>/fragments — this just
-// gives each group a stable React key without adding a DOM node.
-function FragmentGroup({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+function TableHead() {
+  return (
+    <thead>
+      <tr>
+        <th className="jr-col-open">Open</th>
+        <th className="jr-col-closed">Closed</th>
+        <th>Ticker</th>
+        <th style={{ textAlign: 'right' }}>Position</th>
+        <th style={{ textAlign: 'right' }}>Avg Price</th>
+        <th style={{ textAlign: 'right' }}>Cost Basis</th>
+        <th style={{ textAlign: 'right' }}>Market Price</th>
+        <th style={{ textAlign: 'right' }}>Unrealised</th>
+        <th style={{ textAlign: 'right' }}>%</th>
+        <th className="jr-col-dte" style={{ textAlign: 'right' }}>DTE</th>
+        <th style={{ textAlign: 'right' }}>P&L</th>
+      </tr>
+    </thead>
+  )
 }
 
 function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor }: {

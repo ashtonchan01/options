@@ -716,6 +716,44 @@ body {
   padding: 12px 0 0;
 }
 
+/* Trade Journal, grouped-by-strategy view — each strategy gets its own
+   cell with an independent scroll, so reaching e.g. SPX/BPS doesn't require
+   scrolling past every LEAP/CSP/CC row above it in one long shared list. */
+.jr-strategy-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+  grid-auto-rows: min-content;
+  gap: 10px;
+  overflow-y: auto;
+  align-content: start;
+}
+.jr-strategy-cell {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  max-height: 420px;
+  overflow: hidden;
+}
+.jr-strategy-cell-header {
+  padding: 8px 14px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-4);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.jr-strategy-cell-scroll {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
 .cc-section-title {
   font-size: 10px;
   font-weight: 700;
@@ -1098,6 +1136,12 @@ body {
   .pf-column .jr-root { height: auto; overflow: visible; }
   .jr-break-table-scroll { height: auto !important; overflow: visible !important; }
   .jr-trade-table-scroll { overflow: visible !important; }
+  /* Same "just grow, let the page scroll" treatment for the grouped-by-
+     strategy view's per-cell scroll — a small fixed-height cell with its own
+     internal scroll is fine on desktop but cramped on a phone screen. */
+  .jr-strategy-grid { grid-template-columns: 1fr !important; overflow: visible !important; }
+  .jr-strategy-cell { max-height: none !important; }
+  .jr-strategy-cell-scroll { overflow: visible !important; }
   /* Portfolio tab's right column (Income Channels / Stocks / Options tables)
      had each of its 3 sub-panels internally scrolling to share a fixed
      height — same "just grow, let the page scroll" treatment as everywhere
