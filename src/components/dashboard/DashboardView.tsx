@@ -2,8 +2,9 @@
  * World-Monitor-style overview — a flat, responsive wrapping grid of
  * fixed-size cells (see .dash-wrap in index.css). Cells flow to the next
  * row as the screen narrows; wide/tall cells span 2 tracks where space
- * allows. Order: map, live charts, TV, world headlines, ticker headlines,
- * portfolio analytics, calendar.
+ * allows. Left side is just World Map + Live Charts stacked (covering the
+ * left half of the screen); Live TV sits at the top of the right side,
+ * above Ticker Headlines + Pair Trading.
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
@@ -43,12 +44,14 @@ export default function DashboardView({ state }: { state: AppState }) {
       <div className="dash-cell dash-cell-under-map dash-area-charts">
         <LiveChartsStrip quotes={quotes} layout="row-single" />
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h3 dash-cell-livetv dash-area-livetv">
-        <LiveTVPanel />
-      </div>
-      {/* Calendar moved to the Portfolio tab — Headlines + Pairs now fill
-          this whole right-side column themselves. */}
+      {/* Calendar moved to the Portfolio tab. Live TV now sits at the top of
+          this column, above Headlines + Pairs, instead of at the bottom of
+          the map/charts column — leaving that left column just World Map +
+          Live Charts stacked to fill the left half of the screen. */}
       <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-calendar dash-area-rightside">
+        <div className="dash-cell dash-rightside-livetv">
+          <LiveTVPanel />
+        </div>
         <div className="dash-rightside-bottom">
           <div className="dash-cell dash-cell-h3 dash-area-headlines">
             <TickerHeadlinesPanel />

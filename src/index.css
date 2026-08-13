@@ -1764,12 +1764,6 @@ body {
   .dash-cell-h3 { grid-row: span 2; }
   .dash-cell-h6 { grid-row: span 4; }
   .dash-cell-h12 { grid-row: span 7; }
-  /* The video itself is now sized by aspect-ratio (16:9, see LiveTVPanel),
-     not stretched to fill the cell — so this only needs enough room for the
-     header + region/channel tab rows + that 16:9 box, not a much taller
-     span (which used to leave dead space YouTube's own embed chrome filled
-     in, and even now would just be wasted empty space below the video). */
-  .dash-cell-livetv { grid-row: span 3; }
 }
 
 /* Calendar + Headlines/Pairs/Actions are nested into one flex column purely as
@@ -1795,6 +1789,7 @@ body {
     gap: 6px;
   }
   .dash-area-rightside > .dash-calendar-embed { flex: 0 0 auto; }
+  .dash-area-rightside > .dash-rightside-livetv { flex: 0 0 320px; min-height: 0; }
   .dash-rightside-bottom {
     display: flex;
     flex-direction: column;
@@ -1848,17 +1843,18 @@ body {
     grid-template-columns: 1.5fr 1.7fr 300px;
     /* Charts row is a fixed height matching its content (100px cards + panel/row
        padding) instead of an fr share — an fr track stretches taller than the
-       row-single strip actually needs, leaving dead space below the cards. */
-    grid-template-rows: 1.3fr 128px 1fr;
+       row-single strip actually needs, leaving dead space below the cards. Map
+       takes the rest of the column's height (1fr) now that Live TV has moved
+       out of this column entirely, covering the left half of the screen with
+       just itself + the charts strip. */
+    grid-template-rows: 1fr 128px;
     grid-template-areas:
       "map      rightside rightside"
-      "charts   rightside rightside"
-      "livetv   rightside rightside";
+      "charts   rightside rightside";
     overflow: hidden;
   }
   .dash-area-map       { grid-area: map; }
   .dash-area-charts    { grid-area: charts; }
-  .dash-area-livetv    { grid-area: livetv; }
   /* Calendar + Headlines + Actions share one grid cell spanning all 3 rows,
      laid out as a flex column instead of 3 independent grid areas — the
      calendar's content has a fixed intrinsic height (nav + 16:9-ratio box)
@@ -1879,6 +1875,7 @@ body {
      calendar keeps its own natural height instead of stretching to match
      the Headlines/Actions row. */
   .dash-area-rightside > .dash-calendar-embed { flex: 0 0 auto; }
+  .dash-area-rightside > .dash-rightside-livetv { flex: 0 0 340px; min-height: 0; }
   .dash-area-rightside > .dash-rightside-bottom { flex: 1; }
   .dash-rightside-bottom {
     display: flex;
