@@ -1003,7 +1003,10 @@ body {
   flex: 1 1 620px;
   min-width: 620px;
   height: 100%;
-  overflow: hidden;
+  /* overflow-x only — a plain `overflow: hidden` shorthand here clobbers
+     .jr-root's own overflow-y: auto (same element carries both classes),
+     silently disabling the Journal Overview column's vertical scroll. */
+  overflow-x: hidden;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
