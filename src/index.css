@@ -1122,7 +1122,13 @@ body {
    trimmed down from the base chip so 3 short rows have room to breathe
    instead of bunching up against each other in a strip this short. */
 .jr-kpi-col {
-  flex: 1 1 50%;
+  /* flex-basis:0 (not 50%) to match the chart cell's own plain `flex:1`
+     (shorthand for 1 1 0%) — mismatched flex-basis values (50% vs 0%) meant
+     equal flex-grow only split the LEFTOVER space after each item's own
+     basis, not the total, so this column kept winning ~75% of the row no
+     matter what min-width fix was applied (verified via a standalone
+     reproduction: 1389px vs 461px, nowhere near even). */
+  flex: 1;
   /* min-width:0 — without it, a flex item's default min-width:auto is based
      on its content's intrinsic min size (here, the widest chip's nowrap
      text, e.g. "-$146,667"), which silently overrode the 50% basis and
@@ -1135,8 +1141,14 @@ body {
 }
 .jr-kpi-col .jr-kpi-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
+  /* minmax(0, 1fr), not plain 1fr — a bare 1fr track still has an implicit
+     min size equal to its content's min-content width (same "auto min-size"
+     gotcha as flex items, one level deeper: fixing the flex item's own
+     min-width wasn't enough while the grid tracks inside it still refused
+     to shrink below their widest chip's content). minmax(0, 1fr) is the
+     standard override to actually let grid tracks shrink freely. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
   gap: 5px;
   width: 100%;
   height: 100%;
