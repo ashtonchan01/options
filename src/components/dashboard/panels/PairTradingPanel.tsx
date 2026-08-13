@@ -76,7 +76,7 @@ function RsiCard({ row }: { row: RsiRow }) {
   )
 }
 
-export default function PairTradingPanel({ state }: { state: AppState }) {
+export default function PairTradingPanel({ state, topN = 10 }: { state: AppState; topN?: number }) {
   const [rsiMap, setRsiMap] = useState<Record<string, RsiData>>({})
   const [loading, setLoading] = useState(false)
 
@@ -124,8 +124,8 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
 
   const top = pairs[0]
 
-  const top10Overbought = [...rows].sort((a, b) => b.rsi - a.rsi).slice(0, 10)
-  const top10Oversold   = [...rows].sort((a, b) => a.rsi - b.rsi).slice(0, 10)
+  const topOverbought = [...rows].sort((a, b) => b.rsi - a.rsi).slice(0, topN)
+  const topOversold   = [...rows].sort((a, b) => a.rsi - b.rsi).slice(0, topN)
 
   return (
     <div className="dash-panel" style={{ flex: 1 }}>
@@ -170,19 +170,19 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
             <div style={{ display: 'flex', gap: 16, borderTop: '1px solid var(--border-light)', paddingTop: 8, flex: 1, minHeight: 0 }}>
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 6, flexShrink: 0 }}>
-                  TOP 10 OVERBOUGHT
+                  TOP {topN} OVERBOUGHT
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0 }}>
-                  {top10Overbought.map(r => <RsiCard key={r.symbol} row={r} />)}
+                  {topOverbought.map(r => <RsiCard key={r.symbol} row={r} />)}
                 </div>
               </div>
 
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.06em', marginBottom: 6, flexShrink: 0 }}>
-                  TOP 10 OVERSOLD
+                  TOP {topN} OVERSOLD
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0 }}>
-                  {top10Oversold.map(r => <RsiCard key={r.symbol} row={r} />)}
+                  {topOversold.map(r => <RsiCard key={r.symbol} row={r} />)}
                 </div>
               </div>
             </div>

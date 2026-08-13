@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchTickerHeadlines, type TickerHeadline } from '../../../services/tickerNews'
 import { getFollowedTickers } from '../../../utils/followedTickers'
+import type { SelectedHeadline } from './ArticleReaderPanel'
 
 const REFRESH_MS = 3 * 60 * 1000
 
@@ -26,7 +27,10 @@ function groupByTicker(headlines: TickerHeadline[]): { ticker: string; items: Ti
   return [...map.entries()].map(([ticker, items]) => ({ ticker, items }))
 }
 
-export default function TickerHeadlinesPanel() {
+export default function TickerHeadlinesPanel({ onSelect, selectedUrl }: {
+  onSelect: (h: SelectedHeadline) => void
+  selectedUrl?: string
+}) {
   const [headlines, setHeadlines] = useState<TickerHeadline[]>([])
 
   useEffect(() => {
@@ -71,17 +75,24 @@ export default function TickerHeadlinesPanel() {
             }}>
               {g.ticker}
             </div>
-            {g.items.map((h, i) => (
-              <a key={h.link + i} href={h.link} target="_blank" rel="noreferrer" style={{
-                display: 'block', padding: '7px 9px', textDecoration: 'none',
-                borderTop: i === 0 ? 'none' : '1px solid var(--border-light)',
-              }}>
-                <div style={{ fontSize: 10, color: 'var(--text-4)', marginBottom: 2 }}>
-                  {h.source} · {relativeTime(h.time)}
+            {g.items.map((h, i) => {
+              const active = selectedUrl === h.link
+              return (
+                <div key={h.link + i} role="button" tabIndex={0}
+                  onClick={() => onSelect({ url: h.link, title: h.title, source: h.source })}
+                  onKeyDown={e => { if (e.key === 'Enter') onSelect({ url: h.link, title: h.title, source: h.source }) }}
+                  style={{
+                    display: 'block', padding: '7px 9px', cursor: 'pointer',
+                    borderTop: i === 0 ? 'none' : '1px solid var(--border-light)',
+                    background: active ? 'var(--accent-dim)' : undefined,
+                  }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-4)', marginBottom: 2 }}>
+                    {h.source} · {relativeTime(h.time)}
+                  </div>
+                  <div style={{ fontSize: 12, color: active ? 'var(--accent)' : 'var(--text-1)', lineHeight: 1.4 }}>{h.title}</div>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-1)', lineHeight: 1.4 }}>{h.title}</div>
-              </a>
-            ))}
+              )
+            })}
           </div>
         ))}
       </div>

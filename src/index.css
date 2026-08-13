@@ -1804,15 +1804,9 @@ body {
     gap: 6px;
   }
   .dash-area-rightside > .dash-calendar-embed { flex: 0 0 auto; }
-  .dash-rightside-row, .dash-rightside-headlines-col {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .dash-rightside-headlines-col > .dash-rightside-livetv { flex: 0 0 320px; min-height: 0; }
-  .dash-area-headlines { min-height: 320px; }
-  .dash-area-pairs     { min-height: 420px; }
-  .dash-area-actions   { min-height: 500px; }
+  .dash-area-rightside > .dash-rightside-livetv { flex: 0 0 320px; min-height: 0; }
+  .dash-area-article      { min-height: 420px; }
+  .dash-area-pairs-bottom { min-height: 420px; }
   /* Below the auto-fill minmax floor this naturally collapses to 1 column
      anyway, but pin it explicitly so a phone never tries to fit 2 skinny
      ~90px columns. */
@@ -1851,30 +1845,29 @@ body {
  * single screen has to give. */
 @media (min-width: 901px) {
   .dash-wrap {
-    /* Map/Charts column is 60% of the total width, Headlines+Pairs (spanning
-       the other two grid columns as one flex box, see .dash-area-rightside)
-       the remaining 40% — split 25/15 between those two columns internally,
-       same 1.7:300px-ish ratio as before just rebalanced against a 60fr
-       left column instead of 1.5fr. */
+    /* Map/Charts/Headlines column is 60% of the total width, the right side
+       (Live TV / Article / Pair Trading, spanning the other two grid columns
+       as one flex box, see .dash-area-rightside) the remaining 40%. */
     grid-template-columns: 6fr 2.5fr 1.5fr;
-    /* Map takes 60% of the left column's height, Live Charts (now the taller
-       3-row card grid, not the old single-row strip) the remaining 40%. */
-    grid-template-rows: 3fr 2fr;
+    /* Map keeps most of the left column's height; Live Charts is now a
+       single-row strip (fixed height, not an fr share); Ticker Headlines
+       fills whatever's left. */
+    grid-template-rows: 1fr 128px 1fr;
     grid-template-areas:
-      "map      rightside rightside"
-      "charts   rightside rightside";
+      "map        rightside rightside"
+      "charts     rightside rightside"
+      "headlines  rightside rightside";
     overflow: hidden;
   }
-  .dash-area-map       { grid-area: map; }
-  .dash-area-charts    { grid-area: charts; }
-  /* Calendar + Headlines + Actions share one grid cell spanning all 3 rows,
-     laid out as a flex column instead of 3 independent grid areas — the
-     calendar's content has a fixed intrinsic height (nav + 16:9-ratio box)
-     that doesn't grow to fill extra space, so pinning Headlines/Actions to
-     their own fixed row tracks left a dead gap between the calendar's actual
-     bottom and wherever those tracks started. Stacking them in one flex
-     column instead means the calendar takes its natural height and the
-     Headlines/Actions row below it (flex: 1) fills exactly what's left. */
+  .dash-area-map            { grid-area: map; }
+  .dash-area-charts         { grid-area: charts; }
+  .dash-area-headlines-left { grid-area: headlines; }
+  /* Live TV / Article / Pair Trading stack top to bottom, spanning the full
+     right-side width — Article replaces Headlines' old spot (Headlines
+     moved to the left column) and now spans both of the right side's grid
+     columns instead of sharing width with a separate Pair Trading column.
+     Live TV keeps its own natural height, Pair Trading is a short fixed
+     strip (just top 5, not top 10), and Article fills whatever's left. */
   .dash-area-rightside {
     grid-area: rightside;
     display: flex;
@@ -1883,33 +1876,9 @@ body {
     overflow: hidden;
     gap: 6px;
   }
-  /* .dash-cell > * defaults every direct child to flex: 1 — override so the
-     calendar keeps its own natural height instead of stretching to match
-     the Headlines/Actions row. */
-  .dash-area-rightside > .dash-calendar-embed { flex: 0 0 auto; }
-  /* Live TV + Headlines stack in their own sub-column; Pair Trading is a
-     sibling of that whole sub-column (not nested under Headlines alone), so
-     it spans the full height of the right side instead of just the row
-     below Live TV. */
-  .dash-rightside-row {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-    gap: 6px;
-  }
-  .dash-rightside-headlines-col {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-    min-height: 0;
-    gap: 6px;
-  }
-  .dash-rightside-headlines-col > .dash-rightside-livetv { flex: 0 0 340px; min-height: 0; }
-  .dash-area-headlines { flex: 1; min-height: 0; }
-  .dash-area-pairs     { flex: 0 0 360px; min-width: 0; }
-  .dash-area-actions   { width: 300px; flex-shrink: 0; }
+  .dash-area-rightside > .dash-rightside-livetv  { flex: 0 0 300px; min-height: 0; }
+  .dash-area-rightside > .dash-area-article      { flex: 1; min-height: 0; }
+  .dash-area-rightside > .dash-area-pairs-bottom { flex: 0 0 220px; min-height: 0; }
 }
 
 .dash-panel {

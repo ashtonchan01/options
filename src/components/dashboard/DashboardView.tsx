@@ -2,9 +2,11 @@
  * World-Monitor-style overview — a flat, responsive wrapping grid of
  * fixed-size cells (see .dash-wrap in index.css). Cells flow to the next
  * row as the screen narrows; wide/tall cells span 2 tracks where space
- * allows. Left side is just World Map + Live Charts stacked (covering the
- * left half of the screen); Live TV sits at the top of the right side,
- * above Ticker Headlines + Pair Trading.
+ * allows. Left side: World Map, a single-row Live Charts strip, then Ticker
+ * Headlines filling the rest. Right side: Live TV, then an in-dashboard
+ * Article reader (filled by clicking a headline, instead of opening a new
+ * tab) spanning the full right-side width, then a compact Pair Trading
+ * strip (top 5) along the bottom.
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
@@ -15,6 +17,7 @@ import LiveChartsStrip from './panels/LiveChartsStrip'
 import LiveTVPanel from './panels/LiveTVPanel'
 import TickerHeadlinesPanel from './panels/TickerHeadlinesPanel'
 import PairTradingPanel from './panels/PairTradingPanel'
+import ArticleReaderPanel, { type SelectedHeadline } from './panels/ArticleReaderPanel'
 
 const REFRESH_MS = 60_000
 const CHART_ONLY_SYMBOLS = ['ES=F']
@@ -22,6 +25,7 @@ const CHART_ONLY_SYMBOLS = ['ES=F']
 export default function DashboardView({ state }: { state: AppState }) {
   const [quotes, setQuotes] = useState<Record<string, MarketQuote>>({})
   const [now, setNow] = useState(() => new Date())
+  const [selectedHeadline, setSelectedHeadline] = useState<SelectedHeadline | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -41,26 +45,21 @@ export default function DashboardView({ state }: { state: AppState }) {
       <div className="dash-cell dash-cell-under-map dash-cell-h3 dash-area-map">
         <WorldMapPanel quotes={quotes} now={now} />
       </div>
-      <div className="dash-cell dash-cell-under-map dash-cell-h3 dash-area-charts">
-        <LiveChartsStrip quotes={quotes} layout="row" />
+      <div className="dash-cell dash-cell-under-map dash-area-charts">
+        <LiveChartsStrip quotes={quotes} layout="row-single" />
       </div>
-      {/* Calendar moved to the Portfolio tab. Live TV sits at the top of the
-          Headlines sub-column; Pair Trading is a separate sub-column next to
-          it, spanning the full height of the right side rather than sharing
-          a row with just Headlines. */}
+      <div className="dash-cell dash-cell-under-map dash-cell-h3 dash-area-headlines-left">
+        <TickerHeadlinesPanel onSelect={setSelectedHeadline} selectedUrl={selectedHeadline?.url} />
+      </div>
       <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-calendar dash-area-rightside">
-        <div className="dash-rightside-row">
-          <div className="dash-rightside-headlines-col">
-            <div className="dash-cell dash-rightside-livetv">
-              <LiveTVPanel />
-            </div>
-            <div className="dash-cell dash-area-headlines">
-              <TickerHeadlinesPanel />
-            </div>
-          </div>
-          <div className="dash-cell dash-area-pairs">
-            <PairTradingPanel state={state} />
-          </div>
+        <div className="dash-cell dash-rightside-livetv">
+          <LiveTVPanel />
+        </div>
+        <div className="dash-cell dash-area-article">
+          <ArticleReaderPanel selected={selectedHeadline} />
+        </div>
+        <div className="dash-cell dash-area-pairs-bottom">
+          <PairTradingPanel state={state} topN={5} />
         </div>
       </div>
     </div>
