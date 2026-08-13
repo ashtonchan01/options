@@ -1715,183 +1715,50 @@ body {
   .ew-collapse-btn { display: none; }
 }
 
-/* Dashboard overview — responsive wrapping grid of fixed-size cells (World-Monitor style).
-   Every cell has a minimum width (the minmax track floor) and a definite height (the fixed
-   grid-auto-rows), so panels' internal flex:1 areas (map SVG, iframes, scroll lists) always
-   have a bounded box to resolve against. As the screen narrows, columns drop out and cells
-   flow onto the next row; dense flow back-fills gaps so the screen stays filled. */
+/* Dashboard overview — column-wrapping masonry (World-Monitor style): each
+   panel is a fixed-size, user-resizable box (native `resize: both` handle
+   on its bottom-right corner, size persisted per-panel — see
+   ResizablePanel/useResizablePanel) that stacks top-to-bottom until a
+   column is full, then the next panel starts a new column. `height: 100%`
+   is what makes flex-wrap measure column breaks against the viewport
+   instead of never wrapping; `overflow-x: auto` handles a screen too
+   narrow for every column at once instead of clipping them. */
 .dash-wrap {
   height: 100%;
   padding: 6px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(277px, 1fr));
-  grid-auto-rows: 165px;
-  grid-auto-flow: row dense;
+  display: flex;
+  flex-flow: column wrap;
+  align-content: flex-start;
   gap: 6px;
-  overflow-y: auto;
-  align-content: start;
+  overflow: auto;
   box-sizing: border-box;
 }
-.dash-cell { display: flex; min-width: 0; min-height: 0; }
+.dash-cell { display: flex; min-width: 160px; min-height: 100px; }
 .dash-cell > * { flex: 1; min-width: 0; min-height: 0; }
-.dash-cell-w2 { grid-column: span 2; }
-.dash-cell-w3 { grid-column: span 3; }
-/* Always spans the full row width, guaranteeing it lands on its own row below whatever
-   came before it, instead of sharing a row when there happens to be leftover space. */
-.dash-cell-full { grid-column: 1 / -1; }
-/* Pinned to the same starting column as the map (both are first in DOM order, so dense
-   packing places the map at column 1) and the same span, so this cell is always exactly as
-   wide as the map and can only land directly below it, never beside it. */
-.dash-cell-under-map { grid-column: 1 / span 3; }
-@media (max-width: 900px) {
-  .dash-cell-under-map { grid-column: 1 / span 2; }
+.dash-rightside-top-row {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
 }
 @media (max-width: 650px) {
-  .dash-cell-under-map { grid-column: 1; }
+  /* A single narrow column can't fit two side-by-side resizable panels —
+     stack Live TV above Pair Trading instead, each full width, and turn
+     off manual resize (there's no room to drag into on a phone; letting
+     the panel just size to its content avoids a resize handle with
+     nothing useful to do). */
+  .dash-wrap { flex-flow: column nowrap; height: auto; overflow: visible; }
+  .dash-rightside-top-row { flex-direction: column; }
+  .dash-cell { width: 100% !important; height: auto !important; resize: none !important; }
 }
-/* Base row unit is 165px; most panels want ~500px (h3), tall ones (analytics/calendar) want
-   ~1000px (h6) — a thin single-row strip like Live Charts just uses the 165px default (h1). */
-.dash-cell-h2 { grid-row: span 2; }
-.dash-cell-h3 { grid-row: span 3; }
-.dash-cell-h6 { grid-row: span 6; }
-.dash-cell-h12 { grid-row: span 12; }
-/* The Actions & To-Do sidebar is normally a fixed-width strip next to the portfolio view —
- * as its own standalone dashboard cell it should fill the cell like every other panel. */
-.dash-actions-cell .db-sidebar { width: 100%; border-left: 1px solid var(--border); }
-/* When fewer columns fit than a cell spans, that span would force an overflowing implicit
-   track — fall back to however many columns actually fit at each width. */
-@media (max-width: 900px) {
-  .dash-cell-w3 { grid-column: span 2; }
-}
-@media (max-width: 650px) {
-  .dash-cell-w2, .dash-cell-w3 { grid-column: auto; }
-  /* On a single narrow column everything stacks in DOM order, which buried Calendar
-     at the very bottom — after the huge Stocks/Options/Actions cards. Pull it up to
-     right after the news/market cards instead, ahead of the portfolio-analytics block. */
-  .dash-cell-calendar { order: 1; }
-  .dash-cell-portfolio { order: 2; }
-  /* Row spans were tuned for desktop's wide multi-column cells — at single-column mobile
-     width every cell is much narrower, so panels that scale with aspect ratio (the map)
-     or don't need as much vertical room at this width leave large blank gaps under the
-     fixed 165px row unit. Shrink the unit and every span proportionally. */
-  .dash-wrap { grid-auto-rows: 110px; }
-  .dash-cell-h2 { grid-row: span 2; }
-  .dash-cell-h3 { grid-row: span 2; }
-  .dash-cell-h6 { grid-row: span 4; }
-  .dash-cell-h12 { grid-row: span 7; }
-}
-
-/* Calendar + Headlines/Pairs/Actions are nested into one flex column purely as
- * a desktop (901px+) space-saving trick (see the flex rules below). A first
- * attempt at unwrapping this for mobile used `display: contents` on both
- * wrapper levels to turn all four into direct grid children again — but
- * that relies on nested `display: contents` correctly forwarding grid-item
- * status two levels down, which iOS Safari handles unreliably (Calendar and
- * Headlines stayed squeezed into a shared row while Pairs/Actions further
- * down worked fine, in testing). Simpler and more robust: keep the nesting,
- * but make BOTH wrapper levels a full-width, single-column flex stack
- * instead of trying to flatten them — Calendar, Headlines, Pairs, and
- * Actions each get their own full-width row inside one grid cell. That grid
- * cell is the last item in DOM order, so a generous (rather than exact)
- * row-span is safe: any leftover space just extends the page's own scroll,
- * with nothing positioned below it to overlap. */
-@media (max-width: 900px) {
-  .dash-area-rightside {
-    grid-column: 1 / -1;
-    grid-row: span 30;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .dash-area-rightside > .dash-calendar-embed { flex: 0 0 auto; }
-  .dash-rightside-top-row {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .dash-rightside-top-row > .dash-rightside-livetv { flex: 0 0 320px; min-height: 0; }
-  .dash-area-pairs-top { min-height: 420px; }
-  .dash-area-article   { min-height: 420px; }
-  /* Below the auto-fill minmax floor this naturally collapses to 1 column
-     anyway, but pin it explicitly so a phone never tries to fit 2 skinny
-     ~90px columns. */
-  .dash-headlines-grid { grid-template-columns: 1fr !important; }
-  /* Both panels had an internal overflow:auto scroll box — sensible on
-     desktop where they share a fixed-height row, pointless now that they
-     each get their own full-width stacked row with room to just grow. A
-     stray `.db-sidebar { max-height: 380px }` mobile rule elsewhere in this
-     file (written for a different page reusing the same class) was capping
-     Actions specifically; override it back off here. */
-  .dash-pairs-scroll { overflow: visible !important; }
-  .dash-area-actions .db-sidebar { max-height: none !important; overflow: visible !important; }
-  .dash-area-actions .db-sidebar-body { overflow: visible !important; }
-}
-/* auto-fill + a minmax floor: as many ~220px rectangular columns as fit
-   (typically 2-4 at dashboard widths), collapsing to 1 on a narrow column
-   without needing a separate breakpoint rule for it — Headlines is back on
-   the wide left column (under the map/charts), not the narrow right side. */
+/* auto-fill + a minmax floor: as many ~220px rectangular columns as fit the
+   panel's own current (resizable) width, collapsing to 1 on a narrow panel
+   without needing a separate breakpoint rule for it. */
 .dash-headlines-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   grid-auto-rows: min-content;
   gap: 8px;
   align-content: start;
-}
-
-/* Desktop: the auto-fill dense-pack grid above sizes rows in fixed 165px units that
- * don't add up evenly against real viewport heights — depending on exact window size
- * that leaves stray unfilled tracks (gaps between panels) or a total content height
- * taller than the screen (forcing a scrollbar, with the Actions panel's 12-row span
- * the worst offender). Above 900px, replace it with an explicit named-area grid sized
- * entirely in fr units against the actual available height — it always exactly fills
- * one screen, no scrolling, no gaps. The ticker-card strip becomes a narrow vertical
- * column next to the map (LiveChartsStrip's "column" layout) instead of a horizontal
- * row, and Calendar's own side list sits in the same row as Headlines/Actions instead
- * of stacking under the calendar grid, so nothing needs more vertical room than a
- * single screen has to give. */
-@media (min-width: 901px) {
-  .dash-wrap {
-    /* Map/Charts/Headlines column is 50% of the total width, the right side
-       (Live TV / Article / Pair Trading, spanning the other two grid columns
-       as one flex box, see .dash-area-rightside) the remaining 50% — was
-       60/40, but that left Live TV too narrow relative to its row height to
-       fill a 16:9 box (empty bars either side of the video). */
-    grid-template-columns: 5fr 2.8fr 2.2fr;
-    /* Map keeps most of the left column's height; Live Charts is now a
-       single-row strip (fixed height, not an fr share); Ticker Headlines
-       fills whatever's left. */
-    grid-template-rows: 1fr 128px 1fr;
-    grid-template-areas:
-      "map        rightside rightside"
-      "charts     rightside rightside"
-      "headlines  rightside rightside";
-    overflow: hidden;
-  }
-  .dash-area-map            { grid-area: map; }
-  .dash-area-charts         { grid-area: charts; }
-  .dash-area-headlines-left { grid-area: headlines; }
-  /* Live TV + Pair Trading (top 5) share a row at the top of the right
-     side; Article fills whatever's left below them. */
-  .dash-area-rightside {
-    grid-area: rightside;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-    gap: 6px;
-  }
-  .dash-rightside-top-row {
-    /* Taller (was 300px) so Live TV's 16:9 box has more height to scale up
-       against — at the old height it hit the width cap first, leaving
-       empty bars on both sides of the video instead of filling its column. */
-    display: flex;
-    flex: 0 0 420px;
-    min-height: 0;
-    gap: 6px;
-  }
-  .dash-rightside-top-row > .dash-rightside-livetv  { flex: 1.6; min-width: 0; }
-  .dash-rightside-top-row > .dash-area-pairs-top    { flex: 1; min-width: 0; }
-  .dash-area-rightside > .dash-area-article { flex: 1; min-height: 0; }
 }
 
 .dash-panel {

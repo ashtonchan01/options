@@ -1,12 +1,10 @@
 /**
- * World-Monitor-style overview — a flat, responsive wrapping grid of
- * fixed-size cells (see .dash-wrap in index.css). Cells flow to the next
- * row as the screen narrows; wide/tall cells span 2 tracks where space
- * allows. Left side: World Map, a single-row Live Charts strip, then Ticker
- * Headlines (multi-column) filling the rest. Right side: Live TV next to a
- * compact Pair Trading strip (top 5), then an in-dashboard Article reader
- * (filled by clicking a headline, instead of opening a new tab) filling
- * whatever's left below them.
+ * World-Monitor-style overview — a column-wrapping masonry of panels (see
+ * .dash-wrap in index.css): each panel stacks top-to-bottom in a column
+ * until the column is full, then the next panel starts a new column to the
+ * right, same visual language as World Monitor's card grid. Every panel is
+ * independently resizable (drag its bottom-right corner) and remembers its
+ * size across reloads (see ResizablePanel / useResizablePanel).
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
@@ -18,6 +16,10 @@ import LiveTVPanel from './panels/LiveTVPanel'
 import TickerHeadlinesPanel from './panels/TickerHeadlinesPanel'
 import PairTradingPanel from './panels/PairTradingPanel'
 import ArticleReaderPanel, { type SelectedHeadline } from './panels/ArticleReaderPanel'
+import SectorHeatmapPanel from './panels/SectorHeatmapPanel'
+import MarketBreadthPanel from './panels/MarketBreadthPanel'
+import EarningsCalendarPanel from './panels/EarningsCalendarPanel'
+import ResizablePanel from './ResizablePanel'
 
 const REFRESH_MS = 60_000
 const CHART_ONLY_SYMBOLS = ['ES=F']
@@ -42,28 +44,42 @@ export default function DashboardView({ state }: { state: AppState }) {
 
   return (
     <div className="dash-wrap">
-      <div className="dash-cell dash-cell-under-map dash-cell-h3 dash-area-map">
+      <ResizablePanel id="map" defaultWidth={1100} defaultHeight={480}>
         <WorldMapPanel quotes={quotes} now={now} />
-      </div>
-      <div className="dash-cell dash-cell-under-map dash-area-charts">
+      </ResizablePanel>
+
+      <ResizablePanel id="charts" defaultWidth={1100} defaultHeight={128}>
         <LiveChartsStrip quotes={quotes} layout="row-single" />
-      </div>
-      <div className="dash-cell dash-cell-under-map dash-cell-h3 dash-area-headlines-left">
+      </ResizablePanel>
+
+      <ResizablePanel id="headlines" defaultWidth={1100} defaultHeight={320}>
         <TickerHeadlinesPanel onSelect={setSelectedHeadline} selectedUrl={selectedHeadline?.url} />
+      </ResizablePanel>
+
+      <div className="dash-rightside-top-row">
+        <ResizablePanel id="livetv" defaultWidth={560} defaultHeight={420}>
+          <LiveTVPanel />
+        </ResizablePanel>
+        <ResizablePanel id="pairs" defaultWidth={340} defaultHeight={420}>
+          <PairTradingPanel state={state} topN={5} />
+        </ResizablePanel>
       </div>
-      <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-calendar dash-area-rightside">
-        <div className="dash-rightside-top-row">
-          <div className="dash-cell dash-rightside-livetv">
-            <LiveTVPanel />
-          </div>
-          <div className="dash-cell dash-area-pairs-top">
-            <PairTradingPanel state={state} topN={5} />
-          </div>
-        </div>
-        <div className="dash-cell dash-area-article">
-          <ArticleReaderPanel selected={selectedHeadline} />
-        </div>
-      </div>
+
+      <ResizablePanel id="article" defaultWidth={900} defaultHeight={300}>
+        <ArticleReaderPanel selected={selectedHeadline} />
+      </ResizablePanel>
+
+      <ResizablePanel id="sector-heatmap" defaultWidth={460} defaultHeight={260}>
+        <SectorHeatmapPanel />
+      </ResizablePanel>
+
+      <ResizablePanel id="market-breadth" defaultWidth={340} defaultHeight={260}>
+        <MarketBreadthPanel />
+      </ResizablePanel>
+
+      <ResizablePanel id="earnings-calendar" defaultWidth={460} defaultHeight={260}>
+        <EarningsCalendarPanel />
+      </ResizablePanel>
     </div>
   )
 }
