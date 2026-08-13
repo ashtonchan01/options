@@ -1,10 +1,11 @@
 /**
- * World-Monitor-style overview — a column-wrapping masonry of panels (see
- * .dash-wrap in index.css): each panel stacks top-to-bottom in a column
- * until the column is full, then the next panel starts a new column to the
- * right, same visual language as World Monitor's card grid. Every panel is
- * independently resizable (drag its bottom-right corner) and remembers its
- * size across reloads (see ResizablePanel / useResizablePanel).
+ * World-Monitor-style overview. Left side: World Map / Live Charts /
+ * Ticker Headlines stacked to exactly fill the viewport, no scrolling —
+ * same as the dashboard's original layout. Right side: two independently
+ * vertically-scrolling columns holding the rest of the panels; each panel
+ * has a drag handle on its bottom edge to resize its height (remembered
+ * per panel — see ResizablePanel/useResizablePanel), so you can shrink
+ * panels to fit more on screen at once or leave them tall and scroll.
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
@@ -45,46 +46,48 @@ export default function DashboardView({ state }: { state: AppState }) {
 
   return (
     <div className="dash-wrap">
-      <ResizablePanel id="map" defaultWidth={1100} defaultHeight={480}>
-        <WorldMapPanel quotes={quotes} now={now} />
-      </ResizablePanel>
-
-      <ResizablePanel id="charts" defaultWidth={1100} defaultHeight={128}>
-        <LiveChartsStrip quotes={quotes} layout="row-single" />
-      </ResizablePanel>
-
-      <ResizablePanel id="headlines" defaultWidth={1100} defaultHeight={320}>
-        <TickerHeadlinesPanel onSelect={setSelectedHeadline} selectedUrl={selectedHeadline?.url} />
-      </ResizablePanel>
-
-      <div className="dash-rightside-top-row">
-        <ResizablePanel id="livetv" defaultWidth={560} defaultHeight={420}>
-          <LiveTVPanel />
-        </ResizablePanel>
-        <ResizablePanel id="pairs" defaultWidth={340} defaultHeight={420}>
-          <PairTradingPanel state={state} topN={5} />
-        </ResizablePanel>
+      <div className="dash-left-col">
+        <div className="dash-cell dash-left-map">
+          <WorldMapPanel quotes={quotes} now={now} />
+        </div>
+        <div className="dash-cell dash-left-charts">
+          <LiveChartsStrip quotes={quotes} layout="row-single" />
+        </div>
+        <div className="dash-cell dash-left-headlines">
+          <TickerHeadlinesPanel onSelect={setSelectedHeadline} selectedUrl={selectedHeadline?.url} />
+        </div>
       </div>
 
-      <ResizablePanel id="article" defaultWidth={900} defaultHeight={300}>
-        <ArticleReaderPanel selected={selectedHeadline} />
-      </ResizablePanel>
+      <div className="dash-right-cols">
+        <div className="dash-right-col">
+          <div className="dash-rightside-top-row">
+            <div className="dash-cell dash-rightside-livetv">
+              <LiveTVPanel />
+            </div>
+            <div className="dash-cell dash-area-pairs-top">
+              <PairTradingPanel state={state} topN={5} />
+            </div>
+          </div>
+          <ResizablePanel id="article" defaultWidth={900} defaultHeight={340} axis="vertical">
+            <ArticleReaderPanel selected={selectedHeadline} />
+          </ResizablePanel>
+        </div>
 
-      <ResizablePanel id="sector-heatmap" defaultWidth={460} defaultHeight={260}>
-        <SectorHeatmapPanel />
-      </ResizablePanel>
-
-      <ResizablePanel id="market-breadth" defaultWidth={340} defaultHeight={260}>
-        <MarketBreadthPanel />
-      </ResizablePanel>
-
-      <ResizablePanel id="earnings-calendar" defaultWidth={460} defaultHeight={260}>
-        <EarningsCalendarPanel />
-      </ResizablePanel>
-
-      <ResizablePanel id="fear-greed" defaultWidth={340} defaultHeight={200}>
-        <FearGreedPanel />
-      </ResizablePanel>
+        <div className="dash-right-col">
+          <ResizablePanel id="sector-heatmap" defaultWidth={460} defaultHeight={260} axis="vertical">
+            <SectorHeatmapPanel />
+          </ResizablePanel>
+          <ResizablePanel id="market-breadth" defaultWidth={340} defaultHeight={220} axis="vertical">
+            <MarketBreadthPanel />
+          </ResizablePanel>
+          <ResizablePanel id="earnings-calendar" defaultWidth={460} defaultHeight={260} axis="vertical">
+            <EarningsCalendarPanel />
+          </ResizablePanel>
+          <ResizablePanel id="fear-greed" defaultWidth={340} defaultHeight={180} axis="vertical">
+            <FearGreedPanel />
+          </ResizablePanel>
+        </div>
+      </div>
     </div>
   )
 }

@@ -22,7 +22,11 @@ function saveSize(id: string, w: number, h: number) {
   try { localStorage.setItem(LS_PREFIX + id, JSON.stringify({ w, h })) } catch { /* ignore */ }
 }
 
-export function useResizablePanel(id: string, defaultWidth: number, defaultHeight: number) {
+/** `axis: 'vertical'` — for panels stacked in an independently-scrolling
+ * column, only height should be user-resizable; width tracking the
+ * column's own width (not stored) is what keeps the column a fixed,
+ * predictable size instead of individual panels drifting wider than it. */
+export function useResizablePanel(id: string, defaultWidth: number, defaultHeight: number, axis: 'both' | 'vertical' = 'both') {
   const ref = useRef<HTMLDivElement>(null)
   const stored = loadSize(id)
 
@@ -44,12 +48,20 @@ export function useResizablePanel(id: string, defaultWidth: number, defaultHeigh
 
   return {
     ref,
-    style: {
-      width: stored?.w ?? defaultWidth,
-      height: stored?.h ?? defaultHeight,
-      resize: 'both' as const,
-      overflow: 'hidden' as const,
-      flex: '0 0 auto' as const,
-    },
+    style: axis === 'vertical'
+      ? {
+        width: '100%',
+        height: stored?.h ?? defaultHeight,
+        resize: 'vertical' as const,
+        overflow: 'hidden' as const,
+        flex: '0 0 auto' as const,
+      }
+      : {
+        width: stored?.w ?? defaultWidth,
+        height: stored?.h ?? defaultHeight,
+        resize: 'both' as const,
+        overflow: 'hidden' as const,
+        flex: '0 0 auto' as const,
+      },
   }
 }
