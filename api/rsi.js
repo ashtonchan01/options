@@ -1,10 +1,11 @@
 /**
  * RSI(14) proxy — pulls ~3 months of daily closes from Yahoo Finance
  * v8/finance/chart (same public endpoint /api/price uses) and computes
- * Wilder's RSI server-side, so the client just gets a number per symbol.
+ * Wilder's RSI server-side, so the client just gets a number (plus a short
+ * rolling history for a sparkline) per symbol.
  *
  * GET /api/rsi?symbols=MSTR,TSLA,BTC-USD
- * → { "MSTR": 63.2, "TSLA": 41.8, "BTC-USD": 28.4 }
+ * → { "MSTR": { "rsi": 63.2, "series": [58.1, 60.4, ..., 63.2] }, ... }
  */
 
 export const config = { runtime: 'edge' }
@@ -18,11 +19,16 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
+const SERIES_POINTS = 30
+
 /** Wilder's RSI — simple average to seed, then exponential smoothing over the
  * rest of the series so the result converges to the same value production
- * charting tools show, not just a naive 14-bar average. */
-function computeRSI(closes) {
-  if (closes.length < RSI_PERIOD + 1) return null
+ * charting tools show, not just a naive 14-bar average. Returns the full
+ * rolling RSI series (one value per close once enough history exists), not
+ * just the final number, so the caller can both report the current RSI and
+ * chart its recent trend. */
+function computeRSISeries(closes) {
+  if (closes.length < RSI_PERIOD + 1) return []
 
   let gainSum = 0, lossSum = 0
   for (let i = 1; i <= RSI_PERIOD; i++) {
@@ -33,17 +39,18 @@ function computeRSI(closes) {
   let avgGain = gainSum / RSI_PERIOD
   let avgLoss = lossSum / RSI_PERIOD
 
+  const series = [avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss)]
+
   for (let i = RSI_PERIOD + 1; i < closes.length; i++) {
     const delta = closes[i] - closes[i - 1]
     const gain = delta >= 0 ? delta : 0
     const loss = delta < 0 ? -delta : 0
     avgGain = (avgGain * (RSI_PERIOD - 1) + gain) / RSI_PERIOD
     avgLoss = (avgLoss * (RSI_PERIOD - 1) + loss) / RSI_PERIOD
+    series.push(avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss))
   }
 
-  if (avgLoss === 0) return 100
-  const rs = avgGain / avgLoss
-  return 100 - 100 / (1 + rs)
+  return series
 }
 
 export default async function handler(req) {
@@ -82,8 +89,10 @@ export default async function handler(req) {
         const closesRaw = result?.indicators?.quote?.[0]?.close
         if (!Array.isArray(closesRaw)) return [sym, null]
         const closes = closesRaw.filter(c => typeof c === 'number')
-        const rsi = computeRSI(closes)
-        return [sym, rsi === null ? null : Math.round(rsi * 10) / 10]
+        const series = computeRSISeries(closes)
+        if (series.length === 0) return [sym, null]
+        const rounded = series.map(v => Math.round(v * 10) / 10)
+        return [sym, { rsi: rounded[rounded.length - 1], series: rounded.slice(-SERIES_POINTS) }]
       } catch {
         return [sym, null]
       }

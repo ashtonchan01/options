@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { RefreshCw, ArrowRightLeft } from 'lucide-react'
 import type { AppState } from '../../../types'
 import { WATCHLIST } from '../../../data/watchlist'
-import { fetchRSI } from '../../../services/rsi'
+import { fetchRSI, type RsiData } from '../../../services/rsi'
 
 const OVERBOUGHT = 70
 const OVERSOLD = 30
@@ -26,26 +26,53 @@ function rsiColor(rsi: number): string {
   return 'var(--text-3)'
 }
 
-interface RsiRow { symbol: string; rsi: number }
+interface RsiRow { symbol: string; rsi: number; series: number[] }
 
-function RsiRowLine({ row }: { row: RsiRow }) {
+const SPARK_W = 100
+const SPARK_H = 28
+
+/** Small line chart of the ticker's own recent rolling RSI (not price) — the
+ * 70/30 overbought/oversold reference lines give it context a plain price
+ * sparkline wouldn't have. */
+function RsiSparkline({ series, color }: { series: number[]; color: string }) {
+  if (series.length < 2) return <svg style={{ width: '100%', height: '100%' }} />
+  const points = series.map((v, i) => {
+    const x = (i / (series.length - 1)) * SPARK_W
+    const y = SPARK_H - (Math.min(Math.max(v, 0), 100) / 100) * SPARK_H
+    return [x, y] as const
+  })
+  const linePath = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+  const yFor = (v: number) => SPARK_H - (v / 100) * SPARK_H
+  return (
+    <svg viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
+      <line x1={0} x2={SPARK_W} y1={yFor(OVERBOUGHT)} y2={yFor(OVERBOUGHT)} stroke="var(--border-light)" strokeWidth={1} strokeDasharray="2,2" />
+      <line x1={0} x2={SPARK_W} y1={yFor(OVERSOLD)} y2={yFor(OVERSOLD)} stroke="var(--border-light)" strokeWidth={1} strokeDasharray="2,2" />
+      <path d={linePath} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  )
+}
+
+/** Rectangular box per ticker: symbol + current RSI, with its recent rolling
+ * RSI plotted as a small live chart instead of the old single-bar gauge. */
+function RsiCard({ row }: { row: RsiRow }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, fontFamily: 'Inter, sans-serif',
-      padding: '4px 7px', border: '1px solid var(--border-light)', borderRadius: 5, background: 'var(--bg-elevated)',
+      display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'Inter, sans-serif',
+      padding: '7px 9px', border: '1px solid var(--border-light)', borderRadius: 6, background: 'var(--bg-elevated)',
     }}>
-      <span style={{ color: 'var(--text-2)', fontWeight: 600, width: 46 }}>{displaySymbol(row.symbol)}</span>
-      <div style={{ flex: 1, position: 'relative', height: 4, background: 'var(--bg-card)', borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', left: `${OVERSOLD}%`, width: `${OVERBOUGHT - OVERSOLD}%`, top: 0, bottom: 0, background: 'var(--border-light)' }} />
-        <div style={{ position: 'absolute', left: `calc(${Math.min(Math.max(row.rsi, 0), 100)}% - 1.5px)`, top: -1, bottom: -1, width: 3, borderRadius: 2, background: rsiColor(row.rsi) }} />
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 700 }}>{displaySymbol(row.symbol)}</span>
+        <span style={{ fontSize: 12.5, color: rsiColor(row.rsi), fontWeight: 800 }}>{row.rsi.toFixed(0)}</span>
       </div>
-      <span style={{ color: rsiColor(row.rsi), fontWeight: 700, width: 28, textAlign: 'right' }}>{row.rsi.toFixed(0)}</span>
+      <div style={{ height: SPARK_H }}>
+        <RsiSparkline series={row.series} color={rsiColor(row.rsi)} />
+      </div>
     </div>
   )
 }
 
 export default function PairTradingPanel({ state }: { state: AppState }) {
-  const [rsiMap, setRsiMap] = useState<Record<string, number>>({})
+  const [rsiMap, setRsiMap] = useState<Record<string, RsiData>>({})
   const [loading, setLoading] = useState(false)
 
   const tickers = useMemo(() => {
@@ -70,7 +97,7 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
   useEffect(() => { load() }, [allSymbols.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows: RsiRow[] = useMemo(
-    () => allSymbols.filter(s => rsiMap[s] != null).map(s => ({ symbol: s, rsi: rsiMap[s] })),
+    () => allSymbols.filter(s => rsiMap[s] != null).map(s => ({ symbol: s, rsi: rsiMap[s].rsi, series: rsiMap[s].series })),
     [allSymbols, rsiMap],
   )
 
@@ -135,23 +162,21 @@ export default function PairTradingPanel({ state }: { state: AppState }) {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 10, borderTop: '1px solid var(--border-light)', paddingTop: 7 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 4 }}>
-                  TOP 10 OVERBOUGHT
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {top10Overbought.map(r => <RsiRowLine key={r.symbol} row={r} />)}
-                </div>
+            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 8 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 6 }}>
+                TOP 10 OVERBOUGHT
               </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 6 }}>
+                {top10Overbought.map(r => <RsiCard key={r.symbol} row={r} />)}
+              </div>
+            </div>
 
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.06em', marginBottom: 4 }}>
-                  TOP 10 OVERSOLD
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {top10Oversold.map(r => <RsiRowLine key={r.symbol} row={r} />)}
-                </div>
+            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 8 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.06em', marginBottom: 6 }}>
+                TOP 10 OVERSOLD
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 6 }}>
+                {top10Oversold.map(r => <RsiCard key={r.symbol} row={r} />)}
               </div>
             </div>
           </>

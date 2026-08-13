@@ -1098,10 +1098,15 @@ body {
   overflow: hidden;
 }
 .jr-stacked-top {
-  /* Portfolio Summary is now just the numbers row (no pie/monthly-flow
-     charts), so this section doesn't need as much height as when it also
-     had to fit those. */
-  flex: 0 0 32%;
+  /* Sized to its actual content (KPI+chart row + Portfolio Summary numbers),
+     not a percentage guess — a fixed 32% left dead space below the content
+     once Portfolio Summary dropped its pie/monthly-flow charts and got
+     shorter. height:auto overrides .jr-root's own height:100% (same
+     specificity, later in the cascade wins) so the flex item's main-axis
+     size comes from flex-basis:auto sizing to content instead. */
+  flex: 0 0 auto;
+  height: auto;
+  max-height: 60%;
   min-height: 0;
   overflow-y: auto;
   border-bottom: 1px solid var(--border);
@@ -1799,12 +1804,12 @@ body {
     gap: 6px;
   }
   .dash-area-rightside > .dash-calendar-embed { flex: 0 0 auto; }
-  .dash-area-rightside > .dash-rightside-livetv { flex: 0 0 320px; min-height: 0; }
-  .dash-rightside-bottom {
+  .dash-rightside-row, .dash-rightside-headlines-col {
     display: flex;
     flex-direction: column;
     gap: 6px;
   }
+  .dash-rightside-headlines-col > .dash-rightside-livetv { flex: 0 0 320px; min-height: 0; }
   .dash-area-headlines { min-height: 320px; }
   .dash-area-pairs     { min-height: 420px; }
   .dash-area-actions   { min-height: 500px; }
@@ -1882,16 +1887,28 @@ body {
      calendar keeps its own natural height instead of stretching to match
      the Headlines/Actions row. */
   .dash-area-rightside > .dash-calendar-embed { flex: 0 0 auto; }
-  .dash-area-rightside > .dash-rightside-livetv { flex: 0 0 340px; min-height: 0; }
-  .dash-area-rightside > .dash-rightside-bottom { flex: 1; }
-  .dash-rightside-bottom {
+  /* Live TV + Headlines stack in their own sub-column; Pair Trading is a
+     sibling of that whole sub-column (not nested under Headlines alone), so
+     it spans the full height of the right side instead of just the row
+     below Live TV. */
+  .dash-rightside-row {
     display: flex;
+    flex: 1;
     min-height: 0;
     overflow: hidden;
     gap: 6px;
   }
-  .dash-area-headlines { flex: 1; min-width: 0; }
-  .dash-area-pairs     { flex: 0.7; min-width: 0; }
+  .dash-rightside-headlines-col {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    gap: 6px;
+  }
+  .dash-rightside-headlines-col > .dash-rightside-livetv { flex: 0 0 340px; min-height: 0; }
+  .dash-area-headlines { flex: 1; min-height: 0; }
+  .dash-area-pairs     { flex: 0 0 360px; min-width: 0; }
   .dash-area-actions   { width: 300px; flex-shrink: 0; }
 }
 

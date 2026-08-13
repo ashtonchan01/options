@@ -44,19 +44,21 @@ export default function DashboardView({ state }: { state: AppState }) {
       <div className="dash-cell dash-cell-under-map dash-cell-h3 dash-area-charts">
         <LiveChartsStrip quotes={quotes} layout="row" />
       </div>
-      {/* Calendar moved to the Portfolio tab. Live TV now sits at the top of
-          this column, above Headlines + Pairs, instead of at the bottom of
-          the map/charts column — leaving that left column just World Map +
-          Live Charts stacked to fill the left half of the screen. */}
+      {/* Calendar moved to the Portfolio tab. Live TV sits at the top of the
+          Headlines sub-column; Pair Trading is a separate sub-column next to
+          it, spanning the full height of the right side rather than sharing
+          a row with just Headlines. */}
       <div className="dash-cell dash-cell-w2 dash-cell-h6 dash-cell-calendar dash-area-rightside">
-        <div className="dash-cell dash-rightside-livetv">
-          <LiveTVPanel />
-        </div>
-        <div className="dash-rightside-bottom">
-          <div className="dash-cell dash-cell-h3 dash-area-headlines">
-            <TickerHeadlinesPanel />
+        <div className="dash-rightside-row">
+          <div className="dash-rightside-headlines-col">
+            <div className="dash-cell dash-rightside-livetv">
+              <LiveTVPanel />
+            </div>
+            <div className="dash-cell dash-area-headlines">
+              <TickerHeadlinesPanel />
+            </div>
           </div>
-          <div className="dash-cell dash-cell-h3 dash-area-pairs">
+          <div className="dash-cell dash-area-pairs">
             <PairTradingPanel state={state} />
           </div>
         </div>
