@@ -226,85 +226,6 @@ function fmtMonthFull(ym: string) {
 
 interface DonutSlice { label: string; value: number; color: string }
 
-// Matches the Allocation page's PortfolioPie: donut with labels sitting
-// outside the circle on bent leader lines instead of a separate legend list,
-// sized tightly around the donut + labels rather than a big arbitrary box.
-const PIE_W = 440, PIE_H = 260, PIE_CX = 190, PIE_CY = 130, PIE_R = 60
-const LABEL_ROW_H = 15
-const ELBOW_R = PIE_R + 12
-const OUTER_X = PIE_R + 62
-
-/** Donut with each slice's name + % printed just outside the circle on a bent
- * leader line, bucketed left/right by which side the wedge's midpoint angle
- * falls on and nudged apart vertically so tightly-packed small slices don't
- * print their labels on top of each other. */
-function StructureDonut({ slices, centerLabel, centerValue }: { slices: DonutSlice[]; centerLabel: string; centerValue: string }) {
-  const total = slices.reduce((s, x) => s + x.value, 0)
-  if (total <= 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No allocation data</div>
-
-  let angle = -90
-  const wedges = slices.filter(s => s.value > 0).map(s => {
-    const frac = s.value / total
-    const start = angle
-    const end = angle + frac * 360
-    const mid = (start + end) / 2
-    angle = end
-    const p0 = { x: PIE_CX + PIE_R * Math.cos(start * Math.PI / 180), y: PIE_CY + PIE_R * Math.sin(start * Math.PI / 180) }
-    const p1 = { x: PIE_CX + PIE_R * Math.cos(end * Math.PI / 180), y: PIE_CY + PIE_R * Math.sin(end * Math.PI / 180) }
-    const largeArc = end - start > 180 ? 1 : 0
-    const midRad = mid * Math.PI / 180
-    const edge = { x: PIE_CX + PIE_R * Math.cos(midRad), y: PIE_CY + PIE_R * Math.sin(midRad) }
-    const elbow = { x: PIE_CX + ELBOW_R * Math.cos(midRad), y: PIE_CY + ELBOW_R * Math.sin(midRad) }
-    const side: 'left' | 'right' = Math.cos(midRad) >= 0 ? 'right' : 'left'
-    return {
-      ...s, frac,
-      path: `M${PIE_CX},${PIE_CY} L${p0.x},${p0.y} A${PIE_R},${PIE_R} 0 ${largeArc} 1 ${p1.x},${p1.y} Z`,
-      edge, elbow, side, idealY: elbow.y,
-    }
-  })
-
-  const labeled = wedges.filter(w => w.frac >= 0.012)
-  for (const side of ['left', 'right'] as const) {
-    const group = labeled.filter(w => w.side === side).sort((a, b) => a.idealY - b.idealY)
-    for (let i = 1; i < group.length; i++) {
-      const min = group[i - 1].idealY + LABEL_ROW_H
-      if (group[i].idealY < min) group[i].idealY = min
-    }
-    const overflow = group.length > 0 ? group[group.length - 1].idealY - (PIE_H - 12) : 0
-    if (overflow > 0) for (const w of group) w.idealY -= overflow
-  }
-
-  return (
-    <svg viewBox={`0 0 ${PIE_W} ${PIE_H}`} style={{ width: '100%', maxWidth: PIE_W, display: 'block', margin: '0 auto', overflow: 'visible' }}>
-      {wedges.map((w, i) => <path key={i} d={w.path} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />)}
-      <circle cx={PIE_CX} cy={PIE_CY} r={30} fill="var(--bg-card)" />
-      <text x={PIE_CX} y={PIE_CY - 5} textAnchor="middle" fontSize="8" fill="var(--text-4)" fontFamily="Inter, sans-serif" letterSpacing="1px">
-        {centerLabel.toUpperCase()}
-      </text>
-      <text x={PIE_CX} y={PIE_CY + 9} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--text-1)" fontFamily="Inter, sans-serif">
-        {centerValue}
-      </text>
-      {labeled.map((w, i) => {
-        const outX = w.side === 'right' ? PIE_CX + OUTER_X : PIE_CX - OUTER_X
-        const textX = w.side === 'right' ? outX + 4 : outX - 4
-        return (
-          <g key={i}>
-            <polyline
-              points={`${w.edge.x},${w.edge.y} ${w.elbow.x},${w.elbow.y} ${outX},${w.idealY}`}
-              fill="none" stroke="var(--text-5)" strokeWidth={0.75}
-            />
-            <text x={textX} y={w.idealY} dy={3} textAnchor={w.side === 'right' ? 'start' : 'end'}
-              fontSize="10" fontFamily="Inter, sans-serif" fontWeight={600} fill="var(--text-2)">
-              {w.label}
-              <tspan fill="var(--text-4)" fontWeight={400}> {(w.frac * 100).toFixed(1)}%</tspan>
-            </text>
-          </g>
-        )
-      })}
-    </svg>
-  )
-}
-
 function MonthlyFlowBars({ trades }: { trades: RawTrade[] }) {
   const byMonth = new Map<string, number>()
   for (const t of trades) {
@@ -887,53 +808,31 @@ export function OptionsCard({ state }: { state: AppState }) {
   )
 }
 
-/** Top summary block: key metrics + allocation pie / monthly cash flow. */
+/** Top summary block: key metrics only (Net Liquidation, Unrealised/Realised
+ * P&L, Cash). Used to also show an allocation pie + monthly cash flow chart
+ * below the numbers — dropped per request, just the numbers are needed. */
 export function PortfolioSummaryPanel({ state }: { state: AppState }) {
-  const { trades, cashBalance, stockMV, optionMV, realizedPnL, netLiq, totalUnrealized, donutSlices } = derivePortfolio(state)
+  const { cashBalance, realizedPnL, netLiq, totalUnrealized } = derivePortfolio(state)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-
-      {/* ── Key metrics ── */}
-      <div className="db-keymetrics pf-keymetrics" style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 0, flexShrink: 0, borderBottom: '1px solid var(--border)',
-      }}>
-        {[
-          { label: 'Net Liquidation', value: fmtDollar(netLiq), color: 'var(--text-1)' },
-          { label: 'Unrealised P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
-          { label: 'Realised P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
-          { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
-        ].map(({ label, value, color }, i, arr) => (
-          <div key={label} style={{
-            padding: '12px 20px',
-            borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
-          }}>
-            <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Analytics: allocation structure + monthly flow, side by side ── */}
-      <div style={{ display: 'flex', gap: 1, background: 'var(--border)', flexWrap: 'wrap', flexShrink: 0 }}>
-        <div style={{ flex: '1 1 240px', background: 'var(--bg-card)', padding: '12px 16px' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
-            Allocation by Position
-          </div>
-          <StructureDonut
-            slices={donutSlices}
-            centerLabel="Total"
-            centerValue={fmtDollar(stockMV + Math.abs(optionMV))}
-          />
+    <div className="db-keymetrics pf-keymetrics" style={{
+      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+      gap: 0, flexShrink: 0, border: '1px solid var(--border)', borderRadius: 8,
+    }}>
+      {[
+        { label: 'Net Liquidation', value: fmtDollar(netLiq), color: 'var(--text-1)' },
+        { label: 'Unrealised P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
+        { label: 'Realised P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
+        { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
+      ].map(({ label, value, color }, i, arr) => (
+        <div key={label} style={{
+          padding: '12px 20px',
+          borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+        }}>
+          <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
         </div>
-        <div style={{ flex: '1 1 240px', background: 'var(--bg-card)', padding: '12px 16px' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 10 }}>
-            Monthly Cash Flow
-          </div>
-          <MonthlyFlowBars trades={trades} />
-        </div>
-      </div>
+      ))}
     </div>
   )
 }

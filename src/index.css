@@ -1098,7 +1098,10 @@ body {
   overflow: hidden;
 }
 .jr-stacked-top {
-  flex: 0 0 45%;
+  /* Portfolio Summary is now just the numbers row (no pie/monthly-flow
+     charts), so this section doesn't need as much height as when it also
+     had to fit those. */
+  flex: 0 0 32%;
   min-height: 0;
   overflow-y: auto;
   border-bottom: 1px solid var(--border);
@@ -1843,11 +1846,12 @@ body {
  * single screen has to give. */
 @media (min-width: 901px) {
   .dash-wrap {
-    /* Third column is fixed at the same 300px the calendar's own activity list
-       uses — Actions sits directly below that list at the same width, and
-       Headlines takes the middle column so it lines up with the calendar's
-       own box above it. */
-    grid-template-columns: 1.5fr 1.7fr 300px;
+    /* Map/Charts column is 60% of the total width, Headlines+Pairs (spanning
+       the other two grid columns as one flex box, see .dash-area-rightside)
+       the remaining 40% — split 25/15 between those two columns internally,
+       same 1.7:300px-ish ratio as before just rebalanced against a 60fr
+       left column instead of 1.5fr. */
+    grid-template-columns: 6fr 2.5fr 1.5fr;
     /* Map takes 60% of the left column's height, Live Charts (now the taller
        3-row card grid, not the old single-row strip) the remaining 40%. */
     grid-template-rows: 3fr 2fr;
