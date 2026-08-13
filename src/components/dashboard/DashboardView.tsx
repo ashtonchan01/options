@@ -16,7 +16,6 @@ import LiveChartsStrip from './panels/LiveChartsStrip'
 import LiveTVPanel from './panels/LiveTVPanel'
 import TickerHeadlinesPanel from './panels/TickerHeadlinesPanel'
 import PairTradingPanel from './panels/PairTradingPanel'
-import ArticleReaderPanel, { type SelectedHeadline } from './panels/ArticleReaderPanel'
 import SectorHeatmapPanel from './panels/SectorHeatmapPanel'
 import MarketBreadthPanel from './panels/MarketBreadthPanel'
 import EarningsCalendarPanel from './panels/EarningsCalendarPanel'
@@ -29,7 +28,6 @@ const CHART_ONLY_SYMBOLS = ['ES=F']
 export default function DashboardView({ state }: { state: AppState }) {
   const [quotes, setQuotes] = useState<Record<string, MarketQuote>>({})
   const [now, setNow] = useState(() => new Date())
-  const [selectedHeadline, setSelectedHeadline] = useState<SelectedHeadline | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -54,22 +52,17 @@ export default function DashboardView({ state }: { state: AppState }) {
           <LiveChartsStrip quotes={quotes} layout="row-single" />
         </div>
         <div className="dash-cell dash-left-headlines">
-          <TickerHeadlinesPanel onSelect={setSelectedHeadline} selectedUrl={selectedHeadline?.url} />
+          <TickerHeadlinesPanel />
         </div>
       </div>
 
       <div className="dash-right-cols">
         <div className="dash-right-col">
-          <div className="dash-rightside-top-row">
-            <div className="dash-cell dash-rightside-livetv">
-              <LiveTVPanel />
-            </div>
-            <div className="dash-cell dash-area-pairs-top">
-              <PairTradingPanel state={state} topN={5} />
-            </div>
-          </div>
-          <ResizablePanel id="article" defaultWidth={900} defaultHeight={340} axis="vertical">
-            <ArticleReaderPanel selected={selectedHeadline} />
+          <ResizablePanel id="livetv" defaultWidth={900} defaultHeight={340} axis="vertical">
+            <LiveTVPanel />
+          </ResizablePanel>
+          <ResizablePanel id="pairs" defaultWidth={900} defaultHeight={340} axis="vertical">
+            <PairTradingPanel state={state} topN={5} />
           </ResizablePanel>
         </div>
 

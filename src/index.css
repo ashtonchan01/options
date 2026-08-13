@@ -1762,13 +1762,6 @@ body {
 }
 .dash-cell { display: flex; min-width: 0; min-height: 0; }
 .dash-cell > * { flex: 1; min-width: 0; min-height: 0; }
-.dash-rightside-top-row {
-  display: flex;
-  gap: 6px;
-  flex: 0 0 300px;
-}
-.dash-rightside-top-row > .dash-rightside-livetv { flex: 1.6; min-width: 0; }
-.dash-rightside-top-row > .dash-area-pairs-top   { flex: 1; min-width: 0; }
 @media (max-width: 650px) {
   /* Collapse to one plain stacked column, full page scroll — the fixed
      left/scrolling-right split only makes sense with room for side-by-side
@@ -1779,9 +1772,6 @@ body {
   .dash-left-charts { flex: 0 0 128px; }
   .dash-left-headlines { min-height: 320px; }
   .dash-right-cols { flex-direction: column; }
-  .dash-rightside-top-row { flex-direction: column; height: auto; }
-  .dash-rightside-top-row > .dash-rightside-livetv { min-height: 320px; }
-  .dash-rightside-top-row > .dash-area-pairs-top { min-height: 320px; }
   .dash-cell { width: 100% !important; height: auto !important; min-height: 260px; resize: none !important; }
 }
 /* auto-fill + a minmax floor: as many ~220px rectangular columns as fit the
