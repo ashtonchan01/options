@@ -756,6 +756,26 @@ body {
   flex: 1;
   min-height: 0;
 }
+/* table-layout: fixed + explicit per-column widths — each strategy cell is
+   its own separate <table>, so left to auto-size on its own content (e.g.
+   LEAP's wide "2x 370P/360C" position text vs SHARES' short "110 sh"), the
+   same column lands at a different x-position in every cell instead of
+   lining up neatly across all of them. */
+.jr-strategy-cell table { table-layout: fixed; }
+.jr-strategy-cell table th:nth-child(1),  .jr-strategy-cell table td:nth-child(1)  { width: 9%; }
+.jr-strategy-cell table th:nth-child(2),  .jr-strategy-cell table td:nth-child(2)  { width: 9%; }
+.jr-strategy-cell table th:nth-child(3),  .jr-strategy-cell table td:nth-child(3)  { width: 9%; }
+.jr-strategy-cell table th:nth-child(4),  .jr-strategy-cell table td:nth-child(4)  { width: 14%; }
+.jr-strategy-cell table th:nth-child(5),  .jr-strategy-cell table td:nth-child(5)  { width: 10%; }
+.jr-strategy-cell table th:nth-child(6),  .jr-strategy-cell table td:nth-child(6)  { width: 11%; }
+.jr-strategy-cell table th:nth-child(7),  .jr-strategy-cell table td:nth-child(7)  { width: 11%; }
+.jr-strategy-cell table th:nth-child(8),  .jr-strategy-cell table td:nth-child(8)  { width: 10%; }
+.jr-strategy-cell table th:nth-child(9),  .jr-strategy-cell table td:nth-child(9)  { width: 7%; }
+.jr-strategy-cell table th:nth-child(10), .jr-strategy-cell table td:nth-child(10) { width: 5%; }
+.jr-strategy-cell table th:nth-child(11), .jr-strategy-cell table td:nth-child(11) { width: 5%; }
+.jr-strategy-cell table th, .jr-strategy-cell table td {
+  overflow: hidden; text-overflow: ellipsis;
+}
 
 .cc-section-title {
   font-size: 10px;
