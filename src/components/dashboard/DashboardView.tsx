@@ -41,8 +41,8 @@ export default function DashboardView({ state }: { state: AppState }) {
       <div className="dash-cell dash-cell-under-map dash-cell-h3 dash-area-map">
         <WorldMapPanel quotes={quotes} now={now} />
       </div>
-      <div className="dash-cell dash-cell-under-map dash-area-charts">
-        <LiveChartsStrip quotes={quotes} layout="row-single" />
+      <div className="dash-cell dash-cell-under-map dash-cell-h3 dash-area-charts">
+        <LiveChartsStrip quotes={quotes} layout="row" />
       </div>
       {/* Calendar moved to the Portfolio tab. Live TV now sits at the top of
           this column, above Headlines + Pairs, instead of at the bottom of

@@ -1841,13 +1841,9 @@ body {
        Headlines takes the middle column so it lines up with the calendar's
        own box above it. */
     grid-template-columns: 1.5fr 1.7fr 300px;
-    /* Charts row is a fixed height matching its content (100px cards + panel/row
-       padding) instead of an fr share — an fr track stretches taller than the
-       row-single strip actually needs, leaving dead space below the cards. Map
-       takes the rest of the column's height (1fr) now that Live TV has moved
-       out of this column entirely, covering the left half of the screen with
-       just itself + the charts strip. */
-    grid-template-rows: 1fr 128px;
+    /* Map takes 60% of the left column's height, Live Charts (now the taller
+       3-row card grid, not the old single-row strip) the remaining 40%. */
+    grid-template-rows: 3fr 2fr;
     grid-template-areas:
       "map      rightside rightside"
       "charts   rightside rightside";
