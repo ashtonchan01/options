@@ -12,14 +12,14 @@ import {
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
 
-export const TAB_IDS = ['dashboard', 'portfolio', 'allocation', 'journal', 'scanner'] as const
+export const TAB_IDS = ['dashboard', 'portfolio', 'journal', 'allocation', 'scanner'] as const
 export type TabId = typeof TAB_IDS[number]
 
 const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard',  label: 'Dashboard',  icon: <LayoutDashboard size={17} /> },
   { id: 'portfolio',  label: 'Portfolio',  icon: <Briefcase size={17} /> },
-  { id: 'allocation', label: 'Allocation', icon: <PieChart size={17} /> },
   { id: 'journal',    label: 'Journal',    icon: <BookOpen size={17} /> },
+  { id: 'allocation', label: 'Allocation', icon: <PieChart size={17} /> },
   { id: 'scanner',    label: 'Scanner',    icon: <Radar size={17} /> },
 ]
 

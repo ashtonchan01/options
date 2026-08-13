@@ -8,6 +8,7 @@ import type { TradeLabels } from '../../App'
 import { OverviewTab, JournalTab } from './JournalView'
 import { buildJournalPositions, buildStockPositions, closedByDate } from '../../engine/journal'
 import { useJournalStore } from '../../store/journalStore'
+import { ActionsSidebar } from '../analytics/AnalyticsView'
 
 function NoTradeData() {
   return (
@@ -31,20 +32,25 @@ export default function JournalPageView({ state, tradeLabels }: { state: AppStat
   const hasTrades = state.sync.trades.length > 0
 
   return (
-    <div className="jr-stacked">
-      <div className="jr-stacked-top jr-root">
-        <div className="cc-section-title" style={{ padding: 0 }}>Journal Overview</div>
-        {hasTrades ? <OverviewTab closed={closed} positions={positions} entries={entries} /> : <NoTradeData />}
+    <div className="jr-page-row">
+      <div className="jr-stacked">
+        <div className="jr-stacked-top jr-root">
+          <div className="cc-section-title" style={{ padding: 0 }}>Journal Overview</div>
+          {hasTrades ? <OverviewTab closed={closed} positions={positions} entries={entries} /> : <NoTradeData />}
+        </div>
+        <div className="jr-stacked-bottom jr-root">
+          {hasTrades ? (
+            <JournalTab positions={positions} livePositions={state.sync.positions} entries={entries} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
+          ) : (
+            <>
+              <div className="cc-section-title" style={{ padding: 0 }}>Trade Journal</div>
+              <NoTradeData />
+            </>
+          )}
+        </div>
       </div>
-      <div className="jr-stacked-bottom jr-root">
-        {hasTrades ? (
-          <JournalTab positions={positions} livePositions={state.sync.positions} entries={entries} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
-        ) : (
-          <>
-            <div className="cc-section-title" style={{ padding: 0 }}>Trade Journal</div>
-            <NoTradeData />
-          </>
-        )}
+      <div className="jr-page-actions">
+        <ActionsSidebar state={state} />
       </div>
     </div>
   )

@@ -15,7 +15,6 @@ import LiveTVPanel from './panels/LiveTVPanel'
 import TickerHeadlinesPanel from './panels/TickerHeadlinesPanel'
 import CalendarPanel from './panels/CalendarPanel'
 import PairTradingPanel from './panels/PairTradingPanel'
-import { ActionsSidebar } from '../analytics/AnalyticsView'
 
 const REFRESH_MS = 60_000
 const CHART_ONLY_SYMBOLS = ['ES=F']
@@ -48,7 +47,7 @@ export default function DashboardView({ state }: { state: AppState }) {
       <div className="dash-cell dash-cell-w2 dash-cell-h3 dash-cell-livetv dash-area-livetv">
         <LiveTVPanel />
       </div>
-      {/* Calendar sits on top at its own natural height; Headlines + Actions
+      {/* Calendar sits on top at its own natural height; Headlines + Pairs
           share the row below it and stretch to fill whatever vertical space
           is left, so there's no dead gap between the calendar and the rest
           of the screen the way there was when each had its own fixed grid
@@ -61,9 +60,6 @@ export default function DashboardView({ state }: { state: AppState }) {
           </div>
           <div className="dash-cell dash-cell-h3 dash-area-pairs">
             <PairTradingPanel state={state} />
-          </div>
-          <div className="dash-cell dash-cell-h12 dash-actions-cell dash-cell-portfolio dash-area-actions">
-            <ActionsSidebar state={state} />
           </div>
         </div>
       </div>
