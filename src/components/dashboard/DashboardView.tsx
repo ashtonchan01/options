@@ -19,6 +19,7 @@ import ArticleReaderPanel, { type SelectedHeadline } from './panels/ArticleReade
 import SectorHeatmapPanel from './panels/SectorHeatmapPanel'
 import MarketBreadthPanel from './panels/MarketBreadthPanel'
 import EarningsCalendarPanel from './panels/EarningsCalendarPanel'
+import FearGreedPanel from './panels/FearGreedPanel'
 import ResizablePanel from './ResizablePanel'
 
 const REFRESH_MS = 60_000
@@ -79,6 +80,10 @@ export default function DashboardView({ state }: { state: AppState }) {
 
       <ResizablePanel id="earnings-calendar" defaultWidth={460} defaultHeight={260}>
         <EarningsCalendarPanel />
+      </ResizablePanel>
+
+      <ResizablePanel id="fear-greed" defaultWidth={340} defaultHeight={200}>
+        <FearGreedPanel />
       </ResizablePanel>
     </div>
   )
