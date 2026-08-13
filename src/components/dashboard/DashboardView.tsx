@@ -1,11 +1,11 @@
 /**
- * World-Monitor-style overview. Left side: World Map / Live Charts /
- * Ticker Headlines stacked to exactly fill the viewport, no scrolling —
- * same as the dashboard's original layout. Right side: two independently
- * vertically-scrolling columns holding the rest of the panels; each panel
- * has a drag handle on its bottom edge to resize its height (remembered
- * per panel — see ResizablePanel/useResizablePanel), so you can shrink
- * panels to fit more on screen at once or leave them tall and scroll.
+ * World-Monitor-style overview. Left side: World Map (expanded to be the
+ * dominant element, World-Monitor-style) with a thin Live Charts strip
+ * below it, filling the viewport with no scrolling. Right side: two
+ * independently vertically-scrolling columns holding the rest of the
+ * panels — Ticker Headlines is one of them now, not pinned under the map —
+ * each with a drag handle on its bottom edge to resize its height
+ * (remembered per panel — see ResizablePanel/useResizablePanel).
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
@@ -51,13 +51,13 @@ export default function DashboardView({ state }: { state: AppState }) {
         <div className="dash-cell dash-left-charts">
           <LiveChartsStrip quotes={quotes} layout="row-single" />
         </div>
-        <div className="dash-cell dash-left-headlines">
-          <TickerHeadlinesPanel />
-        </div>
       </div>
 
       <div className="dash-right-cols">
         <div className="dash-right-col">
+          <ResizablePanel id="headlines" defaultWidth={900} defaultHeight={420} axis="vertical">
+            <TickerHeadlinesPanel />
+          </ResizablePanel>
           <ResizablePanel id="livetv" defaultWidth={900} defaultHeight={340} axis="vertical">
             <LiveTVPanel />
           </ResizablePanel>

@@ -1734,7 +1734,10 @@ body {
   box-sizing: border-box;
 }
 .dash-left-col {
-  flex: 3 1 0;
+  /* Wider than before (was 3:2 = 60%) now that Headlines has moved to the
+     right side and the map is the left side's only real content — closer
+     to how large the map sits in World Monitor's own layout. */
+  flex: 7 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -1742,9 +1745,8 @@ body {
 }
 .dash-left-map      { flex: 1; min-height: 0; }
 .dash-left-charts   { flex: 0 0 128px; }
-.dash-left-headlines { flex: 1; min-height: 0; }
 .dash-right-cols {
-  flex: 2 1 0;
+  flex: 3 1 0;
   min-width: 0;
   display: flex;
   gap: 6px;
@@ -1762,6 +1764,27 @@ body {
 }
 .dash-cell { display: flex; min-width: 0; min-height: 0; }
 .dash-cell > * { flex: 1; min-width: 0; min-height: 0; }
+/* Visible resize grip — the native browser resize handle alone is a very
+   faint corner nub, easy to miss entirely against a dark theme. This is a
+   purely decorative overlay (pointer-events:none) drawn in the exact
+   corner the native handle's drag hit-area already occupies, so dragging
+   still works exactly as before; it's just now obvious there's something
+   to grab. */
+.dash-resizable { position: relative; }
+.dash-resizable::after {
+  content: '';
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 11px;
+  height: 11px;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, transparent 0%, transparent 40%, var(--text-4) 40%, var(--text-4) 46%, transparent 46%,
+                     transparent 60%, var(--text-4) 60%, var(--text-4) 66%, transparent 66%,
+                     transparent 80%, var(--text-4) 80%, var(--text-4) 86%, transparent 86%);
+  opacity: 0.7;
+}
 @media (max-width: 650px) {
   /* Collapse to one plain stacked column, full page scroll — the fixed
      left/scrolling-right split only makes sense with room for side-by-side
@@ -1770,7 +1793,6 @@ body {
   .dash-left-col, .dash-right-cols, .dash-right-col { flex: none; overflow: visible; }
   .dash-left-map { min-height: 320px; }
   .dash-left-charts { flex: 0 0 128px; }
-  .dash-left-headlines { min-height: 320px; }
   .dash-right-cols { flex-direction: column; }
   .dash-cell { width: 100% !important; height: auto !important; min-height: 260px; resize: none !important; }
 }

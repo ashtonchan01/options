@@ -53,14 +53,20 @@ export function useResizablePanel(id: string, defaultWidth: number, defaultHeigh
         width: '100%',
         height: stored?.h ?? defaultHeight,
         resize: 'vertical' as const,
-        overflow: 'hidden' as const,
+        // 'auto' (not 'hidden') — Safari's support for `resize` on
+        // non-textarea elements has historically been flakier with
+        // overflow:hidden specifically; 'auto' is the value every browser
+        // reliably shows/enables the drag handle for. The inner .dash-panel
+        // already manages its own internal scrolling, so this rarely
+        // actually needs to scroll itself.
+        overflow: 'auto' as const,
         flex: '0 0 auto' as const,
       }
       : {
         width: stored?.w ?? defaultWidth,
         height: stored?.h ?? defaultHeight,
         resize: 'both' as const,
-        overflow: 'hidden' as const,
+        overflow: 'auto' as const,
         flex: '0 0 auto' as const,
       },
   }
