@@ -1096,7 +1096,13 @@ body {
 /* Journal Overview — compact, fixed-height, no-scroll layout: one KPI row
    plus one row of Equity Curve / Monthly P&L / Edge Finder side by side. */
 .jr-overview-compact {
-  height: 100%;
+  /* flex:1 (not height:100%) — as a flex-column child of .jr-root alongside
+     the "Journal Overview" title bar, height:100% measured against the
+     whole strip while the title ALSO takes its own space made the two
+     together taller than the strip, silently reintroducing the scroll this
+     layout was built to avoid. flex:1 takes exactly what's left after the
+     title instead. */
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1115,7 +1121,7 @@ body {
    (verified: a 2-column flex-wrap left 5 rows for 9 chips, taller than the
    fixed-height strip, cutting off the bottom ones). */
 .jr-kpi-col {
-  flex: 0 0 380px;
+  flex: 1 1 50%;
   overflow: hidden;
 }
 .jr-kpi-col .jr-kpi-row {
