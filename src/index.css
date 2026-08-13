@@ -1282,11 +1282,37 @@ body {
      fit a phone screen — stack Equity Curve/Monthly P&L/Edge Finder instead
      and let the KPI chips wrap, same "just grow" treatment as everywhere
      else on mobile rather than cramming a 3-column row into ~380px. */
-  .jr-overview-compact { height: auto; }
+  /* flex-shrink:0 at every level in this chain (jr-stacked-top → ... →
+     jr-overview-cell) — same bug as jr-stacked-bottom below, repeating at
+     each nested flex layer: an "auto"/fixed height child of a flex-column
+     parent still gets compressed by the default flex-shrink:1 to fit
+     whatever space is available above it, rather than actually rendering
+     at that height (verified: with only the outer fix, this cell measured
+     41px tall instead of its declared 200px). */
+  .jr-overview-compact { height: auto; flex-shrink: 0; }
   .jr-kpi-row { flex-wrap: wrap; overflow-x: visible; }
-  .jr-overview-row { flex-direction: column; }
-  .jr-overview-cell { min-height: 160px; }
-  .jr-kpi-col { flex-basis: auto; width: 100%; }
+  .jr-overview-row { flex-direction: column; flex-shrink: 0; }
+  /* !important throughout — the component sets `style={{ flex: 1 }}` inline
+     on this element for the desktop 50/50 split, and an inline style always
+     wins over a stylesheet rule regardless of specificity, silently
+     ignoring this whole override (verified: without !important, nothing
+     here changed anything at all, chart stayed compressed). A fixed height
+     (not min-height) — the chart SVG's own height:100% can only resolve
+     against a DEFINITE parent height; min-height alone left the cell's
+     actual height purely content-driven (~50px, the SVG's intrinsic
+     aspect-ratio fallback) while the box itself stayed taller, leaving a
+     big empty gap below a small chart. */
+  .jr-overview-cell {
+    /* flex-basis (not a separate `height`) is what actually sizes a flex
+     item's main axis — with the inline style's flex-basis:0% still winning
+     for that purpose, a bare `height:200px !important` was ignored for
+     layout (flex-basis only falls back to `height` when flex-basis is
+     literally `auto`) and flex-grow:0 collapsed it to ~0 instead. The
+     `flex` shorthand sets basis directly, overriding the inline style's. */
+    flex: 0 0 200px !important;
+    min-height: 0 !important;
+  }
+  .jr-kpi-col { flex-basis: auto; width: 100%; flex-shrink: 0; }
   .jr-kpi-col .jr-kpi-row { height: auto; }
   .pf-columns { overflow-x: hidden; }
   /* Each column used to cap at 70vh and scroll internally — full height with
@@ -1301,9 +1327,25 @@ body {
     overflow: visible !important;
   }
   .pf-column .jr-root { height: auto; overflow: visible; }
-  .jr-stacked { height: auto; overflow: visible; }
+  /* .jr-stacked is the ONE scroll container for the whole Journal page on
+     mobile — the <main> element wrapping every tab has a hard-coded
+     `overflow: hidden` (App.tsx), so if this doesn't scroll, nothing does
+     and the page is stuck (verified: setting this to height:auto/overflow:
+     visible, matching the "let it grow" pattern used elsewhere, silently
+     broke scrolling entirely here specifically because there's no OTHER
+     ancestor left to catch the overflow). Its two children stay auto-height
+     so they size to their own content instead of fighting over the desktop
+     20/80 split, while jr-stacked itself keeps scrolling through both. */
+  .jr-stacked { overflow-y: auto; overflow-x: hidden; }
+  /* flex-shrink:0 (not the default 1 that "flex: 1 1 100%" implied) — as
+     flex items of .jr-stacked's fixed-height column, these were being
+     compressed to fit inside that height instead of overflowing it, so
+     .jr-stacked never had anything to scroll (verified: an 800px test div
+     inside jr-stacked-bottom rendered at only ~305px, silently squashed).
+     flex-shrink:0 forces each section to keep its full natural content
+     height, which is what actually makes the parent overflow and scroll. */
   .jr-stacked-top, .jr-stacked-bottom {
-    flex: 1 1 100%; height: auto !important; max-height: none; overflow: visible !important;
+    flex: 0 0 auto; height: auto !important; max-height: none; overflow: visible !important;
   }
   .jr-break-table-scroll { height: auto !important; overflow: visible !important; }
   .jr-trade-table-scroll { overflow: visible !important; }
@@ -1312,7 +1354,17 @@ body {
      internal scroll is fine on desktop but cramped on a phone screen. */
   .jr-strategy-grid { grid-template-columns: 1fr !important; overflow: visible !important; }
   .jr-strategy-cell { max-height: none !important; }
-  .jr-strategy-cell-scroll { overflow: visible !important; }
+  /* Vertically this cell just grows with the page — but the 11-column table
+     itself is real content that a phone's width can't show all at once
+     regardless of scroll direction. Squeezing every column down to fit
+     (the desktop fixed-width layout) left each one a couple of characters
+     wide and unreadable ("C...", "TI...", "$3..."). Auto layout (columns
+     sized to their own content) plus a horizontal scroll on this one axis
+     keeps every value fully legible — swipe sideways for the rest instead
+     of everything being a truncated sliver. */
+  .jr-strategy-cell-scroll { overflow-y: visible !important; overflow-x: auto !important; }
+  .jr-strategy-cell table { table-layout: auto !important; min-width: 700px; }
+  .jr-strategy-cell table th, .jr-strategy-cell table td { width: auto !important; white-space: nowrap; }
   /* Portfolio tab's right column (Income Channels / Stocks / Options tables)
      had each of its 3 sub-panels internally scrolling to share a fixed
      height — same "just grow, let the page scroll" treatment as everywhere
