@@ -1115,27 +1115,34 @@ body {
   overflow-x: auto;
   flex-shrink: 0;
 }
-/* Beside the Equity Curve chart instead of spanning full width — a fixed
-   3x3 grid (9 chips) sized to the column's actual height so every chip is
-   guaranteed to fit without wrapping into extra rows that get clipped
-   (verified: a 2-column flex-wrap left 5 rows for 9 chips, taller than the
-   fixed-height strip, cutting off the bottom ones). */
+/* Beside the Equity Curve chart instead of spanning full width. Multi-row
+   grids here (2-col flex-wrap, then a 3x3 grid) both ended up taller than
+   the fixed-height strip and got clipped — any layout that divides the
+   column's height into rows is fighting the same fragile height math.
+   A single row instead needs no such division: 9 compact chips at their
+   natural (short) height simply fit, full stop, regardless of exactly how
+   tall the strip resolves to. The column is wide now (flex:1 1 50%) so
+   they comfortably fit side by side without wrapping. */
 .jr-kpi-col {
   flex: 1 1 50%;
   overflow: hidden;
+  display: flex;
+  align-items: center;
 }
 .jr-kpi-col .jr-kpi-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 6px;
-  height: 100%;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  width: 100%;
 }
 .jr-kpi-col .jr-kpi-chip {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  flex: 1 1 0;
   min-width: 0;
+  overflow: hidden;
+}
+.jr-kpi-col .jr-kpi-chip-label,
+.jr-kpi-col .jr-kpi-chip-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .jr-kpi-chip {
   display: flex;
