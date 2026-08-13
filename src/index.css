@@ -1115,26 +1115,22 @@ body {
   overflow-x: auto;
   flex-shrink: 0;
 }
-/* Beside the Equity Curve chart instead of spanning full width. Multi-row
-   grids here (2-col flex-wrap, then a 3x3 grid) both ended up taller than
-   the fixed-height strip and got clipped — any layout that divides the
-   column's height into rows is fighting the same fragile height math.
-   A single row instead needs no such division: 9 compact chips at their
-   natural (short) height simply fit, full stop, regardless of exactly how
-   tall the strip resolves to. The column is wide now (flex:1 1 50%) so
-   they comfortably fit side by side without wrapping. */
+/* Beside the Equity Curve chart instead of spanning full width — narrower
+   than the chart (flex:0 0 340px, chart takes the rest) so the chart reads
+   as the main event. A 3x3 grid, sized to the column's real height (fixed
+   now that .jr-overview-compact uses flex:1 instead of height:100% for its
+   own sizing — the earlier clipping was that bug, not the grid itself). */
 .jr-kpi-col {
-  flex: 1 1 50%;
+  flex: 0 0 340px;
   overflow: hidden;
   display: flex;
   align-items: stretch;
 }
-/* Grid with equal-width, equal-height columns — flex-grow gave every chip
-   a different width based on its own content length, which read as messy/
-   uneven. A grid forces all 9 into identically-sized cells. */
 .jr-kpi-col .jr-kpi-row {
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 6px;
   width: 100%;
   height: 100%;
 }
