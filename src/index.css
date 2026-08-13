@@ -1123,6 +1123,12 @@ body {
    instead of bunching up against each other in a strip this short. */
 .jr-kpi-col {
   flex: 1 1 50%;
+  /* min-width:0 — without it, a flex item's default min-width:auto is based
+     on its content's intrinsic min size (here, the widest chip's nowrap
+     text, e.g. "-$146,667"), which silently overrode the 50% basis and
+     pushed this column wider than intended, squeezing the chart down to a
+     sliver instead of an even split. */
+  min-width: 0;
   overflow: hidden;
   display: flex;
   align-items: stretch;
