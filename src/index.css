@@ -1089,21 +1089,27 @@ body {
   overflow-x: auto;
   flex-shrink: 0;
 }
-/* Beside the Equity Curve chart instead of spanning full width — chips wrap
-   into a grid that fills the available column height instead of the single
-   horizontally-scrolling row used when this strip spans the full width. */
+/* Beside the Equity Curve chart instead of spanning full width — a fixed
+   3x3 grid (9 chips) sized to the column's actual height so every chip is
+   guaranteed to fit without wrapping into extra rows that get clipped
+   (verified: a 2-column flex-wrap left 5 rows for 9 chips, taller than the
+   fixed-height strip, cutting off the bottom ones). */
 .jr-kpi-col {
-  flex: 0 0 260px;
+  flex: 0 0 380px;
   overflow: hidden;
 }
 .jr-kpi-col .jr-kpi-row {
-  flex-wrap: wrap;
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 6px;
   height: 100%;
-  align-content: flex-start;
 }
 .jr-kpi-col .jr-kpi-chip {
-  flex: 1 1 calc(50% - 3px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
 }
 .jr-kpi-chip {
   display: flex;
