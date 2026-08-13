@@ -6,9 +6,7 @@
  */
 import { useMemo, useState } from 'react'
 import {
-  computeStats, equityCurve, breakdown, openPremiumTotal,
-  byMonth,
-  edgeInsights,
+  computeStats, equityCurve, openPremiumTotal,
   type JournalPosition, type EquityPoint,
 } from '../../engine/journal'
 import { MISTAKES, type JournalEntry } from '../../store/journalStore'
@@ -33,11 +31,6 @@ function fmtMonthYear(s: string) {
   const iso = /^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : s
   const d = new Date(iso)
   return isNaN(d.getTime()) ? s : d.toLocaleDateString('en-AU', { month: 'short', year: 'numeric' })
-}
-
-function fmtMonth(ym: string) {
-  const d = new Date(`${ym}-01`)
-  return isNaN(d.getTime()) ? ym : d.toLocaleDateString('en-AU', { month: 'short', year: '2-digit' })
 }
 
 function pnlCls(n: number) { return n > 0 ? 'pos' : n < 0 ? 'neg' : 'neu' }
@@ -144,88 +137,25 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
   )
 }
 
-// ─── Monthly P&L bars ─────────────────────────────────────────────────────────
-
-function MonthlyBars({ closed }: { closed: JournalPosition[] }) {
-  const rows = useMemo(
-    () => breakdown(closed, byMonth).sort((a, b) => a.key.localeCompare(b.key)).slice(-12),
-    [closed],
-  )
-  if (rows.length === 0) return <div className="db-empty-msg" style={{ minHeight: 120 }}>No closed trades yet</div>
-  const W = 560, H = 140, PL = 50, PR = 8, PT = 10, PB = 20
-  const maxAbs = Math.max(...rows.map(r => Math.abs(r.netPnl)), 1)
-  const y0 = PT + (H - PT - PB) / 2
-  const scale = (H - PT - PB) / 2 / maxAbs
-  const bw = (W - PL - PR) / rows.length
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }}>
-      <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="rgba(16,185,129,0.18)" strokeWidth="1" />
-      <text x={PL - 5} y={y0 - maxAbs * scale + 4} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">{fmt$(maxAbs)}</text>
-      <text x={PL - 5} y={y0 + 3} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">$0</text>
-      {rows.map((r, i) => {
-        const h = Math.abs(r.netPnl) * scale
-        const bx = PL + i * bw + bw * 0.18
-        const by = r.netPnl >= 0 ? y0 - h : y0
-        return (
-          <g key={r.key}>
-            <rect x={bx} y={by} width={bw * 0.64} height={Math.max(h, 1)}
-              fill={r.netPnl >= 0 ? 'rgba(16,185,129,0.75)' : 'rgba(239,68,68,0.75)'} />
-            <text x={bx + bw * 0.32} y={H - 8} textAnchor="middle" fill="var(--text-4)" fontSize="8.5" fontFamily="Inter, sans-serif">
-              {fmtMonth(r.key)}
-            </text>
-          </g>
-        )
-      })}
-    </svg>
-  )
-}
-
-// ─── Edge Finder panel ────────────────────────────────────────────────────────
-
-const INSIGHT_COLOR = { strength: '#10b981', weakness: '#ef4444', info: '#10b981' }
-
-function EdgeFinder({ closed, entries }: { closed: JournalPosition[]; entries: Record<string, JournalEntry> }) {
-  const insights = useMemo(() => edgeInsights(closed, entries), [closed, entries])
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px' }}>
-      {insights.map((ins, i) => (
-        <div key={i} style={{ borderLeft: `2px solid ${INSIGHT_COLOR[ins.kind]}`, paddingLeft: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: INSIGHT_COLOR[ins.kind], letterSpacing: '0.04em' }}>
-            {ins.kind === 'strength' ? '▲ ' : ins.kind === 'weakness' ? '▼ ' : '◈ '}{ins.title}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{ins.detail}</div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 // ─── Overview sub-view ────────────────────────────────────────────────────────
 
-export function OverviewTab({ closed, positions, entries }: {
+export function OverviewTab({ closed, positions }: {
   closed: JournalPosition[]; positions: JournalPosition[]; entries: Record<string, JournalEntry>
 }) {
   const curve = useMemo(() => equityCurve(closed), [closed])
   const openPremium = useMemo(() => openPremiumTotal(positions), [positions])
-  // Capped to a fixed-height strip with no internal scroll — a single
-  // compact KPI row plus one row of Equity Curve / Monthly P&L / Edge
-  // Finder side by side, sized to fit that height rather than stack.
+  // Single row: KPI chips on the left, Equity Curve filling the rest —
+  // Monthly P&L and Edge Finder dropped so everything fits in one row
+  // instead of a KPI row plus a second row of cells.
   return (
     <div className="jr-overview-compact">
-      <KpiStrip closed={closed} openPremium={openPremium} />
       <div className="jr-overview-row">
-        <div className="jr-overview-cell" style={{ flex: 2 }}>
-          <div className="jr-overview-cell-title">Equity Curve</div>
-          <div className="jr-overview-cell-body"><EquityChart points={curve} /></div>
+        <div className="jr-kpi-col">
+          <KpiStrip closed={closed} openPremium={openPremium} />
         </div>
         <div className="jr-overview-cell" style={{ flex: 1 }}>
-          <div className="jr-overview-cell-title">Monthly P&L</div>
-          <div className="jr-overview-cell-body"><MonthlyBars closed={closed} /></div>
-        </div>
-        <div className="jr-overview-cell" style={{ flex: 1.2 }}>
-          <div className="jr-overview-cell-title">Edge Finder</div>
-          <div className="jr-overview-cell-body" style={{ overflow: 'auto' }}><EdgeFinder closed={closed} entries={entries} /></div>
+          <div className="jr-overview-cell-title">Equity Curve</div>
+          <div className="jr-overview-cell-body"><EquityChart points={curve} /></div>
         </div>
       </div>
     </div>
@@ -408,7 +338,7 @@ function aggregateActiveOptionLots(positions: JournalPosition[]): JournalPositio
 }
 
 const STRAT_GROUP_ORDER = [
-  'leap', 'csp', 'covered_calls', 'put_spread', 'spx', 'shares',
+  'shares', 'leap', 'put_spread', 'spx', 'csp', 'covered_calls',
   'rotation', 'ptos', 'dcas', 'profit_taking', 'lilo', 'arb_cloud', 'tabi', 'forex', 'assignment',
 ]
 function stratGroupRank(strategy?: string) {

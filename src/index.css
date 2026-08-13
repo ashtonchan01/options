@@ -1089,6 +1089,22 @@ body {
   overflow-x: auto;
   flex-shrink: 0;
 }
+/* Beside the Equity Curve chart instead of spanning full width — chips wrap
+   into a grid that fills the available column height instead of the single
+   horizontally-scrolling row used when this strip spans the full width. */
+.jr-kpi-col {
+  flex: 0 0 260px;
+  overflow: hidden;
+}
+.jr-kpi-col .jr-kpi-row {
+  flex-wrap: wrap;
+  overflow: hidden;
+  height: 100%;
+  align-content: flex-start;
+}
+.jr-kpi-col .jr-kpi-chip {
+  flex: 1 1 calc(50% - 3px);
+}
 .jr-kpi-chip {
   display: flex;
   flex-direction: column;
@@ -1207,6 +1223,8 @@ body {
   .jr-kpi-row { flex-wrap: wrap; overflow-x: visible; }
   .jr-overview-row { flex-direction: column; }
   .jr-overview-cell { min-height: 160px; }
+  .jr-kpi-col { flex-basis: auto; width: 100%; }
+  .jr-kpi-col .jr-kpi-row { height: auto; }
   .pf-columns { overflow-x: hidden; }
   /* Each column used to cap at 70vh and scroll internally — full height with
      the whole page scrolling as one instead, so nothing on the Portfolio or
