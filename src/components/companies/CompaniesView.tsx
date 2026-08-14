@@ -292,7 +292,13 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
         </div>
       </div>
 
-      <div className="cc-section-title" style={{ padding: 0, marginTop: 4 }}>Monthly Income by Strategy</div>
+      <div
+        className="cc-section-title"
+        style={{ padding: 0, marginTop: 4, cursor: 'help', width: 'fit-content' }}
+        title="Realized P&L by close date — each closed position's full gain/loss is attributed to the month it closed, not the month(s) it was opened or traded in. This is NOT the same as the Calendar page's monthly total, which is cash flow by trade date, so the two won't match for the same month."
+      >
+        Monthly Income by Strategy
+      </div>
 
       {monthlyStrategyBlocks.length === 0 && (
         <div className="cc-section cc-table-section" style={{ flexShrink: 1, padding: 24, textAlign: 'center', color: 'var(--text-5)' }}>

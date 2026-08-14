@@ -684,7 +684,10 @@ export default function CalendarView({ state }: Props) {
               <ChevronRight size={14} />
             </button>
             <div style={{ flex: 1 }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'help' }}
+              title="Cash flow by trade date — premium/proceeds from trades executed this month, whether they opened or closed a position. This is NOT realized P&L by close date (see Companies → Monthly Income by Strategy for that), so the two totals for the same month won't match: a trade opened in an earlier month but closed this month shows its cash flow in the month it was opened, while its full realized gain/loss shows in the month it closed."
+            >
               <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{monthTradeCount} trades</span>
               <span style={{ fontSize: 15, fontWeight: 600, fontFamily: 'Inter, sans-serif', color: monthTradePnL >= 0 ? '#10b981' : '#f43f5e' }}>
                 {monthTradePnL >= 0 ? '+' : ''}{Math.round(monthTradePnL).toLocaleString()}
