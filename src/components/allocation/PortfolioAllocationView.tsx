@@ -144,7 +144,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
   const [loading, setLoading] = useState(false)
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null)
 
-  const liveSymbols = useMemo(() => TARGETS.map(t => t.symbol).filter(s => s !== 'SPCX'), [])
+  const liveSymbols = useMemo(() => TARGETS.map(t => t.symbol), [])
 
   async function load() {
     setLoading(true)
@@ -155,19 +155,29 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
   }
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // TSLA vs SPCX "value buy" swing: SPCX is private with no live quote to
-  // compare, so the only real signal available is TSLA's own distance from
-  // its 52-week high. A meaningful discount (>20%) tips the extra 10% to
-  // TSLA; otherwise the base 20/20 stays even.
+  // TSLA vs SPCX "value buy" swing — SpaceX has since IPO'd and now has a
+  // live quote, so this compares each side's own distance from its 52-week
+  // high instead of TSLA being the only real signal. A meaningfully bigger
+  // discount on one side (>10 points more than the other) tips the extra
+  // 10% its way; otherwise the base 20/20 stays even.
   const tslaQuote = quotes['TSLA']
+  const spcxQuote = quotes['SPCX']
   const tslaDiscount = tslaQuote?.high52 ? (tslaQuote.high52 - tslaQuote.price) / tslaQuote.high52 * 100 : null
-  const tslaGetsSwing = tslaDiscount != null && tslaDiscount > 20
-  const swingPct: Record<string, number> = { TSLA: tslaGetsSwing ? 10 : 5, SPCX: tslaGetsSwing ? 0 : 5 }
+  const spcxDiscount = spcxQuote?.high52 ? (spcxQuote.high52 - spcxQuote.price) / spcxQuote.high52 * 100 : null
+  const swingPct: Record<string, number> = (() => {
+    if (tslaDiscount == null && spcxDiscount == null) return { TSLA: 5, SPCX: 5 }
+    const diff = (tslaDiscount ?? 0) - (spcxDiscount ?? 0)
+    if (diff > 10) return { TSLA: 10, SPCX: 0 }
+    if (diff < -10) return { TSLA: 0, SPCX: 10 }
+    return { TSLA: 5, SPCX: 5 }
+  })()
 
   const rows: Row[] = useMemo(() => {
     return TARGETS.map((t, i) => {
-      const price = t.symbol === 'SPCX' ? SPCX_STATIC_PRICE : (quotes[t.symbol]?.price ?? 0)
-      const high52 = t.symbol === 'SPCX' ? null : (quotes[t.symbol]?.high52 ?? null)
+      // SPCX_STATIC_PRICE is the fallback if the live feed has no quote yet
+      // (e.g. still thin post-IPO trading) — not the primary source anymore.
+      const price = quotes[t.symbol]?.price ?? (t.symbol === 'SPCX' ? SPCX_STATIC_PRICE : 0)
+      const high52 = quotes[t.symbol]?.high52 ?? null
       const targetPct = t.basePct + (swingPct[t.symbol] ?? 0)
       const targetDollar = targetPct / 100 * TARGET_PORTFOLIO_VALUE
       const targetShares = price > 0 ? Math.max(t.lotSize, Math.round(targetDollar / price / t.lotSize) * t.lotSize) : 0
@@ -199,7 +209,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
         rsi: rsiData[t.symbol]?.rsi ?? null,
       }
     })
-  }, [quotes, rsiData, state.sync.positions, tslaGetsSwing]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [quotes, rsiData, state.sync.positions, swingPct]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const actualCash = state.sync.cashBalance ?? 0
   const targetCash = CASH_PCT / 100 * TARGET_PORTFOLIO_VALUE
@@ -421,7 +431,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderTop: '1px solid var(--border-light)', fontSize: 10.5, color: 'var(--text-4)' }}>
           <AlertTriangle size={11} style={{ flexShrink: 0 }} />
-          SPCX has no live market feed (private company) — price is a manually-tracked estimate. Target shares round to whole 100-share lots (10 for MU/ASML), so totals won't land exactly on $1M or exactly on each %.
+          Target shares round to whole 100-share lots (10 for MU/ASML), so totals won't land exactly on $1M or exactly on each %.
         </div>
       </div>
     </div>
