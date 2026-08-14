@@ -1904,6 +1904,15 @@ body {
      full width, so the drag handle would do nothing useful; hide it. */
   .dash-col-resize-handle, .dash-row-resize-handle { display: none; }
   .dash-cell { width: 100% !important; height: auto !important; min-height: 260px; resize: none !important; }
+  /* .dash-cell's blanket min-height:260px above (meant for the right-side
+     resizable panels) also lands on the fixed-height left map/charts strip
+     since both carry the .dash-cell class too, and — same specificity,
+     later in the cascade — wins over their own min-height rules just above,
+     stretching a 128px chart strip into a 260px box with dead space below
+     it, and shrinking the map from its intended 320px. Restated here, after
+     .dash-cell, to actually take effect. */
+  .dash-left-map { min-height: 320px; }
+  .dash-left-charts { min-height: 128px; }
 }
 /* auto-fill + a minmax floor: as many ~220px rectangular columns as fit the
    panel's own current (resizable) width, collapsing to 1 on a narrow panel
