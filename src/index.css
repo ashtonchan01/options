@@ -1089,31 +1089,36 @@ body {
   display: flex;
 }
 .jr-page-actions .db-sidebar { width: 100%; border-left: 1px solid var(--border); }
+/* Single shared scrollbar for the whole middle column — Journal Overview
+   (KPIs, equity curve, Portfolio Summary) and Trade Journal scroll TOGETHER
+   as one page instead of each being its own independently-scrolling box
+   (the old max-height:60%-with-its-own-scrollbar on jr-stacked-top, capped
+   off from jr-stacked-bottom below it). Both children now size to their own
+   content and this wrapper is the one that scrolls. */
 .jr-stacked {
   flex: 1 1 auto;
   min-width: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
+/* height:auto + overflow-y:visible override .jr-root's own height:100% and
+   overflow-y:auto (both classes are applied together in JSX) — without
+   this, jr-root's height:100% fights the flex:0 0 auto sizing-to-content
+   here and recreates a nested scrollbar exactly where the merge above is
+   trying to remove one. */
 .jr-stacked-top {
-  /* Sized to its actual content (KPI+chart row + Portfolio Summary numbers),
-     not a percentage guess — a fixed 32% left dead space below the content
-     once Portfolio Summary dropped its pie/monthly-flow charts and got
-     shorter. height:auto overrides .jr-root's own height:100% (same
-     specificity, later in the cascade wins) so the flex item's main-axis
-     size comes from flex-basis:auto sizing to content instead. */
   flex: 0 0 auto;
   height: auto;
-  max-height: 60%;
-  min-height: 0;
-  overflow-y: auto;
+  overflow-y: visible;
   border-bottom: 1px solid var(--border);
 }
 .jr-stacked-bottom {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  height: auto;
+  overflow-y: visible;
 }
 
 /* Journal Overview — KPI + Equity Curve row, plus the Portfolio Summary
