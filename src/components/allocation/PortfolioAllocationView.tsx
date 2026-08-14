@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { RefreshCw, TrendingDown, AlertTriangle } from 'lucide-react'
 import type { AppState } from '../../types'
 import { fetchQuotes, type Quote } from '../../services/quotes'
+import { fetchRSI } from '../../services/rsi'
 import {
   TARGETS, CASH_PCT, TARGET_PORTFOLIO_VALUE, SPCX_STATIC_PRICE, CATEGORY_COLOR, type Category,
 } from '../../data/portfolioTargets'
@@ -41,6 +42,7 @@ interface Row {
   actualLeapContracts: number
   actualValue: number
   color: string
+  rsi: number | null
 }
 
 interface Slice { label: string; value: number; color: string }
@@ -137,13 +139,16 @@ function PortfolioPie({ slices, centerLabel, centerValue }: { slices: Slice[]; c
 
 export default function PortfolioAllocationView({ state }: { state: AppState }) {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({})
+  const [rsiData, setRsiData] = useState<Record<string, { rsi: number }>>({})
   const [loading, setLoading] = useState(false)
 
   const liveSymbols = useMemo(() => TARGETS.map(t => t.symbol).filter(s => s !== 'SPCX'), [])
 
   async function load() {
     setLoading(true)
-    setQuotes(await fetchQuotes(liveSymbols))
+    const [q, r] = await Promise.all([fetchQuotes(liveSymbols), fetchRSI(liveSymbols)])
+    setQuotes(q)
+    setRsiData(r)
     setLoading(false)
   }
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -189,9 +194,10 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
         actualLeapContracts: leapContracts,
         actualValue: stockValue + optValue,
         color: tickerColor(i, t.category),
+        rsi: rsiData[t.symbol]?.rsi ?? null,
       }
     })
-  }, [quotes, state.sync.positions, tslaGetsSwing]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [quotes, rsiData, state.sync.positions, tslaGetsSwing]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const actualCash = state.sync.cashBalance ?? 0
   const targetCash = CASH_PCT / 100 * TARGET_PORTFOLIO_VALUE
@@ -225,8 +231,16 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
   // its target share of the $1M plan: whichever is furthest below its own
   // target *proportion* is the one that keeps the portfolio on track to
   // grow into the $1M shape over time, regardless of current total size.
-  // Among those meaningfully underweight, the best "value buy" right now is
-  // whichever is trading furthest below its own 52-week high.
+  // Among those meaningfully underweight, rank by a blended mean-reversion
+  // score instead of 52w-high discount alone — a ticker can be far below its
+  // 52w high but not actually oversold short-term (or vice versa), and the
+  // two signals disagreeing (as with BSOL's discount vs PLTR's RSI in Pair
+  // Trading) is exactly what this is meant to reconcile into one number.
+  // discountScore: % below 52w high, scaled so a 40%+ drawdown maxes out at
+  // 100. oversoldScore: RSI's distance below neutral (50), scaled so RSI 0
+  // maxes out at 100 and anything >=50 (not oversold) scores 0. Averaged
+  // 50/50 so a ticker needs to be both cheap-vs-its-own-history AND
+  // short-term oversold to rank highest, rather than either alone winning.
   const recommendation = useMemo(() => {
     if (actualTotal <= 0) return null
     const underweight = rows.filter(r => {
@@ -235,11 +249,15 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
       return r.targetPct - currentPct > 1 // at least 1 percentage point underweight
     })
     if (underweight.length === 0) return null
-    return [...underweight].sort((a, b) => {
-      const da = (a.high52! - a.price) / a.high52!
-      const db = (b.high52! - b.price) / b.high52!
-      return db - da
-    })[0]
+    const scored = underweight.map(r => {
+      const discountPct = (r.high52! - r.price) / r.high52! * 100
+      const discountScore = Math.min(100, Math.max(0, discountPct / 40 * 100))
+      const oversoldScore = r.rsi != null ? Math.min(100, Math.max(0, (50 - r.rsi) * 2)) : 0
+      const hasRsi = r.rsi != null
+      const score = hasRsi ? discountScore * 0.5 + oversoldScore * 0.5 : discountScore
+      return { ...r, discountPct, oversoldScore, score }
+    })
+    return scored.sort((a, b) => b.score - a.score)[0]
   }, [rows, actualTotal])
 
   const gaps = [...rows]
@@ -295,8 +313,11 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
               <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{recommendation.symbol}</div>
               <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
                 {((recommendation.high52! - recommendation.price) / recommendation.high52! * 100).toFixed(0)}% below its 52-week high
-                (${recommendation.price.toFixed(2)} vs ${recommendation.high52!.toFixed(2)}) — currently {(recommendation.actualValue / actualTotal * 100).toFixed(1)}% of your
+                (${recommendation.price.toFixed(2)} vs ${recommendation.high52!.toFixed(2)}){recommendation.rsi != null ? `, RSI ${recommendation.rsi.toFixed(0)}` : ''} — currently {(recommendation.actualValue / actualTotal * 100).toFixed(1)}% of your
                 portfolio vs a {recommendation.targetPct.toFixed(1)}% target share ({fmt$(recommendation.targetPct / 100 * actualTotal)} of your current {fmt$(actualTotal)} portfolio).
+              </div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 2 }}>
+                Mean-reversion score {recommendation.score.toFixed(0)}/100 — blends 52w-high discount with RSI oversold reading, so this is ranked against all underweight tickers by both signals, not discount alone.
               </div>
               {(() => {
                 const idealAtCurrentSize = recommendation.targetPct / 100 * actualTotal
