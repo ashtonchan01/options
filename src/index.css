@@ -1380,9 +1380,22 @@ body {
      ancestor left to catch the overflow). Its two children stay auto-height
      so they size to their own content instead of fighting over the desktop
      20/80 split, while jr-stacked itself keeps scrolling through both. */
-  .jr-stacked { overflow-y: auto; overflow-x: hidden; }
-  .jr-page-row { flex-direction: column; height: auto; overflow: visible; }
-  .jr-page-actions { width: 100%; height: auto; flex-shrink: 0; }
+  /* <main> in App.tsx has a hard-coded inline overflow:hidden at every
+     viewport size — it never scrolls itself, and never lets an overflowing
+     descendant's content spill past it into view either. Something in this
+     chain must stay a BOUNDED box with its own overflow-y:auto, or content
+     taller than the viewport is silently clipped with no way to reach it
+     (verified via injected tall content: with jr-page-row at height:auto,
+     jr-stacked's clientHeight equalled its scrollHeight — nothing left to
+     scroll — while <main> sat at 792px visible with 2181px of content and
+     overflow:hidden, genuinely unreachable). jr-page-row now stays pinned to
+     main's fixed height (no height:auto override), and jr-stacked /
+     jr-page-actions each get their own bounded flex share + overflow-y:auto
+     — two independently-scrollable regions (main content, Actions sidebar)
+     instead of one relying on a page-level scroll that doesn't exist. */
+  .jr-stacked { flex: 3 1 0; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+  .jr-page-row { flex-direction: column; overflow: hidden; }
+  .jr-page-actions { width: 100%; flex: 1 1 0; min-height: 0; overflow-y: auto; }
   .jr-page-actions .db-sidebar { max-height: none !important; overflow: visible !important; }
   .jr-page-actions .db-sidebar-body { overflow: visible !important; }
   /* flex-shrink:0 (not the default 1 that "flex: 1 1 100%" implied) — as
@@ -1397,6 +1410,17 @@ body {
   }
   .jr-break-table-scroll { height: auto !important; overflow: visible !important; }
   .jr-trade-table-scroll { overflow: visible !important; }
+  /* Companies' tables (used to share .jr-trade-table-scroll with Journal's
+     ungrouped trade table) can't take the same "just grow, let the page
+     scroll" treatment — some have 15+ strategy columns, real content a
+     phone's width can't show at once regardless of scroll direction, not
+     just cramped. overflow:visible there meant they simply spilled off the
+     right edge of the viewport with no way to reach the rest. Horizontal
+     scroll on this one axis instead, same pattern as the Journal strategy
+     table. */
+  .cc-companies-table-scroll { overflow-x: auto !important; overflow-y: visible !important; }
+  .jr-companies-table { table-layout: auto !important; min-width: 600px; }
+  .jr-companies-table th, .jr-companies-table td { width: auto !important; white-space: nowrap; }
   /* Same "just grow, let the page scroll" treatment for the grouped-by-
      strategy view's per-cell scroll — a small fixed-height cell with its own
      internal scroll is fine on desktop but cramped on a phone screen. */
@@ -1895,7 +1919,13 @@ body {
   /* Collapse to one plain stacked column, full page scroll — the fixed
      left/scrolling-right split only makes sense with room for side-by-side
      columns. No manual resize on mobile either (nothing to drag into). */
-  .dash-wrap { flex-direction: column; height: auto; overflow: visible; }
+  /* height:100% kept (NOT height:auto) — same fix as .jr-stacked below:
+     <main> in App.tsx has a hard-coded inline overflow:hidden at every
+     viewport size and never scrolls itself, so .dash-wrap (a direct child
+     of <main>) must stay the one bounded, actually-scrollable box. With
+     height:auto here it grows past main's fixed box and its content is
+     silently clipped with no scrollbar anywhere to reach it. */
+  .dash-wrap { flex-direction: column; overflow-y: auto; overflow-x: hidden; }
   .dash-left-col, .dash-right-cols-wrap, .dash-right-cols, .dash-right-col { flex: none; overflow: visible; }
   .dash-left-map { min-height: 320px; }
   .dash-left-charts { flex: 0 0 128px; }

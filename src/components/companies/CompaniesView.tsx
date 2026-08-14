@@ -261,7 +261,7 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
           .jr-root's own overflow-y:auto handle the whole page's scroll is
           what actually keeps every section fully visible. */}
       <div className="cc-section cc-table-section" style={{ flex: '0 0 auto', minHeight: 'auto' }}>
-        <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
+        <div className="cc-companies-table-scroll" style={{ overflow: 'auto' }}>
           <table className="trade-table jr-companies-table" style={{ fontSize: 13 }}>
             <thead>
               <tr>
@@ -323,7 +323,7 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
                 table (which should actually fill leftover space) keeps
                 flex:1. */}
             <div className="cc-section cc-table-section" style={{ flex: '0 0 auto', minHeight: 'auto' }}>
-              <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
+              <div className="cc-companies-table-scroll" style={{ overflow: 'auto' }}>
                 <table className="trade-table jr-companies-table" style={{ fontSize: 13 }}>
                   <thead>
                     <tr>
