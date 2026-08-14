@@ -1745,8 +1745,19 @@ body {
 }
 .dash-left-map      { flex: 1; min-height: 0; }
 .dash-left-charts   { flex: 0 0 128px; }
-.dash-right-cols {
+.dash-right-cols-wrap {
   flex: 3 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* A "wide" panel (see useWideMap) renders here, above the two columns,
+   sized to the whole right side's width instead of just one column's. */
+.dash-right-cols-wrap > .dash-resizable { width: 100% !important; }
+.dash-right-cols {
+  flex: 1 1 0;
   min-width: 0;
   display: flex;
   gap: 6px;
@@ -1790,10 +1801,13 @@ body {
      left/scrolling-right split only makes sense with room for side-by-side
      columns. No manual resize on mobile either (nothing to drag into). */
   .dash-wrap { flex-direction: column; height: auto; overflow: visible; }
-  .dash-left-col, .dash-right-cols, .dash-right-col { flex: none; overflow: visible; }
+  .dash-left-col, .dash-right-cols-wrap, .dash-right-cols, .dash-right-col { flex: none; overflow: visible; }
   .dash-left-map { min-height: 320px; }
   .dash-left-charts { flex: 0 0 128px; }
   .dash-right-cols { flex-direction: column; }
+  /* No "wide" concept on a single mobile column — every panel is already
+     full width, so the toggle button would do nothing useful; hide it. */
+  .dash-right-cols-wrap button[title*="column"] { display: none; }
   .dash-cell { width: 100% !important; height: auto !important; min-height: 260px; resize: none !important; }
 }
 /* auto-fill + a minmax floor: as many ~220px rectangular columns as fit the

@@ -5,9 +5,10 @@
  * survives reloads. Falls back to `defaultWidth`/`defaultHeight` the first
  * time a panel is seen.
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const LS_PREFIX = 'options:panelSize:'
+const LS_WIDE_KEY = 'options:panelWide'
 
 function loadSize(id: string): { w: number; h: number } | null {
   try {
@@ -70,4 +71,32 @@ export function useResizablePanel(id: string, defaultWidth: number, defaultHeigh
         flex: '0 0 auto' as const,
       },
   }
+}
+
+function loadWideSet(): Set<string> {
+  try {
+    const raw = localStorage.getItem(LS_WIDE_KEY)
+    return raw ? new Set(JSON.parse(raw)) : new Set()
+  } catch { return new Set() }
+}
+
+/** Tracks which right-side panels are toggled to span the full width of
+ * both columns (instead of just their own column) — the layout decision of
+ * *where* a wide panel renders has to happen in the parent (Dashboard),
+ * since it changes which column each other panel ends up in, so this is a
+ * single shared map rather than each panel managing its own flag. */
+export function useWideMap() {
+  const [wideIds, setWideIds] = useState<Set<string>>(loadWideSet)
+
+  function toggleWide(id: string) {
+    setWideIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      try { localStorage.setItem(LS_WIDE_KEY, JSON.stringify([...next])) } catch { /* ignore */ }
+      return next
+    })
+  }
+
+  return { wideIds, toggleWide }
 }
