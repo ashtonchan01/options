@@ -38,10 +38,11 @@ export const TARGETS: TargetTicker[] = [
   })),
 ]
 
-/** SpaceX is a private company with no exchange listing — there's no live
- * quote to fetch, so its price is a manually-tracked estimate (matching the
- * user's own valuation tracking) rather than pulled from a market feed. */
-export const SPCX_STATIC_PRICE = 155
+/** SpaceX has since IPO'd, but there's no live quote wired up for it yet, so
+ * its price is still a manually-tracked estimate (matching the user's own
+ * valuation tracking) rather than pulled from a market feed. Update this by
+ * hand as the price moves until a live feed is added. */
+export const SPCX_STATIC_PRICE = 141
 
 export const CATEGORY_COLOR: Record<Category | 'cash', string> = {
   cash:   '#64748b',
