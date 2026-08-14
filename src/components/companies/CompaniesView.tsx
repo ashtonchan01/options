@@ -6,7 +6,7 @@
  * of an IBKR account statement, grouped by underlying instead of by
  * individual option contract.
  */
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
 import { buildJournalPositions, buildStockPositions, type JournalPosition } from '../../engine/journal'
@@ -32,6 +32,12 @@ function normalizeDateStr(s: string): string {
 // Australian financial year: FY2025/26 runs to 30 June 2026; FY2026/27 starts 1 July 2026.
 const FY_CUTOFF = '20260701'
 
+interface MonthRow {
+  month: string // "YYYY-MM"
+  realized: number
+  closedTrades: number
+}
+
 interface CompanyRow {
   symbol: string
   realized: number
@@ -39,6 +45,12 @@ interface CompanyRow {
   total: number
   closedTrades: number
   openPositions: number
+  monthly: Map<string, MonthRow>
+}
+
+function monthKey(dateStr: string): string {
+  const d = normalizeDateStr(dateStr)
+  return `${d.slice(0, 4)}-${d.slice(4, 6)}`
 }
 
 type SortKey = 'total' | 'realized' | 'unrealized' | 'symbol'
@@ -53,10 +65,15 @@ function buildRows(
   const get = (symbol: string) => {
     let row = byCompany.get(symbol)
     if (!row) {
-      row = { symbol, realized: 0, unrealized: 0, total: 0, closedTrades: 0, openPositions: 0 }
+      row = { symbol, realized: 0, unrealized: 0, total: 0, closedTrades: 0, openPositions: 0, monthly: new Map() }
       byCompany.set(symbol, row)
     }
     return row
+  }
+  const getMonth = (row: CompanyRow, month: string) => {
+    let m = row.monthly.get(month)
+    if (!m) { m = { month, realized: 0, closedTrades: 0 }; row.monthly.set(month, m) }
+    return m
   }
 
   for (const p of positions) {
@@ -70,6 +87,11 @@ function buildRows(
     const row = get(p.underlying)
     row.realized += p.pnl
     row.closedTrades++
+    if (p.dateClosed) {
+      const m = getMonth(row, monthKey(p.dateClosed))
+      m.realized += p.pnl
+      m.closedTrades++
+    }
   }
 
   // Unrealized P&L is a live mark-to-market snapshot of currently open positions —
@@ -86,10 +108,17 @@ function buildRows(
   return [...byCompany.values()]
 }
 
+function fmtMonth(m: string): string {
+  const [y, mo] = m.split('-')
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `${MONTHS[parseInt(mo, 10) - 1] ?? mo} ${y}`
+}
+
 export default function CompaniesView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
   const [sortKey, setSortKey] = useState<SortKey>('total')
   const [query, setQuery] = useState('')
   const [fy, setFy] = useState<FyFilter>('all')
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   const positions = useMemo(() => {
     const labels = tradeLabels?.labels ?? {}
@@ -195,16 +224,50 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
               </tr>
             </thead>
             <tbody>
-              {filtered.map(r => (
-                <tr key={r.symbol}>
-                  <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>{r.symbol}</td>
-                  <td className="mono" style={{ textAlign: 'right', color: pnlColor(r.realized) }}>{fmtDollar(r.realized)}</td>
-                  <td className="mono" style={{ textAlign: 'right', color: pnlColor(r.unrealized) }}>{fmtDollar(r.unrealized)}</td>
-                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(r.total) }}>{fmtDollar(r.total)}</td>
-                  <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{r.closedTrades}</td>
-                  <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{r.openPositions}</td>
-                </tr>
-              ))}
+              {filtered.map(r => {
+                const isOpen = expanded === r.symbol
+                const months = [...r.monthly.values()].sort((a, b) => a.month.localeCompare(b.month))
+                return (
+                  <Fragment key={r.symbol}>
+                    <tr onClick={() => setExpanded(isOpen ? null : r.symbol)}
+                      style={{ cursor: months.length > 0 ? 'pointer' : 'default', background: isOpen ? 'rgba(16,185,129,0.05)' : undefined }}>
+                      <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>
+                        {months.length > 0 && <span style={{ display: 'inline-block', width: 14, color: 'var(--text-4)', fontSize: 10 }}>{isOpen ? '▾' : '▸'}</span>}
+                        {r.symbol}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right', color: pnlColor(r.realized) }}>{fmtDollar(r.realized)}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: pnlColor(r.unrealized) }}>{fmtDollar(r.unrealized)}</td>
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(r.total) }}>{fmtDollar(r.total)}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{r.closedTrades}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{r.openPositions}</td>
+                    </tr>
+                    {isOpen && months.length > 0 && (
+                      <tr key={`${r.symbol}-detail`}>
+                        <td colSpan={6} style={{ padding: 0, background: 'rgba(16,185,129,0.03)' }}>
+                          <table className="mono" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ color: 'var(--text-4)' }}>
+                                <th style={{ textAlign: 'left', fontWeight: 500, padding: '4px 12px 4px 34px' }}>Month</th>
+                                <th style={{ textAlign: 'right', fontWeight: 500, padding: '4px 12px' }}>Realised P&amp;L</th>
+                                <th style={{ textAlign: 'right', fontWeight: 500, padding: '4px 12px' }}>Closed Trades</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {months.map(m => (
+                                <tr key={m.month} style={{ borderTop: '1px solid var(--border-light)' }}>
+                                  <td style={{ padding: '4px 12px 4px 34px', color: 'var(--text-2)' }}>{fmtMonth(m.month)}</td>
+                                  <td style={{ padding: '4px 12px', textAlign: 'right', color: pnlColor(m.realized), fontWeight: 600 }}>{fmtDollar(m.realized)}</td>
+                                  <td style={{ padding: '4px 12px', textAlign: 'right', color: 'var(--text-3)' }}>{m.closedTrades}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
               {filtered.length === 0 && (
                 <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>No matches</td></tr>
               )}
