@@ -56,30 +56,49 @@ function fmtMonth(m: string): string {
   return `${MONTHS[parseInt(mo, 10) - 1] ?? mo} ${y}`
 }
 
+const FY_LABEL: Record<'fy2526' | 'fy2627', string> = {
+  fy2526: 'FY 2025/26',
+  fy2627: 'FY 2026/27',
+}
+
 /** Monthly realized income (closed-position P&L) split by strategy — a
  * separate table from the per-company breakdown above, since "which
  * strategy is actually making money, month to month" is a different
  * question than "which ticker." Unrealized P&L is excluded entirely (no
- * realization date to put in a month). */
-function buildMonthlyStrategy(positions: JournalPosition[], fy: FyFilter) {
-  const byMonth = new Map<string, Map<string, number>>()
-  const strategies = new Set<string>()
+ * realization date to put in a month). Always split into one block per
+ * financial year (mirrors the FY-by-FY layout of a manual tracking
+ * spreadsheet) — the top FY filter just controls which block(s) show. */
+function buildMonthlyStrategyByFy(positions: JournalPosition[], fy: FyFilter) {
+  const buckets: Record<'fy2526' | 'fy2627', { byMonth: Map<string, Map<string, number>>; strategies: Set<string> }> = {
+    fy2526: { byMonth: new Map(), strategies: new Set() },
+    fy2627: { byMonth: new Map(), strategies: new Set() },
+  }
 
   for (const p of positions) {
     if (p.status === 'Active' || p.pnl == null || !p.dateClosed) continue
-    const closedFy: FyFilter = normalizeDateStr(p.dateClosed) >= FY_CUTOFF ? 'fy2627' : 'fy2526'
-    if (fy !== 'all' && fy !== closedFy) continue
+    const closedFy: 'fy2526' | 'fy2627' = normalizeDateStr(p.dateClosed) >= FY_CUTOFF ? 'fy2627' : 'fy2526'
+    const bucket = buckets[closedFy]
     const strategy = p.strategy ?? 'unlabelled'
     const month = monthKey(p.dateClosed)
-    strategies.add(strategy)
-    if (!byMonth.has(month)) byMonth.set(month, new Map())
-    const row = byMonth.get(month)!
+    bucket.strategies.add(strategy)
+    if (!bucket.byMonth.has(month)) bucket.byMonth.set(month, new Map())
+    const row = bucket.byMonth.get(month)!
     row.set(strategy, (row.get(strategy) ?? 0) + p.pnl)
   }
 
-  const months = [...byMonth.keys()].sort()
-  const strategyList = [...strategies].sort((a, b) => stratRank(a) - stratRank(b))
-  return { months, strategyList, byMonth }
+  return (['fy2526', 'fy2627'] as const)
+    .filter(k => fy === 'all' || fy === k)
+    .map(k => {
+      const bucket = buckets[k]
+      return {
+        fy: k,
+        label: FY_LABEL[k],
+        months: [...bucket.byMonth.keys()].sort(),
+        strategyList: [...bucket.strategies].sort((a, b) => stratRank(a) - stratRank(b)),
+        byMonth: bucket.byMonth,
+      }
+    })
+    .filter(b => b.months.length > 0)
 }
 
 interface CompanyRow {
@@ -154,7 +173,7 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
     [positions, state.sync.positions, fy],
   )
 
-  const monthlyStrategy = useMemo(() => buildMonthlyStrategy(positions, fy), [positions, fy])
+  const monthlyStrategyBlocks = useMemo(() => buildMonthlyStrategyByFy(positions, fy), [positions, fy])
 
   const filtered = useMemo(() => {
     const q = query.trim().toUpperCase()
@@ -267,60 +286,65 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
 
       <div className="cc-section-title" style={{ padding: 0, marginTop: 4 }}>Monthly Income by Strategy</div>
 
-      <div className="cc-section cc-table-section" style={{ flexShrink: 1 }}>
-        <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
-          <table className="trade-table jr-companies-table" style={{ fontSize: 13 }}>
-            <thead>
-              <tr>
-                <th>Month</th>
-                {monthlyStrategy.strategyList.map(s => (
-                  <th key={s} style={{ textAlign: 'right' }}>{stratLabel(s)}</th>
-                ))}
-                <th style={{ textAlign: 'right', fontWeight: 800 }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {monthlyStrategy.months.map(m => {
-                const row = monthlyStrategy.byMonth.get(m)!
-                const total = [...row.values()].reduce((s, v) => s + v, 0)
-                return (
-                  <tr key={m}>
-                    <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{fmtMonth(m)}</td>
-                    {monthlyStrategy.strategyList.map(s => {
-                      const v = row.get(s)
+      {monthlyStrategyBlocks.length === 0 && (
+        <div className="cc-section cc-table-section" style={{ flexShrink: 1, padding: 24, textAlign: 'center', color: 'var(--text-5)' }}>
+          No closed trades in this range
+        </div>
+      )}
+
+      {monthlyStrategyBlocks.map(block => {
+        const monthTotal = (m: string) => [...block.byMonth.get(m)!.values()].reduce((s, v) => s + v, 0)
+        const stratTotal = (s: string) => block.months.reduce((sum, m) => sum + (block.byMonth.get(m)!.get(s) ?? 0), 0)
+        const grandTotal = block.months.reduce((sum, m) => sum + monthTotal(m), 0)
+        return (
+          <div key={block.fy}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.05em', margin: '2px 0' }}>
+              {block.label.toUpperCase()}
+            </div>
+            <div className="cc-section cc-table-section" style={{ flexShrink: 1 }}>
+              <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
+                <table className="trade-table jr-companies-table" style={{ fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th>Month</th>
+                      {block.strategyList.map(s => (
+                        <th key={s} style={{ textAlign: 'right' }}>{stratLabel(s)}</th>
+                      ))}
+                      <th style={{ textAlign: 'right', fontWeight: 800 }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {block.months.map(m => {
+                      const row = block.byMonth.get(m)!
                       return (
-                        <td key={s} className="mono" style={{ textAlign: 'right', color: v != null ? pnlColor(v) : 'var(--text-5)' }}>
-                          {v != null ? fmtDollar(v) : '—'}
-                        </td>
+                        <tr key={m}>
+                          <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{fmtMonth(m)}</td>
+                          {block.strategyList.map(s => {
+                            const v = row.get(s)
+                            return (
+                              <td key={s} className="mono" style={{ textAlign: 'right', color: v != null ? pnlColor(v) : 'var(--text-5)' }}>
+                                {v != null ? fmtDollar(v) : '—'}
+                              </td>
+                            )
+                          })}
+                          <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(monthTotal(m)) }}>{fmtDollar(monthTotal(m))}</td>
+                        </tr>
                       )
                     })}
-                    <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(total) }}>{fmtDollar(total)}</td>
-                  </tr>
-                )
-              })}
-              {monthlyStrategy.months.length > 0 && (
-                <tr style={{ borderTop: '2px solid var(--border)' }}>
-                  <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)' }}>Total</td>
-                  {monthlyStrategy.strategyList.map(s => {
-                    const total = monthlyStrategy.months.reduce((sum, m) => sum + (monthlyStrategy.byMonth.get(m)!.get(s) ?? 0), 0)
-                    return (
-                      <td key={s} className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(total) }}>{fmtDollar(total)}</td>
-                    )
-                  })}
-                  <td className="mono" style={{ textAlign: 'right', fontWeight: 800, color: pnlColor(
-                    monthlyStrategy.months.reduce((sum, m) => sum + [...monthlyStrategy.byMonth.get(m)!.values()].reduce((s, v) => s + v, 0), 0),
-                  ) }}>
-                    {fmtDollar(monthlyStrategy.months.reduce((sum, m) => sum + [...monthlyStrategy.byMonth.get(m)!.values()].reduce((s, v) => s + v, 0), 0))}
-                  </td>
-                </tr>
-              )}
-              {monthlyStrategy.months.length === 0 && (
-                <tr><td colSpan={monthlyStrategy.strategyList.length + 2} style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>No closed trades in this range</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                    <tr style={{ borderTop: '2px solid var(--border)' }}>
+                      <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)' }}>Total</td>
+                      {block.strategyList.map(s => (
+                        <td key={s} className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(stratTotal(s)) }}>{fmtDollar(stratTotal(s))}</td>
+                      ))}
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 800, color: pnlColor(grandTotal) }}>{fmtDollar(grandTotal)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
