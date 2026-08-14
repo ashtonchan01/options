@@ -6,6 +6,7 @@
  * time a panel is seen.
  */
 import { useEffect, useRef, useState } from 'react'
+import type { MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from 'react'
 
 const LS_PREFIX = 'options:panelSize:'
 const LS_WIDE_KEY = 'options:panelWide'
@@ -88,15 +89,70 @@ function loadWideSet(): Set<string> {
 export function useWideMap() {
   const [wideIds, setWideIds] = useState<Set<string>>(loadWideSet)
 
-  function toggleWide(id: string) {
+  function setWide(id: string, wide: boolean) {
     setWideIds(prev => {
+      if (prev.has(id) === wide) return prev
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (wide) next.add(id)
+      else next.delete(id)
       try { localStorage.setItem(LS_WIDE_KEY, JSON.stringify([...next])) } catch { /* ignore */ }
       return next
     })
   }
 
-  return { wideIds, toggleWide }
+  function toggleWide(id: string) {
+    setWide(id, !wideIds.has(id))
+  }
+
+  return { wideIds, toggleWide, setWide }
+}
+
+// Drag past this many horizontal pixels before the span flips — matches
+// World Monitor's Panel.ts step-based col-resize handle (COL_RESIZE_STEP_PX),
+// adapted to a binary own-column/both-columns span since our layout is a
+// fixed 2-column split rather than a 3+ column grid with intermediate spans.
+const COL_DRAG_THRESHOLD_PX = 60
+
+/** JS drag handle for the right edge, in the style of World Monitor's
+ * Panel.ts `colResizeHandle` (mousedown → track deltaX → mouseup persists),
+ * rather than a plain click-to-toggle button. Dragging the handle right past
+ * the threshold expands the panel to span both columns; dragging it back
+ * left past the threshold while already wide shrinks it back. */
+export function useColDragHandle(wide: boolean, onSetWide: (wide: boolean) => void) {
+  const [dragging, setDragging] = useState(false)
+
+  function startDrag(clientX: number) {
+    const startX = clientX
+    let flipped = wide
+    setDragging(true)
+
+    function handleMove(x: number) {
+      const deltaX = x - startX
+      const shouldBeWide = wide ? deltaX > -COL_DRAG_THRESHOLD_PX : deltaX > COL_DRAG_THRESHOLD_PX
+      if (shouldBeWide !== flipped) {
+        flipped = shouldBeWide
+        onSetWide(shouldBeWide)
+      }
+    }
+    function onMouseMove(e: MouseEvent) { handleMove(e.clientX) }
+    function onTouchMove(e: TouchEvent) { const t = e.touches[0]; if (t) handleMove(t.clientX) }
+    function stop() {
+      setDragging(false)
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', stop)
+      document.removeEventListener('touchmove', onTouchMove)
+      document.removeEventListener('touchend', stop)
+      document.removeEventListener('touchcancel', stop)
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', stop)
+    document.addEventListener('touchmove', onTouchMove, { passive: true })
+    document.addEventListener('touchend', stop)
+    document.addEventListener('touchcancel', stop)
+  }
+
+  const onMouseDown = (e: ReactMouseEvent) => { e.preventDefault(); startDrag(e.clientX) }
+  const onTouchStart = (e: ReactTouchEvent) => { const t = e.touches[0]; if (t) startDrag(t.clientX) }
+
+  return { dragging, onMouseDown, onTouchStart }
 }

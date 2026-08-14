@@ -1796,6 +1796,37 @@ body {
                      transparent 80%, var(--text-4) 80%, var(--text-4) 86%, transparent 86%);
   opacity: 0.7;
 }
+/* Right-edge drag handle for width — World-Monitor-style: a vertical grip
+   strip on the right border, separate from the corner height-resize grip,
+   dragged with JS (see ResizablePanel/useColDragHandle) rather than native
+   CSS resize since "width" here is really a binary own-column-vs-both-
+   columns span, not a free pixel value. */
+.dash-col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 7px;
+  cursor: col-resize;
+  z-index: 3;
+}
+.dash-col-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 28px;
+  border-radius: 2px;
+  background: var(--text-4);
+  opacity: 0.5;
+}
+.dash-col-resize-handle:hover::after,
+.dash-col-resize-handle.active::after {
+  opacity: 0.9;
+  background: var(--accent);
+}
 @media (max-width: 650px) {
   /* Collapse to one plain stacked column, full page scroll — the fixed
      left/scrolling-right split only makes sense with room for side-by-side
@@ -1806,8 +1837,8 @@ body {
   .dash-left-charts { flex: 0 0 128px; }
   .dash-right-cols { flex-direction: column; }
   /* No "wide" concept on a single mobile column — every panel is already
-     full width, so the toggle button would do nothing useful; hide it. */
-  .dash-right-cols-wrap button[title*="column"] { display: none; }
+     full width, so the drag handle would do nothing useful; hide it. */
+  .dash-col-resize-handle { display: none; }
   .dash-cell { width: 100% !important; height: auto !important; min-height: 260px; resize: none !important; }
 }
 /* auto-fill + a minmax floor: as many ~220px rectangular columns as fit the

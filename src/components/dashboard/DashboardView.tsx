@@ -31,7 +31,7 @@ const CHART_ONLY_SYMBOLS = ['ES=F']
 export default function DashboardView({ state }: { state: AppState }) {
   const [quotes, setQuotes] = useState<Record<string, MarketQuote>>({})
   const [now, setNow] = useState(() => new Date())
-  const { wideIds, toggleWide } = useWideMap()
+  const { wideIds, setWide } = useWideMap()
 
   useEffect(() => {
     let cancelled = false
@@ -73,7 +73,7 @@ export default function DashboardView({ state }: { state: AppState }) {
       <div className="dash-right-cols-wrap">
         {wideOnes.map(p => (
           <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
-            wide onToggleWide={() => toggleWide(p.id)}>
+            wide onSetWide={(w) => setWide(p.id, w)}>
             {p.node}
           </ResizablePanel>
         ))}
@@ -81,7 +81,7 @@ export default function DashboardView({ state }: { state: AppState }) {
           <div className="dash-right-col">
             {colA.filter(p => !wideIds.has(p.id)).map(p => (
               <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
-                onToggleWide={() => toggleWide(p.id)}>
+                onSetWide={(w) => setWide(p.id, w)}>
                 {p.node}
               </ResizablePanel>
             ))}
@@ -89,7 +89,7 @@ export default function DashboardView({ state }: { state: AppState }) {
           <div className="dash-right-col">
             {colB.filter(p => !wideIds.has(p.id)).map(p => (
               <ResizablePanel key={p.id} id={p.id} defaultWidth={460} defaultHeight={p.h} axis="vertical"
-                onToggleWide={() => toggleWide(p.id)}>
+                onSetWide={(w) => setWide(p.id, w)}>
                 {p.node}
               </ResizablePanel>
             ))}
