@@ -762,18 +762,28 @@ body {
    same column lands at a different x-position in every cell instead of
    lining up neatly across all of them. */
 .jr-strategy-cell table { table-layout: fixed; }
+/* Widths rebalanced (was 9/9/9/14/10/11/11/10/7/5/5) — %, DTE and P&L were
+   getting truncated to "-172…"/"85…"/"$9…" even though their values can run
+   just as long as Unrealised's, which had double their width. Position/Avg
+   Price/Cost Basis/Market Price gave up a little room; the numeric columns
+   most prone to long values (Unrealised, %, P&L) grew to match. */
 .jr-strategy-cell table th:nth-child(1),  .jr-strategy-cell table td:nth-child(1)  { width: 9%; }
 .jr-strategy-cell table th:nth-child(2),  .jr-strategy-cell table td:nth-child(2)  { width: 9%; }
-.jr-strategy-cell table th:nth-child(3),  .jr-strategy-cell table td:nth-child(3)  { width: 9%; }
-.jr-strategy-cell table th:nth-child(4),  .jr-strategy-cell table td:nth-child(4)  { width: 14%; }
-.jr-strategy-cell table th:nth-child(5),  .jr-strategy-cell table td:nth-child(5)  { width: 10%; }
-.jr-strategy-cell table th:nth-child(6),  .jr-strategy-cell table td:nth-child(6)  { width: 11%; }
-.jr-strategy-cell table th:nth-child(7),  .jr-strategy-cell table td:nth-child(7)  { width: 11%; }
+.jr-strategy-cell table th:nth-child(3),  .jr-strategy-cell table td:nth-child(3)  { width: 7%; }
+.jr-strategy-cell table th:nth-child(4),  .jr-strategy-cell table td:nth-child(4)  { width: 12%; }
+.jr-strategy-cell table th:nth-child(5),  .jr-strategy-cell table td:nth-child(5)  { width: 9%; }
+.jr-strategy-cell table th:nth-child(6),  .jr-strategy-cell table td:nth-child(6)  { width: 10%; }
+.jr-strategy-cell table th:nth-child(7),  .jr-strategy-cell table td:nth-child(7)  { width: 10%; }
 .jr-strategy-cell table th:nth-child(8),  .jr-strategy-cell table td:nth-child(8)  { width: 10%; }
-.jr-strategy-cell table th:nth-child(9),  .jr-strategy-cell table td:nth-child(9)  { width: 7%; }
-.jr-strategy-cell table th:nth-child(10), .jr-strategy-cell table td:nth-child(10) { width: 5%; }
-.jr-strategy-cell table th:nth-child(11), .jr-strategy-cell table td:nth-child(11) { width: 5%; }
+.jr-strategy-cell table th:nth-child(9),  .jr-strategy-cell table td:nth-child(9)  { width: 8%; }
+.jr-strategy-cell table th:nth-child(10), .jr-strategy-cell table td:nth-child(10) { width: 6%; }
+.jr-strategy-cell table th:nth-child(11), .jr-strategy-cell table td:nth-child(11) { width: 10%; }
+/* Tighter horizontal padding than the base .trade-table's 14px — at these
+   narrow percentage widths, the base padding alone was eating more space
+   than several columns had to give, which was the real driver of the
+   truncation (not just the percentages themselves). */
 .jr-strategy-cell table th, .jr-strategy-cell table td {
+  padding: 8px 6px;
   overflow: hidden; text-overflow: ellipsis;
 }
 
