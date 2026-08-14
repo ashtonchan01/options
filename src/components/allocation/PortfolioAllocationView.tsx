@@ -241,14 +241,14 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
   // maxes out at 100 and anything >=50 (not oversold) scores 0. Averaged
   // 50/50 so a ticker needs to be both cheap-vs-its-own-history AND
   // short-term oversold to rank highest, rather than either alone winning.
-  const recommendation = useMemo(() => {
-    if (actualTotal <= 0) return null
+  const recommendations = useMemo(() => {
+    if (actualTotal <= 0) return []
     const underweight = rows.filter(r => {
       if (r.high52 == null || r.price <= 0) return false
       const currentPct = r.actualValue / actualTotal * 100
       return r.targetPct - currentPct > 1 // at least 1 percentage point underweight
     })
-    if (underweight.length === 0) return null
+    if (underweight.length === 0) return []
     const scored = underweight.map(r => {
       const discountPct = (r.high52! - r.price) / r.high52! * 100
       const discountScore = Math.min(100, Math.max(0, discountPct / 40 * 100))
@@ -257,7 +257,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
       const score = hasRsi ? discountScore * 0.5 + oversoldScore * 0.5 : discountScore
       return { ...r, discountPct, oversoldScore, score }
     })
-    return scored.sort((a, b) => b.score - a.score)[0]
+    return scored.sort((a, b) => b.score - a.score).slice(0, 10)
   }, [rows, actualTotal])
 
   const gaps = [...rows]
@@ -300,38 +300,55 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
       {/* ── Recommendation ───────────────────────────────────────────────── */}
       <div className="panel" style={{ padding: '14px 18px' }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 8 }}>
-          NEXT BUY RECOMMENDATION
+          TOP 10 BUY RECOMMENDATIONS
         </div>
-        {!recommendation ? (
+        {recommendations.length === 0 ? (
           <div style={{ fontSize: 12, color: 'var(--text-4)' }}>
             {loading ? 'Loading quotes…' : 'No ticker is both meaningfully underweight and has 52-week-high data to compare — nothing stands out right now.'}
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            <TrendingDown size={22} style={{ color: '#10b981', flexShrink: 0 }} />
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{recommendation.symbol}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                {((recommendation.high52! - recommendation.price) / recommendation.high52! * 100).toFixed(0)}% below its 52-week high
-                (${recommendation.price.toFixed(2)} vs ${recommendation.high52!.toFixed(2)}){recommendation.rsi != null ? `, RSI ${recommendation.rsi.toFixed(0)}` : ''} — currently {(recommendation.actualValue / actualTotal * 100).toFixed(1)}% of your
-                portfolio vs a {recommendation.targetPct.toFixed(1)}% target share ({fmt$(recommendation.targetPct / 100 * actualTotal)} of your current {fmt$(actualTotal)} portfolio).
-              </div>
-              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 2 }}>
-                Mean-reversion score {recommendation.score.toFixed(0)}/100 — blends 52w-high discount with RSI oversold reading, so this is ranked against all underweight tickers by both signals, not discount alone.
-              </div>
-              {(() => {
-                const idealAtCurrentSize = recommendation.targetPct / 100 * actualTotal
-                const buyDollar = idealAtCurrentSize - recommendation.actualValue
-                const buyShares = recommendation.price > 0 ? Math.round(buyDollar / recommendation.price) : 0
-                return buyDollar > 0 && buyShares > 0 ? (
-                  <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 4, fontWeight: 600 }}>
-                    Buy ≈ {fmt$(buyDollar)} (~{buyShares.toLocaleString()} shares) to reach that share of your current portfolio.
+          <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+            {recommendations.map((rec, i) => {
+              const idealAtCurrentSize = rec.targetPct / 100 * actualTotal
+              const buyDollar = idealAtCurrentSize - rec.actualValue
+              const buyShares = rec.price > 0 ? Math.round(buyDollar / rec.price) : 0
+              return (
+                <div key={rec.symbol} style={{
+                  flex: '0 0 200px', minWidth: 200, padding: '10px 12px', borderRadius: 8,
+                  background: 'var(--bg-elevated)', border: i === 0 ? '1px solid #10b98160' : '1px solid var(--border-light)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 800, color: i === 0 ? '#10b981' : 'var(--text-4)',
+                      background: i === 0 ? '#10b98118' : 'var(--bg-card)', border: `1px solid ${i === 0 ? '#10b98140' : 'var(--border-light)'}`,
+                      borderRadius: 4, padding: '1px 6px', flexShrink: 0,
+                    }}>
+                      #{i + 1}
+                    </span>
+                    {i === 0 && <TrendingDown size={14} style={{ color: '#10b981', flexShrink: 0 }} />}
+                    <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{rec.symbol}</span>
                   </div>
-                ) : null
-              })()}
-            </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
+                    {rec.discountPct.toFixed(0)}% below 52w high{rec.rsi != null ? `, RSI ${rec.rsi.toFixed(0)}` : ''}
+                    <br />
+                    {(rec.actualValue / actualTotal * 100).toFixed(1)}% held vs {rec.targetPct.toFixed(1)}% target
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 4 }}>
+                    Score {rec.score.toFixed(0)}/100
+                  </div>
+                  {buyDollar > 0 && buyShares > 0 && (
+                    <div style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 4, fontWeight: 600 }}>
+                      Buy ≈ {fmt$(buyDollar)} (~{buyShares.toLocaleString()} sh)
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
+        <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 10 }}>
+          Score blends 52w-high discount with RSI oversold reading (50/50), so ranking needs a ticker to be both cheap-vs-its-own-history and short-term oversold, not either alone.
+        </div>
       </div>
 
       {/* ── Gap table ─────────────────────────────────────────────────────── */}
