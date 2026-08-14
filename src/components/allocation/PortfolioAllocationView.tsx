@@ -1,12 +1,13 @@
 /**
  * Portfolio Allocation — target $1M portfolio (per the user's stated bucket
  * percentages) vs what's actually held in IBKR (stock shares + LEAP call
- * notional shares), with side-by-side pie charts, a per-ticker gap table,
- * and a "next buy" recommendation based on which underweight ticker is
- * trading the furthest below its 52-week high.
+ * notional shares), with side-by-side pie charts and a per-ticker gap table.
+ * The gap table's "Buy Now" column and sort order surface the best mean-
+ * reversion buy first — a blend of 52w-high discount and RSI oversold
+ * reading for tickers that are meaningfully underweight their target.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { RefreshCw, TrendingDown, AlertTriangle } from 'lucide-react'
+import { RefreshCw, AlertTriangle } from 'lucide-react'
 import type { AppState } from '../../types'
 import { fetchQuotes, type Quote } from '../../services/quotes'
 import { fetchRSI } from '../../services/rsi'
@@ -241,28 +242,43 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
   // maxes out at 100 and anything >=50 (not oversold) scores 0. Averaged
   // 50/50 so a ticker needs to be both cheap-vs-its-own-history AND
   // short-term oversold to rank highest, rather than either alone winning.
-  const recommendations = useMemo(() => {
-    if (actualTotal <= 0) return []
-    const underweight = rows.filter(r => {
-      if (r.high52 == null || r.price <= 0) return false
+  // Score (and the $/shares to buy toward it) per ticker that's both
+  // meaningfully underweight and has 52w-high data — the mean-reversion
+  // blend of 52w-high discount and RSI oversold reading described above. Buy
+  // size is scaled to the CURRENT portfolio (not the fixed $1M target): the
+  // ideal dollar amount for this ticker's target % of what's actually held
+  // right now, so it doesn't demand buying up to a $1M-sized position on a
+  // much smaller account.
+  const buyRecMap = useMemo(() => {
+    const map = new Map<string, { score: number; discountPct: number; buyDollar: number; buyShares: number }>()
+    if (actualTotal <= 0) return map
+    for (const r of rows) {
+      if (r.high52 == null || r.price <= 0) continue
       const currentPct = r.actualValue / actualTotal * 100
-      return r.targetPct - currentPct > 1 // at least 1 percentage point underweight
-    })
-    if (underweight.length === 0) return []
-    const scored = underweight.map(r => {
-      const discountPct = (r.high52! - r.price) / r.high52! * 100
+      if (r.targetPct - currentPct <= 1) continue // not meaningfully underweight
+      const discountPct = (r.high52 - r.price) / r.high52 * 100
       const discountScore = Math.min(100, Math.max(0, discountPct / 40 * 100))
       const oversoldScore = r.rsi != null ? Math.min(100, Math.max(0, (50 - r.rsi) * 2)) : 0
-      const hasRsi = r.rsi != null
-      const score = hasRsi ? discountScore * 0.5 + oversoldScore * 0.5 : discountScore
-      return { ...r, discountPct, oversoldScore, score }
-    })
-    return scored.sort((a, b) => b.score - a.score).slice(0, 10)
+      const score = r.rsi != null ? discountScore * 0.5 + oversoldScore * 0.5 : discountScore
+      const idealAtCurrentSize = r.targetPct / 100 * actualTotal
+      const buyDollar = idealAtCurrentSize - r.actualValue
+      const buyShares = r.price > 0 ? Math.round(buyDollar / r.price) : 0
+      map.set(r.symbol, { score, discountPct, buyDollar, buyShares })
+    }
+    return map
   }, [rows, actualTotal])
 
+  // Best buys first (highest mean-reversion score), then everything else by
+  // plain target-vs-target-plan gap — so "what to buy first" leads the table
+  // instead of being a separate panel above it.
   const gaps = [...rows]
-    .map(r => ({ ...r, gap: r.targetValue - r.actualValue }))
-    .sort((a, b) => b.gap - a.gap)
+    .map(r => ({ ...r, gap: r.targetValue - r.actualValue, rec: buyRecMap.get(r.symbol) ?? null }))
+    .sort((a, b) => {
+      if (a.rec && b.rec) return b.rec.score - a.rec.score
+      if (a.rec) return -1
+      if (b.rec) return 1
+      return b.gap - a.gap
+    })
 
   return (
     <div className="jr-root">
@@ -297,60 +313,6 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
         </div>
       </div>
 
-      {/* ── Recommendation ───────────────────────────────────────────────── */}
-      <div className="panel" style={{ padding: '14px 18px' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 8 }}>
-          TOP 10 BUY RECOMMENDATIONS
-        </div>
-        {recommendations.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--text-4)' }}>
-            {loading ? 'Loading quotes…' : 'No ticker is both meaningfully underweight and has 52-week-high data to compare — nothing stands out right now.'}
-          </div>
-        ) : (
-          <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
-            {recommendations.map((rec, i) => {
-              const idealAtCurrentSize = rec.targetPct / 100 * actualTotal
-              const buyDollar = idealAtCurrentSize - rec.actualValue
-              const buyShares = rec.price > 0 ? Math.round(buyDollar / rec.price) : 0
-              return (
-                <div key={rec.symbol} style={{
-                  flex: '0 0 200px', minWidth: 200, padding: '10px 12px', borderRadius: 8,
-                  background: 'var(--bg-elevated)', border: i === 0 ? '1px solid #10b98160' : '1px solid var(--border-light)',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <span style={{
-                      fontSize: 10, fontWeight: 800, color: i === 0 ? '#10b981' : 'var(--text-4)',
-                      background: i === 0 ? '#10b98118' : 'var(--bg-card)', border: `1px solid ${i === 0 ? '#10b98140' : 'var(--border-light)'}`,
-                      borderRadius: 4, padding: '1px 6px', flexShrink: 0,
-                    }}>
-                      #{i + 1}
-                    </span>
-                    {i === 0 && <TrendingDown size={14} style={{ color: '#10b981', flexShrink: 0 }} />}
-                    <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{rec.symbol}</span>
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
-                    {rec.discountPct.toFixed(0)}% below 52w high{rec.rsi != null ? `, RSI ${rec.rsi.toFixed(0)}` : ''}
-                    <br />
-                    {(rec.actualValue / actualTotal * 100).toFixed(1)}% held vs {rec.targetPct.toFixed(1)}% target
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 4 }}>
-                    Score {rec.score.toFixed(0)}/100
-                  </div>
-                  {buyDollar > 0 && buyShares > 0 && (
-                    <div style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 4, fontWeight: 600 }}>
-                      Buy ≈ {fmt$(buyDollar)} (~{buyShares.toLocaleString()} sh)
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-        <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 10 }}>
-          Score blends 52w-high discount with RSI oversold reading (50/50), so ranking needs a ticker to be both cheap-vs-its-own-history and short-term oversold, not either alone.
-        </div>
-      </div>
-
       {/* ── Gap table ─────────────────────────────────────────────────────── */}
       {/* flex:1 (not a fixed height) — fills whatever's left below the pies
           and recommendation panel instead of stopping at a fixed 50vh and
@@ -376,6 +338,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
                 <th style={{ textAlign: 'right' }}>Actual $</th>
                 <th style={{ textAlign: 'right' }}>Gap $</th>
                 <th style={{ textAlign: 'right' }}>Shares to Buy/Sell</th>
+                <th style={{ textAlign: 'right' }} title="Mean-reversion buy size — 52w-high discount blended with RSI oversold reading, scaled to your current portfolio size (not the $1M target). Table is sorted by this: best buy first.">Buy Now</th>
               </tr>
             </thead>
             <tbody>
@@ -392,11 +355,13 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
                   {fmt$(targetCash - actualCash)}
                 </td>
                 <td className="mono" style={{ textAlign: 'right' }}>—</td>
+                <td className="mono" style={{ textAlign: 'right' }}>—</td>
               </tr>
-              {gaps.map(r => {
+              {gaps.map((r, i) => {
                 const sharesDelta = r.price > 0 ? Math.round(r.gap / r.price) : 0
+                const isTopPick = i === 0 && !!r.rec
                 return (
-                  <tr key={r.symbol}>
+                  <tr key={r.symbol} style={isTopPick ? { background: '#10b98110' } : undefined}>
                     <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>
                       <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: r.color, marginRight: 6 }} />
                       {r.symbol}
@@ -416,6 +381,11 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
                     <td className={`mono ${r.gap > 0 ? 'pos' : r.gap < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right', fontWeight: 700 }}>{fmt$(r.gap)}</td>
                     <td className="mono" style={{ textAlign: 'right', color: sharesDelta > 0 ? '#10b981' : sharesDelta < 0 ? '#ef4444' : 'var(--text-4)' }}>
                       {sharesDelta > 0 ? `Buy ${sharesDelta}` : sharesDelta < 0 ? `Sell ${-sharesDelta}` : '—'}
+                    </td>
+                    <td className="mono" style={{ textAlign: 'right', fontWeight: isTopPick ? 800 : 600, color: r.rec && r.rec.buyDollar > 0 ? '#10b981' : 'var(--text-4)' }}>
+                      {r.rec && r.rec.buyDollar > 0 && r.rec.buyShares > 0
+                        ? `${fmt$(r.rec.buyDollar)} (${r.rec.buyShares.toLocaleString()} sh)`
+                        : '—'}
                     </td>
                   </tr>
                 )
