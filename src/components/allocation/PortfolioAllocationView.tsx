@@ -6,7 +6,7 @@
  * reversion buy first — a blend of 52w-high discount and RSI oversold
  * reading for tickers that are meaningfully underweight their target.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { RefreshCw, AlertTriangle } from 'lucide-react'
 import type { AppState } from '../../types'
 import { fetchQuotes, type Quote } from '../../services/quotes'
@@ -142,6 +142,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
   const [quotes, setQuotes] = useState<Record<string, Quote>>({})
   const [rsiData, setRsiData] = useState<Record<string, { rsi: number }>>({})
   const [loading, setLoading] = useState(false)
+  const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null)
 
   const liveSymbols = useMemo(() => TARGETS.map(t => t.symbol).filter(s => s !== 'SPCX'), [])
 
@@ -328,6 +329,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
           <table className="trade-table jr-gap-table" style={{ width: '100%', fontSize: 12 }}>
             <thead>
               <tr>
+                <th style={{ textAlign: 'right' }} title="Buy priority rank — #1 is the best mean-reversion buy right now.">#</th>
                 <th>Ticker</th>
                 <th style={{ textAlign: 'right' }}>Price</th>
                 <th style={{ textAlign: 'right' }}>Target %</th>
@@ -343,6 +345,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
             </thead>
             <tbody>
               <tr>
+                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-4)' }}>—</td>
                 <td className="mono" style={{ fontWeight: 700 }}>CASH</td>
                 <td className="mono" style={{ textAlign: 'right' }}>—</td>
                 <td className="mono" style={{ textAlign: 'right' }}>{CASH_PCT.toFixed(1)}%</td>
@@ -360,34 +363,57 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
               {gaps.map((r, i) => {
                 const sharesDelta = r.price > 0 ? Math.round(r.gap / r.price) : 0
                 const isTopPick = i === 0 && !!r.rec
+                const isExpanded = expandedSymbol === r.symbol
                 return (
-                  <tr key={r.symbol} style={isTopPick ? { background: '#10b98110' } : undefined}>
-                    <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>
-                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: r.color, marginRight: 6 }} />
-                      {r.symbol}
-                    </td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{r.price > 0 ? `$${r.price.toFixed(2)}` : (loading ? '…' : '—')}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{r.targetPct.toFixed(1)}%</td>
-                    <td className="mono" style={{ textAlign: 'right', color: actualTotal > 0 && r.targetPct - (r.actualValue / actualTotal * 100) > 1 ? '#ef4444' : undefined }}>
-                      {actualTotal > 0 ? `${(r.actualValue / actualTotal * 100).toFixed(1)}%` : '—'}
-                    </td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{r.targetShares.toLocaleString()}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{fmt$(r.targetValue)}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>
-                      {r.actualShares.toLocaleString()}
-                      {r.actualLeapContracts > 0 && <span style={{ color: 'var(--text-4)' }}> (+{r.actualLeapContracts.toLocaleString()} LEAP ct.)</span>}
-                    </td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{fmt$(r.actualValue)}</td>
-                    <td className={`mono ${r.gap > 0 ? 'pos' : r.gap < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right', fontWeight: 700 }}>{fmt$(r.gap)}</td>
-                    <td className="mono" style={{ textAlign: 'right', color: sharesDelta > 0 ? '#10b981' : sharesDelta < 0 ? '#ef4444' : 'var(--text-4)' }}>
-                      {sharesDelta > 0 ? `Buy ${sharesDelta}` : sharesDelta < 0 ? `Sell ${-sharesDelta}` : '—'}
-                    </td>
-                    <td className="mono" style={{ textAlign: 'right', fontWeight: isTopPick ? 800 : 600, color: r.rec && r.rec.buyDollar > 0 ? '#10b981' : 'var(--text-4)' }}>
-                      {r.rec && r.rec.buyDollar > 0 && r.rec.buyShares > 0
-                        ? `${fmt$(r.rec.buyDollar)} (${r.rec.buyShares.toLocaleString()} sh)`
-                        : '—'}
-                    </td>
-                  </tr>
+                  <Fragment key={r.symbol}>
+                    <tr
+                      onClick={() => r.rec && setExpandedSymbol(isExpanded ? null : r.symbol)}
+                      style={{
+                        ...(isTopPick ? { background: '#10b98110' } : {}),
+                        cursor: r.rec ? 'pointer' : undefined,
+                      }}
+                    >
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: isTopPick ? 800 : 600, color: r.rec ? (isTopPick ? '#10b981' : 'var(--text-3)') : 'var(--text-4)' }}>
+                        {r.rec ? `#${i + 1}` : '—'}
+                      </td>
+                      <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>
+                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: r.color, marginRight: 6 }} />
+                        {r.symbol}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{r.price > 0 ? `$${r.price.toFixed(2)}` : (loading ? '…' : '—')}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{r.targetPct.toFixed(1)}%</td>
+                      <td className="mono" style={{ textAlign: 'right', color: actualTotal > 0 && r.targetPct - (r.actualValue / actualTotal * 100) > 1 ? '#ef4444' : undefined }}>
+                        {actualTotal > 0 ? `${(r.actualValue / actualTotal * 100).toFixed(1)}%` : '—'}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{r.targetShares.toLocaleString()}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{fmt$(r.targetValue)}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>
+                        {r.actualShares.toLocaleString()}
+                        {r.actualLeapContracts > 0 && <span style={{ color: 'var(--text-4)' }}> (+{r.actualLeapContracts.toLocaleString()} LEAP ct.)</span>}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{fmt$(r.actualValue)}</td>
+                      <td className={`mono ${r.gap > 0 ? 'pos' : r.gap < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right', fontWeight: 700 }}>{fmt$(r.gap)}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: sharesDelta > 0 ? '#10b981' : sharesDelta < 0 ? '#ef4444' : 'var(--text-4)' }}>
+                        {sharesDelta > 0 ? `Buy ${sharesDelta}` : sharesDelta < 0 ? `Sell ${-sharesDelta}` : '—'}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: isTopPick ? 800 : 600, color: r.rec && r.rec.buyDollar > 0 ? '#10b981' : 'var(--text-4)' }}>
+                        {r.rec && r.rec.buyDollar > 0 && r.rec.buyShares > 0
+                          ? `${fmt$(r.rec.buyDollar)} (${r.rec.buyShares.toLocaleString()} sh)`
+                          : '—'}
+                      </td>
+                    </tr>
+                    {isExpanded && r.rec && (
+                      <tr>
+                        <td colSpan={12} style={{ background: 'var(--bg-elevated)', padding: '10px 18px', fontSize: 11.5, color: 'var(--text-2)', lineHeight: 1.7 }}>
+                          <b style={{ color: 'var(--text-1)' }}>Why {r.symbol} is ranked #{i + 1}:</b>{' '}
+                          It's {r.rec.discountPct.toFixed(0)}% below its 52-week high (${r.price.toFixed(2)} vs ${r.high52!.toFixed(2)}){r.rsi != null ? `, and its RSI of ${r.rsi.toFixed(0)} means it's ${r.rsi < 50 ? 'currently oversold short-term' : 'not currently oversold short-term'}` : ' (no RSI data available, so only the 52w-high discount counts toward its score)'}.
+                          It's also {((r.targetPct - (r.actualValue / actualTotal * 100))).toFixed(1)} percentage points underweight its target ({(r.actualValue / actualTotal * 100).toFixed(1)}% held vs {r.targetPct.toFixed(1)}% target).
+                          Its mean-reversion score is {r.rec.score.toFixed(0)}/100 — a 50/50 blend of the 52w-high discount and the RSI oversold reading, so it needs to be both cheap-vs-its-own-history and short-term oversold to rank highly, not either alone.
+                          To bring it to its target share of your current {fmt$(actualTotal)} portfolio: buy ≈ {fmt$(r.rec.buyDollar)} (~{r.rec.buyShares.toLocaleString()} shares).
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 )
               })}
             </tbody>
