@@ -386,7 +386,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
                       <td className="mono" style={{ textAlign: 'right', fontWeight: isTopPick ? 800 : 600, color: r.rec ? (isTopPick ? '#10b981' : 'var(--text-3)') : 'var(--text-4)' }}>
                         {r.rec ? `#${i + 1}` : '—'}
                       </td>
-                      <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>
+                      <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>
                         <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: r.color, marginRight: 6 }} />
                         {r.symbol}
                       </td>

@@ -1427,11 +1427,21 @@ body {
      just a cramped table. Full height, part of the page's own scroll. */
   .jr-gap-table-panel { flex: none !important; overflow: visible !important; height: auto !important; }
   .jr-gap-table-scroll { flex: none !important; overflow-y: visible !important; overflow-x: auto !important; }
-  /* Wide gap table (10 columns) can't fit a phone screen — pin the Ticker
-     column so it stays visible while the rest scrolls horizontally, instead
-     of scrolling off and leaving unlabeled numbers. */
+  /* Wide gap table (12 columns, since the buy-priority rank column was
+     added) can't fit a phone screen — pin the rank AND Ticker columns
+     together so the row stays identifiable while the rest scrolls
+     horizontally. Ticker alone used to be first-child and get this
+     treatment; the rank column added in front of it silently took over
+     :first-child, leaving Ticker (the actually useful label) scrolling off
+     — a fixed width on the rank column lets Ticker's sticky offset be
+     pinned right next to it instead of just re-targeting one or the other. */
   .jr-gap-table th:first-child, .jr-gap-table td:first-child {
-    position: sticky; left: 0; z-index: 1;
+    position: sticky; left: 0; z-index: 2;
+    background: var(--bg-card);
+    width: 28px; min-width: 28px; max-width: 28px;
+  }
+  .jr-gap-table th:nth-child(2), .jr-gap-table td:nth-child(2) {
+    position: sticky; left: 28px; z-index: 1;
     background: var(--bg-card);
     box-shadow: 1px 0 0 var(--border);
   }
