@@ -1796,36 +1796,48 @@ body {
                      transparent 80%, var(--text-4) 80%, var(--text-4) 86%, transparent 86%);
   opacity: 0.7;
 }
-/* Right-edge drag handle for width — World-Monitor-style: a vertical grip
-   strip on the right border, separate from the corner height-resize grip,
-   dragged with JS (see ResizablePanel/useColDragHandle) rather than native
-   CSS resize since "width" here is really a binary own-column-vs-both-
-   columns span, not a free pixel value. */
+/* Right-edge drag handle for width — matches World Monitor's
+   panel-col-resize-handle exactly (20px hit area, ⋮ dot glyph, gradient
+   highlight on hover/active) rather than a free pixel value, since "width"
+   here is really a binary own-column-vs-both-columns span, not a
+   continuously resizable box; see ResizablePanel/useColDragHandle. */
 .dash-col-resize-handle {
   position: absolute;
   top: 0;
-  right: -3px;
+  right: 0;
   bottom: 0;
-  width: 7px;
-  cursor: col-resize;
-  z-index: 3;
+  width: 20px;
+  cursor: ew-resize;
+  background: linear-gradient(to left, var(--accent-dim), transparent);
+  opacity: 0;
+  z-index: 100;
+  transition: opacity 0.2s, background 0.2s;
+  touch-action: none;
+  user-select: none;
+}
+.dash-cell:hover .dash-col-resize-handle {
+  opacity: 1;
+}
+.dash-col-resize-handle:hover,
+.dash-col-resize-handle.active {
+  background: linear-gradient(to left, var(--accent), transparent);
+  opacity: 1;
 }
 .dash-col-resize-handle::after {
-  content: '';
+  content: '⋮';
   position: absolute;
+  right: 3px;
   top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 3px;
-  height: 28px;
-  border-radius: 2px;
-  background: var(--text-4);
-  opacity: 0.5;
+  transform: translateY(-50%);
+  font-size: 16px;
+  letter-spacing: 2px;
+  line-height: 1;
+  color: var(--text-4);
+  transition: color 0.2s;
 }
 .dash-col-resize-handle:hover::after,
 .dash-col-resize-handle.active::after {
-  opacity: 0.9;
-  background: var(--accent);
+  color: var(--accent);
 }
 @media (max-width: 650px) {
   /* Collapse to one plain stacked column, full page scroll — the fixed
