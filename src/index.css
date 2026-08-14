@@ -1745,6 +1745,12 @@ body {
 }
 .dash-left-map      { flex: 1; min-height: 0; }
 .dash-left-charts   { flex: 0 0 128px; }
+/* Single shared scrollbar for the whole right side — World-Monitor-style —
+   covering both the two columns AND any "wide" panel (see useWideMap)
+   stacked above them, rather than scrolling just the two-column area. A
+   wide panel used to sit outside the old scroll container (dash-right-cols)
+   and never moved when the rest of the page scrolled; moving overflow-y up
+   to this wrapper fixes that. */
 .dash-right-cols-wrap {
   flex: 3 1 0;
   min-width: 0;
@@ -1752,21 +1758,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
-/* A "wide" panel (see useWideMap) renders here, above the two columns,
-   sized to the whole right side's width instead of just one column's. */
-.dash-right-cols-wrap > .dash-resizable { width: 100% !important; }
-/* Both columns scroll together as one unit (single shared scrollbar) —
-   World-Monitor-style — rather than each column scrolling independently.
-   The scroll container is this wrapper, not the individual columns. */
+/* A "wide" panel renders here, above the two columns, sized to the whole
+   right side's width instead of just one column's. */
+.dash-right-cols-wrap > .dash-resizable { width: 100% !important; flex: 0 0 auto; }
 .dash-right-cols {
-  flex: 1 1 0;
+  flex: 0 0 auto;
   min-width: 0;
   display: flex;
   gap: 6px;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
 }
 .dash-right-col {
   flex: 1;
