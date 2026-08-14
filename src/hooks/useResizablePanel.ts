@@ -24,6 +24,9 @@ function saveSize(id: string, w: number, h: number) {
   try { localStorage.setItem(LS_PREFIX + id, JSON.stringify({ w, h })) } catch { /* ignore */ }
 }
 
+const AUTO_FIT_MIN = 160
+const AUTO_FIT_MAX = 900
+
 /** `axis: 'vertical'` — for panels stacked in an independently-scrolling
  * column, only height should be user-resizable; width tracking the
  * column's own width (not stored) is what keeps the column a fixed,
@@ -31,12 +34,18 @@ function saveSize(id: string, w: number, h: number) {
 export function useResizablePanel(id: string, defaultWidth: number, defaultHeight: number, axis: 'both' | 'vertical' = 'both') {
   const ref = useRef<HTMLDivElement>(null)
   const stored = loadSize(id)
+  // Consumed once by the ResizeObserver below: set right before the auto-fit
+  // effect writes a height, so that write doesn't get mistaken for a user
+  // drag and permanently persisted — without this, the very first auto-fit
+  // adjustment saves itself as a "stored" size and disables auto-fit forever.
+  const autoFitting = useRef(false)
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
     let timer: ReturnType<typeof setTimeout> | undefined
     const ro = new ResizeObserver(([entry]) => {
+      if (autoFitting.current) { autoFitting.current = false; return }
       const { width, height } = entry.contentRect
       if (width <= 0 || height <= 0) return
       clearTimeout(timer)
@@ -47,6 +56,40 @@ export function useResizablePanel(id: string, defaultWidth: number, defaultHeigh
     ro.observe(el)
     return () => { ro.disconnect(); clearTimeout(timer) }
   }, [id])
+
+  // Most panels' hand-picked `defaultHeight` happens to roughly match their
+  // (largely static) content, so they render at "full height with the
+  // content" already. Panels whose content size actually varies — a
+  // followed-ticker headline grid chief among them — don't: the fixed
+  // default either crops real content behind a scrollbar or leaves a slab
+  // of empty space. This re-measures the panel's true (unclamped) content
+  // height whenever its DOM changes (data load, ticker list edits, etc.)
+  // and grows/shrinks the box to match, clamped to a sane range — but only
+  // until the user manually drags a handle, at which point a stored size
+  // exists and this stops touching it permanently.
+  useEffect(() => {
+    if (axis !== 'vertical') return
+    const el = ref.current
+    if (!el) return
+
+    function fit() {
+      if (loadSize(id)) return // user has since set an explicit size — never override it
+      const prevHeight = el!.style.height
+      el!.style.height = 'auto'
+      const natural = el!.scrollHeight
+      el!.style.height = prevHeight
+      const clamped = Math.max(AUTO_FIT_MIN, Math.min(AUTO_FIT_MAX, natural))
+      if (Math.abs(clamped - el!.getBoundingClientRect().height) > 2) {
+        autoFitting.current = true
+        el!.style.height = `${clamped}px`
+      }
+    }
+
+    fit()
+    const mo = new MutationObserver(fit)
+    mo.observe(el, { childList: true, subtree: true, characterData: true })
+    return () => mo.disconnect()
+  }, [id, axis])
 
   return {
     ref,
