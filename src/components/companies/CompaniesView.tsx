@@ -252,7 +252,15 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
         </div>
       </div>
 
-      <div className="cc-section cc-table-section" style={{ flexShrink: 1 }}>
+      {/* flex:'0 0 auto' (not flex:1) — this table now has the Monthly
+          Income blocks stacked below it, which also need real space. A
+          flex:1/min-height:0 item shrinks below its own content height
+          whenever siblings need room too (flexbox satisfies the fixed
+          .jr-root height by shrinking flexible children before it lets the
+          container scroll) — sizing to natural content here and letting
+          .jr-root's own overflow-y:auto handle the whole page's scroll is
+          what actually keeps every section fully visible. */}
+      <div className="cc-section cc-table-section" style={{ flex: '0 0 auto', minHeight: 'auto' }}>
         <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
           <table className="trade-table jr-companies-table" style={{ fontSize: 13 }}>
             <thead>
@@ -301,7 +309,14 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.05em', margin: '2px 0' }}>
               {block.label.toUpperCase()}
             </div>
-            <div className="cc-section cc-table-section" style={{ flexShrink: 1 }}>
+            {/* flex:'0 0 auto' (not the inherited flex:1) — these FY blocks
+                must size to their own content, not compete with the
+                companies table above for the fixed .jr-root column's
+                growable space. Three flex:1 siblings splitting one fixed
+                height squeezes each other toward 0; only the companies
+                table (which should actually fill leftover space) keeps
+                flex:1. */}
+            <div className="cc-section cc-table-section" style={{ flex: '0 0 auto', minHeight: 'auto' }}>
               <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
                 <table className="trade-table jr-companies-table" style={{ fontSize: 13 }}>
                   <thead>

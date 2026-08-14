@@ -54,13 +54,11 @@ export function useResizablePanel(id: string, defaultWidth: number, defaultHeigh
       ? {
         width: '100%',
         height: stored?.h ?? defaultHeight,
-        resize: 'vertical' as const,
-        // 'auto' (not 'hidden') — Safari's support for `resize` on
-        // non-textarea elements has historically been flakier with
-        // overflow:hidden specifically; 'auto' is the value every browser
-        // reliably shows/enables the drag handle for. The inner .dash-panel
-        // already manages its own internal scrolling, so this rarely
-        // actually needs to scroll itself.
+        // JS drag handle (dash-row-resize-handle, below) replaces native
+        // `resize` — a full-width 20px bottom bar is a far easier target
+        // than the browser's own resize affordance, which only lives in a
+        // ~15px corner nub.
+        resize: 'none' as const,
         overflow: 'auto' as const,
         flex: '0 0 auto' as const,
       }
@@ -72,6 +70,50 @@ export function useResizablePanel(id: string, defaultWidth: number, defaultHeigh
         flex: '0 0 auto' as const,
       },
   }
+}
+
+/** JS drag handle for the bottom edge — the row-height twin of
+ * `useColDragHandle`, but continuous rather than threshold-flipped: our
+ * panels have a free-form pixel height (persisted via the ResizeObserver in
+ * `useResizablePanel` above, which watches the same element), so dragging
+ * can just track the cursor directly instead of snapping to discrete steps.
+ * Writes straight to the element's inline height — the existing
+ * ResizeObserver + debounced localStorage save picks it up for free. */
+export function useRowDragHandle(elRef: React.RefObject<HTMLElement | null>) {
+  const [dragging, setDragging] = useState(false)
+
+  function startDrag(clientY: number) {
+    const el = elRef.current
+    if (!el) return
+    const startY = clientY
+    const startHeight = el.getBoundingClientRect().height
+    setDragging(true)
+
+    function handleMove(y: number) {
+      const next = Math.max(120, Math.round(startHeight + (y - startY)))
+      el!.style.height = `${next}px`
+    }
+    function onMouseMove(e: MouseEvent) { handleMove(e.clientY) }
+    function onTouchMove(e: TouchEvent) { const t = e.touches[0]; if (t) handleMove(t.clientY) }
+    function stop() {
+      setDragging(false)
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', stop)
+      document.removeEventListener('touchmove', onTouchMove)
+      document.removeEventListener('touchend', stop)
+      document.removeEventListener('touchcancel', stop)
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', stop)
+    document.addEventListener('touchmove', onTouchMove, { passive: false })
+    document.addEventListener('touchend', stop)
+    document.addEventListener('touchcancel', stop)
+  }
+
+  const onMouseDown = (e: ReactMouseEvent) => { e.preventDefault(); startDrag(e.clientY) }
+  const onTouchStart = (e: ReactTouchEvent) => { const t = e.touches[0]; if (t) startDrag(t.clientY) }
+
+  return { dragging, onMouseDown, onTouchStart }
 }
 
 function loadWideSet(): Set<string> {
