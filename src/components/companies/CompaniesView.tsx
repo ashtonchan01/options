@@ -11,15 +11,9 @@ import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
 import { buildJournalPositions, buildStockPositions, type JournalPosition } from '../../engine/journal'
 
-function fmt(n: number, digits = 0): string {
-  const abs = Math.abs(n)
-  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
-  if (abs >= 1_000)     return `${(n / 1_000).toFixed(1)}K`
-  return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
-}
 function fmtDollar(n: number): string {
   const sign = n < 0 ? '-' : ''
-  return `${sign}$${fmt(Math.abs(n))}`
+  return `${sign}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 function pnlColor(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'var(--text-4)' }
 
