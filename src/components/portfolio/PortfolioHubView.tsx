@@ -76,45 +76,56 @@ export default function PortfolioHubView({ state, tradeLabels }: { state: AppSta
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div style={{ flex: '0 0 auto', padding: '20px 24px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div className="ph-tabgroup">
-          {ENTITY_TABS.map(t => (
-            <button
-              key={t.id}
-              className={`ph-tab${entity === t.id ? ' active' : ''}`}
-              onClick={() => setEntity(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      <div style={{ flex: '0 0 auto', padding: '20px 24px 0' }}>
+        <div className="ph-nest">
+          <div className="ph-tabrow">
+            <span className="ph-tabrow-label">Account</span>
+            <div className="ph-tabgroup">
+              {ENTITY_TABS.map(t => (
+                <button
+                  key={t.id}
+                  className={`ph-tab${entity === t.id ? ' active' : ''}`}
+                  onClick={() => setEntity(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        {entity !== 'summary' && (
-          <>
-            <div className="ph-tabgroup">
-              {BROKER_TABS.map(t => (
-                <button
-                  key={t.id}
-                  className={`ph-tab${broker === t.id ? ' active' : ''}`}
-                  onClick={() => setBroker(t.id)}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-            <div className="ph-tabgroup">
-              {SECTION_TABS.map(t => (
-                <button
-                  key={t.id}
-                  className={`ph-tab${section === t.id ? ' active' : ''}`}
-                  onClick={() => setSection(t.id)}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+          {entity !== 'summary' && (
+            <>
+              <div className="ph-tabrow">
+                <span className="ph-tabrow-label">Broker</span>
+                <div className="ph-tabgroup">
+                  {BROKER_TABS.map(t => (
+                    <button
+                      key={t.id}
+                      className={`ph-tab${broker === t.id ? ' active' : ''}`}
+                      onClick={() => setBroker(t.id)}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="ph-tabrow">
+                <span className="ph-tabrow-label">Section</span>
+                <div className="ph-tabgroup">
+                  {SECTION_TABS.map(t => (
+                    <button
+                      key={t.id}
+                      className={`ph-tab${section === t.id ? ' active' : ''}`}
+                      onClick={() => setSection(t.id)}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {entity === 'summary' ? (

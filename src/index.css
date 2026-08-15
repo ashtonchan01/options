@@ -882,6 +882,34 @@ body {
 .tl-filter-chip:hover { border-color: var(--text-3); color: var(--text-2); }
 .tl-filter-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
+/* Enclosing panel for the Portfolio hub's whole Personal/Business/Broker/
+   Section hierarchy — a bordered card the tab rows sit inside, so the 3
+   levels read as one nested drill-down rather than rows of buttons
+   floating loose on the page background. */
+.ph-nest {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ph-tabrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ph-tabrow-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-4);
+  width: 64px;
+  flex-shrink: 0;
+}
+
 /* Segmented, sharp-edged tab group (World Monitor-style timeframe selector)
    — used for the Portfolio hub's Personal/Business/Broker/Section
    hierarchy instead of separate rounded pill chips, which read as a messy
