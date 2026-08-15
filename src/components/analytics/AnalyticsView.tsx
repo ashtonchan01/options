@@ -484,7 +484,7 @@ function pnlColor(n: number) { return n >= 0 ? '#10b981' : '#ef4444' }
 /** All derived portfolio figures used across the Portfolio tab and the individual
  * Dashboard analytics cards — kept in one place so every consumer agrees on the
  * same numbers (realized P&L rules, strategy ordering, allocation grouping, etc). */
-function derivePortfolio(state: AppState) {
+export function derivePortfolio(state: AppState) {
   const { positions, trades, cashBalance, netLiquidation } = state.sync
 
   const stocks  = positions.filter(p => p.assetClass === 'STK')
