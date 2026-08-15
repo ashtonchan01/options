@@ -12,7 +12,7 @@ import { parseGenericCsvTrades } from '../services/genericCsvImport'
 import { parseXlsxTrades } from '../services/xlsxImport'
 import { parsePdfTrades } from '../services/pdfImport'
 
-export const REPORT_ACCOUNT_IDS = ['company_ibkr', 'personal_moomoo'] as const
+export const REPORT_ACCOUNT_IDS = ['company_ibkr', 'personal_moomoo', 'business_moomoo'] as const
 export type ReportAccountId = typeof REPORT_ACCOUNT_IDS[number]
 
 interface StoredAccount {

@@ -5,26 +5,24 @@
  */
 import { useState, useRef } from 'react'
 import {
-  LayoutDashboard, Briefcase, Radar, BookOpen, CalendarDays, FileText,
+  LayoutDashboard, Briefcase, Radar,
   Menu, X, RefreshCw, Upload, Settings,
   Sun, Moon, LogOut, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
 
-export const TAB_IDS = ['dashboard', 'calendar', 'journal', 'reports', 'portfolio', 'scanner'] as const
+export const TAB_IDS = ['dashboard', 'portfolio', 'scanner'] as const
 export type TabId = typeof TAB_IDS[number]
 
-/* Ids match their labels — 'calendar' is now the duplicated Journal-style
- * page (KPIs + Calendar embed + Trade Journal), 'reports' is the original
- * Calendar + Companies tab (renamed from 'calendar'), 'portfolio' is the
- * target-vs-actual allocation tab. No persisted state references the old
- * ids, so this is a plain rename with nothing to migrate. */
+/* Only 3 top-level pages now: Dashboard (account-agnostic overview/market
+ * news), Portfolio (everything account-specific — Personal/Business ->
+ * IBKR/Moomoo -> Calendar/Journal/Reports/Allocation, plus a cross-account
+ * Summary — lives inside PortfolioHubView), and Scanner. Calendar/Journal/
+ * Reports/the old flat Portfolio(Allocation) tab all moved inside Portfolio
+ * as of the personal/business hierarchy rework. */
 const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={17} /> },
-  { id: 'calendar',  label: 'Calendar',  icon: <CalendarDays size={17} /> },
-  { id: 'journal',   label: 'Journal',   icon: <BookOpen size={17} /> },
-  { id: 'reports',   label: 'Reports',   icon: <FileText size={17} /> },
   { id: 'portfolio', label: 'Portfolio', icon: <Briefcase size={17} /> },
   { id: 'scanner',   label: 'Scanner',   icon: <Radar size={17} /> },
 ]
