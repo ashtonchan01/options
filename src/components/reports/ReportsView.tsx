@@ -1,9 +1,8 @@
 /**
- * Reports tab — per-account company breakdowns (Companies, Personal IBKR,
- * Company IBKR, Personal Moomoo), each reusing CompaniesView (which already
- * has its own FY filter — All Time / previous FY / current FY). The two
- * non-primary accounts have no live sync, so each gets its own statement
- * upload instead.
+ * Reports tab — per-account company breakdowns (Personal IBKR, Company
+ * IBKR, Personal Moomoo), each reusing CompaniesView (which already has its
+ * own FY filter — All Time / previous FY / current FY). The two non-primary
+ * accounts have no live sync, so each gets its own statement upload instead.
  */
 import { useRef, useState } from 'react'
 import { Upload, Trash2 } from 'lucide-react'
@@ -14,10 +13,9 @@ import { useReportAccount, type ReportAccountId } from '../../store/reportAccoun
 
 type ReportAccount = ReturnType<typeof useReportAccount>
 
-type ReportTabId = 'companies' | 'personal_ibkr' | ReportAccountId
+type ReportTabId = 'personal_ibkr' | ReportAccountId
 
 const TABS: { id: ReportTabId; label: string }[] = [
-  { id: 'companies', label: 'Companies' },
   { id: 'personal_ibkr', label: 'Personal IBKR Account' },
   { id: 'company_ibkr', label: 'Company IBKR Account' },
   { id: 'personal_moomoo', label: 'Personal Moomoo Account' },
@@ -90,18 +88,12 @@ function AccountUploadBar({ label, account }: { label: string; account: ReportAc
 }
 
 export default function ReportsView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
-  const [tab, setTab] = useState<ReportTabId>('companies')
+  const [tab, setTab] = useState<ReportTabId>('personal_ibkr')
   const companyIbkr = useReportAccount('company_ibkr')
   const personalMoomoo = useReportAccount('personal_moomoo')
 
   const companyIbkrState: AppState = { ...emptyAppState(), sync: { ...emptyAppState().sync, trades: companyIbkr.trades } }
   const personalMoomooState: AppState = { ...emptyAppState(), sync: { ...emptyAppState().sync, trades: personalMoomoo.trades } }
-  // "Companies" is the combined view across every account — the other three
-  // tabs are each one account's own breakdown.
-  const combinedState: AppState = {
-    ...emptyAppState(),
-    sync: { ...emptyAppState().sync, trades: [...state.sync.trades, ...companyIbkr.trades, ...personalMoomoo.trades], positions: state.sync.positions },
-  }
 
   return (
     <div className="jr-root">
@@ -117,7 +109,6 @@ export default function ReportsView({ state, tradeLabels }: { state: AppState; t
         ))}
       </div>
 
-      {tab === 'companies' && <CompaniesView state={combinedState} tradeLabels={tradeLabels} />}
       {tab === 'personal_ibkr' && <CompaniesView state={state} tradeLabels={tradeLabels} />}
       {tab === 'company_ibkr' && (
         <>
