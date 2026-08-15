@@ -1371,31 +1371,25 @@ body {
     overflow: visible !important;
   }
   .pf-column .jr-root { height: auto; overflow: visible; }
-  /* .jr-stacked is the ONE scroll container for the whole Journal page on
-     mobile — the <main> element wrapping every tab has a hard-coded
-     `overflow: hidden` (App.tsx), so if this doesn't scroll, nothing does
-     and the page is stuck (verified: setting this to height:auto/overflow:
-     visible, matching the "let it grow" pattern used elsewhere, silently
-     broke scrolling entirely here specifically because there's no OTHER
-     ancestor left to catch the overflow). Its two children stay auto-height
-     so they size to their own content instead of fighting over the desktop
-     20/80 split, while jr-stacked itself keeps scrolling through both. */
-  /* <main> in App.tsx has a hard-coded inline overflow:hidden at every
-     viewport size — it never scrolls itself, and never lets an overflowing
-     descendant's content spill past it into view either. Something in this
-     chain must stay a BOUNDED box with its own overflow-y:auto, or content
-     taller than the viewport is silently clipped with no way to reach it
-     (verified via injected tall content: with jr-page-row at height:auto,
-     jr-stacked's clientHeight equalled its scrollHeight — nothing left to
-     scroll — while <main> sat at 792px visible with 2181px of content and
-     overflow:hidden, genuinely unreachable). jr-page-row now stays pinned to
-     main's fixed height (no height:auto override), and jr-stacked /
-     jr-page-actions each get their own bounded flex share + overflow-y:auto
-     — two independently-scrollable regions (main content, Actions sidebar)
-     instead of one relying on a page-level scroll that doesn't exist. */
-  .jr-stacked { flex: 3 1 0; min-height: 0; overflow-y: auto; overflow-x: hidden; }
-  .jr-page-row { flex-direction: column; overflow: hidden; }
-  .jr-page-actions { width: 100%; flex: 1 1 0; min-height: 0; overflow-y: auto; }
+  /* .jr-page-row is the ONE scroll container for the whole Journal page on
+     mobile — Journal Overview, Trade Journal, AND the Actions sidebar all
+     scroll together as a single screen, actions after the journal content
+     (DOM order already puts .jr-stacked before .jr-page-actions). <main> in
+     App.tsx has a hard-coded inline overflow:hidden at every viewport size
+     and never scrolls itself, so something in this chain must stay a
+     BOUNDED box with its own overflow-y:auto or content taller than the
+     viewport is silently clipped with no way to reach it (verified via
+     injected tall content: with jr-page-row at height:auto, .jr-stacked's
+     clientHeight equalled its scrollHeight — nothing left to scroll — while
+     <main> sat at 792px visible with 2181px of content and overflow:hidden,
+     genuinely unreachable). jr-page-row stays pinned to main's fixed height
+     and does the scrolling itself; .jr-stacked and .jr-page-actions both go
+     auto-height so they just stack as normal content instead of each
+     fighting for their own bounded, independently-scrolling slice (that
+     split is what made the Actions cards too short to read anything in). */
+  .jr-page-row { flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+  .jr-stacked { flex: 0 0 auto; overflow: visible; }
+  .jr-page-actions { width: 100%; flex: 0 0 auto; height: auto; }
   .jr-page-actions .db-sidebar { max-height: none !important; overflow: visible !important; }
   .jr-page-actions .db-sidebar-body { overflow: visible !important; }
   /* flex-shrink:0 (not the default 1 that "flex: 1 1 100%" implied) — as
