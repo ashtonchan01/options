@@ -1273,7 +1273,7 @@ body {
    inside the same scrolling section, a fixed height stops the two from
    fighting over space (flex:1 would squeeze this row toward 0). */
 @media (min-width: 769px) {
-  .jr-overview-row { flex: 0 0 220px; }
+  .jr-overview-row { flex: 0 0 150px; }
 }
 .jr-overview-cell {
   display: flex;

@@ -826,11 +826,11 @@ export function PortfolioSummaryPanel({ state }: { state: AppState }) {
         { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
       ].map(({ label, value, color }, i, arr) => (
         <div key={label} style={{
-          padding: '12px 20px',
+          padding: '8px 16px',
           borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
         }}>
-          <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-          <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
+          <div style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
+          <div style={{ fontSize: 17, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
         </div>
       ))}
     </div>
