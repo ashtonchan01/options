@@ -270,12 +270,12 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
             <tbody>
               {filtered.map(r => (
                 <tr key={r.symbol}>
-                  <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>{r.symbol}</td>
-                  <td className="mono" style={{ textAlign: 'right', color: pnlColor(r.realized) }}>{fmtDollar(r.realized)}</td>
-                  <td className="mono" style={{ textAlign: 'right', color: pnlColor(r.unrealized) }}>{fmtDollar(r.unrealized)}</td>
-                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(r.total) }}>{fmtDollar(r.total)}</td>
-                  <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{r.closedTrades}</td>
-                  <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{r.openPositions}</td>
+                  <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{r.symbol}</td>
+                  <td className="mono" style={{ textAlign: 'right', color: pnlColor(r.realized), whiteSpace: 'nowrap' }}>{fmtDollar(r.realized)}</td>
+                  <td className="mono" style={{ textAlign: 'right', color: pnlColor(r.unrealized), whiteSpace: 'nowrap' }}>{fmtDollar(r.unrealized)}</td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(r.total), whiteSpace: 'nowrap' }}>{fmtDollar(r.total)}</td>
+                  <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{r.closedTrades}</td>
+                  <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{r.openPositions}</td>
                 </tr>
               ))}
               {filtered.length === 0 && (
@@ -337,21 +337,21 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
                           {block.strategyList.map(s => {
                             const v = row.get(s)
                             return (
-                              <td key={s} className="mono" style={{ textAlign: 'right', color: v != null ? pnlColor(v) : 'var(--text-5)' }}>
+                              <td key={s} className="mono" style={{ textAlign: 'right', color: v != null ? pnlColor(v) : 'var(--text-5)', whiteSpace: 'nowrap' }}>
                                 {v != null ? fmtDollar(v) : '—'}
                               </td>
                             )
                           })}
-                          <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(monthTotal(m)) }}>{fmtDollar(monthTotal(m))}</td>
+                          <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(monthTotal(m)), whiteSpace: 'nowrap' }}>{fmtDollar(monthTotal(m))}</td>
                         </tr>
                       )
                     })}
                     <tr style={{ borderTop: '2px solid var(--border)' }}>
-                      <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)' }}>Total</td>
+                      <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>Total</td>
                       {block.strategyList.map(s => (
-                        <td key={s} className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(stratTotal(s)) }}>{fmtDollar(stratTotal(s))}</td>
+                        <td key={s} className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(stratTotal(s)), whiteSpace: 'nowrap' }}>{fmtDollar(stratTotal(s))}</td>
                       ))}
-                      <td className="mono" style={{ textAlign: 'right', fontWeight: 800, color: pnlColor(grandTotal) }}>{fmtDollar(grandTotal)}</td>
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 800, color: pnlColor(grandTotal), whiteSpace: 'nowrap' }}>{fmtDollar(grandTotal)}</td>
                     </tr>
                   </tbody>
                 </table>

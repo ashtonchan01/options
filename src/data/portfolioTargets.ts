@@ -6,7 +6,8 @@
  *   - TSLA + SPCX combined: 50% (20/20 base, +10% swing to whichever looks
  *     the better value buy right now — see valueSwing() in the view)
  *   - Crypto (MSTR/IBIT/BSOL): 20% (10/5/5)
- *   - Everything else: 25%, split evenly across the 12 tickers
+ *   - Everything else: 25% — CPER carved out at a fixed 1%, the remaining
+ *     24% split evenly across the other 12 tickers
  * Every ticker rounds to a whole lot (100 shares; 10 for MU/ASML since
  * they're expensive enough that 100 shares would badly overshoot).
  */
@@ -24,7 +25,10 @@ export interface TargetTicker {
 }
 
 export const REST_TICKERS = ['ALAB', 'AMD', 'ARM', 'ASML', 'AVGO', 'GOOGL', 'MRVL', 'MU', 'NVDA', 'PLTR', 'TSM', 'UMAC'] as const
-const REST_PCT_EACH = 25 / REST_TICKERS.length
+// CPER carved out at a fixed 1% (not part of the even split) — the other 12
+// REST_TICKERS still split the remaining 24% of that 25% bucket evenly.
+const CPER_PCT = 1
+const REST_PCT_EACH = (25 - CPER_PCT) / REST_TICKERS.length
 const BIG_TICKET_LOT: Record<string, number> = { MU: 10, ASML: 10 }
 
 export const TARGETS: TargetTicker[] = [
@@ -33,6 +37,7 @@ export const TARGETS: TargetTicker[] = [
   { symbol: 'MSTR', category: 'crypto', basePct: 10, lotSize: 100 },
   { symbol: 'IBIT', category: 'crypto', basePct: 5,  lotSize: 100 },
   { symbol: 'BSOL', category: 'crypto', basePct: 5,  lotSize: 100 },
+  { symbol: 'CPER', category: 'rest',   basePct: CPER_PCT, lotSize: 100 },
   ...REST_TICKERS.map(symbol => ({
     symbol, category: 'rest' as const, basePct: REST_PCT_EACH, lotSize: BIG_TICKET_LOT[symbol] ?? 100,
   })),
