@@ -2,23 +2,24 @@
  * Portfolio hub — everything account-specific lives here now: pick
  * Personal or Business, then a broker (IBKR live-synced for Personal,
  * everything else is an uploaded statement), then Calendar / Journal /
- * Reports / Allocation for that account. A third top-level "Summary" choice
- * skips the broker/section drill-down and shows a combined Personal-vs-
- * Business trade summary for the financial year (each side is just the
- * union of that entity's accounts, reusing CompaniesView's own FY filter
- * rather than re-deriving FY math here).
+ * Reports / Allocation for that account.
+ *
+ * (A "Summary" entity that combined Personal-vs-Business FY reports side by
+ * side used to sit alongside Personal/Business here — pulled for now per
+ * user request; the underlying per-account CompaniesView data is untouched
+ * so it can come back later without re-deriving anything.)
  *
  * <main> in App.tsx is always `overflow: hidden`, so this component owns
  * being the single bounded box: fixed-height header (entity/broker/section
- * chips) + a flex:1 min-height:0 body. Calendar/Journal/Allocation already
+ * tabs) + a flex:1 min-height:0 body. Calendar/Journal/Allocation already
  * manage their own internal height:100%/overflow-y:auto (they used to be
  * mounted directly under <main>), so the body wrapper for those stays
  * overflow:hidden and lets the child scroll itself — wrapping them in
  * another scrolling box double-nests overflow and breaks child scrolling
- * (see the .jr-stacked-top / pf-column comments in index.css). Reports/
- * Summary (CompaniesView) don't self-manage overflow, so those get a
- * `jr-root` wrapper (height:100% + its own overflow-y:auto), same as the
- * old standalone ReportsView did.
+ * (see the .jr-stacked-top / pf-column comments in index.css). Reports
+ * (CompaniesView) doesn't self-manage overflow, so that gets a `jr-root`
+ * wrapper (height:100% + its own overflow-y:auto), same as the old
+ * standalone ReportsView did.
  */
 import { useState } from 'react'
 import { Landmark, TrendingUp } from 'lucide-react'
@@ -32,14 +33,13 @@ import AccountUploadBar from '../shared/AccountUploadBar'
 import { tradesToAppState } from '../shared/syntheticAccountState'
 import { useReportAccount } from '../../store/reportAccountsStore'
 
-type Entity = 'personal' | 'business' | 'summary'
+type Entity = 'personal' | 'business'
 type Broker = 'ibkr' | 'moomoo'
 type Section = 'calendar' | 'journal' | 'reports' | 'allocation'
 
 const ENTITY_TABS: { id: Entity; label: string }[] = [
   { id: 'personal', label: 'Personal' },
   { id: 'business', label: 'Business' },
-  { id: 'summary', label: 'Summary (Personal vs Business)' },
 ]
 const BROKER_CARDS: { id: Broker; label: string; icon: React.ReactNode }[] = [
   { id: 'ibkr', label: 'IBKR', icon: <Landmark size={14} /> },
@@ -64,16 +64,12 @@ export default function PortfolioHubView({ state, tradeLabels }: { state: AppSta
   const isPrimary = entity === 'personal' && broker === 'ibkr'
   const account =
     entity === 'personal' ? (broker === 'ibkr' ? null : personalMoomoo) :
-    entity === 'business' ? (broker === 'ibkr' ? companyIbkr : businessMoomoo) :
-    null
+    (broker === 'ibkr' ? companyIbkr : businessMoomoo)
 
   const accountState: AppState = isPrimary ? state : tradesToAppState(account?.trades ?? [])
   const accountLabel =
     entity === 'personal' ? (broker === 'ibkr' ? 'Personal IBKR' : 'Personal Moomoo') :
     (broker === 'ibkr' ? 'Business IBKR' : 'Business Moomoo')
-
-  const personalCombined = tradesToAppState([...state.sync.trades, ...personalMoomoo.trades])
-  const businessCombined = tradesToAppState([...companyIbkr.trades, ...businessMoomoo.trades])
 
   function brokerSubtitle(entityId: Entity, brokerId: Broker): string {
     if (entityId === 'personal' && brokerId === 'ibkr') return 'Live sync'
@@ -97,65 +93,48 @@ export default function PortfolioHubView({ state, tradeLabels }: { state: AppSta
             ))}
           </div>
 
-          {entity !== 'summary' && (
-            <>
-              <div>
-                <div className="ph-cardrow-label">Broker</div>
-                <div className="ph-card-row">
-                  {BROKER_CARDS.map(b => (
-                    <button
-                      key={b.id}
-                      className={`ph-card${broker === b.id ? ' active' : ''}`}
-                      onClick={() => setBroker(b.id)}
-                    >
-                      <span className="ph-card-icon">{b.icon}</span>
-                      <span className="ph-card-body">
-                        <span className="ph-card-title">{b.label}</span>
-                        <span className="ph-card-sub">{brokerSubtitle(entity, b.id)}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="ph-underline-tabs">
-                {SECTION_TABS.map(t => (
-                  <button
-                    key={t.id}
-                    className={`ph-underline-tab${section === t.id ? ' active' : ''}`}
-                    onClick={() => setSection(t.id)}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+          <div>
+            <div className="ph-cardrow-label">Broker</div>
+            <div className="ph-card-row">
+              {BROKER_CARDS.map(b => (
+                <button
+                  key={b.id}
+                  className={`ph-card${broker === b.id ? ' active' : ''}`}
+                  onClick={() => setBroker(b.id)}
+                >
+                  <span className="ph-card-icon">{b.icon}</span>
+                  <span className="ph-card-body">
+                    <span className="ph-card-title">{b.label}</span>
+                    <span className="ph-card-sub">{brokerSubtitle(entity, b.id)}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="ph-underline-tabs">
+            {SECTION_TABS.map(t => (
+              <button
+                key={t.id}
+                className={`ph-underline-tab${section === t.id ? ' active' : ''}`}
+                onClick={() => setSection(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {entity === 'summary' ? (
-          <div className="jr-root" style={{ padding: 0, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-            <div>
-              <div className="cc-section-title" style={{ marginBottom: 8 }}>Personal — All Accounts</div>
-              <CompaniesView state={personalCombined} tradeLabels={tradeLabels} />
+        <div style={{ flex: 1, minHeight: 0, borderTop: '1px solid var(--border)', paddingTop: 16, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
+          {section === 'calendar' && <CalendarView state={accountState} />}
+          {section === 'journal' && <JournalPageView state={accountState} tradeLabels={isPrimary ? tradeLabels : undefined} />}
+          {section === 'allocation' && <PortfolioAllocationView state={accountState} />}
+          {section === 'reports' && (
+            <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>
+              {!isPrimary && account && <AccountUploadBar label={accountLabel} account={account} />}
+              <CompaniesView state={accountState} tradeLabels={isPrimary ? tradeLabels : undefined} />
             </div>
-            <div>
-              <div className="cc-section-title" style={{ marginBottom: 8 }}>Business — All Accounts</div>
-              <CompaniesView state={businessCombined} />
-            </div>
-          </div>
-        ) : (
-          <div style={{ flex: 1, minHeight: 0, borderTop: '1px solid var(--border)', paddingTop: 16, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
-            {section === 'calendar' && <CalendarView state={accountState} />}
-            {section === 'journal' && <JournalPageView state={accountState} tradeLabels={isPrimary ? tradeLabels : undefined} />}
-            {section === 'allocation' && <PortfolioAllocationView state={accountState} />}
-            {section === 'reports' && (
-              <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>
-                {!isPrimary && account && <AccountUploadBar label={accountLabel} account={account} />}
-                <CompaniesView state={accountState} tradeLabels={isPrimary ? tradeLabels : undefined} />
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )
