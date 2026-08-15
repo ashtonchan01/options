@@ -40,16 +40,29 @@ export default async function handler(req) {
     })
   }
 
+  // Two attempts per symbol: `range=1d` is usually enough (meta is populated
+  // regardless of range for most tickers), but some lower-volume instruments
+  // — commodity ETFs like CPER among them — occasionally come back with an
+  // empty/incomplete meta object on a 1-day window specifically. A `range=5d`
+  // retry only on that failure avoids doubling every request while still
+  // recovering the ones that need a wider window.
+  async function fetchMeta(sym, range) {
+    const r = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=1d&includePrePost=false`,
+      { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) },
+    )
+    if (!r.ok) return null
+    const json = await r.json()
+    return json?.chart?.result?.[0]?.meta ?? null
+  }
+
   const results = await Promise.all(
     symbols.map(async sym => {
       try {
-        const r = await fetch(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1d&interval=1d&includePrePost=false`,
-          { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) },
-        )
-        if (!r.ok) return [sym, null]
-        const json = await r.json()
-        const meta = json?.chart?.result?.[0]?.meta
+        let meta = await fetchMeta(sym, '1d')
+        if (typeof meta?.regularMarketPrice !== 'number' || meta.regularMarketPrice <= 0) {
+          meta = await fetchMeta(sym, '5d')
+        }
         const price = meta?.regularMarketPrice
         const high52 = meta?.fiftyTwoWeekHigh
         const low52 = meta?.fiftyTwoWeekLow
