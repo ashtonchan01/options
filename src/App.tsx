@@ -83,7 +83,6 @@ export default function App() {
       <Sidebar
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        actionCount={state.actions.length}
         syncStatus={state.sync.status}
         syncError={state.sync.error}
         lastSync={state.sync.lastSync}

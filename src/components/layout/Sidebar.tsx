@@ -41,7 +41,6 @@ function relativeTime(ms: number): string {
 interface Props {
   activeTab: TabId
   onTabChange: (tab: TabId) => void
-  actionCount: number
   syncStatus: SyncStatus
   syncError?: string
   lastSync?: number
@@ -54,7 +53,7 @@ interface Props {
 }
 
 export default function Sidebar({
-  activeTab, onTabChange, actionCount,
+  activeTab, onTabChange,
   syncStatus, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings,
   userEmail, onSignOut,
 }: Props) {
@@ -112,9 +111,6 @@ export default function Sidebar({
             onClick={() => selectTab('dashboard')}>
             <LayoutDashboard size={17} />
             <span>Dashboard</span>
-            {actionCount > 0 && (
-              <span className="top-nav-badge">{actionCount > 9 ? '9+' : actionCount}</span>
-            )}
           </button>
 
           {GROUPS.map(group => {
