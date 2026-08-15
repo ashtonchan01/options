@@ -64,10 +64,10 @@ function AccountUploadBar({ label, account }: { label: string; account: ReportAc
       }}>
         <Upload size={12} />
         {loading ? 'Decoding…' : `Upload ${label} statement`}
-        <input ref={fileRef} type="file" accept=".xml,.csv" style={{ display: 'none' }} onChange={handleFile} disabled={loading} />
+        <input ref={fileRef} type="file" accept=".xml,.csv,.xlsx,.xls,.pdf" style={{ display: 'none' }} onChange={handleFile} disabled={loading} />
       </label>
       <span style={{ fontSize: 11, color: 'var(--text-4)' }}>
-        Accepts an IBKR Flex .xml export, or a generic .csv (Date/Symbol/Quantity/Price columns).
+        Accepts an IBKR Flex .xml export, or a .csv/.xlsx/.xls/.pdf statement (Date/Symbol/Quantity/Price columns).
       </span>
       {fileName && (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>

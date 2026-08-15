@@ -1,14 +1,19 @@
 /**
- * Best-effort CSV importer for broker trade-history exports that don't have
- * a dedicated parser (Moomoo chief among them — IBKR-formatted accounts
+ * Best-effort importer for broker trade-history exports that don't have a
+ * dedicated parser (Moomoo chief among them — IBKR-formatted accounts
  * should use the Flex XML upload / syncFromXML instead, which is a real
  * parser against a known schema). This is deliberately loose: it matches a
  * handful of common column-name spellings case-insensitively rather than
  * requiring an exact template, and only produces stock-trade RawTrade rows
- * (no options support — most retail CSV exports don't carry option Greeks/
+ * (no options support — most retail exports don't carry option Greeks/
  * expiry/strike columns anyway). Throws with a specific, actionable message
  * on anything it can't confidently map, rather than silently producing
  * wrong numbers.
+ *
+ * Shared by three input shapes — CSV text, XLSX sheets (already array-of-
+ * arrays via xlsx's sheet_to_json), and best-effort line-tokenized PDF text
+ * — all of which funnel into the same `mapRowsToTrades` once reduced to a
+ * header row + string[][] data rows.
  */
 import type { RawTrade } from '../types'
 
@@ -42,8 +47,8 @@ function splitCsvLine(line: string): string[] {
 }
 
 /** IBKR trade dates are compact "YYYYMMDD" — normalize whatever date format
- * the CSV uses (2026-08-14, 08/14/2026, 14-Aug-2026, etc.) to match, so this
- * import lines up with the rest of the app's date handling. */
+ * the export uses (2026-08-14, 08/14/2026, 14-Aug-2026, etc.) to match, so
+ * this import lines up with the rest of the app's date handling. */
 function normalizeDate(raw: string): string {
   const d = new Date(raw)
   if (isNaN(d.getTime())) throw new Error(`Unrecognized date: "${raw}"`)
@@ -54,7 +59,7 @@ function normalizeDate(raw: string): string {
 }
 
 function parseNumber(raw: string): number {
-  const cleaned = raw.replace(/[$,]/g, '').trim()
+  const cleaned = String(raw).replace(/[$,]/g, '').trim()
   const n = parseFloat(cleaned)
   return isNaN(n) ? 0 : n
 }
@@ -64,11 +69,11 @@ export interface CsvImportResult {
   skippedRows: number
 }
 
-export function parseGenericCsvTrades(text: string): CsvImportResult {
-  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0)
-  if (lines.length < 2) throw new Error('CSV has no data rows')
-
-  const headers = splitCsvLine(lines[0]).map(normalizeHeader)
+/** Core mapper: given a header row and data rows (already split into
+ * cells), find the required columns and build RawTrade rows. Used by the
+ * CSV, XLSX, and PDF-table paths alike. */
+export function mapRowsToTrades(headerRow: string[], dataRows: string[][]): CsvImportResult {
+  const headers = headerRow.map(normalizeHeader)
   const colIndex: Partial<Record<keyof typeof COLUMN_ALIASES, number>> = {}
   for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
     const idx = headers.findIndex(h => aliases.includes(h))
@@ -87,8 +92,7 @@ export function parseGenericCsvTrades(text: string): CsvImportResult {
   const trades: RawTrade[] = []
   let skippedRows = 0
 
-  for (let i = 1; i < lines.length; i++) {
-    const cells = splitCsvLine(lines[i])
+  for (const cells of dataRows) {
     if (cells.length < headers.length - 1) { skippedRows++; continue } // clearly malformed row
     try {
       const symbol = cells[colIndex.symbol!]?.toUpperCase()
@@ -97,7 +101,7 @@ export function parseGenericCsvTrades(text: string): CsvImportResult {
       const commission = colIndex.commission !== undefined ? Math.abs(parseNumber(cells[colIndex.commission!])) : 0
       if (!symbol || qtyRaw === 0 || price <= 0) { skippedRows++; continue }
 
-      const sideRaw = colIndex.side !== undefined ? cells[colIndex.side!]?.toLowerCase() : ''
+      const sideRaw = colIndex.side !== undefined ? (cells[colIndex.side!] ?? '').toLowerCase() : ''
       const isSell = sideRaw.includes('sell') || sideRaw.includes('short')
       const isBuy = sideRaw.includes('buy') || sideRaw.includes('cover') || sideRaw.includes('long')
       // If Side isn't given (or doesn't say buy/sell), trust the quantity's own sign
@@ -120,6 +124,15 @@ export function parseGenericCsvTrades(text: string): CsvImportResult {
     }
   }
 
-  if (trades.length === 0) throw new Error('No valid trade rows found in this file — check the column headers match the expected format.')
+  if (trades.length === 0) throw new Error('No valid trade rows found — check the column headers match the expected format.')
   return { trades, skippedRows }
+}
+
+export function parseGenericCsvTrades(text: string): CsvImportResult {
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0)
+  if (lines.length < 2) throw new Error('CSV has no data rows')
+
+  const headerRow = splitCsvLine(lines[0])
+  const dataRows = lines.slice(1).map(splitCsvLine)
+  return mapRowsToTrades(headerRow, dataRows)
 }

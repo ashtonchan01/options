@@ -9,6 +9,8 @@ import { useCallback, useState } from 'react'
 import type { RawTrade } from '../types'
 import { syncFromXML } from '../services/ibkr'
 import { parseGenericCsvTrades } from '../services/genericCsvImport'
+import { parseXlsxTrades } from '../services/xlsxImport'
+import { parsePdfTrades } from '../services/pdfImport'
 
 export const REPORT_ACCOUNT_IDS = ['company_ibkr', 'personal_moomoo'] as const
 export type ReportAccountId = typeof REPORT_ACCOUNT_IDS[number]
@@ -37,11 +39,26 @@ function save(id: ReportAccountId, data: StoredAccount) {
 }
 
 /** IBKR Flex exports as .xml go through the real parser (syncFromXML) since
- * it's a known schema; anything else is treated as a CSV and goes through
- * the best-effort generic importer. */
+ * it's a known schema; .xlsx/.xls and .pdf go through their own best-effort
+ * importers; anything else is treated as CSV text via the generic importer. */
 async function parseStatementFile(file: File): Promise<RawTrade[]> {
-  if (file.name.toLowerCase().endsWith('.xml')) {
+  const name = file.name.toLowerCase()
+  if (name.endsWith('.xml')) {
     const { trades } = await syncFromXML(file)
+    return trades
+  }
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    const { trades, skippedRows } = await parseXlsxTrades(file)
+    if (skippedRows > 0) {
+      console.warn(`[reportAccountsStore] Skipped ${skippedRows} unparseable row(s) in ${file.name}`)
+    }
+    return trades
+  }
+  if (name.endsWith('.pdf')) {
+    const { trades, skippedRows } = await parsePdfTrades(file)
+    if (skippedRows > 0) {
+      console.warn(`[reportAccountsStore] Skipped ${skippedRows} unparseable row(s) in ${file.name}`)
+    }
     return trades
   }
   const text = await file.text()
