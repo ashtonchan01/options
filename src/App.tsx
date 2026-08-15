@@ -7,7 +7,7 @@ import { useSettingsStore } from './store/settingsStore'
 import { useTradeLabelStore } from './store/tradeLabelsStore'
 import { useAuthStore } from './store/authStore'
 import DashboardView from './components/dashboard/DashboardView'
-import PortfolioView from './components/portfolio/PortfolioView'
+import ReportsView from './components/reports/ReportsView'
 import JournalPageView from './components/journal/JournalPageView'
 import CalendarView from './components/calendar/CalendarView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
@@ -47,7 +47,7 @@ const VIEWS: Record<TabId, ViewComponent> = {
   dashboard: DashboardView as ViewComponent,
   calendar:  CalendarView as ViewComponent,
   journal:   JournalPageView,
-  reports:   PortfolioView,
+  reports:   ReportsView,
   scanner:   OpportunitiesView as ViewComponent,
   portfolio: PortfolioAllocationView as ViewComponent,
 }
