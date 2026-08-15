@@ -1,14 +1,11 @@
 /**
  * Trade Journal building blocks — Edgewonk-style journal & analytics over IBKR
- * Flex data. Exports OverviewTab (KPIs, equity curve, Edge Finder, breakdowns)
- * and JournalTab (per-position setup/mistake/rating/notes), both rendered as
- * columns on the Portfolio tab (see PortfolioView.tsx).
+ * Flex data. Exports OverviewTab (Portfolio Summary key metrics) and
+ * JournalTab (per-position setup/mistake/rating/notes), both rendered as
+ * columns on the Journal tab (see JournalPageView.tsx).
  */
 import { useMemo, useState } from 'react'
-import {
-  computeStats, equityCurve, openPremiumTotal,
-  type JournalPosition, type EquityPoint,
-} from '../../engine/journal'
+import { type JournalPosition } from '../../engine/journal'
 import { MISTAKES, type JournalEntry } from '../../store/journalStore'
 import { tradeId } from '../../store/tradeLabelsStore'
 import type { AppState, RawPosition, RawTrade } from '../../types'
@@ -24,15 +21,6 @@ function fmt$(n: number, d = 0) {
 function fmtDate(s: string) {
   const d = new Date(s)
   return isNaN(d.getTime()) ? s : d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: '2-digit' })
-}
-
-/** IBKR's raw "YYYYMMDD" dates (no separators) fail `new Date()` silently —
- * it returns Invalid Date rather than throwing, so callers that don't guard
- * for it end up printing the raw digit string untouched. Normalize first. */
-function fmtMonthYear(s: string) {
-  const iso = /^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : s
-  const d = new Date(iso)
-  return isNaN(d.getTime()) ? s : d.toLocaleDateString('en-AU', { month: 'short', year: 'numeric' })
 }
 
 function pnlCls(n: number) { return n > 0 ? 'pos' : n < 0 ? 'neg' : 'neu' }
@@ -56,112 +44,13 @@ const LABEL_SHORT: Record<string, string> = {
   put_spread: 'BPS', shares: 'SHARES',
 }
 
-// ─── KPI strip ────────────────────────────────────────────────────────────────
-
-// Single compact row (not the old two-tier cards+mini-strip layout) — the
-// Journal Overview strip is capped to a fixed height with no scroll, so
-// everything has to fit on one line instead of stacking.
-function KpiStrip({ closed, openPremium }: { closed: JournalPosition[]; openPremium: number }) {
-  const s = useMemo(() => computeStats(closed), [closed])
-  const pf = s.profitFactor === Infinity ? '∞' : s.profitFactor.toFixed(2)
-  const stats = [
-    { label: 'Net P&L',       value: fmt$(s.netPnl),       color: pnlColor(s.netPnl) },
-    { label: 'Win Rate',      value: s.trades ? `${s.winRate.toFixed(0)}%` : '—',
-      color: s.winRate >= 65 ? '#10b981' : s.winRate >= 50 ? '#f59e0b' : '#ef4444' },
-    { label: 'Profit Factor', value: s.trades ? pf : '—', color: s.profitFactor >= 1.5 ? '#10b981' : s.profitFactor >= 1 ? '#f59e0b' : '#ef4444' },
-    { label: 'Avg Win',       value: fmt$(s.avgWin),       color: '#10b981' },
-    { label: 'Avg Loss',      value: fmt$(s.avgLoss),      color: '#ef4444' },
-    { label: 'Max DD',        value: fmt$(-s.maxDrawdown), color: '#f59e0b' },
-    { label: 'Open Premium',  value: fmt$(openPremium),    color: 'var(--text-1)' },
-    { label: 'Closed',        value: String(s.trades),     color: 'var(--text-1)' },
-    { label: 'Streak',        value: s.currentStreak === 0 ? '—' : `${s.currentStreak > 0 ? 'W' : 'L'}${Math.abs(s.currentStreak)}`, color: 'var(--text-1)' },
-  ]
-  return (
-    <div className="jr-kpi-row">
-      {stats.map(c => (
-        <div key={c.label} className="jr-kpi-chip">
-          <span className="jr-kpi-chip-label">{c.label}</span>
-          <span className="jr-kpi-chip-value" style={{ color: c.color }}>{c.value}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ─── Equity curve ─────────────────────────────────────────────────────────────
-
-function EquityChart({ points }: { points: EquityPoint[] }) {
-  if (points.length < 2) {
-    return <div className="db-empty-msg" style={{ minHeight: 140 }}>Need at least 2 closed trades to draw the curve</div>
-  }
-  const W = 1000, H = 140, PL = 58, PR = 14, PT = 12, PB = 22
-  const min = Math.min(0, ...points.map(p => p.equity))
-  const max = Math.max(1, ...points.map(p => p.equity))
-  const x = (i: number) => PL + (i / (points.length - 1)) * (W - PL - PR)
-  const y = (v: number) => PT + (1 - (v - min) / (max - min)) * (H - PT - PB)
-  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.equity).toFixed(1)}`).join(' ')
-  const y0 = y(0)
-  const area = `${line} L${x(points.length - 1).toFixed(1)},${y0.toFixed(1)} L${x(0).toFixed(1)},${y0.toFixed(1)} Z`
-  const gridVals = [0, 0.25, 0.5, 0.75, 1].map(f => min + f * (max - min))
-  const last = points[points.length - 1]
-  const mid = points[Math.floor(points.length / 2)]
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }}>
-      <defs>
-        <linearGradient id="jr-eq-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      {gridVals.map((v, i) => (
-        <g key={i}>
-          <line x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="rgba(16,185,129,0.08)" strokeWidth="1" />
-          <text x={PL - 6} y={y(v) + 3} textAnchor="end" fill="var(--text-4)" fontSize="10" fontFamily="Inter, sans-serif">
-            {fmt$(v)}
-          </text>
-        </g>
-      ))}
-      {min < 0 && <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="rgba(239,68,68,0.35)" strokeWidth="1" strokeDasharray="4 3" />}
-      <path d={area} fill="url(#jr-eq-fill)" />
-      <path d={line} fill="none" stroke="#10b981" strokeWidth="1.8" style={{ filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.45))' }} />
-      <circle cx={x(points.length - 1)} cy={y(last.equity)} r="3.5" fill="#10b981" />
-      <text x={x(points.length - 1) - 6} y={y(last.equity) - 8} textAnchor="end" fill="#10b981" fontSize="11" fontWeight="700" fontFamily="Inter, sans-serif">
-        {fmt$(last.equity)}
-      </text>
-      {[points[0], mid, last].map((p, i) => (
-        <text key={i} x={x(i === 0 ? 0 : i === 1 ? Math.floor(points.length / 2) : points.length - 1)} y={H - 8}
-          textAnchor={i === 0 ? 'start' : i === 1 ? 'middle' : 'end'} fill="var(--text-4)" fontSize="10" fontFamily="Inter, sans-serif">
-          {fmtMonthYear(p.date)}
-        </text>
-      ))}
-    </svg>
-  )
-}
-
 // ─── Overview sub-view ────────────────────────────────────────────────────────
 
-export function OverviewTab({ closed, positions, state }: {
-  closed: JournalPosition[]; positions: JournalPosition[]; entries: Record<string, JournalEntry>; state: AppState
-}) {
-  const curve = useMemo(() => equityCurve(closed), [closed])
-  const openPremium = useMemo(() => openPremiumTotal(positions), [positions])
-  // Single row: KPI chips on the left, Equity Curve filling the rest —
-  // Monthly P&L and Edge Finder dropped so everything fits in one row
-  // instead of a KPI row plus a second row of cells. Portfolio Summary
-  // (key metrics + allocation/cash-flow charts, formerly on the Portfolio
-  // tab) sits below that row.
+export function OverviewTab({ state }: { state: AppState }) {
+  // KPI chips + Equity Curve dropped — just the Portfolio Summary (key
+  // metrics) strip now, so the Trade Journal table below gets the space.
   return (
     <div className="jr-overview-compact">
-      <div className="jr-overview-row">
-        <div className="jr-kpi-col">
-          <KpiStrip closed={closed} openPremium={openPremium} />
-        </div>
-        <div className="jr-overview-cell" style={{ flex: 1 }}>
-          <div className="jr-overview-cell-title">Equity Curve</div>
-          <div className="jr-overview-cell-body"><EquityChart points={curve} /></div>
-        </div>
-      </div>
       <PortfolioSummaryPanel state={state} />
     </div>
   )

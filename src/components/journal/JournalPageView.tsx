@@ -1,12 +1,13 @@
 /**
- * Journal tab — Journal Overview (KPIs, equity curve, Edge Finder, breakdowns)
- * and Trade Journal (per-position setup/mistake/rating/notes) side by side.
+ * Journal tab — Journal Overview (Portfolio Summary key metrics) and Trade
+ * Journal (per-position setup/mistake/rating/notes) stacked, side by side
+ * with the Actions sidebar.
  */
 import { useMemo } from 'react'
 import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
 import { OverviewTab, JournalTab } from './JournalView'
-import { buildJournalPositions, buildStockPositions, closedByDate } from '../../engine/journal'
+import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
 import { useJournalStore } from '../../store/journalStore'
 import { ActionsSidebar } from '../analytics/AnalyticsView'
 
@@ -28,7 +29,6 @@ export default function JournalPageView({ state, tradeLabels }: { state: AppStat
       ...buildStockPositions(state.sync.trades, labels),
     ]
   }, [state.sync.trades, tradeLabels?.labels])
-  const closed = useMemo(() => closedByDate(positions), [positions])
   const hasTrades = state.sync.trades.length > 0
 
   return (
@@ -36,7 +36,7 @@ export default function JournalPageView({ state, tradeLabels }: { state: AppStat
       <div className="jr-stacked">
         <div className="jr-stacked-top jr-root">
           <div className="cc-section-title" style={{ padding: 0 }}>Journal Overview</div>
-          {hasTrades ? <OverviewTab closed={closed} positions={positions} entries={entries} state={state} /> : <NoTradeData />}
+          {hasTrades ? <OverviewTab state={state} /> : <NoTradeData />}
         </div>
         <div className="jr-stacked-bottom jr-root">
           {hasTrades ? (

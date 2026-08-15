@@ -1166,139 +1166,16 @@ body {
   overflow-y: visible;
 }
 
-/* Journal Overview — KPI + Equity Curve row, plus the Portfolio Summary
-   panel (key metrics + allocation/cash-flow charts) stacked below it. The
-   row keeps a fixed height (rather than flex:1) now that it shares this
-   section with Portfolio Summary — flex:1 would otherwise fight the summary
-   panel for space and get squeezed toward 0. Total content can exceed
-   .jr-stacked-top's own height; that's fine, it scrolls (see .jr-root). */
+/* Journal Overview — now just the Portfolio Summary key-metrics strip
+   (KPI chips + Equity Curve row dropped so Trade Journal below gets the
+   space). Total content can exceed .jr-stacked-top's own height; that's
+   fine, it scrolls (see .jr-root). */
 .jr-overview-compact {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-height: 0;
-}
-.jr-kpi-row {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 6px;
-  overflow-x: auto;
-  flex-shrink: 0;
-}
-/* Beside the Equity Curve chart, exactly half the row each — a 3x3 grid,
-   sized to the column's real height (fixed now that .jr-overview-compact
-   uses flex:1 instead of height:100% for its own sizing — the earlier
-   clipping was that bug, not the grid itself). Padding/font sizes are
-   trimmed down from the base chip so 3 short rows have room to breathe
-   instead of bunching up against each other in a strip this short. */
-.jr-kpi-col {
-  /* flex-basis:0 (not 50%) to match the chart cell's own plain `flex:1`
-     (shorthand for 1 1 0%) — mismatched flex-basis values (50% vs 0%) meant
-     equal flex-grow only split the LEFTOVER space after each item's own
-     basis, not the total, so this column kept winning ~75% of the row no
-     matter what min-width fix was applied (verified via a standalone
-     reproduction: 1389px vs 461px, nowhere near even). */
-  flex: 1;
-  /* min-width:0 — without it, a flex item's default min-width:auto is based
-     on its content's intrinsic min size (here, the widest chip's nowrap
-     text, e.g. "-$146,667"), which silently overrode the 50% basis and
-     pushed this column wider than intended, squeezing the chart down to a
-     sliver instead of an even split. */
-  min-width: 0;
-  overflow: hidden;
-  display: flex;
-  align-items: stretch;
-}
-.jr-kpi-col .jr-kpi-row {
-  display: grid;
-  /* minmax(0, 1fr), not plain 1fr — a bare 1fr track still has an implicit
-     min size equal to its content's min-content width (same "auto min-size"
-     gotcha as flex items, one level deeper: fixing the flex item's own
-     min-width wasn't enough while the grid tracks inside it still refused
-     to shrink below their widest chip's content). minmax(0, 1fr) is the
-     standard override to actually let grid tracks shrink freely. */
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 5px;
-  width: 100%;
-  height: 100%;
-}
-.jr-kpi-col .jr-kpi-chip {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  justify-content: center;
-  padding: 3px 9px;
-  gap: 0;
-}
-.jr-kpi-col .jr-kpi-chip-label,
-.jr-kpi-col .jr-kpi-chip-value {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.jr-kpi-col .jr-kpi-chip-label { font-size: 8px; line-height: 1.3; }
-.jr-kpi-col .jr-kpi-chip-value { font-size: 12px; line-height: 1.3; }
-.jr-kpi-chip {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 5px 10px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.jr-kpi-chip-label {
-  font-size: 9px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-4);
-}
-.jr-kpi-chip-value {
-  font-family: 'Inter', sans-serif;
-  font-weight: 700;
-  font-size: 13px;
-}
-.jr-overview-row {
-  display: flex;
-  gap: 10px;
-  flex: 1;
-  min-height: 0;
-}
-/* Desktop only — mobile stacks kpi-col/chart-cell inside this row itself
-   (flex-direction:column, see the 768px block below), so it needs to keep
-   growing there. At 769px+, now that Portfolio Summary sits below this row
-   inside the same scrolling section, a fixed height stops the two from
-   fighting over space (flex:1 would squeeze this row toward 0). */
-@media (min-width: 769px) {
-  .jr-overview-row { flex: 0 0 150px; }
-}
-.jr-overview-cell {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.jr-overview-cell-title {
-  padding: 4px 10px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-4);
-  background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.jr-overview-cell-body {
-  flex: 1;
-  min-height: 0;
-  padding: 4px 8px;
 }
 
 .jr-mini-strip {
@@ -1357,42 +1234,11 @@ body {
 @media (max-width: 768px) {
   .jr-root { padding: 12px; }
   .jr-2col { grid-template-columns: 1fr; }
-  /* The desktop "fixed 20% height, no scroll, 3-across row" layout doesn't
-     fit a phone screen — stack Equity Curve/Monthly P&L/Edge Finder instead
-     and let the KPI chips wrap, same "just grow" treatment as everywhere
-     else on mobile rather than cramming a 3-column row into ~380px. */
-  /* flex-shrink:0 at every level in this chain (jr-stacked-top → ... →
-     jr-overview-cell) — same bug as jr-stacked-bottom below, repeating at
-     each nested flex layer: an "auto"/fixed height child of a flex-column
-     parent still gets compressed by the default flex-shrink:1 to fit
-     whatever space is available above it, rather than actually rendering
-     at that height (verified: with only the outer fix, this cell measured
-     41px tall instead of its declared 200px). */
+  /* flex-shrink:0 — same bug as jr-stacked-bottom below: an "auto"-height
+     child of a flex-column parent still gets compressed by the default
+     flex-shrink:1 to fit whatever space is available above it, rather
+     than actually rendering at its content height. */
   .jr-overview-compact { height: auto; flex-shrink: 0; }
-  .jr-kpi-row { flex-wrap: wrap; overflow-x: visible; }
-  .jr-overview-row { flex-direction: column; flex-shrink: 0; }
-  /* !important throughout — the component sets `style={{ flex: 1 }}` inline
-     on this element for the desktop 50/50 split, and an inline style always
-     wins over a stylesheet rule regardless of specificity, silently
-     ignoring this whole override (verified: without !important, nothing
-     here changed anything at all, chart stayed compressed). A fixed height
-     (not min-height) — the chart SVG's own height:100% can only resolve
-     against a DEFINITE parent height; min-height alone left the cell's
-     actual height purely content-driven (~50px, the SVG's intrinsic
-     aspect-ratio fallback) while the box itself stayed taller, leaving a
-     big empty gap below a small chart. */
-  .jr-overview-cell {
-    /* flex-basis (not a separate `height`) is what actually sizes a flex
-     item's main axis — with the inline style's flex-basis:0% still winning
-     for that purpose, a bare `height:200px !important` was ignored for
-     layout (flex-basis only falls back to `height` when flex-basis is
-     literally `auto`) and flex-grow:0 collapsed it to ~0 instead. The
-     `flex` shorthand sets basis directly, overriding the inline style's. */
-    flex: 0 0 200px !important;
-    min-height: 0 !important;
-  }
-  .jr-kpi-col { flex-basis: auto; width: 100%; flex-shrink: 0; }
-  .jr-kpi-col .jr-kpi-row { height: auto; }
   .pf-columns { overflow-x: hidden; }
   /* Each column used to cap at 70vh and scroll internally — full height with
      the whole page scrolling as one instead, so nothing on the Portfolio or
