@@ -882,21 +882,6 @@ body {
 .tl-filter-chip:hover { border-color: var(--text-3); color: var(--text-2); }
 .tl-filter-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
-/* Enclosing panel for the Portfolio hub's whole Personal/Business/Broker/
-   Section hierarchy — one bordered card (bank-dashboard style: underline
-   tabs for the top-level switch, a row of selectable account cards below)
-   so the 3 levels read as one nested drill-down, not rows of buttons
-   floating loose on the page background. */
-.ph-nest {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg-card);
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
 /* Underline tab row — top-level (Account) and the in-page Section switch,
    modelled on a bank dashboard's "All accounts / Current / Deposits" nav:
    plain text, no border/background, active tab picked out by color +

@@ -82,9 +82,9 @@ export default function PortfolioHubView({ state, tradeLabels }: { state: AppSta
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div style={{ flex: '0 0 auto', padding: '20px 24px 0' }}>
-        <div className="ph-nest">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: '20px 24px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="ph-underline-tabs">
             {ENTITY_TABS.map(t => (
               <button
@@ -131,32 +131,32 @@ export default function PortfolioHubView({ state, tradeLabels }: { state: AppSta
             </>
           )}
         </div>
-      </div>
 
-      {entity === 'summary' ? (
-        <div className="jr-root">
-          <div>
-            <div className="cc-section-title" style={{ marginBottom: 8 }}>Personal — All Accounts</div>
-            <CompaniesView state={personalCombined} tradeLabels={tradeLabels} />
-          </div>
-          <div>
-            <div className="cc-section-title" style={{ marginBottom: 8 }}>Business — All Accounts</div>
-            <CompaniesView state={businessCombined} />
-          </div>
-        </div>
-      ) : (
-        <div style={{ flex: 1, minHeight: 0, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
-          {section === 'calendar' && <CalendarView state={accountState} />}
-          {section === 'journal' && <JournalPageView state={accountState} tradeLabels={isPrimary ? tradeLabels : undefined} />}
-          {section === 'allocation' && <PortfolioAllocationView state={accountState} />}
-          {section === 'reports' && (
-            <div className="jr-root" style={{ height: 'auto', overflow: 'visible' }}>
-              {!isPrimary && account && <AccountUploadBar label={accountLabel} account={account} />}
-              <CompaniesView state={accountState} tradeLabels={isPrimary ? tradeLabels : undefined} />
+        {entity === 'summary' ? (
+          <div className="jr-root" style={{ padding: 0, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+            <div>
+              <div className="cc-section-title" style={{ marginBottom: 8 }}>Personal — All Accounts</div>
+              <CompaniesView state={personalCombined} tradeLabels={tradeLabels} />
             </div>
-          )}
-        </div>
-      )}
+            <div>
+              <div className="cc-section-title" style={{ marginBottom: 8 }}>Business — All Accounts</div>
+              <CompaniesView state={businessCombined} />
+            </div>
+          </div>
+        ) : (
+          <div style={{ flex: 1, minHeight: 0, borderTop: '1px solid var(--border)', paddingTop: 16, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
+            {section === 'calendar' && <CalendarView state={accountState} />}
+            {section === 'journal' && <JournalPageView state={accountState} tradeLabels={isPrimary ? tradeLabels : undefined} />}
+            {section === 'allocation' && <PortfolioAllocationView state={accountState} />}
+            {section === 'reports' && (
+              <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>
+                {!isPrimary && account && <AccountUploadBar label={accountLabel} account={account} />}
+                <CompaniesView state={accountState} tradeLabels={isPrimary ? tradeLabels : undefined} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
