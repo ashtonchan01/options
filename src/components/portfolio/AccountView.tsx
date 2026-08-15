@@ -1,10 +1,10 @@
 /**
  * Account content view — Calendar / Journal / Reports / Allocation for one
- * broker account. Which account (Personal/Business x IBKR/Moomoo) is
- * chosen in the Sidebar now (two expandable nav groups), not here, so this
- * component only owns the single-line Section tab row + content, leaving
- * far more vertical room for the content itself than the old 3-row
- * Personal/Business -> Broker -> Section stack.
+ * broker account. Which account (Personal IBKR/Moomoo, or Business IBKR —
+ * Business only has the one broker) is chosen in the Sidebar now, not
+ * here, so this component only owns the single-line Section tab row +
+ * content, leaving far more vertical room for the content itself than the
+ * old 3-row Personal/Business -> Broker -> Section stack.
  *
  * <main> in App.tsx is always `overflow: hidden`, so this component owns
  * being the single bounded box: fixed-height header (the Section tab row)
@@ -50,17 +50,12 @@ export default function AccountView({ entity, broker, state, tradeLabels }: {
 
   const personalMoomoo = useReportAccount('personal_moomoo')
   const companyIbkr = useReportAccount('company_ibkr')
-  const businessMoomoo = useReportAccount('business_moomoo')
 
   const isPrimary = entity === 'personal' && broker === 'ibkr'
-  const account =
-    entity === 'personal' ? (broker === 'ibkr' ? null : personalMoomoo) :
-    (broker === 'ibkr' ? companyIbkr : businessMoomoo)
+  const account = entity === 'personal' ? (broker === 'ibkr' ? null : personalMoomoo) : companyIbkr
 
   const accountState: AppState = isPrimary ? state : tradesToAppState(account?.trades ?? [])
-  const accountLabel =
-    entity === 'personal' ? (broker === 'ibkr' ? 'Personal IBKR' : 'Personal Moomoo') :
-    (broker === 'ibkr' ? 'Business IBKR' : 'Business Moomoo')
+  const accountLabel = entity === 'personal' ? (broker === 'ibkr' ? 'Personal IBKR' : 'Personal Moomoo') : 'Business IBKR'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: '20px 24px' }}>

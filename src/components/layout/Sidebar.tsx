@@ -12,28 +12,21 @@ import {
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
 
-export const TAB_IDS = ['dashboard', 'personal_ibkr', 'personal_moomoo', 'business_ibkr', 'business_moomoo', 'scanner'] as const
+export const TAB_IDS = ['dashboard', 'personal_ibkr', 'personal_moomoo', 'business_ibkr', 'scanner'] as const
 export type TabId = typeof TAB_IDS[number]
 
 /* Personal/Business used to be a single flat "Portfolio" tab with its own
  * in-page Personal/Business + IBKR/Moomoo switcher; that level moved into
- * the sidebar as two expandable groups so the main content area's own top
- * nav (Calendar/Journal/Reports/Allocation) can sit on one line with more
- * room underneath instead of stacking 3 rows of chips above the content. */
-type Group = 'personal' | 'business'
+ * the sidebar. Personal has both IBKR and Moomoo, so it's an expandable
+ * group; Business only has one account (IBKR) so it's a plain flat nav
+ * item straight to business_ibkr, no dropdown to open for a single choice. */
+type Group = 'personal'
 const GROUPS: { id: Group; label: string; icon: React.ReactNode; children: { id: TabId; label: string }[] }[] = [
   {
     id: 'personal', label: 'Personal', icon: <User size={17} />,
     children: [
       { id: 'personal_ibkr', label: 'IBKR' },
       { id: 'personal_moomoo', label: 'Moomoo' },
-    ],
-  },
-  {
-    id: 'business', label: 'Business', icon: <Building2 size={17} />,
-    children: [
-      { id: 'business_ibkr', label: 'IBKR' },
-      { id: 'business_moomoo', label: 'Moomoo' },
     ],
   },
 ]
@@ -152,6 +145,14 @@ export default function Sidebar({
               </div>
             )
           })}
+
+          <button
+            className={`ew-nav-item${activeTab === 'business_ibkr' ? ' active' : ''}`}
+            title={collapsed ? 'Business' : undefined}
+            onClick={() => selectTab('business_ibkr')}>
+            <Building2 size={17} />
+            <span>Business</span>
+          </button>
 
           <button
             className={`ew-nav-item${activeTab === 'scanner' ? ' active' : ''}`}

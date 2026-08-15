@@ -45,13 +45,13 @@ const FLAT_VIEWS: Partial<Record<TabId, ViewComponent>> = {
   scanner:   OpportunitiesView as ViewComponent,
 }
 
-// The 4 sidebar leaf tabs (Personal/Business x IBKR/Moomoo) all render
-// AccountView, just with different entity/broker props derived from the id.
+// The 3 account sidebar leaf tabs (Personal IBKR/Moomoo, Business IBKR)
+// all render AccountView, just with different entity/broker props derived
+// from the id.
 const ACCOUNT_TABS: Record<string, { entity: Entity; broker: Broker }> = {
   personal_ibkr:   { entity: 'personal', broker: 'ibkr' },
   personal_moomoo: { entity: 'personal', broker: 'moomoo' },
   business_ibkr:   { entity: 'business', broker: 'ibkr' },
-  business_moomoo: { entity: 'business', broker: 'moomoo' },
 }
 
 export default function App() {
