@@ -253,43 +253,66 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
   // maxes out at 100 and anything >=50 (not oversold) scores 0. Averaged
   // 50/50 so a ticker needs to be both cheap-vs-its-own-history AND
   // short-term oversold to rank highest, rather than either alone winning.
-  // Score (and the $/shares to buy toward it) per ticker that's both
-  // meaningfully underweight and has 52w-high data — the mean-reversion
-  // blend of 52w-high discount and RSI oversold reading described above. Buy
-  // size is scaled to the CURRENT portfolio (not the fixed $1M target): the
-  // ideal dollar amount for this ticker's target % of what's actually held
-  // right now, so it doesn't demand buying up to a $1M-sized position on a
-  // much smaller account.
-  const buyRecMap = useMemo(() => {
-    const map = new Map<string, { score: number; discountPct: number; buyDollar: number; buyShares: number }>()
+  // Score (and the $/shares to act on) per ticker that's meaningfully off
+  // target AND has 52w-high data — same mean-reversion blend either
+  // direction: underweight + cheap-vs-history + oversold → buy; overweight +
+  // expensive-vs-history + overbought → sell. discountScore/oversoldScore
+  // (buy side) scale 52w-high discount and RSI's distance below neutral (50)
+  // to 0-100; premiumScore/overboughtScore (sell side) are the mirror —
+  // distance ABOVE the 52w low and RSI's distance above neutral. $/shares
+  // is scaled to the CURRENT portfolio (not the fixed $1M target): the ideal
+  // dollar amount for this ticker's target % of what's actually held right
+  // now, so it doesn't demand buying up to (or selling down to) a $1M-sized
+  // position on a much smaller account.
+  const actionRecMap = useMemo(() => {
+    const map = new Map<string, { type: 'buy' | 'sell'; score: number; pctFromHigh: number; dollar: number; shares: number }>()
     if (actualTotal <= 0) return map
     for (const r of rows) {
       if (r.high52 == null || r.price <= 0) continue
       const currentPct = r.actualValue / actualTotal * 100
-      if (r.targetPct - currentPct <= 1) continue // not meaningfully underweight
-      const discountPct = (r.high52 - r.price) / r.high52 * 100
-      const discountScore = Math.min(100, Math.max(0, discountPct / 40 * 100))
-      const oversoldScore = r.rsi != null ? Math.min(100, Math.max(0, (50 - r.rsi) * 2)) : 0
-      const score = r.rsi != null ? discountScore * 0.5 + oversoldScore * 0.5 : discountScore
       const idealAtCurrentSize = r.targetPct / 100 * actualTotal
-      const buyDollar = idealAtCurrentSize - r.actualValue
-      const buyShares = r.price > 0 ? Math.round(buyDollar / r.price) : 0
-      map.set(r.symbol, { score, discountPct, buyDollar, buyShares })
+      const offTarget = r.targetPct - currentPct
+      if (offTarget > 1) {
+        // Underweight — mean-reversion buy score.
+        const discountPct = (r.high52 - r.price) / r.high52 * 100
+        const discountScore = Math.min(100, Math.max(0, discountPct / 40 * 100))
+        const oversoldScore = r.rsi != null ? Math.min(100, Math.max(0, (50 - r.rsi) * 2)) : 0
+        const score = r.rsi != null ? discountScore * 0.5 + oversoldScore * 0.5 : discountScore
+        const dollar = idealAtCurrentSize - r.actualValue
+        map.set(r.symbol, { type: 'buy', score, pctFromHigh: discountPct, dollar, shares: r.price > 0 ? Math.round(dollar / r.price) : 0 })
+      } else if (offTarget < -1) {
+        // Overweight — mirror of the buy score: close to (or above) its 52w
+        // high, and RSI overbought, is the strongest reason to trim.
+        const premiumPct = (r.price - r.high52) / r.high52 * 100 // >=0 near/at the high, negative below it
+        const premiumScore = Math.min(100, Math.max(0, (premiumPct + 20) / 20 * 100)) // -20% or more below high scores 0, at-or-above high scores 100
+        const overboughtScore = r.rsi != null ? Math.min(100, Math.max(0, (r.rsi - 50) * 2)) : 0
+        const score = r.rsi != null ? premiumScore * 0.5 + overboughtScore * 0.5 : premiumScore
+        const dollar = r.actualValue - idealAtCurrentSize
+        map.set(r.symbol, { type: 'sell', score, pctFromHigh: premiumPct, dollar, shares: r.price > 0 ? Math.round(dollar / r.price) : 0 })
+      }
     }
     return map
   }, [rows, actualTotal])
 
-  // Best buys first (highest mean-reversion score), then everything else by
-  // plain target-vs-target-plan gap — so "what to buy first" leads the table
-  // instead of being a separate panel above it.
+  // Strongest signal first (buy or sell, ranked together by score), then
+  // everything else by plain target-vs-target-plan gap — so "what to act on
+  // first" leads the table instead of being a separate panel above it.
   const gaps = [...rows]
-    .map(r => ({ ...r, gap: r.targetValue - r.actualValue, rec: buyRecMap.get(r.symbol) ?? null }))
+    .map(r => ({ ...r, gap: r.targetValue - r.actualValue, rec: actionRecMap.get(r.symbol) ?? null }))
     .sort((a, b) => {
       if (a.rec && b.rec) return b.rec.score - a.rec.score
       if (a.rec) return -1
       if (b.rec) return 1
       return b.gap - a.gap
     })
+
+  const gapsTotal = gaps.reduce((acc, r) => ({
+    targetShares: acc.targetShares + r.targetShares,
+    targetValue: acc.targetValue + r.targetValue,
+    actualShares: acc.actualShares + r.actualShares,
+    actualValue: acc.actualValue + r.actualValue,
+    gap: acc.gap + r.gap,
+  }), { targetShares: 0, targetValue: 0, actualShares: 0, actualValue: 0, gap: 0 })
 
   return (
     <div className="jr-root">
@@ -339,7 +362,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
           <table className="trade-table jr-gap-table" style={{ width: '100%', fontSize: 12 }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'right' }} title="Buy priority rank — #1 is the best mean-reversion buy right now.">#</th>
+                <th style={{ textAlign: 'right' }} title="Action priority rank — #1 is the strongest mean-reversion signal (buy or sell) right now.">#</th>
                 <th>Ticker</th>
                 <th style={{ textAlign: 'right' }}>Price</th>
                 <th style={{ textAlign: 'right' }}>Target %</th>
@@ -350,7 +373,7 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
                 <th style={{ textAlign: 'right' }}>Actual $</th>
                 <th style={{ textAlign: 'right' }}>Gap $</th>
                 <th style={{ textAlign: 'right' }}>Shares to Buy/Sell</th>
-                <th style={{ textAlign: 'right' }} title="Mean-reversion buy size — 52w-high discount blended with RSI oversold reading, scaled to your current portfolio size (not the $1M target). Table is sorted by this: best buy first.">Buy Now</th>
+                <th style={{ textAlign: 'right' }} title="Mean-reversion action — underweight + cheap-vs-history + oversold ranks as a buy; overweight + expensive-vs-history + overbought ranks as a sell. Sized to your current portfolio (not the $1M target). Table is sorted by this: strongest signal first.">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -406,26 +429,53 @@ export default function PortfolioAllocationView({ state }: { state: AppState }) 
                       <td className="mono" style={{ textAlign: 'right', color: sharesDelta > 0 ? '#10b981' : sharesDelta < 0 ? '#ef4444' : 'var(--text-4)' }}>
                         {sharesDelta > 0 ? `Buy ${sharesDelta}` : sharesDelta < 0 ? `Sell ${-sharesDelta}` : '—'}
                       </td>
-                      <td className="mono" style={{ textAlign: 'right', fontWeight: isTopPick ? 800 : 600, color: r.rec && r.rec.buyDollar > 0 ? '#10b981' : 'var(--text-4)' }}>
-                        {r.rec && r.rec.buyDollar > 0 && r.rec.buyShares > 0
-                          ? `${fmt$(r.rec.buyDollar)} (${r.rec.buyShares.toLocaleString()} sh)`
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: isTopPick ? 800 : 600, color: r.rec && r.rec.dollar > 0 && r.rec.shares !== 0 ? (r.rec.type === 'buy' ? '#10b981' : '#ef4444') : 'var(--text-4)' }}>
+                        {r.rec && r.rec.dollar > 0 && r.rec.shares !== 0
+                          ? `${r.rec.type === 'buy' ? 'Buy' : 'Sell'} ${fmt$(r.rec.dollar)} (${Math.abs(r.rec.shares).toLocaleString()} sh)`
                           : '—'}
                       </td>
                     </tr>
                     {isExpanded && r.rec && (
                       <tr>
                         <td colSpan={12} style={{ background: 'var(--bg-elevated)', padding: '10px 18px', fontSize: 11.5, color: 'var(--text-2)', lineHeight: 1.7 }}>
-                          <b style={{ color: 'var(--text-1)' }}>Why {r.symbol} is ranked #{i + 1}:</b>{' '}
-                          It's {r.rec.discountPct.toFixed(0)}% below its 52-week high (${r.price.toFixed(2)} vs ${r.high52!.toFixed(2)}){r.rsi != null ? `, and its RSI of ${r.rsi.toFixed(0)} means it's ${r.rsi < 50 ? 'currently oversold short-term' : 'not currently oversold short-term'}` : ' (no RSI data available, so only the 52w-high discount counts toward its score)'}.
-                          It's also {((r.targetPct - (r.actualValue / actualTotal * 100))).toFixed(1)} percentage points underweight its target ({(r.actualValue / actualTotal * 100).toFixed(1)}% held vs {r.targetPct.toFixed(1)}% target).
-                          Its mean-reversion score is {r.rec.score.toFixed(0)}/100 — a 50/50 blend of the 52w-high discount and the RSI oversold reading, so it needs to be both cheap-vs-its-own-history and short-term oversold to rank highly, not either alone.
-                          To bring it to its target share of your current {fmt$(actualTotal)} portfolio: buy ≈ {fmt$(r.rec.buyDollar)} (~{r.rec.buyShares.toLocaleString()} shares).
+                          <b style={{ color: 'var(--text-1)' }}>Why {r.symbol} is ranked #{i + 1} ({r.rec.type === 'buy' ? 'buy' : 'sell'}):</b>{' '}
+                          {r.rec.type === 'buy' ? (
+                            <>
+                              It's {r.rec.pctFromHigh.toFixed(0)}% below its 52-week high (${r.price.toFixed(2)} vs ${r.high52!.toFixed(2)}){r.rsi != null ? `, and its RSI of ${r.rsi.toFixed(0)} means it's ${r.rsi < 50 ? 'currently oversold short-term' : 'not currently oversold short-term'}` : ' (no RSI data available, so only the 52w-high discount counts toward its score)'}.
+                              It's also {((r.targetPct - (r.actualValue / actualTotal * 100))).toFixed(1)} percentage points underweight its target ({(r.actualValue / actualTotal * 100).toFixed(1)}% held vs {r.targetPct.toFixed(1)}% target).
+                              Its mean-reversion score is {r.rec.score.toFixed(0)}/100 — a 50/50 blend of the 52w-high discount and the RSI oversold reading, so it needs to be both cheap-vs-its-own-history and short-term oversold to rank highly, not either alone.
+                              To bring it to its target share of your current {fmt$(actualTotal)} portfolio: buy ≈ {fmt$(r.rec.dollar)} (~{Math.abs(r.rec.shares).toLocaleString()} shares).
+                            </>
+                          ) : (
+                            <>
+                              It's {r.rec.pctFromHigh >= 0 ? `at or above its 52-week high by ${r.rec.pctFromHigh.toFixed(0)}%` : `only ${Math.abs(r.rec.pctFromHigh).toFixed(0)}% below its 52-week high`} (${r.price.toFixed(2)} vs ${r.high52!.toFixed(2)}){r.rsi != null ? `, and its RSI of ${r.rsi.toFixed(0)} means it's ${r.rsi > 50 ? 'currently overbought short-term' : 'not currently overbought short-term'}` : ' (no RSI data available, so only the 52w-high premium counts toward its score)'}.
+                              It's also {((r.actualValue / actualTotal * 100) - r.targetPct).toFixed(1)} percentage points overweight its target ({(r.actualValue / actualTotal * 100).toFixed(1)}% held vs {r.targetPct.toFixed(1)}% target).
+                              Its mean-reversion score is {r.rec.score.toFixed(0)}/100 — a 50/50 blend of the 52w-high premium and the RSI overbought reading, so it needs to be both expensive-vs-its-own-history and short-term overbought to rank highly, not either alone.
+                              To bring it down to its target share of your current {fmt$(actualTotal)} portfolio: sell ≈ {fmt$(r.rec.dollar)} (~{Math.abs(r.rec.shares).toLocaleString()} shares).
+                            </>
+                          )}
                         </td>
                       </tr>
                     )}
                   </Fragment>
                 )
               })}
+              <tr style={{ borderTop: '2px solid var(--border)' }}>
+                <td className="mono" style={{ textAlign: 'right' }}>—</td>
+                <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)' }}>Total</td>
+                <td className="mono" style={{ textAlign: 'right' }}>—</td>
+                <td className="mono" style={{ textAlign: 'right' }}>—</td>
+                <td className="mono" style={{ textAlign: 'right' }}>—</td>
+                <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>{gapsTotal.targetShares.toLocaleString()}</td>
+                <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>{fmt$(gapsTotal.targetValue + targetCash)}</td>
+                <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>{gapsTotal.actualShares.toLocaleString()}</td>
+                <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>{fmt$(gapsTotal.actualValue + actualCash)}</td>
+                <td className={`mono ${gapsTotal.gap + (targetCash - actualCash) > 0 ? 'pos' : gapsTotal.gap + (targetCash - actualCash) < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right', fontWeight: 800 }}>
+                  {fmt$(gapsTotal.gap + (targetCash - actualCash))}
+                </td>
+                <td className="mono" style={{ textAlign: 'right' }}>—</td>
+                <td className="mono" style={{ textAlign: 'right' }}>—</td>
+              </tr>
             </tbody>
           </table>
         </div>
