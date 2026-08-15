@@ -46,14 +46,34 @@ export default async function handler(req) {
   // empty/incomplete meta object on a 1-day window specifically. A `range=5d`
   // retry only on that failure avoids doubling every request while still
   // recovering the ones that need a wider window.
-  async function fetchMeta(sym, range) {
+  async function fetchChart(sym, range) {
     const r = await fetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=1d&includePrePost=false`,
       { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) },
     )
     if (!r.ok) return null
-    const json = await r.json()
+    return await r.json()
+  }
+  async function fetchMeta(sym, range) {
+    const json = await fetchChart(sym, range)
     return json?.chart?.result?.[0]?.meta ?? null
+  }
+
+  // Some tickers — commodity ETFs like CPER among them — have a working
+  // regularMarketPrice but a genuinely empty fiftyTwoWeekHigh/Low in Yahoo's
+  // meta object (not a timing/range issue like the price retry above, just
+  // absent for that instrument type). A full year of daily closes gives a
+  // real 52w range to fall back to instead of leaving the ticker stuck with
+  // no high52 forever — which silently disqualifies it from every discount/
+  // premium-based signal in the app (mean-reversion buy/sell ranking chief
+  // among them), even though it has a perfectly good live price.
+  async function fetch52wFromHistory(sym) {
+    const json = await fetchChart(sym, '1y')
+    const closes = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close
+    if (!Array.isArray(closes)) return { high52: null, low52: null }
+    const valid = closes.filter(c => typeof c === 'number' && c > 0)
+    if (valid.length === 0) return { high52: null, low52: null }
+    return { high52: Math.max(...valid), low52: Math.min(...valid) }
   }
 
   const results = await Promise.all(
@@ -64,12 +84,17 @@ export default async function handler(req) {
           meta = await fetchMeta(sym, '5d')
         }
         const price = meta?.regularMarketPrice
-        const high52 = meta?.fiftyTwoWeekHigh
-        const low52 = meta?.fiftyTwoWeekLow
+        let high52 = meta?.fiftyTwoWeekHigh
+        let low52 = meta?.fiftyTwoWeekLow
         const prevClose = meta?.chartPreviousClose ?? meta?.previousClose
         const volume = meta?.regularMarketVolume
         const avgVolume = meta?.averageDailyVolume10Day ?? meta?.averageDailyVolume3Month
         if (typeof price !== 'number' || price <= 0) return [sym, null]
+        if (typeof high52 !== 'number' || high52 <= 0) {
+          const fallback = await fetch52wFromHistory(sym)
+          high52 = fallback.high52
+          if (typeof low52 !== 'number' || low52 <= 0) low52 = fallback.low52
+        }
         return [sym, {
           price,
           high52: typeof high52 === 'number' && high52 > 0 ? high52 : null,
