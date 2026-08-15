@@ -882,6 +882,33 @@ body {
 .tl-filter-chip:hover { border-color: var(--text-3); color: var(--text-2); }
 .tl-filter-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
+/* Segmented, sharp-edged tab group (World Monitor-style timeframe selector)
+   — used for the Portfolio hub's Personal/Business/Broker/Section
+   hierarchy instead of separate rounded pill chips, which read as a messy
+   stack of disconnected buttons at 3 levels deep. */
+.ph-tabgroup {
+  display: inline-flex;
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  overflow: hidden;
+  width: fit-content;
+}
+.ph-tab {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-right: 1px solid var(--border-light);
+  background: var(--bg-card);
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.ph-tab:last-child { border-right: none; }
+.ph-tab:hover { color: var(--text-2); background: var(--bg-hover, var(--bg-card)); }
+.ph-tab.active { color: var(--accent); background: var(--accent-dim); }
+
 .tl-divider-v {
   width: 1px;
   height: 20px;
