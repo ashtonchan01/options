@@ -1,15 +1,13 @@
 import { useState } from 'react'
 import Sidebar, { type TabId, parseAccountTabId } from './components/layout/Sidebar'
-import FlexSettingsPanel from './components/shared/FlexSettingsPanel'
 import AuthGate from './components/auth/AuthGate'
-import { useAppStore } from './store/appStore'
-import { useSettingsStore } from './store/settingsStore'
 import { useTradeLabelStore } from './store/tradeLabelsStore'
 import { useAuthStore } from './store/authStore'
 import { useAccounts } from './store/accountsStore'
 import DashboardView from './components/dashboard/DashboardView'
 import AccountView from './components/portfolio/AccountView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
+import { tradesToAppState } from './components/shared/syntheticAccountState'
 import type { AppState } from './types'
 import type { TradeLabel } from './store/tradeLabelsStore'
 
@@ -46,16 +44,17 @@ const FLAT_VIEWS: Partial<Record<TabId, ViewComponent>> = {
   scanner:   OpportunitiesView as ViewComponent,
 }
 
+// Dashboard/Scanner don't read from any live-synced primary account anymore
+// (every account is its own thing now) — they just need an AppState-shaped
+// prop, so an empty one is all there is to pass.
+const EMPTY_STATE = tradesToAppState([])
+
 export default function App() {
-  const [activeTab, setActiveTab]       = useState<TabId>('dashboard')
-  const [showSettings, setShowSettings] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabId>('dashboard')
   const auth = useAuthStore()
-  const { state, uploadXML, syncFlex }  = useAppStore(auth.user?.email ?? null)
-  const { settings, update, activeProfile } = useSettingsStore(auth.user?.email ?? null)
   const { labels, setLabel, setMany, clearAll } = useTradeLabelStore()
   const accountsStore = useAccounts(auth.user?.email ?? null)
 
-  const hasCredentials = !!(activeProfile?.token && activeProfile?.queryId)
   const View = FLAT_VIEWS[activeTab]
   const activeAccountId = parseAccountTabId(activeTab)
   const activeAccount = activeAccountId ? accountsStore.accounts.find(a => a.id === activeAccountId) : undefined
@@ -79,13 +78,6 @@ export default function App() {
         onTabChange={handleTabChange}
         accounts={accountsStore.accounts}
         onAddAccount={accountsStore.addAccount}
-        syncStatus={state.sync.status}
-        syncError={state.sync.error}
-        lastSync={state.sync.lastSync}
-        hasCredentials={hasCredentials}
-        onSyncClick={() => activeProfile && syncFlex(activeProfile.token, activeProfile.queryId)}
-        onXmlUpload={uploadXML}
-        onOpenSettings={() => setShowSettings(true)}
         userEmail={auth.user.email}
         onSignOut={auth.logout}
       />
@@ -99,19 +91,12 @@ export default function App() {
               error={accountsStore.error}
               onUpload={file => accountsStore.uploadStatement(activeAccount.id, file)}
               onClear={() => accountsStore.clearTrades(activeAccount.id)}
+              onSyncFlex={(token, queryId) => accountsStore.syncFlex(activeAccount.id, token, queryId)}
               tradeLabels={tradeLabels}
             />
-          ) : View && <View state={state} tradeLabels={tradeLabels} />}
+          ) : View && <View state={EMPTY_STATE} tradeLabels={tradeLabels} />}
         </main>
       </div>
-
-      {showSettings && (
-        <FlexSettingsPanel
-          settings={settings}
-          onSave={update}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
     </div>
   )
 }

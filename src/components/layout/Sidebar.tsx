@@ -1,17 +1,18 @@
 /**
  * Edgewonk-style left sidebar — primary navigation. Accounts are a flat,
  * fully user-named list (no imposed Personal/Business/broker
- * categorization) built via an inline "+ Add account" row. Sync status +
- * actions sit in the bottom block. Collapses to a hamburger drawer on
- * mobile.
+ * categorization) built via an inline "+ Add account" row. Each account
+ * owns its own IBKR Flex sync / statement upload (see AccountView), so
+ * this sidebar no longer has a single app-wide sync status or credentials
+ * to show — just theme + sign-out in the bottom block. Collapses to a
+ * hamburger drawer on mobile.
  */
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import {
   LayoutDashboard, Briefcase, Radar, Plus, X as XIcon,
-  Menu, X, RefreshCw, Upload, Settings,
+  Menu, X,
   Sun, Moon, LogOut, ChevronLeft, ChevronRight,
 } from 'lucide-react'
-import type { SyncStatus } from '../../types'
 import type { Account } from '../../store/accountsStore'
 import { useThemeStore } from '../../store/themeStore'
 
@@ -24,47 +25,24 @@ export function parseAccountTabId(tab: TabId): string | null {
   return tab.startsWith('account:') ? tab.slice('account:'.length) : null
 }
 
-function relativeTime(ms: number): string {
-  const diff = Date.now() - ms
-  if (diff < 60_000) return 'just now'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
-  return `${Math.floor(diff / 3_600_000)}h ago`
-}
-
 interface Props {
   activeTab: TabId
   onTabChange: (tab: TabId) => void
   accounts: Account[]
   onAddAccount: (name: string) => string
-  syncStatus: SyncStatus
-  syncError?: string
-  lastSync?: number
-  hasCredentials: boolean
-  onSyncClick: () => void
-  onXmlUpload: (file: File) => void
-  onOpenSettings: () => void
   userEmail?: string
   onSignOut?: () => void
 }
 
 export default function Sidebar({
   activeTab, onTabChange, accounts, onAddAccount,
-  syncStatus, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings,
   userEmail, onSignOut,
 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [collapsed, setCollapsed]   = useState(() => localStorage.getItem('options:sidebar-collapsed') !== '0')
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
   const { theme, toggle } = useThemeStore()
-  const isLoading = syncStatus === 'loading'
-
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) onXmlUpload(file)
-    e.target.value = ''
-  }
 
   function selectTab(tab: TabId) {
     onTabChange(tab)
@@ -157,26 +135,7 @@ export default function Sidebar({
         </nav>
 
         <div className="ew-side-bottom">
-          <div className="ew-sync-row">
-            <span className="ew-sync-dot" data-status={syncStatus} />
-            <span>{syncStatus === 'loading' ? 'Syncing…' : lastSync ? `Synced ${relativeTime(lastSync)}` : 'Not synced'}</span>
-          </div>
           <div className="ew-icon-row">
-            <label className="ew-icon-btn" title="Upload Flex XML">
-              <Upload size={14} />
-              <input ref={fileRef} type="file" accept=".xml" style={{ display: 'none' }} onChange={handleFile} />
-            </label>
-            <button
-              className="ew-icon-btn"
-              onClick={onSyncClick}
-              disabled={isLoading || !hasCredentials}
-              title={!hasCredentials ? 'Configure credentials first' : 'Sync from IBKR'}>
-              <RefreshCw size={14} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
-            </button>
-            <button className="ew-icon-btn" onClick={onOpenSettings} title="Settings"
-              style={{ color: hasCredentials ? '#10b981' : undefined }}>
-              <Settings size={14} />
-            </button>
             <button className="ew-icon-btn" onClick={toggle} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
               {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
             </button>
@@ -203,7 +162,6 @@ export default function Sidebar({
         </button>
         <div className="ew-logo-mark" style={{ width: 26, height: 26, fontSize: 13 }}>O</div>
         <span className="ew-logo-name" style={{ fontSize: 14 }}>Options</span>
-        <span className="ew-sync-dot" data-status={syncStatus} style={{ marginLeft: 'auto' }} />
       </div>
     </>
   )

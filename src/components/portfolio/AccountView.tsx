@@ -1,8 +1,10 @@
 /**
  * Account content view — Calendar / Journal / Reports / Allocation for one
- * user-created account. Every account here is upload-based (statement
- * decoded into trades, no live API sync) — the account itself, and which
- * Personal/Business group it's under, was picked in the Sidebar.
+ * user-created account. Trades come from either a one-off statement
+ * upload or a per-account IBKR Flex Web Service sync (its own Token/Query
+ * ID, not a single app-wide primary account) — both feed the same trades
+ * array, so everything downstream (Journal/Reports/Allocation) doesn't
+ * care which source populated it.
  *
  * <main> in App.tsx is always `overflow: hidden`, so this component owns
  * being the single bounded box: fixed-height header (the Section tab row)
@@ -24,6 +26,7 @@ import JournalPageView from '../journal/JournalPageView'
 import PortfolioAllocationView from '../allocation/PortfolioAllocationView'
 import CompaniesView from '../companies/CompaniesView'
 import AccountUploadBar from '../shared/AccountUploadBar'
+import FlexSyncBar from '../shared/FlexSyncBar'
 import { tradesToAppState } from '../shared/syntheticAccountState'
 
 type Section = 'calendar' | 'journal' | 'reports' | 'allocation'
@@ -35,12 +38,13 @@ const SECTION_TABS: { id: Section; label: string }[] = [
   { id: 'allocation', label: 'Allocation' },
 ]
 
-export default function AccountView({ account, loading, error, onUpload, onClear, tradeLabels }: {
+export default function AccountView({ account, loading, error, onUpload, onClear, onSyncFlex, tradeLabels }: {
   account: Account
   loading: boolean
   error: string | null
   onUpload: (file: File) => void
   onClear: () => void
+  onSyncFlex: (token: string, queryId: string) => void
   tradeLabels?: TradeLabels
 }) {
   const [section, setSection] = useState<Section>('reports')
@@ -67,6 +71,13 @@ export default function AccountView({ account, loading, error, onUpload, onClear
           {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} />}
           {section === 'reports' && (
             <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>
+              <FlexSyncBar
+                savedToken={account.flexToken}
+                savedQueryId={account.flexQueryId}
+                loading={loading}
+                error={error}
+                onSync={onSyncFlex}
+              />
               <AccountUploadBar
                 label={account.name}
                 fileName={account.fileName}
