@@ -1,30 +1,41 @@
 /**
- * Edgewonk-style left sidebar — primary navigation, expandable Strategies
- * section, sync status + actions in the bottom block. Collapses to a
- * hamburger drawer on mobile.
+ * Edgewonk-style left sidebar — primary navigation, expandable Personal/
+ * Business account groups, sync status + actions in the bottom block.
+ * Collapses to a hamburger drawer on mobile.
  */
 import { useState, useRef } from 'react'
 import {
-  LayoutDashboard, Briefcase, Radar,
+  LayoutDashboard, User, Building2, Radar,
   Menu, X, RefreshCw, Upload, Settings,
-  Sun, Moon, LogOut, ChevronLeft, ChevronRight,
+  Sun, Moon, LogOut, ChevronLeft, ChevronRight, ChevronDown,
 } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
 
-export const TAB_IDS = ['dashboard', 'portfolio', 'scanner'] as const
+export const TAB_IDS = ['dashboard', 'personal_ibkr', 'personal_moomoo', 'business_ibkr', 'business_moomoo', 'scanner'] as const
 export type TabId = typeof TAB_IDS[number]
 
-/* Only 3 top-level pages now: Dashboard (account-agnostic overview/market
- * news), Portfolio (everything account-specific — Personal/Business ->
- * IBKR/Moomoo -> Calendar/Journal/Reports/Allocation, plus a cross-account
- * Summary — lives inside PortfolioHubView), and Scanner. Calendar/Journal/
- * Reports/the old flat Portfolio(Allocation) tab all moved inside Portfolio
- * as of the personal/business hierarchy rework. */
-const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={17} /> },
-  { id: 'portfolio', label: 'Portfolio', icon: <Briefcase size={17} /> },
-  { id: 'scanner',   label: 'Scanner',   icon: <Radar size={17} /> },
+/* Personal/Business used to be a single flat "Portfolio" tab with its own
+ * in-page Personal/Business + IBKR/Moomoo switcher; that level moved into
+ * the sidebar as two expandable groups so the main content area's own top
+ * nav (Calendar/Journal/Reports/Allocation) can sit on one line with more
+ * room underneath instead of stacking 3 rows of chips above the content. */
+type Group = 'personal' | 'business'
+const GROUPS: { id: Group; label: string; icon: React.ReactNode; children: { id: TabId; label: string }[] }[] = [
+  {
+    id: 'personal', label: 'Personal', icon: <User size={17} />,
+    children: [
+      { id: 'personal_ibkr', label: 'IBKR' },
+      { id: 'personal_moomoo', label: 'Moomoo' },
+    ],
+  },
+  {
+    id: 'business', label: 'Business', icon: <Building2 size={17} />,
+    children: [
+      { id: 'business_ibkr', label: 'IBKR' },
+      { id: 'business_moomoo', label: 'Moomoo' },
+    ],
+  },
 ]
 
 function relativeTime(ms: number): string {
@@ -56,6 +67,9 @@ export default function Sidebar({
 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [collapsed, setCollapsed]   = useState(() => localStorage.getItem('options:sidebar-collapsed') !== '0')
+  const [openGroups, setOpenGroups] = useState<Set<Group>>(() => new Set(
+    GROUPS.filter(g => g.children.some(c => c.id === activeTab)).map(g => g.id),
+  ))
   const fileRef = useRef<HTMLInputElement>(null)
   const { theme, toggle } = useThemeStore()
   const isLoading = syncStatus === 'loading'
@@ -69,6 +83,14 @@ export default function Sidebar({
   function selectTab(tab: TabId) {
     onTabChange(tab)
     setDrawerOpen(false)
+  }
+
+  function toggleGroup(id: Group) {
+    setOpenGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
   }
 
   function toggleCollapsed() {
@@ -91,18 +113,53 @@ export default function Sidebar({
         </div>
 
         <nav className="ew-nav">
-          {NAV_ITEMS.map(item => (
-            <button key={item.id}
-              className={`ew-nav-item${activeTab === item.id ? ' active' : ''}`}
-              title={collapsed ? item.label : undefined}
-              onClick={() => selectTab(item.id)}>
-              {item.icon}
-              <span>{item.label}</span>
-              {item.id === 'dashboard' && actionCount > 0 && (
-                <span className="top-nav-badge">{actionCount > 9 ? '9+' : actionCount}</span>
-              )}
-            </button>
-          ))}
+          <button
+            className={`ew-nav-item${activeTab === 'dashboard' ? ' active' : ''}`}
+            title={collapsed ? 'Dashboard' : undefined}
+            onClick={() => selectTab('dashboard')}>
+            <LayoutDashboard size={17} />
+            <span>Dashboard</span>
+            {actionCount > 0 && (
+              <span className="top-nav-badge">{actionCount > 9 ? '9+' : actionCount}</span>
+            )}
+          </button>
+
+          {GROUPS.map(group => {
+            const isOpen = openGroups.has(group.id)
+            const groupActive = group.children.some(c => c.id === activeTab)
+            return (
+              <div key={group.id}>
+                <button
+                  className={`ew-nav-item${groupActive ? ' active' : ''}`}
+                  title={collapsed ? group.label : undefined}
+                  onClick={() => toggleGroup(group.id)}>
+                  {group.icon}
+                  <span>{group.label}</span>
+                  <ChevronDown size={14} className={`ew-chev${isOpen ? ' open' : ''}`} />
+                </button>
+                {isOpen && (
+                  <div className="ew-nav-sub">
+                    {group.children.map(child => (
+                      <button key={child.id}
+                        className={`ew-nav-subitem${activeTab === child.id ? ' active' : ''}`}
+                        onClick={() => selectTab(child.id)}>
+                        {child.label}
+                      </button>
+
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          <button
+            className={`ew-nav-item${activeTab === 'scanner' ? ' active' : ''}`}
+            title={collapsed ? 'Scanner' : undefined}
+            onClick={() => selectTab('scanner')}>
+            <Radar size={17} />
+            <span>Scanner</span>
+          </button>
         </nav>
 
         <div className="ew-side-bottom">

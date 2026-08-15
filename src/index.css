@@ -916,51 +916,6 @@ body {
   border-radius: 2px 2px 0 0;
 }
 
-.ph-cardrow-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-4);
-  margin-bottom: 8px;
-}
-
-/* Selectable account cards (broker picker) — rounded bordered tiles with an
-   icon badge, matching the currency-account-card look of a typical bank
-   dashboard rather than plain buttons. */
-.ph-card-row {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.ph-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  background: var(--bg-surface);
-  cursor: pointer;
-  transition: all 0.15s;
-  min-width: 160px;
-}
-.ph-card:hover { border-color: var(--text-3); }
-.ph-card.active { border-color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent); }
-.ph-card-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent-dim);
-  color: var(--accent);
-  flex-shrink: 0;
-}
-.ph-card-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.ph-card-title { font-size: 13px; font-weight: 700; color: var(--text-1); }
-.ph-card-sub { font-size: 10.5px; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .tl-divider-v {
   width: 1px;

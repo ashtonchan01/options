@@ -7,7 +7,7 @@ import { useSettingsStore } from './store/settingsStore'
 import { useTradeLabelStore } from './store/tradeLabelsStore'
 import { useAuthStore } from './store/authStore'
 import DashboardView from './components/dashboard/DashboardView'
-import PortfolioHubView from './components/portfolio/PortfolioHubView'
+import AccountView, { type Entity, type Broker } from './components/portfolio/AccountView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import type { AppState } from './types'
 import type { TradeLabel } from './store/tradeLabelsStore'
@@ -40,10 +40,18 @@ export interface TradeLabels {
 
 type ViewComponent = React.FC<{ state: AppState; tradeLabels?: TradeLabels }>
 
-const VIEWS: Record<TabId, ViewComponent> = {
+const FLAT_VIEWS: Partial<Record<TabId, ViewComponent>> = {
   dashboard: DashboardView as ViewComponent,
-  portfolio: PortfolioHubView,
   scanner:   OpportunitiesView as ViewComponent,
+}
+
+// The 4 sidebar leaf tabs (Personal/Business x IBKR/Moomoo) all render
+// AccountView, just with different entity/broker props derived from the id.
+const ACCOUNT_TABS: Record<string, { entity: Entity; broker: Broker }> = {
+  personal_ibkr:   { entity: 'personal', broker: 'ibkr' },
+  personal_moomoo: { entity: 'personal', broker: 'moomoo' },
+  business_ibkr:   { entity: 'business', broker: 'ibkr' },
+  business_moomoo: { entity: 'business', broker: 'moomoo' },
 }
 
 export default function App() {
@@ -55,7 +63,8 @@ export default function App() {
   const { labels, setLabel, setMany, clearAll } = useTradeLabelStore()
 
   const hasCredentials = !!(activeProfile?.token && activeProfile?.queryId)
-  const View = VIEWS[activeTab]
+  const View = FLAT_VIEWS[activeTab]
+  const accountTab = ACCOUNT_TABS[activeTab]
   const tradeLabels: TradeLabels = { labels, setLabel, setMany, clearAll }
 
   if (auth.loading) {
@@ -88,7 +97,9 @@ export default function App() {
 
       <div className="ew-main">
         <main style={{ flex: 1, overflow: 'hidden' }}>
-          <View state={state} tradeLabels={tradeLabels} />
+          {accountTab
+            ? <AccountView entity={accountTab.entity} broker={accountTab.broker} state={state} tradeLabels={tradeLabels} />
+            : View && <View state={state} tradeLabels={tradeLabels} />}
         </main>
       </div>
 
