@@ -2,12 +2,11 @@ import { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { AppState, Strategy, StrategyType, RawTrade } from '../../types'
 import { HOLIDAY_MAP } from '../../data/marketHolidays'
-import { WATCHLIST } from '../../data/watchlist'
 import { fetchEarningsDates, earningsByDate } from '../../services/earnings'
 import { fetchFomcDates } from '../../services/fomc'
 import { buildEconEventMap, type EconEvent } from '../../data/economicEvents'
 
-interface Props { state: AppState }
+interface Props { state: AppState; watchlistTickers?: string[] }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -575,7 +574,7 @@ function ActivitySidebar({
 
 // ─── Main view ────────────────────────────────────────────────────────────────
 
-export default function CalendarView({ state }: Props) {
+export default function CalendarView({ state, watchlistTickers = [] }: Props) {
   const today = new Date()
   const [year, setYear]     = useState(today.getFullYear())
   const [month, setMonth]   = useState(today.getMonth())
@@ -598,14 +597,15 @@ export default function CalendarView({ state }: Props) {
     return () => ro.disconnect()
   }, [])
 
-  // Earnings dates (fetched once, cached 6h) — the static WATCHLIST plus every
-  // ticker actually held (stock symbol or option underlying), so positions outside
-  // the watchlist (e.g. SPCX) still get their earnings date pulled and shown.
+  // Earnings dates (fetched once, cached 6h) — the user's Watchlist plus every
+  // ticker actually traded (stock symbol or option underlying), so tickers
+  // outside the watchlist still get their earnings date pulled and shown.
   const heldTickers = useMemo(() => {
-    const set = new Set<string>(WATCHLIST)
+    const set = new Set<string>(watchlistTickers)
     for (const p of state.sync.positions) set.add(p.underlyingSymbol ?? p.symbol)
+    for (const t of state.sync.trades) set.add(t.underlyingSymbol ?? t.symbol)
     return [...set]
-  }, [state.sync.positions])
+  }, [state.sync.positions, state.sync.trades, watchlistTickers])
 
   const [earningsMap, setEarningsMap] = useState<Record<string, string[]>>({})
   useEffect(() => {

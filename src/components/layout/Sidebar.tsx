@@ -9,14 +9,14 @@
  */
 import { useState } from 'react'
 import {
-  LayoutDashboard, Briefcase, Radar, Plus, X as XIcon,
+  LayoutDashboard, Briefcase, Radar, ListChecks, Plus, X as XIcon,
   Menu, X,
   Sun, Moon, LogOut, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import type { Account } from '../../store/accountsStore'
 import { useThemeStore } from '../../store/themeStore'
 
-export type TabId = 'dashboard' | 'scanner' | string
+export type TabId = 'dashboard' | 'watchlist' | 'scanner' | string
 
 export function accountTabId(accountId: string): TabId {
   return `account:${accountId}`
@@ -85,6 +85,14 @@ export default function Sidebar({
             onClick={() => selectTab('dashboard')}>
             <LayoutDashboard size={17} />
             <span>Dashboard</span>
+          </button>
+
+          <button
+            className={`ew-nav-item${activeTab === 'watchlist' ? ' active' : ''}`}
+            title={collapsed ? 'Watchlist' : undefined}
+            onClick={() => selectTab('watchlist')}>
+            <ListChecks size={17} />
+            <span>Watchlist</span>
           </button>
 
           {accounts.map(account => (

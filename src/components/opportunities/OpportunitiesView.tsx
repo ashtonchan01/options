@@ -5,7 +5,12 @@ import { scanAllTickersCboe } from '../../services/cboe'
 import { fetchEarningsDates } from '../../services/earnings'
 import { fetchFomcDates } from '../../services/fomc'
 
-interface Props { state: AppState }
+interface Props {
+  state: AppState
+  tickers: string[]
+  onAddTicker: (symbol: string) => void
+  onRemoveTicker: (symbol: string) => void
+}
 
 // ─── Scan filter params (user-adjusted, no preset modes) ─────────────────────
 
@@ -100,11 +105,6 @@ function breakeven(r: ScanResult) { return r.strategyType === 'csp' ? r.strike -
 // ─── Card width ───────────────────────────────────────────────────────────────
 
 const CARD_W = 'min(400px, 100%)'
-// No default watchlist — blank slate. The scanner only ever looks at
-// tickers the user has typed in themselves (persisted per browser).
-const CUSTOM_TICKERS_KEY = 'options:custom_tickers'
-function loadCustomTickers(): string[] { try { return JSON.parse(localStorage.getItem(CUSTOM_TICKERS_KEY) || '[]') } catch { return [] } }
-function saveCustomTickers(t: string[]) { localStorage.setItem(CUSTOM_TICKERS_KEY, JSON.stringify(t)) }
 
 // ─── Ticker card data ─────────────────────────────────────────────────────────
 
@@ -213,14 +213,13 @@ const labelStyle: React.CSSProperties = { display: 'flex', alignItems: 'center',
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function OpportunitiesView({ state }: Props) {
+export default function OpportunitiesView({ state, tickers: watchlistTickers, onAddTicker, onRemoveTicker }: Props) {
   const [results,       setResults]      = useState<ScanResult[]>([])
   const [scanning,      setScanning]     = useState(false)
   const [error,         setError]        = useState<string | null>(null)
   const [scanned,       setScanned]      = useState(false)
   const [scanProgress,  setScanProgress] = useState('')
   const [collapsed,     setCollapsed]    = useState<Set<string>>(new Set())
-  const [customTickers, setCustomTickers]= useState<string[]>(loadCustomTickers)
   const [tickerInput,   setTickerInput]  = useState('')
   const [customCfg,     setCustomCfg]    = useState<ModeConfig>(loadCustomCfg)
   const [topCollapsed,  setTopCollapsed] = useState(false)
@@ -241,7 +240,7 @@ export default function OpportunitiesView({ state }: Props) {
     return map
   }, [state.sync.positions])
 
-  const tickers = useMemo(() => [...customTickers].sort(), [customTickers])
+  const tickers = useMemo(() => [...watchlistTickers].sort(), [watchlistTickers])
 
   const [earningsMap, setEarningsMap] = useState<Record<string, string[]>>({})
   useEffect(() => {
@@ -260,15 +259,11 @@ export default function OpportunitiesView({ state }: Props) {
     setCollapsed(prev => { const n = new Set(prev); n.has(sym) ? n.delete(sym) : n.add(sym); return n })
   }
   function addTicker() {
-    const sym = tickerInput.trim().toUpperCase()
-    if (!sym) return
-    if (!customTickers.includes(sym)) {
-      const next = [...customTickers, sym]; setCustomTickers(next); saveCustomTickers(next)
-    }
+    if (tickerInput.trim()) onAddTicker(tickerInput)
     setTickerInput('')
   }
   function removeTicker(sym: string) {
-    const next = customTickers.filter(t => t !== sym); setCustomTickers(next); saveCustomTickers(next)
+    onRemoveTicker(sym)
   }
 
   async function handleScan() {

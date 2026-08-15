@@ -38,7 +38,7 @@ const SECTION_TABS: { id: Section; label: string }[] = [
   { id: 'allocation', label: 'Allocation' },
 ]
 
-export default function AccountView({ account, loading, error, onUpload, onClear, onSyncFlex, tradeLabels }: {
+export default function AccountView({ account, loading, error, onUpload, onClear, onSyncFlex, tradeLabels, watchlistTickers }: {
   account: Account
   loading: boolean
   error: string | null
@@ -46,6 +46,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
   onClear: () => void
   onSyncFlex: (token: string, queryId: string) => void
   tradeLabels?: TradeLabels
+  watchlistTickers: string[]
 }) {
   const [section, setSection] = useState<Section>('reports')
   const accountState = tradesToAppState(account.trades)
@@ -66,7 +67,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
-          {section === 'calendar' && <CalendarView state={accountState} />}
+          {section === 'calendar' && <CalendarView state={accountState} watchlistTickers={watchlistTickers} />}
           {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} />}
           {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} />}
           {section === 'reports' && (

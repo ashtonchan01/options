@@ -4,11 +4,12 @@ import AuthGate from './components/auth/AuthGate'
 import { useTradeLabelStore } from './store/tradeLabelsStore'
 import { useAuthStore } from './store/authStore'
 import { useAccounts } from './store/accountsStore'
+import { useWatchlist } from './store/watchlistStore'
 import DashboardView from './components/dashboard/DashboardView'
 import AccountView from './components/portfolio/AccountView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
+import WatchlistView from './components/watchlist/WatchlistView'
 import { tradesToAppState } from './components/shared/syntheticAccountState'
-import type { AppState } from './types'
 import type { TradeLabel } from './store/tradeLabelsStore'
 
 // Kept for TradeLabel (trade labeling feature, used by Analytics/Portfolio) even though
@@ -37,15 +38,8 @@ export interface TradeLabels {
   clearAll: () => void
 }
 
-type ViewComponent = React.FC<{ state: AppState; tradeLabels?: TradeLabels }>
-
-const FLAT_VIEWS: Partial<Record<TabId, ViewComponent>> = {
-  dashboard: DashboardView as ViewComponent,
-  scanner:   OpportunitiesView as ViewComponent,
-}
-
-// Dashboard/Scanner don't read from any live-synced primary account anymore
-// (every account is its own thing now) — they just need an AppState-shaped
+// Dashboard doesn't read from any live-synced primary account anymore
+// (every account is its own thing now) — it just needs an AppState-shaped
 // prop, so an empty one is all there is to pass.
 const EMPTY_STATE = tradesToAppState([])
 
@@ -54,8 +48,8 @@ export default function App() {
   const auth = useAuthStore()
   const { labels, setLabel, setMany, clearAll } = useTradeLabelStore()
   const accountsStore = useAccounts(auth.user?.email ?? null)
+  const watchlist = useWatchlist(auth.user?.email ?? null)
 
-  const View = FLAT_VIEWS[activeTab]
   const activeAccountId = parseAccountTabId(activeTab)
   const activeAccount = activeAccountId ? accountsStore.accounts.find(a => a.id === activeAccountId) : undefined
   const tradeLabels: TradeLabels = { labels, setLabel, setMany, clearAll }
@@ -93,8 +87,15 @@ export default function App() {
               onClear={() => accountsStore.clearTrades(activeAccount.id)}
               onSyncFlex={(token, queryId) => accountsStore.syncFlex(activeAccount.id, token, queryId)}
               tradeLabels={tradeLabels}
+              watchlistTickers={watchlist.tickers}
             />
-          ) : View && <View state={EMPTY_STATE} tradeLabels={tradeLabels} />}
+          ) : activeTab === 'watchlist' ? (
+            <WatchlistView tickers={watchlist.tickers} onAdd={watchlist.addTicker} onRemove={watchlist.removeTicker} />
+          ) : activeTab === 'scanner' ? (
+            <OpportunitiesView state={EMPTY_STATE} tickers={watchlist.tickers} onAddTicker={watchlist.addTicker} onRemoveTicker={watchlist.removeTicker} />
+          ) : (
+            <DashboardView state={EMPTY_STATE} />
+          )}
         </main>
       </div>
     </div>
