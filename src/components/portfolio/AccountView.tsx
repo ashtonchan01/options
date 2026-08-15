@@ -1,10 +1,8 @@
 /**
  * Account content view — Calendar / Journal / Reports / Allocation for one
- * broker account. Which account (Personal IBKR/Moomoo, or Business IBKR —
- * Business only has the one broker) is chosen in the Sidebar now, not
- * here, so this component only owns the single-line Section tab row +
- * content, leaving far more vertical room for the content itself than the
- * old 3-row Personal/Business -> Broker -> Section stack.
+ * user-created account. Every account here is upload-based (statement
+ * decoded into trades, no live API sync) — the account itself, and which
+ * Personal/Business group it's under, was picked in the Sidebar.
  *
  * <main> in App.tsx is always `overflow: hidden`, so this component owns
  * being the single bounded box: fixed-height header (the Section tab row)
@@ -19,18 +17,15 @@
  * standalone ReportsView did.
  */
 import { useState } from 'react'
-import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
+import type { Account } from '../../store/accountsStore'
 import CalendarView from '../calendar/CalendarView'
 import JournalPageView from '../journal/JournalPageView'
 import PortfolioAllocationView from '../allocation/PortfolioAllocationView'
 import CompaniesView from '../companies/CompaniesView'
 import AccountUploadBar from '../shared/AccountUploadBar'
 import { tradesToAppState } from '../shared/syntheticAccountState'
-import { useReportAccount } from '../../store/reportAccountsStore'
 
-export type Entity = 'personal' | 'business'
-export type Broker = 'ibkr' | 'moomoo'
 type Section = 'calendar' | 'journal' | 'reports' | 'allocation'
 
 const SECTION_TABS: { id: Section; label: string }[] = [
@@ -40,22 +35,16 @@ const SECTION_TABS: { id: Section; label: string }[] = [
   { id: 'allocation', label: 'Allocation' },
 ]
 
-export default function AccountView({ entity, broker, state, tradeLabels }: {
-  entity: Entity
-  broker: Broker
-  state: AppState
+export default function AccountView({ account, loading, error, onUpload, onClear, tradeLabels }: {
+  account: Account
+  loading: boolean
+  error: string | null
+  onUpload: (file: File) => void
+  onClear: () => void
   tradeLabels?: TradeLabels
 }) {
   const [section, setSection] = useState<Section>('reports')
-
-  const personalMoomoo = useReportAccount('personal_moomoo')
-  const companyIbkr = useReportAccount('company_ibkr')
-
-  const isPrimary = entity === 'personal' && broker === 'ibkr'
-  const account = entity === 'personal' ? (broker === 'ibkr' ? null : personalMoomoo) : companyIbkr
-
-  const accountState: AppState = isPrimary ? state : tradesToAppState(account?.trades ?? [])
-  const accountLabel = entity === 'personal' ? (broker === 'ibkr' ? 'Personal IBKR' : 'Personal Moomoo') : 'Business IBKR'
+  const accountState = tradesToAppState(account.trades)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: '20px 24px' }}>
@@ -74,12 +63,20 @@ export default function AccountView({ entity, broker, state, tradeLabels }: {
 
         <div style={{ flex: 1, minHeight: 0, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
           {section === 'calendar' && <CalendarView state={accountState} />}
-          {section === 'journal' && <JournalPageView state={accountState} tradeLabels={isPrimary ? tradeLabels : undefined} />}
+          {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} />}
           {section === 'allocation' && <PortfolioAllocationView state={accountState} />}
           {section === 'reports' && (
             <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>
-              {!isPrimary && account && <AccountUploadBar label={accountLabel} account={account} />}
-              <CompaniesView state={accountState} tradeLabels={isPrimary ? tradeLabels : undefined} />
+              <AccountUploadBar
+                label={account.name}
+                fileName={account.fileName}
+                uploadedAt={account.uploadedAt}
+                loading={loading}
+                error={error}
+                onUpload={onUpload}
+                onClear={onClear}
+              />
+              <CompaniesView state={accountState} tradeLabels={tradeLabels} />
             </div>
           )}
         </div>

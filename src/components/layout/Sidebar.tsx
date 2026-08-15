@@ -1,35 +1,32 @@
 /**
  * Edgewonk-style left sidebar — primary navigation, expandable Personal/
- * Business account groups, sync status + actions in the bottom block.
- * Collapses to a hamburger drawer on mobile.
+ * Business account groups built from whatever accounts the signed-in user
+ * has created (no hardcoded brokers — generic for any user), sync status +
+ * actions in the bottom block. Collapses to a hamburger drawer on mobile.
  */
 import { useState, useRef } from 'react'
 import {
-  LayoutDashboard, User, Building2, Radar,
+  LayoutDashboard, User, Building2, Radar, Plus, X as XIcon,
   Menu, X, RefreshCw, Upload, Settings,
   Sun, Moon, LogOut, ChevronLeft, ChevronRight, ChevronDown,
 } from 'lucide-react'
 import type { SyncStatus } from '../../types'
+import type { Account, Entity } from '../../store/accountsStore'
 import { useThemeStore } from '../../store/themeStore'
 
-export const TAB_IDS = ['dashboard', 'personal_ibkr', 'personal_moomoo', 'business_ibkr', 'scanner'] as const
-export type TabId = typeof TAB_IDS[number]
+export type TabId = 'dashboard' | 'scanner' | string
 
-/* Personal/Business used to be a single flat "Portfolio" tab with its own
- * in-page Personal/Business + IBKR/Moomoo switcher; that level moved into
- * the sidebar. Personal has both IBKR and Moomoo, so it's an expandable
- * group; Business only has one account (IBKR) so it's a plain flat nav
- * item straight to business_ibkr, no dropdown to open for a single choice. */
-type Group = 'personal'
-const GROUPS: { id: Group; label: string; icon: React.ReactNode; children: { id: TabId; label: string }[] }[] = [
-  {
-    id: 'personal', label: 'Personal', icon: <User size={17} />,
-    children: [
-      { id: 'personal_ibkr', label: 'IBKR' },
-      { id: 'personal_moomoo', label: 'Moomoo' },
-    ],
-  },
-]
+export function accountTabId(accountId: string): TabId {
+  return `account:${accountId}`
+}
+export function parseAccountTabId(tab: TabId): string | null {
+  return tab.startsWith('account:') ? tab.slice('account:'.length) : null
+}
+
+const ENTITY_META: Record<Entity, { label: string; icon: React.ReactNode }> = {
+  personal: { label: 'Personal', icon: <User size={17} /> },
+  business: { label: 'Business', icon: <Building2 size={17} /> },
+}
 
 function relativeTime(ms: number): string {
   const diff = Date.now() - ms
@@ -41,6 +38,8 @@ function relativeTime(ms: number): string {
 interface Props {
   activeTab: TabId
   onTabChange: (tab: TabId) => void
+  accounts: Account[]
+  onAddAccount: (name: string, entity: Entity) => string
   syncStatus: SyncStatus
   syncError?: string
   lastSync?: number
@@ -53,15 +52,19 @@ interface Props {
 }
 
 export default function Sidebar({
-  activeTab, onTabChange,
+  activeTab, onTabChange, accounts, onAddAccount,
   syncStatus, lastSync, hasCredentials, onSyncClick, onXmlUpload, onOpenSettings,
   userEmail, onSignOut,
 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [collapsed, setCollapsed]   = useState(() => localStorage.getItem('options:sidebar-collapsed') !== '0')
-  const [openGroups, setOpenGroups] = useState<Set<Group>>(() => new Set(
-    GROUPS.filter(g => g.children.some(c => c.id === activeTab)).map(g => g.id),
+  const [openGroups, setOpenGroups] = useState<Set<Entity>>(() => new Set(
+    (['personal', 'business'] as Entity[]).filter(entity =>
+      accounts.some(a => a.entity === entity && accountTabId(a.id) === activeTab),
+    ),
   ))
+  const [addingIn, setAddingIn] = useState<Entity | null>(null)
+  const [newName, setNewName] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const { theme, toggle } = useThemeStore()
   const isLoading = syncStatus === 'loading'
@@ -77,12 +80,28 @@ export default function Sidebar({
     setDrawerOpen(false)
   }
 
-  function toggleGroup(id: Group) {
+  function toggleGroup(entity: Entity) {
     setOpenGroups(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
+      if (next.has(entity)) next.delete(entity); else next.add(entity)
       return next
     })
+  }
+
+  function startAdding(entity: Entity) {
+    setOpenGroups(prev => new Set(prev).add(entity))
+    setAddingIn(entity)
+    setNewName('')
+  }
+
+  function confirmAdd(entity: Entity) {
+    const name = newName.trim()
+    if (name) {
+      const id = onAddAccount(name, entity)
+      selectTab(accountTabId(id))
+    }
+    setAddingIn(null)
+    setNewName('')
   }
 
   function toggleCollapsed() {
@@ -113,42 +132,61 @@ export default function Sidebar({
             <span>Dashboard</span>
           </button>
 
-          {GROUPS.map(group => {
-            const isOpen = openGroups.has(group.id)
-            const groupActive = group.children.some(c => c.id === activeTab)
+          {(['personal', 'business'] as Entity[]).map(entity => {
+            const isOpen = openGroups.has(entity)
+            const entityAccounts = accounts.filter(a => a.entity === entity)
+            const groupActive = entityAccounts.some(a => accountTabId(a.id) === activeTab)
+            const meta = ENTITY_META[entity]
             return (
-              <div key={group.id}>
+              <div key={entity}>
                 <button
                   className={`ew-nav-item${groupActive ? ' active' : ''}`}
-                  title={collapsed ? group.label : undefined}
-                  onClick={() => toggleGroup(group.id)}>
-                  {group.icon}
-                  <span>{group.label}</span>
+                  title={collapsed ? meta.label : undefined}
+                  onClick={() => toggleGroup(entity)}>
+                  {meta.icon}
+                  <span>{meta.label}</span>
                   <ChevronDown size={14} className={`ew-chev${isOpen ? ' open' : ''}`} />
                 </button>
                 {isOpen && (
                   <div className="ew-nav-sub">
-                    {group.children.map(child => (
-                      <button key={child.id}
-                        className={`ew-nav-subitem${activeTab === child.id ? ' active' : ''}`}
-                        onClick={() => selectTab(child.id)}>
-                        {child.label}
+                    {entityAccounts.map(account => (
+                      <button key={account.id}
+                        className={`ew-nav-subitem${activeTab === accountTabId(account.id) ? ' active' : ''}`}
+                        onClick={() => selectTab(accountTabId(account.id))}>
+                        {account.name}
                       </button>
-
                     ))}
+                    {addingIn === entity ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 12px 4px 38px' }}>
+                        <input
+                          autoFocus
+                          value={newName}
+                          onChange={e => setNewName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') confirmAdd(entity); if (e.key === 'Escape') setAddingIn(null) }}
+                          placeholder="Account name"
+                          style={{
+                            flex: 1, minWidth: 0, fontSize: 12, padding: '4px 6px', borderRadius: 5,
+                            border: '1px solid var(--sb-border)', background: 'var(--sb-hover)', color: 'var(--sb-text)',
+                          }}
+                        />
+                        <button onClick={() => confirmAdd(entity)} title="Add account" className="ew-icon-btn" style={{ width: 24, height: 24 }}>
+                          <Plus size={12} />
+                        </button>
+                        <button onClick={() => setAddingIn(null)} title="Cancel" className="ew-icon-btn" style={{ width: 24, height: 24 }}>
+                          <XIcon size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button className="ew-nav-subitem" onClick={() => startAdding(entity)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--sb-text-faint)' }}>
+                        <Plus size={11} /> Add account
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
             )
           })}
-
-          <button
-            className={`ew-nav-item${activeTab === 'business_ibkr' ? ' active' : ''}`}
-            title={collapsed ? 'Business' : undefined}
-            onClick={() => selectTab('business_ibkr')}>
-            <Building2 size={17} />
-            <span>Business</span>
-          </button>
 
           <button
             className={`ew-nav-item${activeTab === 'scanner' ? ' active' : ''}`}

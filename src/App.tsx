@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import Sidebar, { type TabId } from './components/layout/Sidebar'
+import Sidebar, { type TabId, parseAccountTabId } from './components/layout/Sidebar'
 import FlexSettingsPanel from './components/shared/FlexSettingsPanel'
 import AuthGate from './components/auth/AuthGate'
 import { useAppStore } from './store/appStore'
 import { useSettingsStore } from './store/settingsStore'
 import { useTradeLabelStore } from './store/tradeLabelsStore'
 import { useAuthStore } from './store/authStore'
+import { useAccounts } from './store/accountsStore'
 import DashboardView from './components/dashboard/DashboardView'
-import AccountView, { type Entity, type Broker } from './components/portfolio/AccountView'
+import AccountView from './components/portfolio/AccountView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import type { AppState } from './types'
 import type { TradeLabel } from './store/tradeLabelsStore'
@@ -45,15 +46,6 @@ const FLAT_VIEWS: Partial<Record<TabId, ViewComponent>> = {
   scanner:   OpportunitiesView as ViewComponent,
 }
 
-// The 3 account sidebar leaf tabs (Personal IBKR/Moomoo, Business IBKR)
-// all render AccountView, just with different entity/broker props derived
-// from the id.
-const ACCOUNT_TABS: Record<string, { entity: Entity; broker: Broker }> = {
-  personal_ibkr:   { entity: 'personal', broker: 'ibkr' },
-  personal_moomoo: { entity: 'personal', broker: 'moomoo' },
-  business_ibkr:   { entity: 'business', broker: 'ibkr' },
-}
-
 export default function App() {
   const [activeTab, setActiveTab]       = useState<TabId>('dashboard')
   const [showSettings, setShowSettings] = useState(false)
@@ -61,10 +53,12 @@ export default function App() {
   const { state, uploadXML, syncFlex }  = useAppStore(auth.user?.email ?? null)
   const { settings, update, activeProfile } = useSettingsStore(auth.user?.email ?? null)
   const { labels, setLabel, setMany, clearAll } = useTradeLabelStore()
+  const accountsStore = useAccounts(auth.user?.email ?? null)
 
   const hasCredentials = !!(activeProfile?.token && activeProfile?.queryId)
   const View = FLAT_VIEWS[activeTab]
-  const accountTab = ACCOUNT_TABS[activeTab]
+  const activeAccountId = parseAccountTabId(activeTab)
+  const activeAccount = activeAccountId ? accountsStore.accounts.find(a => a.id === activeAccountId) : undefined
   const tradeLabels: TradeLabels = { labels, setLabel, setMany, clearAll }
 
   if (auth.loading) {
@@ -83,6 +77,8 @@ export default function App() {
       <Sidebar
         activeTab={activeTab}
         onTabChange={handleTabChange}
+        accounts={accountsStore.accounts}
+        onAddAccount={accountsStore.addAccount}
         syncStatus={state.sync.status}
         syncError={state.sync.error}
         lastSync={state.sync.lastSync}
@@ -96,9 +92,16 @@ export default function App() {
 
       <div className="ew-main">
         <main style={{ flex: 1, overflow: 'hidden' }}>
-          {accountTab
-            ? <AccountView entity={accountTab.entity} broker={accountTab.broker} state={state} tradeLabels={tradeLabels} />
-            : View && <View state={state} tradeLabels={tradeLabels} />}
+          {activeAccount ? (
+            <AccountView
+              account={activeAccount}
+              loading={accountsStore.loadingId === activeAccount.id}
+              error={accountsStore.error}
+              onUpload={file => accountsStore.uploadStatement(activeAccount.id, file)}
+              onClear={() => accountsStore.clearTrades(activeAccount.id)}
+              tradeLabels={tradeLabels}
+            />
+          ) : View && <View state={state} tradeLabels={tradeLabels} />}
         </main>
       </div>
 
