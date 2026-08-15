@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from 'react'
 import { Scan, AlertCircle, Activity, ChevronDown, ChevronUp } from 'lucide-react'
 import type { AppState, ScanResult, ScanFlag } from '../../types'
 import { scanAllTickersCboe } from '../../services/cboe'
-import { WATCHLIST } from '../../data/watchlist'
 import { fetchEarningsDates } from '../../services/earnings'
 import { fetchFomcDates } from '../../services/fomc'
 
@@ -101,13 +100,11 @@ function breakeven(r: ScanResult) { return r.strategyType === 'csp' ? r.strike -
 // ─── Card width ───────────────────────────────────────────────────────────────
 
 const CARD_W = 'min(400px, 100%)'
+// No default watchlist — blank slate. The scanner only ever looks at
+// tickers the user has typed in themselves (persisted per browser).
 const CUSTOM_TICKERS_KEY = 'options:custom_tickers'
 function loadCustomTickers(): string[] { try { return JSON.parse(localStorage.getItem(CUSTOM_TICKERS_KEY) || '[]') } catch { return [] } }
 function saveCustomTickers(t: string[]) { localStorage.setItem(CUSTOM_TICKERS_KEY, JSON.stringify(t)) }
-
-const REMOVED_TICKERS_KEY = 'options:removed_tickers'
-function loadRemovedTickers(): string[] { try { return JSON.parse(localStorage.getItem(REMOVED_TICKERS_KEY) || '[]') } catch { return [] } }
-function saveRemovedTickers(t: string[]) { localStorage.setItem(REMOVED_TICKERS_KEY, JSON.stringify(t)) }
 
 // ─── Ticker card data ─────────────────────────────────────────────────────────
 
@@ -224,7 +221,6 @@ export default function OpportunitiesView({ state }: Props) {
   const [scanProgress,  setScanProgress] = useState('')
   const [collapsed,     setCollapsed]    = useState<Set<string>>(new Set())
   const [customTickers, setCustomTickers]= useState<string[]>(loadCustomTickers)
-  const [removedTickers, setRemovedTickers] = useState<string[]>(loadRemovedTickers)
   const [tickerInput,   setTickerInput]  = useState('')
   const [customCfg,     setCustomCfg]    = useState<ModeConfig>(loadCustomCfg)
   const [topCollapsed,  setTopCollapsed] = useState(false)
@@ -245,17 +241,7 @@ export default function OpportunitiesView({ state }: Props) {
     return map
   }, [state.sync.positions])
 
-  const tickers = useMemo(() => {
-    const removed = new Set(removedTickers)
-    const set = new Set<string>([...WATCHLIST, ...customTickers])
-    const SKIP = new Set(['SPX','SPY','QQQ','IWM','DIA','VIX'])
-    for (const p of state.sync.positions) {
-      const sym = p.underlyingSymbol ?? (p.assetClass === 'STK' ? p.symbol : null)
-      if (sym && !SKIP.has(sym)) set.add(sym)
-    }
-    for (const r of removed) set.delete(r)
-    return [...set].sort()
-  }, [state.sync.positions, customTickers, removedTickers])
+  const tickers = useMemo(() => [...customTickers].sort(), [customTickers])
 
   const [earningsMap, setEarningsMap] = useState<Record<string, string[]>>({})
   useEffect(() => {
@@ -276,24 +262,13 @@ export default function OpportunitiesView({ state }: Props) {
   function addTicker() {
     const sym = tickerInput.trim().toUpperCase()
     if (!sym) return
-    // If it was previously removed, un-remove it (covers default watchlist + position tickers)
-    if (removedTickers.includes(sym)) {
-      const nextRemoved = removedTickers.filter(t => t !== sym)
-      setRemovedTickers(nextRemoved); saveRemovedTickers(nextRemoved)
-    }
-    // If it's genuinely new (not default watchlist, not already custom), add as custom
-    if (!customTickers.includes(sym) && !(WATCHLIST as readonly string[]).includes(sym)) {
+    if (!customTickers.includes(sym)) {
       const next = [...customTickers, sym]; setCustomTickers(next); saveCustomTickers(next)
     }
     setTickerInput('')
   }
   function removeTicker(sym: string) {
-    // Custom tickers: drop them outright. Default watchlist / position tickers: mark removed.
-    if (customTickers.includes(sym)) {
-      const next = customTickers.filter(t => t !== sym); setCustomTickers(next); saveCustomTickers(next)
-    } else if (!removedTickers.includes(sym)) {
-      const next = [...removedTickers, sym]; setRemovedTickers(next); saveRemovedTickers(next)
-    }
+    const next = customTickers.filter(t => t !== sym); setCustomTickers(next); saveCustomTickers(next)
   }
 
   async function handleScan() {
@@ -315,11 +290,11 @@ export default function OpportunitiesView({ state }: Props) {
         <Activity size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
         <span className="chakra" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '1px' }}>SCANNER</span>
 
-        <button onClick={handleScan} disabled={scanning} style={{
+        <button onClick={handleScan} disabled={scanning || tickers.length === 0} title={tickers.length === 0 ? 'Add a ticker first' : undefined} style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600,
-          background: scanning ? 'var(--bg-elevated)' : 'var(--accent-dim)',
-          border: `1px solid ${scanning ? 'var(--border)' : 'var(--accent-border)'}`,
-          color: scanning ? 'var(--text-3)' : 'var(--accent)', cursor: scanning ? 'not-allowed' : 'pointer',
+          background: scanning || tickers.length === 0 ? 'var(--bg-elevated)' : 'var(--accent-dim)',
+          border: `1px solid ${scanning || tickers.length === 0 ? 'var(--border)' : 'var(--accent-border)'}`,
+          color: scanning || tickers.length === 0 ? 'var(--text-3)' : 'var(--accent)', cursor: scanning || tickers.length === 0 ? 'not-allowed' : 'pointer',
           fontFamily: "'Inter', sans-serif", letterSpacing: '1px', textTransform: 'uppercase',
         }}>
           <Scan size={12} style={{ animation: scanning ? 'spin 1.5s linear infinite' : 'none' }} />
@@ -394,21 +369,11 @@ export default function OpportunitiesView({ state }: Props) {
               TICKERS ({tickers.length}):
             </span>
             {tickers.map(sym => (
-              <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap', background: customTickers.includes(sym) ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${customTickers.includes(sym) ? 'var(--accent-border)' : 'var(--border)'}`, color: customTickers.includes(sym) ? 'var(--accent)' : 'var(--text-2)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
+              <button key={sym} onClick={() => removeTicker(sym)} title="Remove" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap', background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', color: 'var(--accent)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
                 {sym} <span style={{ color: 'var(--text-4)', fontSize: 8 }}>&times;</span>
               </button>
             ))}
           </div>
-          {removedTickers.length > 0 && (
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 2 }}>
-              <span style={{ fontSize: 9, color: 'var(--text-5)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif", flexShrink: 0 }}>REMOVED:</span>
-              {removedTickers.map(sym => (
-                <button key={sym} onClick={() => { setTickerInput(sym); addTicker() }} title="Add back" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 10, fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap', background: 'transparent', border: '1px dashed var(--border-light)', color: 'var(--text-4)', cursor: 'pointer', borderRadius: 3, fontFamily: 'Inter, sans-serif' }}>
-                  {sym} <span style={{ fontSize: 9 }}>+</span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
         </div>
       </div>
@@ -427,7 +392,17 @@ export default function OpportunitiesView({ state }: Props) {
         </div>
       )}
 
-      {!scanning && !scanned && !error && (
+      {!scanning && !scanned && !error && tickers.length === 0 && (
+        <div style={{ textAlign: 'center', paddingTop: 60 }}>
+          <Activity size={28} style={{ color: 'var(--text-5)', marginBottom: 10 }} />
+          <div className="chakra" style={{ fontSize: 15, color: 'var(--text-2)', letterSpacing: '1px' }}>OPTIONS SCANNER</div>
+          <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 6, fontFamily: 'Inter, sans-serif', lineHeight: 1.8 }}>
+            Type a ticker above and hit Enter to start building your watchlist
+          </div>
+        </div>
+      )}
+
+      {!scanning && !scanned && !error && tickers.length > 0 && (
         <div style={{ textAlign: 'center', paddingTop: 60 }}>
           <Activity size={28} style={{ color: 'var(--text-5)', marginBottom: 10 }} />
           <div className="chakra" style={{ fontSize: 15, color: 'var(--text-2)', letterSpacing: '1px' }}>OPTIONS SCANNER</div>
