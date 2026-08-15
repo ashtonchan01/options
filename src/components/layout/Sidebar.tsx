@@ -5,26 +5,26 @@
  */
 import { useState, useRef } from 'react'
 import {
-  LayoutDashboard, Briefcase, Radar, BookOpen, CalendarDays,
+  LayoutDashboard, Briefcase, Radar, BookOpen, CalendarDays, FileText,
   Menu, X, RefreshCw, Upload, Settings,
   Sun, Moon, LogOut, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import type { SyncStatus } from '../../types'
 import { useThemeStore } from '../../store/themeStore'
 
-export const TAB_IDS = ['dashboard', 'calendar', 'journal', 'portfolio', 'scanner'] as const
+export const TAB_IDS = ['dashboard', 'calendar', 'journal', 'reports', 'portfolio', 'scanner'] as const
 export type TabId = typeof TAB_IDS[number]
 
-/* Ids match their labels — 'calendar' is the Calendar + Companies tab,
- * 'portfolio' is the target-vs-actual allocation tab. (These were called
- * 'portfolio' and 'allocation' respectively before a rename; renaming the
- * ids to match keeps the two in sync instead of leaving a label/id
- * mismatch.) No persisted state references the old ids, so this is a
- * plain rename with nothing to migrate. */
+/* Ids match their labels — 'calendar' is now the duplicated Journal-style
+ * page (KPIs + Calendar embed + Trade Journal), 'reports' is the original
+ * Calendar + Companies tab (renamed from 'calendar'), 'portfolio' is the
+ * target-vs-actual allocation tab. No persisted state references the old
+ * ids, so this is a plain rename with nothing to migrate. */
 const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={17} /> },
   { id: 'calendar',  label: 'Calendar',  icon: <CalendarDays size={17} /> },
   { id: 'journal',   label: 'Journal',   icon: <BookOpen size={17} /> },
+  { id: 'reports',   label: 'Reports',   icon: <FileText size={17} /> },
   { id: 'portfolio', label: 'Portfolio', icon: <Briefcase size={17} /> },
   { id: 'scanner',   label: 'Scanner',   icon: <Radar size={17} /> },
 ]

@@ -9,6 +9,7 @@ import { useAuthStore } from './store/authStore'
 import DashboardView from './components/dashboard/DashboardView'
 import PortfolioView from './components/portfolio/PortfolioView'
 import JournalPageView from './components/journal/JournalPageView'
+import CalendarPageView from './components/journal/CalendarPageView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import PortfolioAllocationView from './components/allocation/PortfolioAllocationView'
 import type { AppState } from './types'
@@ -44,8 +45,9 @@ type ViewComponent = React.FC<{ state: AppState; tradeLabels?: TradeLabels }>
 
 const VIEWS: Record<TabId, ViewComponent> = {
   dashboard: DashboardView as ViewComponent,
-  calendar:  PortfolioView,
+  calendar:  CalendarPageView,
   journal:   JournalPageView,
+  reports:   PortfolioView,
   scanner:   OpportunitiesView as ViewComponent,
   portfolio: PortfolioAllocationView as ViewComponent,
 }
