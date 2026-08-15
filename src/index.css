@@ -883,59 +883,99 @@ body {
 .tl-filter-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
 /* Enclosing panel for the Portfolio hub's whole Personal/Business/Broker/
-   Section hierarchy — a bordered card the tab rows sit inside, so the 3
-   levels read as one nested drill-down rather than rows of buttons
+   Section hierarchy — one bordered card (bank-dashboard style: underline
+   tabs for the top-level switch, a row of selectable account cards below)
+   so the 3 levels read as one nested drill-down, not rows of buttons
    floating loose on the page background. */
 .ph-nest {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--bg-card);
-  padding: 14px 16px;
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
 }
-.ph-tabrow {
+
+/* Underline tab row — top-level (Account) and the in-page Section switch,
+   modelled on a bank dashboard's "All accounts / Current / Deposits" nav:
+   plain text, no border/background, active tab picked out by color +
+   bottom rule instead of a pill. */
+.ph-underline-tabs {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 22px;
+  border-bottom: 1px solid var(--border);
 }
-.ph-tabrow-label {
+.ph-underline-tab {
+  background: none;
+  border: none;
+  padding: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-3);
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+}
+.ph-underline-tab:hover { color: var(--text-2); }
+.ph-underline-tab.active {
+  color: var(--accent);
+}
+.ph-underline-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
+}
+
+.ph-cardrow-label {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-4);
-  width: 64px;
-  flex-shrink: 0;
+  margin-bottom: 8px;
 }
 
-/* Segmented, sharp-edged tab group (World Monitor-style timeframe selector)
-   — used for the Portfolio hub's Personal/Business/Broker/Section
-   hierarchy instead of separate rounded pill chips, which read as a messy
-   stack of disconnected buttons at 3 levels deep. */
-.ph-tabgroup {
-  display: inline-flex;
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
-  overflow: hidden;
-  width: fit-content;
+/* Selectable account cards (broker picker) — rounded bordered tiles with an
+   icon badge, matching the currency-account-card look of a typical bank
+   dashboard rather than plain buttons. */
+.ph-card-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
-.ph-tab {
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  border: none;
-  border-right: 1px solid var(--border-light);
-  background: var(--bg-card);
-  color: var(--text-3);
+.ph-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--bg-surface);
   cursor: pointer;
   transition: all 0.15s;
-  white-space: nowrap;
+  min-width: 160px;
 }
-.ph-tab:last-child { border-right: none; }
-.ph-tab:hover { color: var(--text-2); background: var(--bg-hover, var(--bg-card)); }
-.ph-tab.active { color: var(--accent); background: var(--accent-dim); }
+.ph-card:hover { border-color: var(--text-3); }
+.ph-card.active { border-color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent); }
+.ph-card-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-dim);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.ph-card-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ph-card-title { font-size: 13px; font-weight: 700; color: var(--text-1); }
+.ph-card-sub { font-size: 10.5px; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .tl-divider-v {
   width: 1px;

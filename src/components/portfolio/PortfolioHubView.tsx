@@ -21,6 +21,7 @@
  * old standalone ReportsView did.
  */
 import { useState } from 'react'
+import { Landmark, TrendingUp } from 'lucide-react'
 import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
 import CalendarView from '../calendar/CalendarView'
@@ -40,9 +41,9 @@ const ENTITY_TABS: { id: Entity; label: string }[] = [
   { id: 'business', label: 'Business' },
   { id: 'summary', label: 'Summary (Personal vs Business)' },
 ]
-const BROKER_TABS: { id: Broker; label: string }[] = [
-  { id: 'ibkr', label: 'IBKR' },
-  { id: 'moomoo', label: 'Moomoo' },
+const BROKER_CARDS: { id: Broker; label: string; icon: React.ReactNode }[] = [
+  { id: 'ibkr', label: 'IBKR', icon: <Landmark size={14} /> },
+  { id: 'moomoo', label: 'Moomoo', icon: <TrendingUp size={14} /> },
 ]
 const SECTION_TABS: { id: Section; label: string }[] = [
   { id: 'calendar', label: 'Calendar' },
@@ -74,54 +75,58 @@ export default function PortfolioHubView({ state, tradeLabels }: { state: AppSta
   const personalCombined = tradesToAppState([...state.sync.trades, ...personalMoomoo.trades])
   const businessCombined = tradesToAppState([...companyIbkr.trades, ...businessMoomoo.trades])
 
+  function brokerSubtitle(entityId: Entity, brokerId: Broker): string {
+    if (entityId === 'personal' && brokerId === 'ibkr') return 'Live sync'
+    const acct = entityId === 'personal' ? personalMoomoo : (brokerId === 'ibkr' ? companyIbkr : businessMoomoo)
+    return acct.trades.length > 0 ? `${acct.trades.length} trades` : 'No data yet'
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{ flex: '0 0 auto', padding: '20px 24px 0' }}>
         <div className="ph-nest">
-          <div className="ph-tabrow">
-            <span className="ph-tabrow-label">Account</span>
-            <div className="ph-tabgroup">
-              {ENTITY_TABS.map(t => (
-                <button
-                  key={t.id}
-                  className={`ph-tab${entity === t.id ? ' active' : ''}`}
-                  onClick={() => setEntity(t.id)}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
+          <div className="ph-underline-tabs">
+            {ENTITY_TABS.map(t => (
+              <button
+                key={t.id}
+                className={`ph-underline-tab${entity === t.id ? ' active' : ''}`}
+                onClick={() => setEntity(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
 
           {entity !== 'summary' && (
             <>
-              <div className="ph-tabrow">
-                <span className="ph-tabrow-label">Broker</span>
-                <div className="ph-tabgroup">
-                  {BROKER_TABS.map(t => (
+              <div>
+                <div className="ph-cardrow-label">Broker</div>
+                <div className="ph-card-row">
+                  {BROKER_CARDS.map(b => (
                     <button
-                      key={t.id}
-                      className={`ph-tab${broker === t.id ? ' active' : ''}`}
-                      onClick={() => setBroker(t.id)}
+                      key={b.id}
+                      className={`ph-card${broker === b.id ? ' active' : ''}`}
+                      onClick={() => setBroker(b.id)}
                     >
-                      {t.label}
+                      <span className="ph-card-icon">{b.icon}</span>
+                      <span className="ph-card-body">
+                        <span className="ph-card-title">{b.label}</span>
+                        <span className="ph-card-sub">{brokerSubtitle(entity, b.id)}</span>
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="ph-tabrow">
-                <span className="ph-tabrow-label">Section</span>
-                <div className="ph-tabgroup">
-                  {SECTION_TABS.map(t => (
-                    <button
-                      key={t.id}
-                      className={`ph-tab${section === t.id ? ' active' : ''}`}
-                      onClick={() => setSection(t.id)}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
+              <div className="ph-underline-tabs">
+                {SECTION_TABS.map(t => (
+                  <button
+                    key={t.id}
+                    className={`ph-underline-tab${section === t.id ? ' active' : ''}`}
+                    onClick={() => setSection(t.id)}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
             </>
           )}
