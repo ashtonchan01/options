@@ -1,10 +1,10 @@
 /**
- * User-defined brokerage accounts — replaces the old hardcoded Personal
- * IBKR/Moomoo + Business IBKR accounts with a generic list any user builds
- * themselves: pick Personal or Business, name the account, then upload a
- * statement. Each account is populated purely by statement upload (no live
- * API sync), and persisted to localStorage scoped to the signed-in user so
- * different logins never see each other's accounts.
+ * User-defined brokerage accounts — a completely blank slate, entirely
+ * user-named (no imposed Personal/Business or broker categorization). Add
+ * an account, name it whatever you want, upload a statement. Each account
+ * is populated purely by statement upload (no live API sync), and
+ * persisted to localStorage scoped to the signed-in user so different
+ * logins never see each other's accounts.
  */
 import { useCallback, useEffect, useState } from 'react'
 import type { RawTrade } from '../types'
@@ -13,12 +13,9 @@ import { parseGenericCsvTrades } from '../services/genericCsvImport'
 import { parseXlsxTrades } from '../services/xlsxImport'
 import { parsePdfTrades } from '../services/pdfImport'
 
-export type Entity = 'personal' | 'business'
-
 export interface Account {
   id: string
   name: string
-  entity: Entity
   trades: RawTrade[]
   fileName?: string
   uploadedAt?: number
@@ -78,8 +75,8 @@ export function useAccounts(sessionKey: string | null) {
 
   useEffect(() => { setAccounts(load(key)) }, [key])
 
-  const addAccount = useCallback((name: string, entity: Entity): string => {
-    const account: Account = { id: newId(), name, entity, trades: [] }
+  const addAccount = useCallback((name: string): string => {
+    const account: Account = { id: newId(), name, trades: [] }
     setAccounts(prev => {
       const next = [...prev, account]
       save(key, next)

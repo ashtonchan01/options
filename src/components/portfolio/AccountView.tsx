@@ -64,7 +64,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
         <div style={{ flex: 1, minHeight: 0, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
           {section === 'calendar' && <CalendarView state={accountState} />}
           {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} />}
-          {section === 'allocation' && <PortfolioAllocationView state={accountState} />}
+          {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} />}
           {section === 'reports' && (
             <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>
               <AccountUploadBar
