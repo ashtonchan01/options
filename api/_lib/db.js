@@ -47,6 +47,21 @@ export async function ensureSchema() {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `
+      // Generic per-user blob store for everything else that used to be
+      // localStorage-only (watchlists, manual trade labels, journal review
+      // entries, target allocations, ...) — one row per (user, data_key)
+      // instead of a new table + endpoint for each store, since they're all
+      // the same shape: one JSON blob a signed-in user wants to follow them
+      // across browsers/devices.
+      await db`
+        CREATE TABLE IF NOT EXISTS user_app_data (
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          data_key TEXT NOT NULL,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          PRIMARY KEY (user_id, data_key)
+        )
+      `
     })()
   }
   return schemaReady

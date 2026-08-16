@@ -38,7 +38,7 @@ const SECTION_TABS: { id: Section; label: string }[] = [
   { id: 'allocation', label: 'Allocation' },
 ]
 
-export default function AccountView({ account, loading, error, onUpload, onClear, onSyncFlex, tradeLabels, watchlistTickers }: {
+export default function AccountView({ account, loading, error, onUpload, onClear, onSyncFlex, tradeLabels, watchlistTickers, sessionKey }: {
   account: Account
   loading: boolean
   error: string | null
@@ -47,6 +47,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
   onSyncFlex: (token: string, queryId: string) => void
   tradeLabels?: TradeLabels
   watchlistTickers: string[]
+  sessionKey: string | null
 }) {
   const [section, setSection] = useState<Section>('reports')
   const accountState = accountToAppState(account)
@@ -68,7 +69,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
 
         <div style={{ flex: 1, minHeight: 0, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
           {section === 'calendar' && <CalendarView state={accountState} watchlistTickers={watchlistTickers} />}
-          {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} />}
+          {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} sessionKey={sessionKey} />}
           {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} />}
           {section === 'reports' && (
             <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>

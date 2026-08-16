@@ -1,9 +1,12 @@
 /**
  * Persists journal entries (setup, mistakes, discipline rating, notes) per
- * position to localStorage. Keyed by position id `${tradeDate}|${expiry}|${underlying}`
- * (stable across Flex re-syncs, same id scheme as StrategyTradeLog rows).
+ * position to localStorage, mirrored to the server (/api/user-data) when
+ * signed in so reviews follow the user across browsers/devices. Keyed by
+ * position id `${tradeDate}|${expiry}|${underlying}` (stable across Flex
+ * re-syncs, same id scheme as StrategyTradeLog rows).
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { loadUserData, saveUserData } from '../services/userData'
 
 export interface JournalEntry {
   setup?: string
@@ -39,9 +42,25 @@ function loadSetups(): string[] {
   } catch { return DEFAULT_SETUPS }
 }
 
-export function useJournalStore() {
+export function useJournalStore(sessionKey: string | null) {
   const [entries, setEntries] = useState<Record<string, JournalEntry>>(load)
   const [setups, setSetups]   = useState<string[]>(loadSetups)
+
+  useEffect(() => {
+    if (!sessionKey) return
+    let cancelled = false
+    loadUserData<Record<string, JournalEntry>>('journalEntries').then(remote => {
+      if (cancelled || !remote || Object.keys(remote).length === 0) return
+      setEntries(remote)
+      localStorage.setItem(LS_KEY, JSON.stringify(remote))
+    })
+    loadUserData<string[]>('journalSetups').then(remote => {
+      if (cancelled || !remote?.length) return
+      setSetups(remote)
+      localStorage.setItem(LS_SETUPS_KEY, JSON.stringify(remote))
+    })
+    return () => { cancelled = true }
+  }, [sessionKey])
 
   function updateEntry(id: string, patch: Partial<JournalEntry>) {
     setEntries(prev => {
@@ -51,6 +70,7 @@ export function useJournalStore() {
       const e = next[id]
       if (!e.setup && !(e.mistakes?.length) && !e.rating && !e.note) delete next[id]
       localStorage.setItem(LS_KEY, JSON.stringify(next))
+      if (sessionKey) saveUserData('journalEntries', next)
       return next
     })
   }
@@ -62,6 +82,7 @@ export function useJournalStore() {
       if (prev.includes(trimmed)) return prev
       const next = [...prev, trimmed]
       localStorage.setItem(LS_SETUPS_KEY, JSON.stringify(next))
+      if (sessionKey) saveUserData('journalSetups', next)
       return next
     })
   }

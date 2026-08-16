@@ -19,8 +19,8 @@ function NoTradeData() {
   )
 }
 
-export default function JournalPageView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
-  const { entries, updateEntry, setups, addSetup } = useJournalStore()
+export default function JournalPageView({ state, tradeLabels, sessionKey }: { state: AppState; tradeLabels?: TradeLabels; sessionKey: string | null }) {
+  const { entries, updateEntry, setups, addSetup } = useJournalStore(sessionKey)
 
   const positions = useMemo(() => {
     const labels = tradeLabels?.labels ?? {}

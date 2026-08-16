@@ -6,6 +6,7 @@
  * what both of those see, without touching the other lists.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { loadUserData, saveUserData } from '../services/userData'
 
 export interface Watchlist {
   id: string
@@ -59,12 +60,23 @@ export function useWatchlists(sessionKey: string | null) {
   const key = sessionKey ?? 'anon'
   const [state, setState] = useState<WatchlistsState>(() => load(key))
 
-  useEffect(() => { setState(load(key)) }, [key])
+  useEffect(() => {
+    setState(load(key))
+    if (!sessionKey) return
+    let cancelled = false
+    loadUserData<WatchlistsState>('watchlists').then(remote => {
+      if (cancelled || !remote?.lists?.length) return
+      setState(remote)
+      save(key, remote)
+    })
+    return () => { cancelled = true }
+  }, [key, sessionKey])
 
   function update(fn: (prev: WatchlistsState) => WatchlistsState) {
     setState(prev => {
       const next = fn(prev)
       save(key, next)
+      if (sessionKey) saveUserData('watchlists', next)
       return next
     })
   }

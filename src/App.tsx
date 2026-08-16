@@ -46,7 +46,7 @@ const EMPTY_STATE = tradesToAppState([])
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
   const auth = useAuthStore()
-  const { labels, setLabel, setMany, clearAll } = useTradeLabelStore()
+  const { labels, setLabel, setMany, clearAll } = useTradeLabelStore(auth.user?.email ?? null)
   const accountsStore = useAccounts(auth.user?.email ?? null)
   const watchlists = useWatchlists(auth.user?.email ?? null)
 
@@ -88,6 +88,7 @@ export default function App() {
               onSyncFlex={(token, queryId) => accountsStore.syncFlex(activeAccount.id, token, queryId)}
               tradeLabels={tradeLabels}
               watchlistTickers={watchlists.activeTickers}
+              sessionKey={auth.user.email}
             />
           ) : activeTab === 'watchlist' ? (
             <WatchlistView
