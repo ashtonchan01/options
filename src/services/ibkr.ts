@@ -130,7 +130,16 @@ function parseTrades(doc: Document): RawTrade[] {
     execId:           el.getAttribute('tradeID') ?? undefined,
     orderId:          el.getAttribute('ibOrderID') || el.getAttribute('orderID') || undefined,
     tradeDate:        el.getAttribute('tradeDate') ?? '',
-    tradeTime:        el.getAttribute('tradeTime') ?? undefined,
+    // Real Flex reports (verified against a live account's XML) don't
+    // actually populate a standalone `tradeTime` attribute at all — only
+    // `dateTime="YYYYMMDD;HHMMSS"`. Reading the missing attribute silently
+    // returned undefined for every single trade, which meant the position
+    // matcher's execution-time disambiguation never engaged and every trade
+    // sharing a tradeDate/expiry/underlying got bucketed together regardless
+    // of when it actually executed — the real cause of unrelated same-day
+    // spreads merging into one fake blended position. Pull the time portion
+    // out of dateTime as a fallback so that disambiguation actually runs.
+    tradeTime:        el.getAttribute('tradeTime') ?? el.getAttribute('dateTime')?.split(';')[1] ?? undefined,
     symbol:           el.getAttribute('symbol') ?? '',
     underlyingSymbol: el.getAttribute('underlyingSymbol') ?? undefined,
     assetClass:       (attr(el, 'assetCategory', 'assetClass') ?? 'STK') as RawTrade['assetClass'],

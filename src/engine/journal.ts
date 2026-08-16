@@ -160,21 +160,20 @@ export function buildJournalPositions(
 ): JournalPosition[] {
   const optTrades = trades.filter(t => t.assetClass === 'OPT')
 
-  // orderId (IBKR's ibOrderID, when the report includes it) is the real
-  // disambiguator between unrelated orders — tradeTime is only second-
-  // granularity and two independent single-leg orders CAN land on the exact
-  // same reported second by coincidence (verified against a real account: an
-  // unrelated 7500C buy and a 7525P sell, two separate orders, shared one
-  // tradeTime and got merged by the old tradeTime-only key into a single fake
-  // mixed put/call "spread" position that never actually existed). Legs of
-  // one genuine multi-leg combo order always share the same orderId, so
-  // grouping by it (falling back to tradeTime when orderId isn't present,
-  // e.g. OptionEAE/Transfer records) keeps real spreads together while
-  // splitting apart same-second coincidences that aren't actually related.
+  // tradeTime (now sourced from `dateTime`'s time portion when the report has
+  // no standalone tradeTime attribute — see ibkr.ts) disambiguates two
+  // unrelated spreads opened minutes apart on the same underlying/expiry/day
+  // — without it they'd share a grouping key and get lumped into one blob
+  // (verified against a real account: a 10-lot spread opened at 03:29:36 and
+  // an unrelated 2-lot spread on different strikes opened 49 seconds later at
+  // 03:30:25, same day/expiry, merged into one fake blended position because
+  // the parser had never actually been reading a populated tradeTime value).
+  // Note: IBKR's own order IDs do NOT work for this — verified the buy leg
+  // and sell leg of one real spread carry two different ibOrderIDs, so
+  // legs aren't reliably tied together by order id at all here.
   const groups = new Map<string, RawTrade[]>()
   for (const t of optTrades) {
-    const orderKey = t.orderId || `t:${t.tradeTime ?? ''}`
-    const key = `${t.tradeDate}|${orderKey}|${t.expiry ?? ''}|${t.underlyingSymbol ?? t.symbol}`
+    const key = `${t.tradeDate}|${t.tradeTime ?? ''}|${t.expiry ?? ''}|${t.underlyingSymbol ?? t.symbol}`
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key)!.push(t)
   }
