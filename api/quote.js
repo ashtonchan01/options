@@ -31,7 +31,7 @@ export default async function handler(req) {
   const symbols = symbolsParam
     .split(',')
     .map(s => s.trim().toUpperCase())
-    .filter(s => /^[A-Za-z0-9.\-]{1,10}$/.test(s))
+    .filter(s => /^[A-Za-z0-9.\-=]{1,10}$/.test(s))
     .slice(0, 25)
 
   if (symbols.length === 0) {

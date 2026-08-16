@@ -3,7 +3,7 @@
  * Allocation page for target-vs-actual comparisons and the "value buy"
  * TSLA/SPCX swing signal (distance from 52-week high).
  */
-import { toYahooSymbols, remapToOriginal } from './cryptoSymbols'
+import { toYahooSymbols, remapToOriginal } from './symbolAliases'
 
 const PROXY = 'https://options-jade.vercel.app'
 

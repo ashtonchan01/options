@@ -3,7 +3,7 @@
  * daily closes so the client just gets a number (plus a short rolling
  * history for a sparkline) per symbol.
  */
-import { toYahooSymbols, remapToOriginal } from './cryptoSymbols'
+import { toYahooSymbols, remapToOriginal } from './symbolAliases'
 
 const PROXY = 'https://options-jade.vercel.app'
 
