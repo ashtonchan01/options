@@ -224,6 +224,32 @@ export function buildJournalPositions(
     }
   }
 
+  // Closing executions for one exit can land a few seconds apart (e.g.
+  // "234556" and "234557" for the two legs of a 2-lot close) — since
+  // closeGroups was built off the same tradeTime-keyed grouping used for
+  // opens, that split a single 2-contract close into two separate 1-contract
+  // closeGroups. A position needing 2 contracts closed then found neither
+  // piece alone big enough, silently fell through to "must have expired
+  // worthless," and kept the full opening premium as fake profit — hiding a
+  // real (and potentially large) loss on the actual buyback. Unlike opens,
+  // where two different tradeTimes on the same day can be genuinely
+  // unrelated positions, a close's only job is quantity-by-strike
+  // bookkeeping against whatever's already open (the closePools logic below
+  // already pools multiple close rows by leg key regardless of which
+  // execution they came from) — so merging every closeGroup sharing a
+  // (date, expiry, underlying) back into one, before building closePools,
+  // is safe and fixes the mismatch. Verified against a real account: an
+  // AVGO 425P sold for $1,085 credit and bought back for a $5,642 debit
+  // (net ~$4,558 loss) was showing as "Expired" with the full $1,085 credit
+  // counted as profit until this fix.
+  const mergedCloseGroups = new Map<string, { date: string; expiry: string; underlying: string; legs: RawTrade[] }>()
+  for (const cg of closeGroups) {
+    const k = `${cg.date}|${cg.expiry}|${cg.underlying}`
+    if (!mergedCloseGroups.has(k)) mergedCloseGroups.set(k, { date: cg.date, expiry: cg.expiry, underlying: cg.underlying, legs: [] })
+    mergedCloseGroups.get(k)!.legs.push(...cg.legs)
+  }
+  const closeGroupsMerged = [...mergedCloseGroups.values()]
+
   openGroups.sort((a, b) => a.date.localeCompare(b.date) || a.key.localeCompare(b.key))
 
   // Position ids feed the JournalEntry review store (ratings/mistakes/setup
@@ -257,7 +283,7 @@ export function buildJournalPositions(
   // date, so one closing transaction can satisfy however many open positions
   // it actually covers.
   const legKeyOf = (l: RawTrade) => `${l.strike}${l.putCall}`
-  const closePools = closeGroups.map(cg => {
+  const closePools = closeGroupsMerged.map(cg => {
     const remaining = new Map<string, number>()
     const netCashPerUnit = new Map<string, number>()
     const feesPerUnit = new Map<string, number>()
