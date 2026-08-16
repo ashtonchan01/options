@@ -1,10 +1,16 @@
 /**
  * User-defined brokerage accounts — a completely blank slate, entirely
  * user-named (no imposed Personal/Business or broker categorization). Add
- * an account, name it whatever you want, upload a statement. Each account
- * is populated purely by statement upload (no live API sync), and
- * persisted to localStorage scoped to the signed-in user so different
- * logins never see each other's accounts.
+ * an account, name it whatever you want, upload a statement.
+ *
+ * Persisted to localStorage (instant read on load, and a fallback if the
+ * network's down) AND to the server via /api/portfolio-data when signed in
+ * (best-effort, fire-and-forget) — localStorage alone meant a fresh browser
+ * profile or a different device saw a completely empty account list even
+ * after a successful login, since auth was server-backed but the actual
+ * portfolio data never left the browser it was synced in. Server data wins
+ * when both exist, since it's the one copy that's actually shared across
+ * logins.
  */
 import { useCallback, useEffect, useState } from 'react'
 import type { RawPosition, RawTrade } from '../types'
@@ -74,6 +80,32 @@ function save(sessionKey: string, accounts: Account[]) {
   try { localStorage.setItem(storageKey(sessionKey), JSON.stringify(accounts)) } catch { /* ignore */ }
 }
 
+/** Best-effort server mirror — errors (offline, not signed in, transient
+ * 5xx) are swallowed since localStorage already has the authoritative write
+ * and the next mutation will retry the PUT anyway. */
+async function saveRemote(accounts: Account[]) {
+  try {
+    await fetch('/api/portfolio-data', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accounts }),
+    })
+  } catch { /* offline or request failed — localStorage still has it */ }
+}
+
+async function loadRemote(): Promise<Account[] | null> {
+  try {
+    const res = await fetch('/api/portfolio-data', { credentials: 'include' })
+    if (!res.ok) return null
+    const data: unknown = await res.json()
+    const accounts = (data as { accounts?: unknown } | null)?.accounts
+    return Array.isArray(accounts) ? accounts as Account[] : null
+  } catch {
+    return null
+  }
+}
+
 function newId(): string {
   return `acct_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
@@ -111,35 +143,55 @@ export function useAccounts(sessionKey: string | null) {
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => { setAccounts(load(key)) }, [key])
+  // localStorage paints instantly on every key change (including right after
+  // login, before the network round-trip below resolves) so there's no blank
+  // flash; the server fetch then reconciles once it lands, since the server
+  // copy is the one that's actually consistent across browsers/devices —
+  // whichever this browser's localStorage happens to hold is not.
+  useEffect(() => {
+    setAccounts(load(key))
+    if (!sessionKey) return
+    let cancelled = false
+    loadRemote().then(remote => {
+      if (cancelled || remote === null) return
+      setAccounts(remote)
+      save(key, remote)
+    })
+    return () => { cancelled = true }
+  }, [key, sessionKey])
+
+  const persist = useCallback((next: Account[]) => {
+    save(key, next)
+    if (sessionKey) saveRemote(next)
+  }, [key, sessionKey])
 
   const addAccount = useCallback((name: string): string => {
     const account: Account = { id: newId(), name, trades: [] }
     setAccounts(prev => {
       const next = [...prev, account]
-      save(key, next)
+      persist(next)
       return next
     })
     return account.id
-  }, [key])
+  }, [persist])
 
   const clearTrades = useCallback((id: string) => {
     setAccounts(prev => {
       const next = prev.map(a => a.id === id
         ? { ...a, trades: [], positions: undefined, cashBalance: undefined, netLiquidation: undefined, fileName: undefined, uploadedAt: undefined }
         : a)
-      save(key, next)
+      persist(next)
       return next
     })
-  }, [key])
+  }, [persist])
 
   const removeAccount = useCallback((id: string) => {
     setAccounts(prev => {
       const next = prev.filter(a => a.id !== id)
-      save(key, next)
+      persist(next)
       return next
     })
-  }, [key])
+  }, [persist])
 
   const uploadStatement = useCallback(async (id: string, file: File) => {
     setLoadingId(id)
@@ -161,7 +213,7 @@ export function useAccounts(sessionKey: string | null) {
               uploadedAt: Date.now(),
             }
           : a)
-        save(key, next)
+        persist(next)
         return next
       })
     } catch (e) {
@@ -169,7 +221,7 @@ export function useAccounts(sessionKey: string | null) {
     } finally {
       setLoadingId(null)
     }
-  }, [key])
+  }, [persist])
 
   /** Live sync via the IBKR Flex Web Service (token + query id), scoped to
    * this one account instead of a single app-wide primary account — each
@@ -191,7 +243,7 @@ export function useAccounts(sessionKey: string | null) {
               flexToken: token, flexQueryId: queryId, fileName: 'IBKR Flex sync', uploadedAt: Date.now(),
             }
           : a)
-        save(key, next)
+        persist(next)
         return next
       })
     } catch (e) {
@@ -199,7 +251,7 @@ export function useAccounts(sessionKey: string | null) {
     } finally {
       setLoadingId(null)
     }
-  }, [key])
+  }, [persist])
 
   return { accounts, addAccount, removeAccount, clearTrades, uploadStatement, syncFlex, loadingId, error }
 }

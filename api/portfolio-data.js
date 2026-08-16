@@ -16,7 +16,12 @@ export default async function handler(req, res) {
 
     if (req.method === 'PUT') {
       const body = req.body ?? {}
-      if (!Array.isArray(body.positions) || !Array.isArray(body.trades)) {
+      // Whole-account-list payload — each user-defined account (name, trades,
+      // positions, cash snapshot, saved Flex credentials) round-trips as one
+      // JSON blob so the same shape the client already keeps in localStorage
+      // (accountsStore's Account[]) just mirrors straight to the server,
+      // no separate schema to keep in sync.
+      if (!Array.isArray(body.accounts)) {
         return res.status(400).json({ error: 'Invalid portfolio payload' })
       }
       await sql`
