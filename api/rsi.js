@@ -67,7 +67,7 @@ export default async function handler(req) {
   const symbols = symbolsParam
     .split(',')
     .map(s => s.trim().toUpperCase())
-    .filter(s => /^[A-Za-z0-9.\-=]{1,10}$/.test(s))
+    .filter(s => /^[A-Za-z0-9.\-=^]{1,10}$/.test(s))
     .slice(0, 25)
 
   if (symbols.length === 0) {
@@ -76,25 +76,42 @@ export default async function handler(req) {
     })
   }
 
+  const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+  async function attemptRSI(sym) {
+    const r = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=3mo&interval=1d&includePrePost=false`,
+      { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) },
+    )
+    if (!r.ok) return null
+    const json = await r.json()
+    const result = json?.chart?.result?.[0]
+    const closesRaw = result?.indicators?.quote?.[0]?.close
+    if (!Array.isArray(closesRaw)) return null
+    const closes = closesRaw.filter(c => typeof c === 'number')
+    const series = computeRSISeries(closes)
+    if (series.length === 0) return null
+    const rounded = series.map(v => Math.round(v * 10) / 10)
+    return { rsi: rounded[rounded.length - 1], series: rounded.slice(-SERIES_POINTS) }
+  }
+
   const results = await Promise.all(
     symbols.map(async sym => {
+      // One retry after a short delay — a big batch (a full watchlist) can
+      // trip transient rate-limiting/timeouts on individual symbols even
+      // though they're perfectly valid tickers.
       try {
-        const r = await fetch(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=3mo&interval=1d&includePrePost=false`,
-          { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) },
-        )
-        if (!r.ok) return [sym, null]
-        const json = await r.json()
-        const result = json?.chart?.result?.[0]
-        const closesRaw = result?.indicators?.quote?.[0]?.close
-        if (!Array.isArray(closesRaw)) return [sym, null]
-        const closes = closesRaw.filter(c => typeof c === 'number')
-        const series = computeRSISeries(closes)
-        if (series.length === 0) return [sym, null]
-        const rounded = series.map(v => Math.round(v * 10) / 10)
-        return [sym, { rsi: rounded[rounded.length - 1], series: rounded.slice(-SERIES_POINTS) }]
+        const first = await attemptRSI(sym)
+        if (first) return [sym, first]
+        await sleep(250)
+        return [sym, await attemptRSI(sym)]
       } catch {
-        return [sym, null]
+        try {
+          await sleep(250)
+          return [sym, await attemptRSI(sym)]
+        } catch {
+          return [sym, null]
+        }
       }
     })
   )

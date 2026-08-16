@@ -27,10 +27,21 @@ const COMMODITY_ALIASES: Record<string, string> = {
   SILVER: 'XAGUSD=X', XAGUSD: 'XAGUSD=X', XAG: 'XAGUSD=X',
 }
 
+// Index/CFD aliases -> Yahoo's "^"-prefixed index symbol. A bare "SPX" or
+// "VIX" resolves to nothing on Yahoo — indices need the caret.
+const INDEX_ALIASES: Record<string, string> = {
+  SPX: '^GSPC', US500: '^GSPC', 'SPX500': '^GSPC',
+  VIX: '^VIX',
+  NDQ: '^NDX', NAS100: '^NDX', USTEC: '^NDX',
+  DJI: '^DJI', US30: '^DJI',
+  RUT: '^RUT', US2000: '^RUT',
+}
+
 export function toYahooSymbol(symbol: string): string {
   const sym = symbol.toUpperCase()
   if (CRYPTO_TICKERS.has(sym)) return `${sym}-USD`
   if (COMMODITY_ALIASES[sym]) return COMMODITY_ALIASES[sym]
+  if (INDEX_ALIASES[sym]) return INDEX_ALIASES[sym]
   return sym
 }
 
