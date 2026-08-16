@@ -43,24 +43,44 @@ interface SyncResult {
   positions?: RawPosition[]
   cashBalance?: number
   netLiquidation?: number
+  /** The Flex report's own "YYYYMMDD" reporting window, when the source
+   * provided one (XML/Flex sync only — CSV/XLSX/PDF imports don't). */
+  fromDate?: string
+  toDate?: string
 }
 
-function unionTrades(existing: RawTrade[], incoming: RawTrade[]): RawTrade[] {
-  // Union, not replace — a re-sync or a new statement shouldn't wipe out
-  // older history. Deduped on the same composite fields the rest of the
-  // app treats as identity when no IBKR execId is present.
-  //
-  // Incoming (freshly re-parsed) wins on a key collision, not existing — a
-  // trade already cached from an earlier sync can be missing a field a
-  // later parser fix started populating (verified: tradeTime went from
-  // always-undefined to correctly populated, but every resync kept the old
-  // undefined-tradeTime copy forever because it matched on the same
-  // date/symbol/quantity/price key, silently pinning the stale data in
-  // place no matter how many times the user re-synced).
-  const byKey = new Map<string, RawTrade>()
-  for (const t of existing) byKey.set(`${t.tradeDate}|${t.symbol}|${t.quantity}|${t.tradePrice}`, t)
-  for (const t of incoming) byKey.set(`${t.tradeDate}|${t.symbol}|${t.quantity}|${t.tradePrice}`, t)
-  return [...byKey.values()]
+/** Merges a fresh sync's trades into the existing history.
+ *
+ * Trades dated BEFORE the incoming report's own window (older than
+ * `fromDate`) are preserved untouched — the new report never claimed to
+ * cover them, so dropping them would lose real history a re-sync simply
+ * didn't fetch.
+ *
+ * Trades dated INSIDE the window are fully replaced by whatever the fresh
+ * sync says belongs there, not unioned — the Flex report is authoritative
+ * for its own window, so anything IBKR no longer reports there (a phantom
+ * trade from an earlier buggy parse, a broker-side correction/cancellation)
+ * must disappear on resync instead of sticking around forever. Verified
+ * against a real account: an MSTR covered call and an AVGO CSP that no
+ * longer appear anywhere in a fresh 365-day Flex export kept showing up in
+ * the journal indefinitely under the old blind-union behavior, because nothing
+ * ever removed a trade once cached — only re-syncing with no window bound at
+ * all (fromDate missing, e.g. a CSV/XLSX/PDF import) falls back to the old
+ * pure-union behavior, since those sources can't say what they do or don't
+ * cover.
+ */
+function mergeTrades(existing: RawTrade[], incoming: RawTrade[], fromDate?: string): RawTrade[] {
+  const before = fromDate ? existing.filter(t => t.tradeDate < fromDate) : existing
+  if (!fromDate) {
+    // No declared window — fall back to a straight union, deduped by key,
+    // incoming wins on collision (a trade already cached can be missing a
+    // field a later parser fix started populating).
+    const byKey = new Map<string, RawTrade>()
+    for (const t of existing) byKey.set(`${t.tradeDate}|${t.symbol}|${t.quantity}|${t.tradePrice}`, t)
+    for (const t of incoming) byKey.set(`${t.tradeDate}|${t.symbol}|${t.quantity}|${t.tradePrice}`, t)
+    return [...byKey.values()]
+  }
+  return [...before, ...incoming]
 }
 
 function storageKey(sessionKey: string): string {
@@ -202,7 +222,7 @@ export function useAccounts(sessionKey: string | null) {
         const next = prev.map(a => a.id === id
           ? {
               ...a,
-              trades: unionTrades(a.trades, result.trades),
+              trades: mergeTrades(a.trades, result.trades, result.fromDate),
               // Positions/cash are a point-in-time snapshot, not history —
               // replace rather than merge, and only touch them when this
               // source actually provided one (CSV/XLSX/PDF don't).
@@ -236,7 +256,7 @@ export function useAccounts(sessionKey: string | null) {
         const next = prev.map(a => a.id === id
           ? {
               ...a,
-              trades: unionTrades(a.trades, result.trades),
+              trades: mergeTrades(a.trades, result.trades, result.fromDate),
               positions: result.positions ?? a.positions,
               cashBalance: result.cashBalance ?? a.cashBalance,
               netLiquidation: result.netLiquidation ?? a.netLiquidation,
