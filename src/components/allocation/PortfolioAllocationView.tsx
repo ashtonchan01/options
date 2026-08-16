@@ -8,7 +8,7 @@
  * in sync by hand). Persisted per account so it survives reloads.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Pencil, Check, X } from 'lucide-react'
 import type { AppState, RawPosition, RawTrade } from '../../types'
 import { fetchQuotes, type Quote } from '../../services/quotes'
 
@@ -185,6 +185,9 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
   const [newTicker, setNewTicker] = useState('')
   const [newShares, setNewShares] = useState('')
   const [quotes, setQuotes] = useState<Record<string, Quote>>({})
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTicker, setEditTicker] = useState('')
+  const [editShares, setEditShares] = useState('')
 
   function persist(next: TargetsState) {
     setTargets(next)
@@ -202,6 +205,25 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
 
   function removeRow(id: string) {
     persist({ rows: targets.rows.filter(r => r.id !== id) })
+    if (editingId === id) setEditingId(null)
+  }
+
+  function startEdit(row: TargetRow) {
+    setEditingId(row.id)
+    setEditTicker(row.ticker)
+    setEditShares(String(row.shares))
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+  }
+
+  function saveEdit(id: string) {
+    const ticker = editTicker.trim().toUpperCase()
+    const shares = parseFloat(editShares)
+    if (!ticker || !Number.isFinite(shares) || shares <= 0) return
+    persist({ rows: targets.rows.map(r => r.id === id ? { ...r, ticker, shares } : r) })
+    setEditingId(null)
   }
 
   // Live price per target ticker — a target needs a real current price to
@@ -343,6 +365,39 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
               {targetRowsResolved.map(r => {
                 const currentValue = holdings.find(h => h.symbol === r.ticker)?.value ?? 0
                 const gap = r.dollarValue != null ? r.dollarValue - currentValue : null
+                const isEditing = editingId === r.id
+                if (isEditing) {
+                  return (
+                    <tr key={r.id}>
+                      <td>
+                        <input
+                          value={editTicker} onChange={e => setEditTicker(e.target.value.toUpperCase())}
+                          onKeyDown={e => { if (e.key === 'Enter') saveEdit(r.id); if (e.key === 'Escape') cancelEdit() }}
+                          autoFocus
+                          style={{ width: 80, padding: '3px 6px', fontSize: 12, borderRadius: 4, border: '1px solid var(--accent-border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <input
+                          type="number" min={0} value={editShares} onChange={e => setEditShares(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveEdit(r.id); if (e.key === 'Escape') cancelEdit() }}
+                          style={{ width: 80, padding: '3px 6px', fontSize: 12, textAlign: 'right', borderRadius: 4, border: '1px solid var(--accent-border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}
+                        />
+                      </td>
+                      <td colSpan={4}></td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: 4 }}>
+                          <button onClick={() => saveEdit(r.id)} title="Save" style={{ background: 'none', border: '1px solid var(--accent-border)', color: 'var(--accent)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
+                            <Check size={11} />
+                          </button>
+                          <button onClick={cancelEdit} title="Cancel" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
+                            <X size={11} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                }
                 return (
                   <tr key={r.id}>
                     <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
@@ -358,9 +413,14 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
                       {gap != null ? fmt$(gap) : '—'}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button onClick={() => removeRow(r.id)} title="Remove" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
-                        <Trash2 size={11} />
-                      </button>
+                      <div style={{ display: 'inline-flex', gap: 4 }}>
+                        <button onClick={() => startEdit(r)} title="Edit" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
+                          <Pencil size={11} />
+                        </button>
+                        <button onClick={() => removeRow(r.id)} title="Remove" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )

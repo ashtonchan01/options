@@ -7,6 +7,8 @@
  * those fields stay empty/zero for them.
  */
 import type { AppState, RawPosition, RawTrade } from '../../types'
+import { classifyPositions } from '../../engine/classifier'
+import { generateActions } from '../../engine/actions'
 
 export function emptyAppState(): AppState {
   return {
@@ -31,14 +33,23 @@ export function accountToAppState(account: {
   netLiquidation?: number
 }): AppState {
   const base = emptyAppState()
+  const positions = account.positions ?? []
+  // Strategies/actions were only ever computed by the old app-wide sync
+  // pipeline (useAppStore) — per-account state built here skipped that
+  // step entirely, so every account's Actions & To-Do sidebar showed
+  // "no actions" regardless of what its real positions actually needed.
+  const strategies = classifyPositions(positions)
+  const actions = generateActions(strategies, positions)
   return {
     ...base,
     sync: {
       ...base.sync,
       trades: account.trades,
-      positions: account.positions ?? [],
+      positions,
       cashBalance: account.cashBalance ?? 0,
       netLiquidation: account.netLiquidation,
     },
+    strategies,
+    actions,
   }
 }
