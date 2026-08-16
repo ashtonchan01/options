@@ -14,13 +14,17 @@ const CRYPTO_TICKERS = new Set([
   'APT', 'ARB', 'OP', 'NEAR', 'ICP', 'HBAR', 'VET', 'ALGO', 'SUI', 'TON', 'PEPE',
 ])
 
-// Commodity/CFD aliases -> Yahoo's futures continuous-contract symbol.
+// Commodity/CFD aliases -> a Yahoo symbol. Oil/gas have no spot ticker on
+// Yahoo, so those stay on the futures continuous-contract symbol (CL=F
+// etc). Gold/silver do have a spot-rate ticker (XAUUSD=X / XAGUSD=X) that
+// tracks the actual spot price CFD platforms quote as "GOLD"/"XAUUSD" —
+// GC=F (COMEX futures) trades close to spot but not exactly on it.
 const COMMODITY_ALIASES: Record<string, string> = {
   USOIL: 'CL=F', OIL: 'CL=F', WTI: 'CL=F',
   UKOIL: 'BZ=F', BRENT: 'BZ=F',
   NATGAS: 'NG=F',
-  GOLD: 'GC=F', XAUUSD: 'GC=F', XAU: 'GC=F',
-  SILVER: 'SI=F', XAGUSD: 'SI=F', XAG: 'SI=F',
+  GOLD: 'XAUUSD=X', XAUUSD: 'XAUUSD=X', XAU: 'XAUUSD=X',
+  SILVER: 'XAGUSD=X', XAGUSD: 'XAGUSD=X', XAG: 'XAGUSD=X',
 }
 
 export function toYahooSymbol(symbol: string): string {
