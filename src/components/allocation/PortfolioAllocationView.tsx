@@ -127,9 +127,11 @@ function saveTargets(accountId: string, state: TargetsState) {
 
 interface Slice { label: string; value: number; color: string }
 
+type LabelMode = 'pct' | 'dollar'
+
 /** Google-Sheets-style pie: labels sit outside the circle with a bent leader
  * line back to the wedge, instead of a separate legend list. */
-function PortfolioPie({ slices, centerLabel, centerValue }: { slices: Slice[]; centerLabel: string; centerValue: string }) {
+function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { slices: Slice[]; centerLabel: string; centerValue: string; labelMode: LabelMode }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
   const W = 440, H = 260, CX = 220, CY = 130, R = 68
   const LABEL_ROW_H = 15
@@ -194,7 +196,7 @@ function PortfolioPie({ slices, centerLabel, centerValue }: { slices: Slice[]; c
             <text x={textX} y={w.idealY} dy={3} textAnchor={w.side === 'right' ? 'start' : 'end'}
               fontSize="10" fontFamily="Inter, sans-serif" fontWeight={600} fill="var(--text-2)">
               {w.label}
-              <tspan fill="var(--text-4)" fontWeight={400}> {(w.frac * 100).toFixed(1)}%</tspan>
+              <tspan fill="var(--text-4)" fontWeight={400}> {labelMode === 'pct' ? `${(w.frac * 100).toFixed(1)}%` : fmt$(w.value)}</tspan>
             </text>
           </g>
         )
@@ -229,6 +231,7 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
   const currentTotal = state.sync.netLiquidation ?? (holdingsValue + cashBalance)
   const otherValue = Math.max(0, currentTotal - holdingsValue - cashBalance)
 
+  const [labelMode, setLabelMode] = useState<LabelMode>('pct')
   const [targets, setTargets] = useState<TargetsState>(() => loadTargets(accountId))
   const [newTicker, setNewTicker] = useState('')
   const [newShares, setNewShares] = useState('')
@@ -312,9 +315,26 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
 
   return (
     <div className="jr-root">
-      <div>
-        <div className="cc-section-title" style={{ padding: 0 }}>Portfolio Allocation</div>
-        <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 3 }}>Current holdings vs a target you set yourself</div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div className="cc-section-title" style={{ padding: 0 }}>Portfolio Allocation</div>
+          <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 3 }}>Current holdings vs a target you set yourself</div>
+        </div>
+        <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+          {(['pct', 'dollar'] as LabelMode[]).map(m => (
+            <button
+              key={m}
+              onClick={() => setLabelMode(m)}
+              style={{
+                padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none',
+                background: labelMode === m ? 'var(--accent-dim)' : 'transparent',
+                color: labelMode === m ? 'var(--accent)' : 'var(--text-4)',
+              }}
+            >
+              {m === 'pct' ? '%' : '$'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Current vs Target pies ────────────────────────────────────────── */}
@@ -323,13 +343,13 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 10 }}>
             CURRENT ALLOCATION
           </div>
-          <PortfolioPie slices={currentSlices} centerLabel="Current" centerValue={fmt$(currentTotal)} />
+          <PortfolioPie slices={currentSlices} centerLabel="Current" centerValue={fmt$(currentTotal)} labelMode={labelMode} />
         </div>
         <div className="panel" style={{ padding: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 10 }}>
             TARGET ALLOCATION
           </div>
-          <PortfolioPie slices={targetSlices} centerLabel="Target" centerValue={fmt$(targetAllocatedTotal)} />
+          <PortfolioPie slices={targetSlices} centerLabel="Target" centerValue={fmt$(targetAllocatedTotal)} labelMode={labelMode} />
         </div>
       </div>
 
