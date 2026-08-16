@@ -4,7 +4,7 @@ import AuthGate from './components/auth/AuthGate'
 import { useTradeLabelStore } from './store/tradeLabelsStore'
 import { useAuthStore } from './store/authStore'
 import { useAccounts } from './store/accountsStore'
-import { useWatchlist } from './store/watchlistStore'
+import { useWatchlists } from './store/watchlistStore'
 import DashboardView from './components/dashboard/DashboardView'
 import AccountView from './components/portfolio/AccountView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
@@ -48,7 +48,7 @@ export default function App() {
   const auth = useAuthStore()
   const { labels, setLabel, setMany, clearAll } = useTradeLabelStore()
   const accountsStore = useAccounts(auth.user?.email ?? null)
-  const watchlist = useWatchlist(auth.user?.email ?? null)
+  const watchlists = useWatchlists(auth.user?.email ?? null)
 
   const activeAccountId = parseAccountTabId(activeTab)
   const activeAccount = activeAccountId ? accountsStore.accounts.find(a => a.id === activeAccountId) : undefined
@@ -87,12 +87,26 @@ export default function App() {
               onClear={() => accountsStore.clearTrades(activeAccount.id)}
               onSyncFlex={(token, queryId) => accountsStore.syncFlex(activeAccount.id, token, queryId)}
               tradeLabels={tradeLabels}
-              watchlistTickers={watchlist.tickers}
+              watchlistTickers={watchlists.activeTickers}
             />
           ) : activeTab === 'watchlist' ? (
-            <WatchlistView tickers={watchlist.tickers} onAdd={watchlist.addTicker} onRemove={watchlist.removeTicker} />
+            <WatchlistView
+              lists={watchlists.lists}
+              activeId={watchlists.activeId}
+              onSetActive={watchlists.setActive}
+              onAddList={watchlists.addList}
+              onRemoveList={watchlists.removeList}
+              onRenameList={watchlists.renameList}
+              onAddTicker={watchlists.addTicker}
+              onRemoveTicker={watchlists.removeTicker}
+            />
           ) : activeTab === 'scanner' ? (
-            <OpportunitiesView state={EMPTY_STATE} tickers={watchlist.tickers} onAddTicker={watchlist.addTicker} onRemoveTicker={watchlist.removeTicker} />
+            <OpportunitiesView
+              state={EMPTY_STATE}
+              tickers={watchlists.activeTickers}
+              onAddTicker={sym => watchlists.activeId && watchlists.addTicker(watchlists.activeId, sym)}
+              onRemoveTicker={sym => watchlists.activeId && watchlists.removeTicker(watchlists.activeId, sym)}
+            />
           ) : (
             <DashboardView state={EMPTY_STATE} />
           )}
