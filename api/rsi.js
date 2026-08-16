@@ -95,26 +95,33 @@ export default async function handler(req) {
     return { rsi: rounded[rounded.length - 1], series: rounded.slice(-SERIES_POINTS) }
   }
 
-  const results = await Promise.all(
-    symbols.map(async sym => {
-      // One retry after a short delay — a big batch (a full watchlist) can
-      // trip transient rate-limiting/timeouts on individual symbols even
-      // though they're perfectly valid tickers.
+  async function attemptWithRetry(sym) {
+    try {
+      const first = await attemptRSI(sym)
+      if (first) return [sym, first]
+      await sleep(250)
+      return [sym, await attemptRSI(sym)]
+    } catch {
       try {
-        const first = await attemptRSI(sym)
-        if (first) return [sym, first]
         await sleep(250)
         return [sym, await attemptRSI(sym)]
       } catch {
-        try {
-          await sleep(250)
-          return [sym, await attemptRSI(sym)]
-        } catch {
-          return [sym, null]
-        }
+        return [sym, null]
       }
-    })
-  )
+    }
+  }
+
+  // Chunked, not one big Promise.all over every symbol — see quote.js for
+  // why (a full watchlist batch was intermittently rate-limited even for
+  // valid tickers).
+  const CHUNK_SIZE = 6
+  const results = []
+  for (let i = 0; i < symbols.length; i += CHUNK_SIZE) {
+    const chunk = symbols.slice(i, i + CHUNK_SIZE)
+    const chunkResults = await Promise.all(chunk.map(attemptWithRetry))
+    results.push(...chunkResults)
+    if (i + CHUNK_SIZE < symbols.length) await sleep(150)
+  }
 
   const body = Object.fromEntries(results.filter(([, v]) => v !== null))
   return new Response(JSON.stringify(body), {
