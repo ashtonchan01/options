@@ -184,6 +184,17 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
     total: acc.total + r.total,
   }), { realized: 0, unrealized: 0, total: 0 }), [rows])
 
+  // Table footer sums the currently filtered/searched rows, not the FY-wide
+  // grand total above — so it stays correct when the ticker filter narrows
+  // what's actually shown in the table.
+  const filteredTotals = useMemo(() => filtered.reduce((acc, r) => ({
+    realized: acc.realized + r.realized,
+    unrealized: acc.unrealized + r.unrealized,
+    total: acc.total + r.total,
+    closedTrades: acc.closedTrades + r.closedTrades,
+    openPositions: acc.openPositions + r.openPositions,
+  }), { realized: 0, unrealized: 0, total: 0, closedTrades: 0, openPositions: 0 }), [filtered])
+
   const hasData = state.sync.trades.length > 0
 
   if (!hasData) {
@@ -280,6 +291,18 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
                 <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>No matches</td></tr>
               )}
             </tbody>
+            {filtered.length > 0 && (
+              <tfoot>
+                <tr style={{ borderTop: '2px solid var(--border)' }}>
+                  <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>Total</td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(filteredTotals.realized), whiteSpace: 'nowrap' }}>{fmtDollar(filteredTotals.realized)}</td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(filteredTotals.unrealized), whiteSpace: 'nowrap' }}>{fmtDollar(filteredTotals.unrealized)}</td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(filteredTotals.total), whiteSpace: 'nowrap' }}>{fmtDollar(filteredTotals.total)}</td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{filteredTotals.closedTrades}</td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{filteredTotals.openPositions}</td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
