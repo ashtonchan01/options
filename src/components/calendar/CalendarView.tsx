@@ -648,6 +648,9 @@ export default function CalendarView({ state, watchlistTickers = [] }: Props) {
   const monthTradeCount = Object.entries(dailyTrades)
     .filter(([d]) => d.startsWith(monthPrefix))
     .reduce((s, [, dt]) => s + dt.tradeCount, 0)
+  const monthEconEventCount = Object.entries(econEventMap)
+    .filter(([d]) => d.startsWith(monthPrefix))
+    .reduce((s, [, evs]) => s + evs.length, 0)
 
   // Calendar always renders (holidays + earnings are always available)
 
@@ -693,6 +696,18 @@ export default function CalendarView({ state, watchlistTickers = [] }: Props) {
                 {monthTradePnL >= 0 ? '+' : ''}{Math.round(monthTradePnL).toLocaleString()}
               </span>
             </div>
+            {monthEconEventCount > 0 && (
+              <div
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  fontSize: 11, fontWeight: 700, color: '#a78bfa', background: '#a78bfa14',
+                  padding: '3px 8px', borderRadius: 4, border: '1px solid #a78bfa30',
+                }}
+                title="Economic events (FOMC, etc.) this month"
+              >
+                {monthEconEventCount} econ event{monthEconEventCount !== 1 ? 's' : ''}
+              </div>
+            )}
             {selected && (
               <button onClick={() => setSelected(null)} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '3px 8px', fontSize: 12, fontFamily: 'inherit', borderRadius: 4 }}>
                 Clear
