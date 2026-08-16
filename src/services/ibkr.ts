@@ -128,6 +128,7 @@ function parseNetLiq(doc: Document): number | undefined {
 function parseTrades(doc: Document): RawTrade[] {
   return Array.from(doc.querySelectorAll('Trade')).map(el => ({
     execId:           el.getAttribute('tradeID') ?? undefined,
+    orderId:          el.getAttribute('ibOrderID') || el.getAttribute('orderID') || undefined,
     tradeDate:        el.getAttribute('tradeDate') ?? '',
     tradeTime:        el.getAttribute('tradeTime') ?? undefined,
     symbol:           el.getAttribute('symbol') ?? '',

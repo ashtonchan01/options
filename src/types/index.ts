@@ -53,6 +53,15 @@ export interface RawTrade {
    * a single uniform price (verified: a real 3-lot CSP sell, each execution
    * -1 @ the same price, merged down to 2 distinct rows). */
   execId?: string
+  /** IBKR's own order ID (Flex XML `ibOrderID`), when available. Legs of one
+   * multi-leg combo order (e.g. a bull put spread) always share this value —
+   * unlike tradeTime, which is only second-granularity and can coincidentally
+   * collide between two genuinely unrelated single-leg orders placed at the
+   * same second (verified against a real account: an unrelated 7500C buy and
+   * a 7525P sell, placed as two separate orders, landed on the identical
+   * tradeTime and got merged into one fake mixed put/call "spread"). Used to
+   * group trades into their real order instead of just date+time. */
+  orderId?: string
 }
 
 // ─── Classified Strategy ─────────────────────────────────────────────────────

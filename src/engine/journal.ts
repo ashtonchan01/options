@@ -160,16 +160,21 @@ export function buildJournalPositions(
 ): JournalPosition[] {
   const optTrades = trades.filter(t => t.assetClass === 'OPT')
 
-  // tradeTime (when the report includes it) disambiguates two unrelated
-  // spreads opened minutes apart on the same underlying/expiry/day — without
-  // it they'd share a grouping key and get lumped into one blob (verified: a
-  // 10-lot spread opened at 17:29:36 and an unrelated 2-lot spread on
-  // different strikes opened at 17:30:25, same day/expiry, merged into a
-  // single fake "12-lot" position). Falls back to date-only grouping for
-  // records with no tradeTime (OptionEAE/Transfer), same as before.
+  // orderId (IBKR's ibOrderID, when the report includes it) is the real
+  // disambiguator between unrelated orders — tradeTime is only second-
+  // granularity and two independent single-leg orders CAN land on the exact
+  // same reported second by coincidence (verified against a real account: an
+  // unrelated 7500C buy and a 7525P sell, two separate orders, shared one
+  // tradeTime and got merged by the old tradeTime-only key into a single fake
+  // mixed put/call "spread" position that never actually existed). Legs of
+  // one genuine multi-leg combo order always share the same orderId, so
+  // grouping by it (falling back to tradeTime when orderId isn't present,
+  // e.g. OptionEAE/Transfer records) keeps real spreads together while
+  // splitting apart same-second coincidences that aren't actually related.
   const groups = new Map<string, RawTrade[]>()
   for (const t of optTrades) {
-    const key = `${t.tradeDate}|${t.tradeTime ?? ''}|${t.expiry ?? ''}|${t.underlyingSymbol ?? t.symbol}`
+    const orderKey = t.orderId || `t:${t.tradeTime ?? ''}`
+    const key = `${t.tradeDate}|${orderKey}|${t.expiry ?? ''}|${t.underlyingSymbol ?? t.symbol}`
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key)!.push(t)
   }
