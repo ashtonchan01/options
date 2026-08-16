@@ -3,6 +3,7 @@
  * Allocation page for target-vs-actual comparisons and the "value buy"
  * TSLA/SPCX swing signal (distance from 52-week high).
  */
+import { toYahooSymbols, remapToOriginal } from './cryptoSymbols'
 
 const PROXY = 'https://options-jade.vercel.app'
 
@@ -17,13 +18,15 @@ export interface Quote {
 
 export async function fetchQuotes(symbols: string[]): Promise<Record<string, Quote>> {
   if (symbols.length === 0) return {}
+  const { yahooSymbols, toOriginal } = toYahooSymbols(symbols)
   try {
     const res = await fetch(
-      `${PROXY}/api/quote?symbols=${encodeURIComponent(symbols.join(','))}`,
+      `${PROXY}/api/quote?symbols=${encodeURIComponent(yahooSymbols.join(','))}`,
       { signal: AbortSignal.timeout(15000) },
     )
     if (!res.ok) return {}
-    return await res.json() as Record<string, Quote>
+    const data = await res.json() as Record<string, Quote>
+    return remapToOriginal(data, toOriginal)
   } catch {
     return {}
   }
