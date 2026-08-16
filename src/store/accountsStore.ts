@@ -43,13 +43,18 @@ function unionTrades(existing: RawTrade[], incoming: RawTrade[]): RawTrade[] {
   // Union, not replace — a re-sync or a new statement shouldn't wipe out
   // older history. Deduped on the same composite fields the rest of the
   // app treats as identity when no IBKR execId is present.
-  const seen = new Set(existing.map(t => `${t.tradeDate}|${t.symbol}|${t.quantity}|${t.tradePrice}`))
-  const merged = [...existing]
-  for (const t of incoming) {
-    const key = `${t.tradeDate}|${t.symbol}|${t.quantity}|${t.tradePrice}`
-    if (!seen.has(key)) { seen.add(key); merged.push(t) }
-  }
-  return merged
+  //
+  // Incoming (freshly re-parsed) wins on a key collision, not existing — a
+  // trade already cached from an earlier sync can be missing a field a
+  // later parser fix started populating (verified: tradeTime went from
+  // always-undefined to correctly populated, but every resync kept the old
+  // undefined-tradeTime copy forever because it matched on the same
+  // date/symbol/quantity/price key, silently pinning the stale data in
+  // place no matter how many times the user re-synced).
+  const byKey = new Map<string, RawTrade>()
+  for (const t of existing) byKey.set(`${t.tradeDate}|${t.symbol}|${t.quantity}|${t.tradePrice}`, t)
+  for (const t of incoming) byKey.set(`${t.tradeDate}|${t.symbol}|${t.quantity}|${t.tradePrice}`, t)
+  return [...byKey.values()]
 }
 
 function storageKey(sessionKey: string): string {
