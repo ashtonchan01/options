@@ -19,8 +19,8 @@ const COMMODITY_ALIASES: Record<string, string> = {
   USOIL: 'CL=F', OIL: 'CL=F', WTI: 'CL=F',
   UKOIL: 'BZ=F', BRENT: 'BZ=F',
   NATGAS: 'NG=F',
-  GOLD: 'GC=F', XAUUSD: 'GC=F',
-  SILVER: 'SI=F', XAGUSD: 'SI=F',
+  GOLD: 'GC=F', XAUUSD: 'GC=F', XAU: 'GC=F',
+  SILVER: 'SI=F', XAGUSD: 'SI=F', XAG: 'SI=F',
 }
 
 export function toYahooSymbol(symbol: string): string {
