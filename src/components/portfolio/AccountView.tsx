@@ -27,7 +27,7 @@ import PortfolioAllocationView from '../allocation/PortfolioAllocationView'
 import CompaniesView from '../companies/CompaniesView'
 import AccountUploadBar from '../shared/AccountUploadBar'
 import FlexSyncBar from '../shared/FlexSyncBar'
-import { tradesToAppState } from '../shared/syntheticAccountState'
+import { accountToAppState } from '../shared/syntheticAccountState'
 
 type Section = 'calendar' | 'journal' | 'reports' | 'allocation'
 
@@ -49,7 +49,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
   watchlistTickers: string[]
 }) {
   const [section, setSection] = useState<Section>('reports')
-  const accountState = tradesToAppState(account.trades)
+  const accountState = accountToAppState(account)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: '20px 24px' }}>

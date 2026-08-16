@@ -2,13 +2,15 @@
  * Portfolio Allocation — generic version. Current Allocation is always
  * derived automatically from this account's trades (net shares + avg cost
  * per ticker, no live quotes needed). Target Allocation is entirely
- * user-defined: add a ticker, specify it by number of shares, % of
- * portfolio, or a flat $ amount, and it's compared against what's actually
- * held. Persisted per account so it survives reloads.
+ * user-defined: add a ticker and a number of shares — a live quote prices
+ * each row, and every row's % is derived automatically from its share of
+ * the total (always adds up to 100%, no separate %/$-amount inputs to keep
+ * in sync by hand). Persisted per account so it survives reloads.
  */
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
-import type { AppState, RawTrade } from '../../types'
+import type { AppState, RawPosition, RawTrade } from '../../types'
+import { fetchQuotes, type Quote } from '../../services/quotes'
 
 function fmt$(n: number): string {
   const abs = Math.abs(n)
@@ -25,11 +27,22 @@ function tickerColor(i: number): string {
 
 interface Holding { symbol: string; shares: number; avgCost: number; value: number }
 
+/** Live mark-to-market holdings, straight from the account's actual XML/
+ * Flex positions snapshot — real market value (positionValue), not a cost
+ * basis estimate, so this lines up with IBKR's own numbers. */
+function holdingsFromPositions(positions: RawPosition[]): Holding[] {
+  return positions
+    .filter(p => p.assetClass === 'STK' && Math.abs(p.quantity) > 1e-6)
+    .map(p => ({ symbol: p.symbol, shares: p.quantity, avgCost: p.costBasisPrice, value: p.positionValue }))
+    .sort((a, b) => b.value - a.value)
+}
+
 /** Net open shares + weighted avg cost per stock ticker, straight from raw
- * trade history — no live quote dependency, so "current allocation" works
- * for any uploaded statement without an extra API round-trip. Value is the
- * remaining cost basis (what's actually invested), not a live mark. */
-function currentHoldings(trades: RawTrade[]): Holding[] {
+ * trade history — no live quote dependency, so this still works for a
+ * generic .csv/.xlsx/.pdf statement upload that has no positions snapshot.
+ * Value is the remaining cost basis (what's actually invested), not a live
+ * mark — used only as a fallback when there's no real positions data. */
+function holdingsFromTrades(trades: RawTrade[]): Holding[] {
   const bySymbol = new Map<string, { shares: number; costBasis: number }>()
   for (const t of trades) {
     if (t.assetClass !== 'STK') continue
@@ -49,9 +62,8 @@ function currentHoldings(trades: RawTrade[]): Holding[] {
     .sort((a, b) => b.value - a.value)
 }
 
-type TargetMode = 'shares' | 'pct' | 'amount'
-interface TargetRow { id: string; ticker: string; mode: TargetMode; value: number }
-interface TargetsState { totalValue: number; rows: TargetRow[] }
+interface TargetRow { id: string; ticker: string; shares: number }
+interface TargetsState { rows: TargetRow[] }
 
 function targetsKey(accountId: string): string {
   return `options:targets:${accountId}`
@@ -59,9 +71,13 @@ function targetsKey(accountId: string): string {
 function loadTargets(accountId: string): TargetsState {
   try {
     const raw = localStorage.getItem(targetsKey(accountId))
-    return raw ? JSON.parse(raw) as TargetsState : { totalValue: 0, rows: [] }
+    if (!raw) return { rows: [] }
+    const parsed = JSON.parse(raw) as { rows?: Array<{ id: string; ticker: string; shares?: number }> }
+    // Old shape had pct/amount rows too — those can't be priced without a
+    // shares count, so they're dropped on load rather than shown broken.
+    return { rows: (parsed.rows ?? []).filter((r): r is TargetRow => typeof r.shares === 'number') }
   } catch {
-    return { totalValue: 0, rows: [] }
+    return { rows: [] }
   }
 }
 function saveTargets(accountId: string, state: TargetsState) {
@@ -146,58 +162,80 @@ function PortfolioPie({ slices, centerLabel, centerValue }: { slices: Slice[]; c
   )
 }
 
-const MODE_LABEL: Record<TargetMode, string> = { shares: 'Shares', pct: '% of portfolio', amount: '$ amount' }
-
 export default function PortfolioAllocationView({ state, accountId }: { state: AppState; accountId: string }) {
-  const holdings = currentHoldings(state.sync.trades)
-  const currentTotal = holdings.reduce((s, h) => s + h.value, 0)
+  // Prefer the real XML/Flex positions snapshot (live mark-to-market) —
+  // only fall back to trade-derived cost basis for a generic .csv/.xlsx/
+  // .pdf statement, which has no positions snapshot at all.
+  const holdings = state.sync.positions.length > 0
+    ? holdingsFromPositions(state.sync.positions)
+    : holdingsFromTrades(state.sync.trades)
+  const stockValue = holdings.reduce((s, h) => s + h.value, 0)
+  const cashBalance = state.sync.cashBalance ?? 0
+  // Net liquidation (IBKR's own total-account-value figure) is the source
+  // of truth when we have it — it includes options, cash, everything, not
+  // just the stock tickers this page breaks out individually. Whatever it
+  // doesn't account for falls into an "Other" slice instead of silently
+  // vanishing, so the pie's total always reconciles to the real IBKR number
+  // instead of just summing the stock rows (which used to quietly exclude
+  // cash and options and understate the real total).
+  const currentTotal = state.sync.netLiquidation ?? (stockValue + cashBalance)
+  const otherValue = Math.max(0, currentTotal - stockValue - cashBalance)
 
   const [targets, setTargets] = useState<TargetsState>(() => loadTargets(accountId))
   const [newTicker, setNewTicker] = useState('')
-  const [newMode, setNewMode] = useState<TargetMode>('pct')
-  const [newValue, setNewValue] = useState('')
+  const [newShares, setNewShares] = useState('')
+  const [quotes, setQuotes] = useState<Record<string, Quote>>({})
 
   function persist(next: TargetsState) {
     setTargets(next)
     saveTargets(accountId, next)
   }
 
-  function setTotalValue(v: number) {
-    persist({ ...targets, totalValue: v })
-  }
-
   function addRow() {
     const ticker = newTicker.trim().toUpperCase()
-    const value = parseFloat(newValue)
-    if (!ticker || !Number.isFinite(value) || value <= 0) return
-    const row: TargetRow = { id: `t_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, ticker, mode: newMode, value }
-    persist({ ...targets, rows: [...targets.rows, row] })
-    setNewTicker(''); setNewValue('')
+    const shares = parseFloat(newShares)
+    if (!ticker || !Number.isFinite(shares) || shares <= 0) return
+    const row: TargetRow = { id: `t_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, ticker, shares }
+    persist({ rows: [...targets.rows, row] })
+    setNewTicker(''); setNewShares('')
   }
 
   function removeRow(id: string) {
-    persist({ ...targets, rows: targets.rows.filter(r => r.id !== id) })
+    persist({ rows: targets.rows.filter(r => r.id !== id) })
   }
 
-  /** Resolve a target row's $ value — shares needs a per-share price, which
-   * comes from this account's own current avg cost if it holds the ticker
-   * (best available reference without a live quotes fetch); with no
-   * holding to reference, a shares-mode row just can't be priced yet. */
-  function rowDollarValue(row: TargetRow): number | null {
-    if (row.mode === 'amount') return row.value
-    if (row.mode === 'pct') return targets.totalValue > 0 ? row.value / 100 * targets.totalValue : null
-    const held = holdings.find(h => h.symbol === row.ticker)
-    return held && held.avgCost > 0 ? row.value * held.avgCost : null
+  // Live price per target ticker — a target needs a real current price to
+  // turn "N shares" into a $ value and a %, not just whatever this account
+  // happens to already hold (most target tickers won't be held yet, that's
+  // the point of a target). Falls back to this account's own avg cost only
+  // if the live quote fetch comes up empty for that symbol.
+  const targetTickersKey = useMemo(() => [...new Set(targets.rows.map(r => r.ticker))].sort().join(','), [targets.rows])
+  useEffect(() => {
+    const tickers = targetTickersKey ? targetTickersKey.split(',') : []
+    if (tickers.length === 0) { setQuotes({}); return }
+    let cancelled = false
+    fetchQuotes(tickers).then(q => { if (!cancelled) setQuotes(q) })
+    return () => { cancelled = true }
+  }, [targetTickersKey])
+
+  function rowPrice(ticker: string): number | null {
+    const live = quotes[ticker]?.price
+    if (live && live > 0) return live
+    const held = holdings.find(h => h.symbol === ticker)
+    return held && held.avgCost > 0 ? held.avgCost : null
   }
 
-  const targetRowsResolved = targets.rows.map((r, i) => ({
-    ...r,
-    dollarValue: rowDollarValue(r),
-    color: tickerColor(i),
-  }))
+  const targetRowsResolved = targets.rows.map((r, i) => {
+    const price = rowPrice(r.ticker)
+    return { ...r, price, dollarValue: price != null ? r.shares * price : null, color: tickerColor(i) }
+  })
   const targetAllocatedTotal = targetRowsResolved.reduce((s, r) => s + (r.dollarValue ?? 0), 0)
 
-  const currentSlices: Slice[] = holdings.map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i) }))
+  const currentSlices: Slice[] = [
+    ...holdings.map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i) })),
+    ...(cashBalance > 0 ? [{ label: 'CASH', value: cashBalance, color: '#10b981' }] : []),
+    ...(otherValue > 0 ? [{ label: 'OTHER', value: otherValue, color: 'var(--text-5)' }] : []),
+  ]
   const targetSlices: Slice[] = targetRowsResolved
     .filter(r => (r.dollarValue ?? 0) > 0)
     .map(r => ({ label: r.ticker, value: r.dollarValue!, color: r.color }))
@@ -264,17 +302,8 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
 
       {/* ── Target allocation editor ─────────────────────────────────────── */}
       <div className="panel" style={{ padding: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 18px 8px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em' }}>TARGET ALLOCATION</span>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-3)', marginLeft: 'auto' }}>
-            Total target portfolio value
-            <input
-              type="number" min={0} value={targets.totalValue || ''}
-              onChange={e => setTotalValue(parseFloat(e.target.value) || 0)}
-              placeholder="e.g. 1000000"
-              style={{ width: 120, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}
-            />
-          </label>
+        <div style={{ padding: '12px 18px 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em' }}>
+          TARGET ALLOCATION
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 18px 12px', flexWrap: 'wrap' }}>
@@ -282,13 +311,10 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
             value={newTicker} onChange={e => setNewTicker(e.target.value.toUpperCase())}
             placeholder="Ticker" style={{ width: 90, padding: '5px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}
           />
-          <select value={newMode} onChange={e => setNewMode(e.target.value as TargetMode)}
-            style={{ padding: '5px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}>
-            {(['pct', 'shares', 'amount'] as TargetMode[]).map(m => <option key={m} value={m}>{MODE_LABEL[m]}</option>)}
-          </select>
           <input
-            type="number" min={0} value={newValue} onChange={e => setNewValue(e.target.value)}
-            placeholder={newMode === 'pct' ? '%' : newMode === 'shares' ? '# shares' : '$'}
+            type="number" min={0} value={newShares} onChange={e => setNewShares(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addRow()}
+            placeholder="# shares"
             style={{ width: 100, padding: '5px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}
           />
           <button onClick={addRow} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', fontSize: 11, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', color: 'var(--accent)', cursor: 'pointer', borderRadius: 4 }}>
@@ -301,7 +327,8 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
             <thead>
               <tr>
                 <th>Ticker</th>
-                <th style={{ textAlign: 'right' }}>Set as</th>
+                <th style={{ textAlign: 'right' }}>Shares</th>
+                <th style={{ textAlign: 'right' }}>Price</th>
                 <th style={{ textAlign: 'right' }}>Target $</th>
                 <th style={{ textAlign: 'right' }}>Target %</th>
                 <th style={{ textAlign: 'right' }}>Current $</th>
@@ -311,7 +338,7 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
             </thead>
             <tbody>
               {targetRowsResolved.length === 0 && (
-                <tr><td colSpan={7} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No targets set yet — add a ticker above.</td></tr>
+                <tr><td colSpan={8} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No targets set yet — add a ticker above.</td></tr>
               )}
               {targetRowsResolved.map(r => {
                 const currentValue = holdings.find(h => h.symbol === r.ticker)?.value ?? 0
@@ -322,7 +349,8 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
                       <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: r.color, marginRight: 6 }} />
                       {r.ticker}
                     </td>
-                    <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{r.value.toLocaleString()} {r.mode === 'pct' ? '%' : r.mode === 'shares' ? 'sh' : '$'}</td>
+                    <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{r.shares.toLocaleString()}</td>
+                    <td className="mono" style={{ textAlign: 'right' }}>{r.price != null ? `$${r.price.toFixed(2)}` : '—'}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{r.dollarValue != null ? fmt$(r.dollarValue) : '—'}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{r.dollarValue != null && targetAllocatedTotal > 0 ? `${(r.dollarValue / targetAllocatedTotal * 100).toFixed(1)}%` : '—'}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{fmt$(currentValue)}</td>
@@ -337,11 +365,23 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
                   </tr>
                 )
               })}
+              {targetRowsResolved.length > 0 && (
+                <tr style={{ borderTop: '2px solid var(--border)' }}>
+                  <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)' }}>Total</td>
+                  <td></td>
+                  <td></td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{fmt$(targetAllocatedTotal)}</td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{targetAllocatedTotal > 0 ? '100.0%' : '—'}</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
         <div style={{ padding: '8px 18px', fontSize: 10.5, color: 'var(--text-4)' }}>
-          Shares-based targets need this account to already hold that ticker (uses its avg cost as the reference price) — set a total portfolio value above to use %-based targets.
+          Each row is priced off a live quote (falling back to this account's own avg cost if the quote fetch fails) — Target % is each row's share of the total, so it always adds up to 100%.
         </div>
       </div>
     </div>

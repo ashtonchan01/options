@@ -7,7 +7,7 @@
  * logins never see each other's accounts.
  */
 import { useCallback, useEffect, useState } from 'react'
-import type { RawTrade } from '../types'
+import type { RawPosition, RawTrade } from '../types'
 import { syncFromXML, syncFromFlexAPI } from '../services/ibkr'
 import { parseGenericCsvTrades } from '../services/genericCsvImport'
 import { parseXlsxTrades } from '../services/xlsxImport'
@@ -23,6 +23,20 @@ export interface Account {
    * account can be re-synced with one click afterward. */
   flexToken?: string
   flexQueryId?: string
+  /** Live snapshot from the most recent XML/Flex sync — a generic .csv/
+   * .xlsx/.pdf statement only has trade history, not a positions/cash
+   * snapshot, so these stay whatever they were from the last XML/Flex sync
+   * (or unset if there's never been one). */
+  positions?: RawPosition[]
+  cashBalance?: number
+  netLiquidation?: number
+}
+
+interface SyncResult {
+  trades: RawTrade[]
+  positions?: RawPosition[]
+  cashBalance?: number
+  netLiquidation?: number
 }
 
 function unionTrades(existing: RawTrade[], incoming: RawTrade[]): RawTrade[] {
@@ -60,28 +74,30 @@ function newId(): string {
 }
 
 /** IBKR Flex exports as .xml go through the real parser (syncFromXML) since
- * it's a known schema; .xlsx/.xls and .pdf go through their own best-effort
- * importers; anything else is treated as CSV text via the generic importer. */
-async function parseStatementFile(file: File): Promise<RawTrade[]> {
+ * it's a known schema — and unlike the others, it carries a real positions/
+ * cash snapshot alongside trade history. .xlsx/.xls and .pdf go through
+ * their own best-effort importers; anything else is treated as CSV text via
+ * the generic importer — none of those three know positions/cash, trades
+ * only. */
+async function parseStatementFile(file: File): Promise<SyncResult> {
   const name = file.name.toLowerCase()
   if (name.endsWith('.xml')) {
-    const { trades } = await syncFromXML(file)
-    return trades
+    return await syncFromXML(file)
   }
   if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
     const { trades, skippedRows } = await parseXlsxTrades(file)
     if (skippedRows > 0) console.warn(`[accountsStore] Skipped ${skippedRows} unparseable row(s) in ${file.name}`)
-    return trades
+    return { trades }
   }
   if (name.endsWith('.pdf')) {
     const { trades, skippedRows } = await parsePdfTrades(file)
     if (skippedRows > 0) console.warn(`[accountsStore] Skipped ${skippedRows} unparseable row(s) in ${file.name}`)
-    return trades
+    return { trades }
   }
   const text = await file.text()
   const { trades, skippedRows } = parseGenericCsvTrades(text)
   if (skippedRows > 0) console.warn(`[accountsStore] Skipped ${skippedRows} unparseable row(s) in ${file.name}`)
-  return trades
+  return { trades }
 }
 
 export function useAccounts(sessionKey: string | null) {
@@ -104,7 +120,9 @@ export function useAccounts(sessionKey: string | null) {
 
   const clearTrades = useCallback((id: string) => {
     setAccounts(prev => {
-      const next = prev.map(a => a.id === id ? { ...a, trades: [], fileName: undefined, uploadedAt: undefined } : a)
+      const next = prev.map(a => a.id === id
+        ? { ...a, trades: [], positions: undefined, cashBalance: undefined, netLiquidation: undefined, fileName: undefined, uploadedAt: undefined }
+        : a)
       save(key, next)
       return next
     })
@@ -122,10 +140,21 @@ export function useAccounts(sessionKey: string | null) {
     setLoadingId(id)
     setError(null)
     try {
-      const trades = await parseStatementFile(file)
+      const result = await parseStatementFile(file)
       setAccounts(prev => {
         const next = prev.map(a => a.id === id
-          ? { ...a, trades: unionTrades(a.trades, trades), fileName: file.name, uploadedAt: Date.now() }
+          ? {
+              ...a,
+              trades: unionTrades(a.trades, result.trades),
+              // Positions/cash are a point-in-time snapshot, not history —
+              // replace rather than merge, and only touch them when this
+              // source actually provided one (CSV/XLSX/PDF don't).
+              positions: result.positions ?? a.positions,
+              cashBalance: result.cashBalance ?? a.cashBalance,
+              netLiquidation: result.netLiquidation ?? a.netLiquidation,
+              fileName: file.name,
+              uploadedAt: Date.now(),
+            }
           : a)
         save(key, next)
         return next
@@ -145,10 +174,17 @@ export function useAccounts(sessionKey: string | null) {
     setLoadingId(id)
     setError(null)
     try {
-      const { trades } = await syncFromFlexAPI(token, queryId)
+      const result = await syncFromFlexAPI(token, queryId)
       setAccounts(prev => {
         const next = prev.map(a => a.id === id
-          ? { ...a, trades: unionTrades(a.trades, trades), flexToken: token, flexQueryId: queryId, fileName: 'IBKR Flex sync', uploadedAt: Date.now() }
+          ? {
+              ...a,
+              trades: unionTrades(a.trades, result.trades),
+              positions: result.positions ?? a.positions,
+              cashBalance: result.cashBalance ?? a.cashBalance,
+              netLiquidation: result.netLiquidation ?? a.netLiquidation,
+              flexToken: token, flexQueryId: queryId, fileName: 'IBKR Flex sync', uploadedAt: Date.now(),
+            }
           : a)
         save(key, next)
         return next
