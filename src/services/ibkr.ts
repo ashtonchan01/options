@@ -5,15 +5,15 @@ const FLEX_PROXY = 'https://options-jade.vercel.app'
 
 // ─── XML Upload ───────────────────────────────────────────────────────────────
 
-export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number }> {
+export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number; fromDate?: string; toDate?: string }> {
   const text = await file.text()
   const doc = new DOMParser().parseFromString(text, 'application/xml')
-  return { positions: parsePositions(doc), trades: allTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc) }
+  return { positions: parsePositions(doc), trades: allTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
 }
 
 // ─── Flex API ─────────────────────────────────────────────────────────────────
 
-export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number }> {
+export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number; fromDate?: string; toDate?: string }> {
   if (!token || !queryId) throw new Error('Token and Query ID are required')
 
   const url = `${FLEX_PROXY}/api/flex-sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
@@ -31,7 +31,7 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<{
 
   const xml = text
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
-  return { positions: parsePositions(doc), trades: allTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc) }
+  return { positions: parsePositions(doc), trades: allTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
 }
 
 // ─── Ping ─────────────────────────────────────────────────────────────────────
@@ -107,6 +107,20 @@ function parseCash(doc: Document): number {
   const base = rows.find(el => el.getAttribute('currency') === 'BASE_SUMMARY')
   if (base) return Number(base.getAttribute('endingCash') ?? 0)
   return rows.reduce((sum, el) => sum + Number(el.getAttribute('endingCash') ?? 0), 0)
+}
+
+/** The Flex statement's own reporting window ("YYYYMMDD"), e.g.
+ * period="Last365CalendarDays" fromDate="20250815" toDate="20260814" — the
+ * report is authoritative for every trade dated inside this window, since
+ * IBKR would have included it if it still existed. Used by the caller to
+ * drop stale/phantom trades that a resync no longer reports, instead of
+ * accumulating them forever. */
+function parseReportWindow(doc: Document): { fromDate?: string; toDate?: string } {
+  const stmt = doc.querySelector('FlexStatement')
+  return {
+    fromDate: stmt?.getAttribute('fromDate') ?? undefined,
+    toDate:   stmt?.getAttribute('toDate') ?? undefined,
+  }
 }
 
 function parseNetLiq(doc: Document): number | undefined {
