@@ -25,16 +25,57 @@ function tickerColor(i: number): string {
   return `hsl(${hue}, 62%, 55%)`
 }
 
-interface Holding { symbol: string; shares: number; avgCost: number; value: number }
+interface Holding { symbol: string; shares: number; avgCost: number; value: number; optionsValue: number }
 
 /** Live mark-to-market holdings, straight from the account's actual XML/
  * Flex positions snapshot — real market value (positionValue), not a cost
- * basis estimate, so this lines up with IBKR's own numbers. */
-function holdingsFromPositions(positions: RawPosition[]): Holding[] {
-  return positions
-    .filter(p => p.assetClass === 'STK' && Math.abs(p.quantity) > 1e-6)
-    .map(p => ({ symbol: p.symbol, shares: p.quantity, avgCost: p.costBasisPrice, value: p.positionValue }))
+ * basis estimate, so this lines up with IBKR's own numbers.
+ *
+ * Each ticker's slice folds in the option positions written against its own
+ * shares (grouped by underlyingSymbol) — a covered call or CSP's mark value
+ * is a real liability/asset sitting against that same ticker's net exposure,
+ * and IBKR's own positionValue already carries the correct sign for it
+ * (negative quantity × markPrice for a short leg comes out negative, i.e. a
+ * drag on net worth, exactly like an ITM short call/put should show).
+ * Previously that entire effect was invisible — buried in a single
+ * undifferentiated "Other" catch-all instead of attributed to the ticker
+ * actually driving it.
+ *
+ * Naked options (no underlying shares held at all — a pure income play, not
+ * a stock position) don't get their own slice here: a pie can't render a
+ * negative wedge, and inventing one only for tickers you don't actually
+ * hold would misrepresent "portfolio allocation" as owning something you
+ * don't. Their combined mark value is returned separately so the caller can
+ * fold it into cash instead — the premium collected/paid for them already
+ * lives in cash, so that's where their current gain/loss actually sits. */
+function holdingsFromPositions(positions: RawPosition[]): { holdings: Holding[]; nakedOptionsValue: number } {
+  const stkSymbols = new Set(
+    positions.filter(p => p.assetClass === 'STK' && Math.abs(p.quantity) > 1e-6).map(p => p.symbol),
+  )
+  const byUnderlying = new Map<string, { shares: number; avgCost: number; stockValue: number; optionsValue: number }>()
+  let nakedOptionsValue = 0
+
+  for (const p of positions) {
+    if (Math.abs(p.quantity) < 1e-6) continue
+    if (p.assetClass === 'STK') {
+      const e = byUnderlying.get(p.symbol) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0 }
+      e.shares += p.quantity
+      e.avgCost = p.costBasisPrice
+      e.stockValue += p.positionValue
+      byUnderlying.set(p.symbol, e)
+    } else if (p.assetClass === 'OPT') {
+      const under = p.underlyingSymbol || p.symbol
+      if (!stkSymbols.has(under)) { nakedOptionsValue += p.positionValue; continue }
+      const e = byUnderlying.get(under) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0 }
+      e.optionsValue += p.positionValue
+      byUnderlying.set(under, e)
+    }
+  }
+
+  const holdings = [...byUnderlying.entries()]
+    .map(([symbol, e]) => ({ symbol, shares: e.shares, avgCost: e.avgCost, value: e.stockValue + e.optionsValue, optionsValue: e.optionsValue }))
     .sort((a, b) => b.value - a.value)
+  return { holdings, nakedOptionsValue }
 }
 
 /** Net open shares + weighted avg cost per stock ticker, straight from raw
@@ -58,7 +99,7 @@ function holdingsFromTrades(trades: RawTrade[]): Holding[] {
   }
   return [...bySymbol.entries()]
     .filter(([, e]) => Math.abs(e.shares) > 1e-6)
-    .map(([symbol, e]) => ({ symbol, shares: e.shares, avgCost: e.shares !== 0 ? e.costBasis / e.shares : 0, value: e.costBasis }))
+    .map(([symbol, e]) => ({ symbol, shares: e.shares, avgCost: e.shares !== 0 ? e.costBasis / e.shares : 0, value: e.costBasis, optionsValue: 0 }))
     .sort((a, b) => b.value - a.value)
 }
 
@@ -166,20 +207,27 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
   // Prefer the real XML/Flex positions snapshot (live mark-to-market) —
   // only fall back to trade-derived cost basis for a generic .csv/.xlsx/
   // .pdf statement, which has no positions snapshot at all.
-  const holdings = state.sync.positions.length > 0
+  const { holdings, nakedOptionsValue } = state.sync.positions.length > 0
     ? holdingsFromPositions(state.sync.positions)
-    : holdingsFromTrades(state.sync.trades)
-  const stockValue = holdings.reduce((s, h) => s + h.value, 0)
-  const cashBalance = state.sync.cashBalance ?? 0
+    : { holdings: holdingsFromTrades(state.sync.trades), nakedOptionsValue: 0 }
+  // Each holding's value already folds in that underlying's own option mark
+  // value (see holdingsFromPositions), so this is stocks + options combined
+  // — genuinely "how much of net worth this ticker accounts for," not just
+  // its raw share value.
+  const holdingsValue = holdings.reduce((s, h) => s + h.value, 0)
+  // Options with no underlying shares (a pure income play, nothing to
+  // attribute their mark value to as a "holding") get folded into cash
+  // instead — that's literally where their current gain/loss sits, since
+  // the premium collected/paid for them lives in the cash balance.
+  const cashBalance = (state.sync.cashBalance ?? 0) + nakedOptionsValue
   // Net liquidation (IBKR's own total-account-value figure) is the source
-  // of truth when we have it — it includes options, cash, everything, not
-  // just the stock tickers this page breaks out individually. Whatever it
-  // doesn't account for falls into an "Other" slice instead of silently
-  // vanishing, so the pie's total always reconciles to the real IBKR number
-  // instead of just summing the stock rows (which used to quietly exclude
-  // cash and options and understate the real total).
-  const currentTotal = state.sync.netLiquidation ?? (stockValue + cashBalance)
-  const otherValue = Math.max(0, currentTotal - stockValue - cashBalance)
+  // of truth when we have it — it includes everything, not just what this
+  // page breaks out per-ticker. Whatever's left over (margin financing,
+  // small fx/timing differences) falls into an "Other" slice instead of
+  // silently vanishing, so the pie's total always reconciles to the real
+  // IBKR number instead of just summing the ticker + cash rows.
+  const currentTotal = state.sync.netLiquidation ?? (holdingsValue + cashBalance)
+  const otherValue = Math.max(0, currentTotal - holdingsValue - cashBalance)
 
   const [targets, setTargets] = useState<TargetsState>(() => loadTargets(accountId))
   const [newTicker, setNewTicker] = useState('')
@@ -311,9 +359,15 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
                     <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: tickerColor(i), marginRight: 6 }} />
                     {h.symbol}
                   </td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{h.shares.toLocaleString()}</td>
-                  <td className="mono" style={{ textAlign: 'right' }}>${h.avgCost.toFixed(2)}</td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{fmt$(h.value)}</td>
+                  <td className="mono" style={{ textAlign: 'right' }}>{h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
+                  <td className="mono" style={{ textAlign: 'right' }}>{h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
+                  <td
+                    className="mono"
+                    style={{ textAlign: 'right' }}
+                    title={h.optionsValue !== 0 ? `Includes ${fmt$(h.optionsValue)} from options mark value` : undefined}
+                  >
+                    {fmt$(h.value)}{h.optionsValue !== 0 && <span style={{ color: h.optionsValue > 0 ? '#10b981' : '#f43f5e', fontSize: 10, marginLeft: 4 }}>({h.optionsValue > 0 ? '+' : ''}{fmt$(h.optionsValue)} opt)</span>}
+                  </td>
                   <td className="mono" style={{ textAlign: 'right' }}>{currentTotal > 0 ? `${(h.value / currentTotal * 100).toFixed(1)}%` : '—'}</td>
                 </tr>
               ))}
