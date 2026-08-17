@@ -26,6 +26,34 @@ function fmtDate(s: string) {
 function pnlCls(n: number) { return n > 0 ? 'pos' : n < 0 ? 'neg' : 'neu' }
 function pnlColor(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'var(--text-4)' }
 
+/** Underlying price at which this position neither gains nor loses, at
+ * expiry. Long or short, the sign convention is the same either way — a
+ * call's breakeven is always strike + premium/share, a put's is always
+ * strike - premium/share (a debit payer needs the extra move to recoup what
+ * they paid; a credit seller starts losing once the underlying erodes past
+ * what they collected) — so this only needs the strike, putCall, and the
+ * position's own (already signed) net premium, not separate long/short
+ * branches.
+ *
+ * Only resolved for positions with one unambiguous "the strike that
+ * matters": single-strike legs (CSP, covered call, any naked leg), and
+ * put_spread (always a bull put spread on SPX/SPXW per this app's own
+ * classifier, so the higher/short strike is always strikes[0]). Multi-
+ * strike LEAP/risk-reversal verticals can have the short leg on either
+ * side depending on the trade, and a JournalPosition doesn't retain which
+ * strike was actually sold once its legs are aggregated — guessing wrong
+ * there would be worse than not showing a number. */
+function breakeven(p: JournalPosition): number | null {
+  if (p.strikeDisplay === 'SHARES') {
+    return p.contracts > 0 ? Math.abs(p.netPremium) / p.contracts : null
+  }
+  if (p.strikes.length === 0 || p.contracts <= 0) return null
+  if (p.strikes.length > 1 && p.strategy !== 'put_spread') return null
+  const anchor = p.strikes[0]
+  const premiumPerShare = Math.abs(p.netPremium) / (p.contracts * 100)
+  return p.putCall === 'C' ? anchor + premiumPerShare : anchor - premiumPerShare
+}
+
 const TODAY_JR = new Date(); TODAY_JR.setHours(0, 0, 0, 0)
 
 /** Days left until expiry (can be negative once past it). */
@@ -387,7 +415,7 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
       .map(([key, groupRows]) => ({ label: stratGroupLabel(key), rows: groupRows }))
   }, [rows, groupByStrategy])
 
-  const COLS = 11
+  const COLS = 12
 
   return (
     <>
@@ -479,6 +507,7 @@ function TableHead() {
         <th style={{ textAlign: 'right' }}>Position</th>
         <th style={{ textAlign: 'right' }}>Avg Price</th>
         <th style={{ textAlign: 'right' }}>Cost Basis</th>
+        <th style={{ textAlign: 'right' }}>Breakeven</th>
         <th style={{ textAlign: 'right' }}>Market Price</th>
         <th style={{ textAlign: 'right' }}>Unrealised</th>
         <th style={{ textAlign: 'right' }}>%</th>
@@ -550,6 +579,8 @@ function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor 
   const costBasis = liveCostBasis ?? -p.netPremium
   const avgPrice = units > 0 ? Math.abs(costBasis) / units : 0
 
+  const breakevenPrice = breakeven(p)
+
   const marketPrice = hasLive && units > 0 ? Math.abs(liveLegs.reduce((s, lp) => s + lp.positionValue * shareOf(lp), 0)) / units : null
   const unrealized = hasLive ? liveLegs.reduce((s, lp) => s + lp.unrealizedPnL * shareOf(lp), 0) : null
   const unrealizedPct = unrealized != null && costBasis !== 0 ? (unrealized / Math.abs(costBasis)) * 100 : null
@@ -572,6 +603,9 @@ function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor 
         </td>
         <td className="mono" style={{ textAlign: 'right', color: costBasis < 0 ? '#10b981' : costBasis > 0 ? '#f59e0b' : 'var(--text-4)', whiteSpace: 'nowrap' }}>
           {fmt$(costBasis, 2)}
+        </td>
+        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
+          {breakevenPrice != null ? fmt$(breakevenPrice, 2) : '—'}
         </td>
         <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
           {marketPrice != null ? fmt$(marketPrice, 2) : '—'}
