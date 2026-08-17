@@ -1300,17 +1300,16 @@ body {
      internal scroll is fine on desktop but cramped on a phone screen. */
   .jr-strategy-grid { grid-template-columns: 1fr !important; overflow: visible !important; }
   .jr-strategy-cell { max-height: none !important; }
-  /* Vertically this cell just grows with the page — but the 11-column table
-     itself is real content that a phone's width can't show all at once
-     regardless of scroll direction. Squeezing every column down to fit
-     (the desktop fixed-width layout) left each one a couple of characters
-     wide and unreadable ("C...", "TI...", "$3..."). Auto layout (columns
-     sized to their own content) plus a horizontal scroll on this one axis
-     keeps every value fully legible — swipe sideways for the rest instead
-     of everything being a truncated sliver. */
+  /* Vertically this cell just grows with the page — but the table itself is
+     real content a phone's width can't show all at once regardless of
+     scroll direction. The base (desktop) rule already uses fixed pixel
+     column widths sized to fit every value plus a matching min-width, with
+     horizontal scroll as the overflow escape valve — exactly what a phone
+     needs too, so there's nothing phone-specific left to override here
+     (an earlier `table-layout: auto !important` override actively broke
+     this: it fought the base rule's widths and collapsed the header row).
+     Only the vertical scroll direction actually differs on a phone. */
   .jr-strategy-cell-scroll { overflow-y: visible !important; overflow-x: auto !important; }
-  .jr-strategy-cell table { table-layout: auto !important; min-width: 700px; }
-  .jr-strategy-cell table th, .jr-strategy-cell table td { width: auto !important; white-space: nowrap; }
   /* Portfolio tab's right column (Income Channels / Stocks / Options tables)
      had each of its 3 sub-panels internally scrolling to share a fixed
      height — same "just grow, let the page scroll" treatment as everywhere
@@ -1881,17 +1880,26 @@ body {
    installed home-screen app) actually brings up the keyboard on focus — but
    that same 16px reads oversized on desktop, where no such bug applies. */
 @media (min-width: 901px) {
-  .scanner-param-input { font-size: 12px !important; }
+  .scanner-param-input, .scanner-ticker-input { font-size: 12px !important; }
 }
 /* Mobile can't just shrink font-size (breaks the keyboard) — CSS transform:
    scale() renders the text visually smaller while the actual font-size stays
    16px, so iOS still sees a >=16px input at the moment of focus. Widening
    the box by 1/0.75 and scaling from the left edge keeps its visual size and
-   left-aligned position the same as the unscaled 52px box (only its layout
-   footprint is wider, which the label's flex gap already gives it room for). */
+   left-aligned position the same as the unscaled box (only its layout
+   footprint is wider, which the label's flex gap already gives it room for).
+   The ticker input gets its own wider width — it holds a "+ TICKER"
+   placeholder and typed symbols up to several characters, not a short
+   number like the Δ/DTE/bid param fields, and sharing their 70px was
+   clipping it to "+ TICK!" on mobile. */
 @media (max-width: 900px) {
   .scanner-param-input {
     width: 70px !important;
+    transform: scale(0.75);
+    transform-origin: left center;
+  }
+  .scanner-ticker-input {
+    width: 130px !important;
     transform: scale(0.75);
     transform-origin: left center;
   }
