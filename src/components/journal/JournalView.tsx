@@ -56,25 +56,6 @@ function breakeven(p: JournalPosition): number | null {
 
 const TODAY_JR = new Date(); TODAY_JR.setHours(0, 0, 0, 0)
 
-/** How much of a shared option leg's blended P&L a position is entitled to,
- * relative to every other active position also using that leg — capital at
- * risk (spread width × contracts), not raw contract count. Two spreads can
- * write the same number of contracts on a shared short strike and still
- * carry very different risk: a 2-lot 25-wide spread has far more capital
- * riding on that shared leg than a 20-lot 5-wide spread's contract count
- * alone would suggest (2×25=50 vs 20×5=100 — the wide spread's smaller lot
- * count still carries real weight). Single-strike positions (CSP, covered
- * call, or any naked leg with no second strike to measure width against)
- * fall back to plain contract count, same as before — there's no spread
- * width to weight by when there's only one strike. */
-function positionRiskWeight(p: JournalPosition): number {
-  if (p.strikes.length >= 2) {
-    const width = Math.max(...p.strikes) - Math.min(...p.strikes)
-    if (width > 0) return width * p.contracts
-  }
-  return p.contracts
-}
-
 /** Days left until expiry (can be negative once past it). */
 function dte(expiry: string): number | null {
   if (!expiry) return null
@@ -365,24 +346,27 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
   // SAME short strike (a 20-lot 7525/7520 and a 2-lot 7525/7500 both short
   // the same 7525P) — since IBKR only reports one combined -22 lot position
   // for that strike, not two. Attributing that whole leg's value/uPnL to
-  // EACH row that references it (rather than splitting it by each row's
-  // actual claim on it) double- and triple-counts it — verified against a
-  // real account where a 2-lot spread showed a wildly wrong +11,797%
-  // unrealized because it was credited the FULL -22-lot leg's P&L instead
-  // of its own share. This map totals each active row's risk weight (see
-  // positionRiskWeight — capital at risk, not raw contract count, since two
-  // spreads sharing a strike can carry very different risk per contract)
-  // across every row using each (underlying, expiry, strike) — Row divides
-  // its own weight by this total to get its rightful share of any leg it
-  // doesn't exclusively own.
+  // EACH row that references it (rather than splitting it by how many of
+  // those contracts are actually this row's own) double- and triple-counts
+  // it — verified against a real account where a 2-lot spread showed a
+  // wildly wrong +11,797% unrealized because it was credited the FULL
+  // -22-lot leg's P&L instead of its own 2/22 share. Split strictly by
+  // contract count on that specific shared strike (not by spread width or
+  // any other weighting) — every contract of the same option (same strike/
+  // expiry) is marked at the exact same live price regardless of which
+  // spread it's paired with, so the only economically correct split of a
+  // blended live value is by how many of those actual contracts each row
+  // holds. This map totals how many contracts, across every active row,
+  // use each (underlying, expiry, strike) — Row divides its own contracts
+  // by this total to get its rightful share of any leg it doesn't
+  // exclusively own.
   const strikeUsage = useMemo(() => {
     const m = new Map<string, number>()
     for (const p of displayPositions) {
       if (p.status !== 'Active' || p.strikeDisplay === 'SHARES') continue
-      const weight = positionRiskWeight(p)
       for (const strike of p.strikes) {
         const key = `${p.underlying}|${p.expiry}|${strike}`
-        m.set(key, (m.get(key) ?? 0) + weight)
+        m.set(key, (m.get(key) ?? 0) + p.contracts)
       }
     }
     return m
@@ -564,25 +548,25 @@ function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor 
         && (lp.underlyingSymbol ?? lp.symbol) === p.underlying
         && lp.expiry === p.expiry
         && p.strikes.includes(lp.strike ?? -1))
-  const ownWeight = positionRiskWeight(p)
   const shareOf = (lp: RawPosition) => {
     if (isShares) return 1
-    const total = strikeUsage.get(`${p.underlying}|${p.expiry}|${lp.strike}`) ?? ownWeight
-    return total > 0 ? ownWeight / total : 1
+    const total = strikeUsage.get(`${p.underlying}|${p.expiry}|${lp.strike}`) ?? p.contracts
+    return total > 0 ? p.contracts / total : 1
   }
   const hasLive = liveLegs.length > 0
   // A strike this position shares with another active row (see strikeUsage
   // above) has no honest per-row split of IBKR's own blended cost basis —
-  // proportioning by risk weight still assumes both rows entered at the
-  // same price, which isn't generally true (verified: two SPX verticals
-  // sharing a short 7525P strike, opened at different prices — splitting
-  // IBKR's live combined cost basis by share gave numbers that didn't match
-  // either row's own recorded trade-history premium). Only use IBKR's live
-  // cost basis when every one of this position's strikes is exclusively
-  // its own.
+  // proportioning by contract count assumes both rows entered at the same
+  // price, which isn't generally true (verified: two SPX verticals sharing
+  // a short 7525P strike, opened at different prices — splitting IBKR's
+  // live combined cost basis by contract count gave -$5,096/-$558, while
+  // the real per-combo entry economics were -$3,699/-$1,955, matching this
+  // position's own recorded trade-history premium almost exactly). Only use
+  // IBKR's live cost basis when every one of this position's strikes is
+  // exclusively its own.
   const hasSharedStrike = !isShares && p.strikes.some(strike => {
-    const total = strikeUsage.get(`${p.underlying}|${p.expiry}|${strike}`) ?? ownWeight
-    return total > ownWeight
+    const total = strikeUsage.get(`${p.underlying}|${p.expiry}|${strike}`) ?? p.contracts
+    return total > p.contracts
   })
 
   // IBKR's own live costBasisMoney/Price (already correctly signed — negative
