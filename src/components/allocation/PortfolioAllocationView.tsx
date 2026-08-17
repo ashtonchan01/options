@@ -13,7 +13,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2, Pencil, Check, X } from 'lucide-react'
 import type { AppState, RawPosition, RawTrade } from '../../types'
 import { fetchQuotes, type Quote } from '../../services/quotes'
+import { fetchRSI, type RsiData } from '../../services/rsi'
 import { loadUserData, saveUserData } from '../../services/userData'
+import { meanReversionSignal, SIGNAL_STYLE } from '../../services/signal'
 
 function fmt$(n: number): string {
   const abs = Math.abs(n)
@@ -278,6 +280,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   const [newTicker, setNewTicker] = useState('')
   const [newShares, setNewShares] = useState('')
   const [quotes, setQuotes] = useState<Record<string, Quote>>({})
+  const [rsi, setRsi] = useState<Record<string, RsiData>>({})
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTicker, setEditTicker] = useState('')
   const [editShares, setEditShares] = useState('')
@@ -404,6 +407,17 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
     target: targetRowsResolved.find(r => r.ticker === ticker) ?? null,
   }))
 
+  // RSI(14) per ticker for the same mean-reversion Buy/Sell/Hold Signal the
+  // Watchlist shows — CASH has no RSI, so it's excluded from the fetch.
+  const rsiTickersKey = useMemo(() => mergedTickers.filter(t => t !== 'CASH').sort().join(','), [mergedTickers.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const rsiTickers = rsiTickersKey ? rsiTickersKey.split(',') : []
+    if (rsiTickers.length === 0) { setRsi({}); return }
+    let cancelled = false
+    fetchRSI(rsiTickers).then(r => { if (!cancelled) setRsi(r) })
+    return () => { cancelled = true }
+  }, [rsiTickersKey])
+
   const currentSlices: Slice[] = [
     ...holdings.map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i), shares: h.shares })),
     ...(cashBalance > 0 ? [{ label: 'CASH', value: cashBalance, color: '#10b981' }] : []),
@@ -480,6 +494,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
             <thead>
               <tr>
                 <th>Ticker</th>
+                <th style={{ textAlign: 'center' }} title="Mean-reversion read on RSI(14): oversold (<=30) suggests a bounce, overbought (>=70) suggests a pullback">Signal</th>
                 <th style={{ textAlign: 'right' }}>Shares</th>
                 <th style={{ textAlign: 'right' }}>Avg Cost</th>
                 <th style={{ textAlign: 'right' }}>Current $</th>
@@ -493,16 +508,29 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
             </thead>
             <tbody>
               {mergedRows.length === 0 && cashBalance <= 0 && (
-                <tr><td colSpan={10} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No stock trades or targets yet — upload a statement or add a ticker above.</td></tr>
+                <tr><td colSpan={11} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No stock trades or targets yet — upload a statement or add a ticker above.</td></tr>
               )}
               {mergedRows.map(({ ticker, holding: h, target: r }, i) => {
                 const currentValue = h?.value ?? 0
                 const gap = r?.dollarValue != null ? r.dollarValue - currentValue : null
                 const isEditing = r != null && editingId === r.id
+                const signal = ticker === 'CASH' ? null : meanReversionSignal(rsi[ticker]?.rsi ?? null)
                 if (isEditing && r) {
                   return (
                     <tr key={ticker}>
                       <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{ticker}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {signal ? (
+                          <span style={{
+                            display: 'inline-block', padding: '1px 8px', fontSize: 10, fontWeight: 700,
+                            letterSpacing: '0.03em', borderRadius: 3,
+                            color: SIGNAL_STYLE[signal].color, background: SIGNAL_STYLE[signal].bg,
+                            border: `1px solid ${SIGNAL_STYLE[signal].border}`,
+                          }}>
+                            {SIGNAL_STYLE[signal].label}
+                          </span>
+                        ) : '—'}
+                      </td>
                       <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{fmt$(currentValue)}</td>
@@ -534,6 +562,18 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                     <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
                       <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: ticker === 'CASH' ? '#10b981' : (r?.color ?? tickerColor(i)), marginRight: 6 }} />
                       {ticker}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {signal ? (
+                        <span style={{
+                          display: 'inline-block', padding: '1px 8px', fontSize: 10, fontWeight: 700,
+                          letterSpacing: '0.03em', borderRadius: 3,
+                          color: SIGNAL_STYLE[signal].color, background: SIGNAL_STYLE[signal].bg,
+                          border: `1px solid ${SIGNAL_STYLE[signal].border}`,
+                        }}>
+                          {SIGNAL_STYLE[signal].label}
+                        </span>
+                      ) : '—'}
                     </td>
                     <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
@@ -569,7 +609,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
               {(holdingsValue + cashBalance > 0 || targetAllocatedTotal > 0) && (
                 <tr style={{ borderTop: '2px solid var(--border)' }}>
                   <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)' }}>Total</td>
-                  <td colSpan={2}></td>
+                  <td colSpan={3}></td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{fmt$(holdingsValue + cashBalance)}</td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{currentTotal > 0 ? `${((holdingsValue + cashBalance) / currentTotal * 100).toFixed(1)}%` : '—'}</td>
                   <td></td>
