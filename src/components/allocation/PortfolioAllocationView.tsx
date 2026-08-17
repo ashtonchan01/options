@@ -499,8 +499,8 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                 <th>Ticker</th>
                 <th style={{ textAlign: 'center' }} title="Mean-reversion read on RSI(14): oversold (<=30) suggests a bounce, overbought (>=70) suggests a pullback">Signal</th>
                 <th style={{ textAlign: 'right' }}>Shares</th>
-                <th style={{ textAlign: 'right' }}>Avg Cost</th>
                 <th style={{ textAlign: 'right' }}>Market Price</th>
+                <th style={{ textAlign: 'right' }}>Avg Cost</th>
                 <th style={{ textAlign: 'right' }}>Current $</th>
                 <th style={{ textAlign: 'right' }}>Current %</th>
                 <th style={{ textAlign: 'right' }}>Target Shares</th>
@@ -537,8 +537,8 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                         ) : '—'}
                       </td>
                       <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{marketPrice != null ? `$${marketPrice.toFixed(2)}` : '—'}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{fmt$(currentValue)}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{currentTotal > 0 ? `${(currentValue / currentTotal * 100).toFixed(1)}%` : '—'}</td>
                       <td style={{ textAlign: 'right' }}>
@@ -582,8 +582,8 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                       ) : '—'}
                     </td>
                     <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{marketPrice != null ? `$${marketPrice.toFixed(2)}` : '—'}</td>
+                    <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
                     <td
                       className="mono"
                       style={{ textAlign: 'right' }}
