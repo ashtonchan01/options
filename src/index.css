@@ -756,19 +756,35 @@ body {
   flex: 1;
   min-height: 0;
 }
-/* Was table-layout: fixed with hand-tuned per-column percentage widths —
-   any value too wide for its slice got clipped with an ellipsis ("-172…",
-   "$9…"), and every time a column was added (e.g. Breakeven) the widths
-   needed re-tuning by hand or the new column just broke the layout. Auto
-   layout (columns sized to their own content, nowrap) plus a horizontal
-   scroll on the cell's own scroll container (already overflow:auto) means
-   every value is always fully legible — scroll sideways for the rest
-   instead of anything ever being truncated. */
-.jr-strategy-cell table { table-layout: auto; min-width: 100%; }
+/* Fixed PIXEL widths (not percentages) per column — every strategy cell is
+   its own separate <table>, but the grid above lays them out one-per-row at
+   the same container width, so identical px widths here make every
+   column's x-position land in exactly the same place across all of them.
+   Percentage widths did this too, but at these cells' actual rendered
+   width some values (e.g. "-$10,377.50", "-164.7%") were wider than their
+   allotted slice and got clipped with an ellipsis. Pixel widths sized to
+   comfortably fit realistic values, combined with a min-width equal to
+   their sum and the cell's own scroll container (overflow:auto), mean the
+   table simply scrolls horizontally on a narrow viewport instead of ever
+   shrinking a column below what its content needs. */
+.jr-strategy-cell table { table-layout: fixed; min-width: 1160px; }
 .jr-strategy-cell table th, .jr-strategy-cell table td {
   padding: 8px 10px;
   white-space: nowrap;
+  overflow: visible;
 }
+.jr-strategy-cell table th:nth-child(1),  .jr-strategy-cell table td:nth-child(1)  { width: 90px; }  /* Open */
+.jr-strategy-cell table th:nth-child(2),  .jr-strategy-cell table td:nth-child(2)  { width: 90px; }  /* Closed */
+.jr-strategy-cell table th:nth-child(3),  .jr-strategy-cell table td:nth-child(3)  { width: 70px; }  /* Ticker */
+.jr-strategy-cell table th:nth-child(4),  .jr-strategy-cell table td:nth-child(4)  { width: 150px; } /* Position */
+.jr-strategy-cell table th:nth-child(5),  .jr-strategy-cell table td:nth-child(5)  { width: 90px; }  /* Avg Price */
+.jr-strategy-cell table th:nth-child(6),  .jr-strategy-cell table td:nth-child(6)  { width: 110px; } /* Cost Basis */
+.jr-strategy-cell table th:nth-child(7),  .jr-strategy-cell table td:nth-child(7)  { width: 100px; } /* Breakeven */
+.jr-strategy-cell table th:nth-child(8),  .jr-strategy-cell table td:nth-child(8)  { width: 100px; } /* Market Price */
+.jr-strategy-cell table th:nth-child(9),  .jr-strategy-cell table td:nth-child(9)  { width: 110px; } /* Unrealised */
+.jr-strategy-cell table th:nth-child(10), .jr-strategy-cell table td:nth-child(10) { width: 90px; }  /* % */
+.jr-strategy-cell table th:nth-child(11), .jr-strategy-cell table td:nth-child(11) { width: 70px; }  /* DTE */
+.jr-strategy-cell table th:nth-child(12), .jr-strategy-cell table td:nth-child(12) { width: 90px; }  /* P&L */
 
 .cc-section-title {
   font-size: 10px;
