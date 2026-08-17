@@ -56,7 +56,7 @@ function meanReversionSignal(rsi: number | null): Signal | null {
 const SIGNAL_STYLE: Record<Signal, { label: string; color: string; bg: string; border: string }> = {
   buy: { label: 'BUY', color: '#10b981', bg: '#10b98115', border: '#10b98140' },
   sell: { label: 'SELL', color: '#ef4444', bg: '#ef444415', border: '#ef444440' },
-  hold: { label: 'HOLD', color: 'var(--text-4)', bg: 'transparent', border: 'var(--border)' },
+  hold: { label: 'HOLD', color: '#F0B429', bg: '#F0B42915', border: '#F0B42940' },
 }
 
 export default function WatchlistView({ lists, activeId, onSetActive, onAddList, onRemoveList, onRenameList, onAddTicker, onRemoveTicker }: {
