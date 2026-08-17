@@ -587,8 +587,29 @@ function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor 
 
   const breakevenPrice = breakeven(p)
 
-  const marketPrice = hasLive && units > 0 ? Math.abs(liveLegs.reduce((s, lp) => s + lp.positionValue * shareOf(lp), 0)) / units : null
-  const unrealized = hasLive ? liveLegs.reduce((s, lp) => s + lp.unrealizedPnL * shareOf(lp), 0) : null
+  // Market value is built directly from each leg's live per-contract mark
+  // price (markPrice) — identical for every contract of that strike whether
+  // it's blended across several positions or not — times THIS position's
+  // own contract count, rather than proportionally splitting IBKR's already-
+  // aggregated dollar totals (positionValue/unrealizedPnL). A leg's sign
+  // (long vs short) is safe to read directly off the live leg even when its
+  // magnitude is blended with another position — every contract of one
+  // option is held in the same direction account-wide, IBKR nets to a
+  // single sign, only the quantity magnitude gets blended. This sidesteps
+  // the whole "how do you split an aggregate" problem: verified against a
+  // real account, this lines up with IBKR's own per-combo Market/Unrealised
+  // columns almost exactly (a 2-lot 7525/7500 and a 20-lot 7525/7520 both
+  // sharing the 7525P leg), whereas splitting the aggregate by any ratio
+  // (contract count or otherwise) only ever gets the TOTAL across every
+  // sharing position right, never each one's own number.
+  const ownMarketValue = hasLive
+    ? liveLegs.reduce((s, lp) => {
+        const signedContracts = Math.sign(lp.quantity) * p.contracts
+        return s + lp.markPrice * signedContracts * (lp.multiplier ?? 100)
+      }, 0)
+    : null
+  const marketPrice = ownMarketValue != null && units > 0 ? Math.abs(ownMarketValue) / units : null
+  const unrealized = ownMarketValue != null ? ownMarketValue - costBasis : null
   const unrealizedPct = unrealized != null && costBasis !== 0 ? (unrealized / Math.abs(costBasis)) * 100 : null
 
   return (

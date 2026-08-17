@@ -3,7 +3,7 @@ import { getSessionUser } from './_lib/session.js'
 
 // Allowlist of recognized blob keys — keeps data_key from becoming an
 // arbitrary free-form column an unexpected client could pollute.
-const ALLOWED_KEYS = new Set(['watchlists', 'tradeLabels', 'journalEntries', 'journalSetups'])
+const ALLOWED_KEYS = new Set(['watchlists', 'tradeLabels', 'journalEntries', 'journalSetups', 'targetAllocations'])
 
 export default async function handler(req, res) {
   const user = await getSessionUser(req)
