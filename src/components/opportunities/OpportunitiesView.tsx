@@ -305,8 +305,8 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
           onKeyDown={e => e.key === 'Enter' && addTicker()}
           placeholder="+ TICKER"
           autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
-          className={inputClassName}
-          style={{ width: 90, padding: '5px 8px', fontSize: 16, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }}
+          className="scanner-ticker-input"
+          style={{ width: 112, padding: '5px 8px', fontSize: 16, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }}
         />
 
         {/* Strategy toggle — show CSP, CC, or both */}
