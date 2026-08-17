@@ -1298,8 +1298,12 @@ body {
   .jr-page-row { display: block; overflow-y: auto; overflow-x: hidden; }
   .jr-stacked { display: block; overflow: visible; }
   .jr-page-actions { display: block; width: 100%; height: auto; margin-top: 12px; }
-  .jr-page-actions .db-sidebar { max-height: none !important; overflow: visible !important; }
-  .jr-page-actions .db-sidebar-body { overflow: visible !important; }
+  /* .db-sidebar/-body are also flex-column-with-auto-sizing (same shape as
+     .jr-page-row above) — same WebKit real-device risk, same fix: block
+     layout so children just stack at their natural height instead of
+     relying on a flex column to size itself correctly. */
+  .jr-page-actions .db-sidebar { display: block !important; max-height: none !important; overflow: visible !important; }
+  .jr-page-actions .db-sidebar-body { display: block !important; overflow: visible !important; }
   /* flex-shrink:0 (not the default 1 that "flex: 1 1 100%" implied) — as
      flex items of .jr-stacked's fixed-height column, these were being
      compressed to fit inside that height instead of overflowing it, so

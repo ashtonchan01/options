@@ -61,13 +61,21 @@ export function useWatchlists(sessionKey: string | null) {
   const [state, setState] = useState<WatchlistsState>(() => load(key))
 
   useEffect(() => {
-    setState(load(key))
+    const local = load(key)
+    setState(local)
     if (!sessionKey) return
     let cancelled = false
     loadUserData<WatchlistsState>('watchlists').then(remote => {
-      if (cancelled || !remote?.lists?.length) return
-      setState(remote)
-      save(key, remote)
+      if (cancelled) return
+      if (remote?.lists?.length) {
+        setState(remote)
+        save(key, remote)
+      } else if (local.lists.length) {
+        // Server has nothing yet but this device already has watchlists
+        // (created before server sync existed, or never edited since) —
+        // push them up so other devices can see them too.
+        saveUserData('watchlists', local)
+      }
     })
     return () => { cancelled = true }
   }, [key, sessionKey])
