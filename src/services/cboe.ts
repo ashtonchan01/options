@@ -126,13 +126,34 @@ function detectFlags(
 
 // ─── Fetch + process ─────────────────────────────────────────────────────────
 
-async function fetchCboeChain(symbol: string): Promise<CboeData | null> {
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+// A big watchlist fires every ticker's request at once — CBOE's CDN (and/or
+// our own outbound IP) intermittently 429s/503s under that kind of burst,
+// which fetchCboeChain used to treat as a permanent "no data" and silently
+// drop, so a scan of e.g. 20 tickers would only ever return real results for
+// however many happened to land before the throttling kicked in. One retry
+// after a short backoff recovers the transient failures instead of losing
+// them outright.
+async function fetchCboeChain(symbol: string, attempt = 0): Promise<CboeData | null> {
   try {
     const res = await fetch(`${PROXY}/api/cboe?symbol=${encodeURIComponent(symbol)}`)
-    if (!res.ok) return null
+    if (!res.ok) {
+      if ((res.status === 429 || res.status >= 500) && attempt === 0) {
+        await sleep(600 + Math.random() * 400)
+        return fetchCboeChain(symbol, attempt + 1)
+      }
+      return null
+    }
     const json = await res.json() as CboeResponse
     return json.data ?? null
   } catch {
+    if (attempt === 0) {
+      await sleep(600 + Math.random() * 400)
+      return fetchCboeChain(symbol, attempt + 1)
+    }
     return null
   }
 }
@@ -240,25 +261,39 @@ function processChain(
  * One request per ticker, all fired simultaneously.
  * ~1-2s total for 13 tickers.
  */
+// Requests within a batch still fire together (fast), but batches are
+// staggered slightly so a large watchlist doesn't dump 20-30 simultaneous
+// requests on CBOE's CDN at once — see fetchCboeChain's retry comment for
+// why that burst was silently losing results.
+const BATCH_SIZE = 8
+const BATCH_STAGGER_MS = 250
+
 export async function scanAllTickersCboe(
   tickers: string[],
   onProgress?: (ticker: string, i: number, total: number) => void,
 ): Promise<ScanResult[]> {
   onProgress?.('Fetching all chains...', 0, tickers.length)
 
-  const results = await Promise.all(
-    tickers.map(async (sym, i) => {
-      try {
-        const data = await fetchCboeChain(sym)
-        onProgress?.(sym, i + 1, tickers.length)
-        if (!data) return []
-        return processChain(data, sym)
-      } catch (e) {
-        console.warn(`[CBOE] ${sym} failed:`, e)
-        return []
-      }
-    })
-  )
+  const all: ScanResult[][] = []
+  for (let start = 0; start < tickers.length; start += BATCH_SIZE) {
+    if (start > 0) await sleep(BATCH_STAGGER_MS)
+    const batch = tickers.slice(start, start + BATCH_SIZE)
+    const batchResults = await Promise.all(
+      batch.map(async (sym, j) => {
+        const i = start + j
+        try {
+          const data = await fetchCboeChain(sym)
+          onProgress?.(sym, i + 1, tickers.length)
+          if (!data) return []
+          return processChain(data, sym)
+        } catch (e) {
+          console.warn(`[CBOE] ${sym} failed:`, e)
+          return []
+        }
+      })
+    )
+    all.push(...batchResults)
+  }
 
-  return results.flat()
+  return all.flat()
 }

@@ -12,6 +12,7 @@ import type { Watchlist } from '../../store/watchlistStore'
 import { fetchQuotes, type Quote } from '../../services/quotes'
 import { fetchRSI, type RsiData } from '../../services/rsi'
 import { fetchEarningsDates } from '../../services/earnings'
+import { meanReversionSignal, SIGNAL_STYLE } from '../../services/signal'
 
 function fmt$(n: number | null): string {
   if (n == null) return '—'
@@ -40,23 +41,6 @@ function rsiColor(rsi: number | null): string {
   if (rsi >= 70) return '#ef4444'
   if (rsi <= 30) return '#10b981'
   return 'var(--text-2)'
-}
-// Mean-reversion read on RSI(14) — a bounded oscillator that's already the
-// standard "how stretched is this vs its own recent range" signal: deeply
-// oversold (<=30) tends to snap back up (Buy), deeply overbought (>=70)
-// tends to snap back down (Sell). Nothing to compute beyond the RSI value
-// already fetched for the table.
-type Signal = 'buy' | 'sell' | 'hold'
-function meanReversionSignal(rsi: number | null): Signal | null {
-  if (rsi == null) return null
-  if (rsi <= 30) return 'buy'
-  if (rsi >= 70) return 'sell'
-  return 'hold'
-}
-const SIGNAL_STYLE: Record<Signal, { label: string; color: string; bg: string; border: string }> = {
-  buy: { label: 'BUY', color: '#10b981', bg: '#10b98115', border: '#10b98140' },
-  sell: { label: 'SELL', color: '#ef4444', bg: '#ef444415', border: '#ef444440' },
-  hold: { label: 'HOLD', color: '#F0B429', bg: '#F0B42915', border: '#F0B42940' },
 }
 
 export default function WatchlistView({ lists, activeId, onSetActive, onAddList, onRemoveList, onRenameList, onAddTicker, onRemoveTicker }: {
