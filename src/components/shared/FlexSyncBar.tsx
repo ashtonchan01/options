@@ -55,8 +55,8 @@ export default function FlexSyncBar({ savedToken, savedQueryId, loading, error, 
           </>
         ) : (
           <>
-            <input value={token} onChange={e => setToken(e.target.value)} placeholder="Token" style={inputStyle} />
-            <input value={queryId} onChange={e => setQueryId(e.target.value)} placeholder="Query ID" style={inputStyle} />
+            <input value={token} onChange={e => setToken(e.target.value)} placeholder="Token" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} style={inputStyle} />
+            <input value={queryId} onChange={e => setQueryId(e.target.value)} placeholder="Query ID" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} style={inputStyle} />
             <button onClick={handleSync} disabled={loading || !token.trim() || !queryId.trim()} style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px',
               fontSize: 11, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',

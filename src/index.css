@@ -216,8 +216,19 @@ body {
   }
 
   /* ── CALENDAR ──────────────────────────────────────────────────────────── */
-  .calendar-layout { flex-direction: column !important; }
-  .calendar-main { padding: 8px !important; }
+  /* The calendar grid and the Activity sidebar used to each be their own
+     independently-scrolling bounded box stacked on top of each other —
+     "split screen" on a phone, where scrolling the grid didn't move the
+     activity list underneath it and vice versa. .av-section-calendar (the
+     AccountView wrapper) is the one place in this chain that still had
+     overflow:hidden on mobile; making IT the single scroll container and
+     letting everything below flow to its natural height (overflow:visible,
+     no max-height caps) means the whole calendar page scrolls as one unit,
+     same pattern already used for the Journal page. */
+  .av-section-calendar { overflow-y: auto !important; overflow-x: hidden !important; }
+  .calendar-page-root { height: auto !important; overflow: visible !important; }
+  .calendar-layout { flex-direction: column !important; height: auto !important; overflow: visible !important; }
+  .calendar-main { flex: none !important; height: auto !important; overflow: visible !important; padding: 8px !important; }
   .calendar-nav { flex-wrap: wrap !important; gap: 6px !important; margin-bottom: 6px !important; }
   .calendar-header-grid { grid-template-columns: repeat(5, 1fr) 50px !important; }
   .calendar-grid-wrap { grid-template-columns: repeat(5, 1fr) 50px !important; }
@@ -225,8 +236,10 @@ body {
   .calendar-sidebar {
     width: 100% !important; border-left: none !important;
     border-top: 1px solid var(--border) !important;
-    max-height: 200px !important; flex: 0 0 auto !important;
+    height: auto !important; max-height: none !important; overflow: visible !important; flex: 0 0 auto !important;
   }
+  .calendar-activity-sidebar { overflow: visible !important; flex: none !important; }
+  .calendar-activity-list { overflow: visible !important; flex: none !important; }
   .calendar-tradelog {
     flex: 0 0 auto !important; max-height: 250px !important;
   }

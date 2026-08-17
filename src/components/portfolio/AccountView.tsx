@@ -67,7 +67,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
           ))}
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
+        <div className={`av-section-body${section === 'calendar' ? ' av-section-calendar' : ''}`} style={{ flex: 1, minHeight: 0, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
           {section === 'calendar' && <CalendarView state={accountState} watchlistTickers={watchlistTickers} />}
           {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} sessionKey={sessionKey} />}
           {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} />}

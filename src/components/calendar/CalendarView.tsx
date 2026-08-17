@@ -445,12 +445,12 @@ function ActivitySidebar({
     : 'All Activity'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
+    <div className="calendar-activity-sidebar" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
       <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text-2)', letterSpacing: '0.08em', flexShrink: 0 }}>
         {title.toUpperCase()}
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div className="calendar-activity-list" style={{ flex: 1, overflow: 'auto' }}>
         {displayDates.length === 0 && (
           <div style={{ padding: 24, color: 'var(--text-3)', fontSize: 14, textAlign: 'center' }}>
             No activity
@@ -667,7 +667,7 @@ export default function CalendarView({ state, watchlistTickers = [] }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="calendar-page-root" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
       {/* ── Top: Calendar + Sidebar ──────────────────────────────────────── */}
       <div className="calendar-layout" style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
