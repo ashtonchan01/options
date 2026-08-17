@@ -41,6 +41,23 @@ function rsiColor(rsi: number | null): string {
   if (rsi <= 30) return '#10b981'
   return 'var(--text-2)'
 }
+// Mean-reversion read on RSI(14) — a bounded oscillator that's already the
+// standard "how stretched is this vs its own recent range" signal: deeply
+// oversold (<=30) tends to snap back up (Buy), deeply overbought (>=70)
+// tends to snap back down (Sell). Nothing to compute beyond the RSI value
+// already fetched for the table.
+type Signal = 'buy' | 'sell' | 'hold'
+function meanReversionSignal(rsi: number | null): Signal | null {
+  if (rsi == null) return null
+  if (rsi <= 30) return 'buy'
+  if (rsi >= 70) return 'sell'
+  return 'hold'
+}
+const SIGNAL_STYLE: Record<Signal, { label: string; color: string; bg: string; border: string }> = {
+  buy: { label: 'BUY', color: '#10b981', bg: '#10b98115', border: '#10b98140' },
+  sell: { label: 'SELL', color: '#ef4444', bg: '#ef444415', border: '#ef444440' },
+  hold: { label: 'HOLD', color: 'var(--text-4)', bg: 'transparent', border: 'var(--border)' },
+}
 
 export default function WatchlistView({ lists, activeId, onSetActive, onAddList, onRemoveList, onRenameList, onAddTicker, onRemoveTicker }: {
   lists: Watchlist[]
@@ -210,13 +227,14 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                   <th style={{ textAlign: 'right' }}>52W High</th>
                   <th style={{ textAlign: 'right' }}>52W Low</th>
                   <th style={{ textAlign: 'right' }}>RSI(14)</th>
+                  <th style={{ textAlign: 'center' }} title="Mean-reversion read on RSI(14): oversold (<=30) suggests a bounce, overbought (>=70) suggests a pullback">Signal</th>
                   <th style={{ textAlign: 'right' }}>Next Earnings</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {tickers.length === 0 && (
-                  <tr><td colSpan={11} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No tickers yet — add one above.</td></tr>
+                  <tr><td colSpan={12} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No tickers yet — add one above.</td></tr>
                 )}
                 {tickers.map(sym => {
                   const q = quotes[sym]
@@ -224,6 +242,7 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                   const changePct = q?.prevClose ? (change! / q.prevClose) * 100 : null
                   const ne = nextEarnings(earnings[sym])
                   const r = rsi[sym]?.rsi ?? null
+                  const signal = meanReversionSignal(r)
                   return (
                     <tr key={sym}>
                       <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{sym}</td>
@@ -239,6 +258,18 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                       <td className="mono" style={{ textAlign: 'right' }}>{fmt$(q?.high52 ?? null)}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{fmt$(q?.low52 ?? null)}</td>
                       <td className="mono" style={{ textAlign: 'right', color: rsiColor(r), fontWeight: 600 }}>{r != null ? r.toFixed(0) : '—'}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {signal ? (
+                          <span style={{
+                            display: 'inline-block', padding: '1px 8px', fontSize: 10, fontWeight: 700,
+                            letterSpacing: '0.03em', borderRadius: 3,
+                            color: SIGNAL_STYLE[signal].color, background: SIGNAL_STYLE[signal].bg,
+                            border: `1px solid ${SIGNAL_STYLE[signal].border}`,
+                          }}>
+                            {SIGNAL_STYLE[signal].label}
+                          </span>
+                        ) : '—'}
+                      </td>
                       <td className="mono" style={{ textAlign: 'right' }}>
                         {ne ? <span title={ne} style={{ padding: '1px 5px', fontSize: 10, fontWeight: 700, background: '#F0B42915', border: '1px solid #F0B42940', color: '#F0B429' }}>{fmtEarnings(ne)}</span> : '—'}
                       </td>
