@@ -359,6 +359,10 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   }, [targetTickersKey])
 
   function rowPrice(ticker: string): number | null {
+    // CASH has no market price — a "CASH" target row's shares field is
+    // just entered directly as a dollar amount, so $1/"share" makes that
+    // fall out of the same shares*price math every other row already uses.
+    if (ticker === 'CASH') return 1
     const live = quotes[ticker]?.price
     if (live && live > 0) return live
     const held = holdings.find(h => h.symbol === ticker)
@@ -367,18 +371,32 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
 
   const targetRowsResolved = targets.rows.map((r, i) => {
     const price = rowPrice(r.ticker)
-    return { ...r, price, dollarValue: price != null ? r.shares * price : null, color: tickerColor(i) }
+    return { ...r, price, dollarValue: price != null ? r.shares * price : null, color: r.ticker === 'CASH' ? '#10b981' : tickerColor(i) }
   })
   const targetAllocatedTotal = targetRowsResolved.reduce((s, r) => s + (r.dollarValue ?? 0), 0)
+
+  // A synthetic "holding" so CASH can flow through the same merged-row
+  // rendering as every stock ticker instead of needing its own separate
+  // hardcoded row.
+  const cashHolding: Holding | null = cashBalance > 0
+    ? { symbol: 'CASH', shares: 0, avgCost: 0, value: cashBalance, optionsValue: nakedOptionsValue }
+    : null
+  function holdingFor(ticker: string): Holding | null {
+    return ticker === 'CASH' ? cashHolding : holdings.find(h => h.symbol === ticker) ?? null
+  }
 
   // One row per ticker held and/or targeted — union of both, so a ticker
   // that's only held (no target set) or only targeted (not held yet) still
   // gets a row, with the other side's columns blank instead of needing two
   // separate tables the eye has to cross-reference by ticker.
-  const mergedTickers = [...new Set([...holdings.map(h => h.symbol), ...targetRowsResolved.map(r => r.ticker)])].sort()
+  const mergedTickers = [...new Set([
+    ...holdings.map(h => h.symbol),
+    ...targetRowsResolved.map(r => r.ticker),
+    ...(cashHolding ? ['CASH'] : []),
+  ])].sort((a, b) => a.localeCompare(b))
   const mergedRows = mergedTickers.map(ticker => ({
     ticker,
-    holding: holdings.find(h => h.symbol === ticker) ?? null,
+    holding: holdingFor(ticker),
     target: targetRowsResolved.find(r => r.ticker === ticker) ?? null,
   }))
 
@@ -510,7 +528,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                 return (
                   <tr key={ticker}>
                     <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: r?.color ?? tickerColor(i), marginRight: 6 }} />
+                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: ticker === 'CASH' ? '#10b981' : (r?.color ?? tickerColor(i)), marginRight: 6 }} />
                       {ticker}
                     </td>
                     <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
@@ -544,25 +562,6 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                   </tr>
                 )
               })}
-              {cashBalance > 0 && (
-                <tr>
-                  <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#10b981', marginRight: 6 }} />
-                    CASH
-                  </td>
-                  <td className="mono" style={{ textAlign: 'right' }}>—</td>
-                  <td className="mono" style={{ textAlign: 'right' }}>—</td>
-                  <td
-                    className="mono"
-                    style={{ textAlign: 'right' }}
-                    title={nakedOptionsValue !== 0 ? `Includes ${fmt$(nakedOptionsValue)} from options with no underlying shares held` : undefined}
-                  >
-                    {fmt$(cashBalance)}{nakedOptionsValue !== 0 && <span style={{ color: nakedOptionsValue > 0 ? '#10b981' : '#f43f5e', fontSize: 10, marginLeft: 4 }}>({nakedOptionsValue > 0 ? '+' : ''}{fmt$(nakedOptionsValue)} opt)</span>}
-                  </td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{currentTotal > 0 ? `${(cashBalance / currentTotal * 100).toFixed(1)}%` : '—'}</td>
-                  <td colSpan={5}></td>
-                </tr>
-              )}
               {(holdingsValue + cashBalance > 0 || targetAllocatedTotal > 0) && (
                 <tr style={{ borderTop: '2px solid var(--border)' }}>
                   <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)' }}>Total</td>
@@ -580,7 +579,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
           </table>
         </div>
         <div style={{ padding: '8px 18px', fontSize: 10.5, color: 'var(--text-4)' }}>
-          Target rows are priced off a live quote (falling back to this account's own avg cost if the quote fetch fails) — Target % is each target row's share of the total target, so it always adds up to 100%.
+          Target rows are priced off a live quote (falling back to this account's own avg cost if the quote fetch fails) — Target % is each target row's share of the total target, so it always adds up to 100%. Add a "CASH" target with the target $ amount entered as the shares field to include cash in your target mix.
         </div>
       </div>
     </div>
