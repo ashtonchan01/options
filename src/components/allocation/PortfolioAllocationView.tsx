@@ -563,10 +563,12 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                   <td colSpan={5}></td>
                 </tr>
               )}
-              {targetRowsResolved.length > 0 && (
+              {(holdingsValue + cashBalance > 0 || targetAllocatedTotal > 0) && (
                 <tr style={{ borderTop: '2px solid var(--border)' }}>
                   <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)' }}>Total</td>
-                  <td colSpan={4}></td>
+                  <td colSpan={2}></td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{fmt$(holdingsValue + cashBalance)}</td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{currentTotal > 0 ? `${((holdingsValue + cashBalance) / currentTotal * 100).toFixed(1)}%` : '—'}</td>
                   <td></td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{fmt$(targetAllocatedTotal)}</td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{targetAllocatedTotal > 0 ? '100.0%' : '—'}</td>
