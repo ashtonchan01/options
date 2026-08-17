@@ -371,6 +371,17 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   })
   const targetAllocatedTotal = targetRowsResolved.reduce((s, r) => s + (r.dollarValue ?? 0), 0)
 
+  // One row per ticker held and/or targeted — union of both, so a ticker
+  // that's only held (no target set) or only targeted (not held yet) still
+  // gets a row, with the other side's columns blank instead of needing two
+  // separate tables the eye has to cross-reference by ticker.
+  const mergedTickers = [...new Set([...holdings.map(h => h.symbol), ...targetRowsResolved.map(r => r.ticker)])].sort()
+  const mergedRows = mergedTickers.map(ticker => ({
+    ticker,
+    holding: holdings.find(h => h.symbol === ticker) ?? null,
+    target: targetRowsResolved.find(r => r.ticker === ticker) ?? null,
+  }))
+
   const currentSlices: Slice[] = [
     ...holdings.map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i), shares: h.shares })),
     ...(cashBalance > 0 ? [{ label: 'CASH', value: cashBalance, color: '#10b981' }] : []),
@@ -420,11 +431,28 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
         </div>
       </div>
 
-      {/* ── Current holdings table ───────────────────────────────────────── */}
+      {/* ── Holdings vs Target table ─────────────────────────────────────── */}
       <div className="panel" style={{ padding: 0 }}>
         <div style={{ padding: '12px 18px 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em' }}>
-          CURRENT HOLDINGS
+          HOLDINGS vs TARGET
         </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 18px 12px', flexWrap: 'wrap' }}>
+          <input
+            value={newTicker} onChange={e => setNewTicker(e.target.value.toUpperCase())}
+            placeholder="Ticker" style={{ width: 90, padding: '5px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}
+          />
+          <input
+            type="number" min={0} value={newShares} onChange={e => setNewShares(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addRow()}
+            placeholder="# target shares"
+            style={{ width: 120, padding: '5px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}
+          />
+          <button onClick={addRow} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', fontSize: 11, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', color: 'var(--accent)', cursor: 'pointer', borderRadius: 4 }}>
+            <Plus size={12} /> Add target
+          </button>
+        </div>
+
         <div style={{ overflowX: 'auto' }}>
           <table className="trade-table" style={{ width: '100%', fontSize: 12 }}>
             <thead>
@@ -432,32 +460,90 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                 <th>Ticker</th>
                 <th style={{ textAlign: 'right' }}>Shares</th>
                 <th style={{ textAlign: 'right' }}>Avg Cost</th>
-                <th style={{ textAlign: 'right' }}>Value</th>
-                <th style={{ textAlign: 'right' }}>% of Current</th>
+                <th style={{ textAlign: 'right' }}>Current $</th>
+                <th style={{ textAlign: 'right' }}>Current %</th>
+                <th style={{ textAlign: 'right' }}>Target Shares</th>
+                <th style={{ textAlign: 'right' }}>Target $</th>
+                <th style={{ textAlign: 'right' }}>Target %</th>
+                <th style={{ textAlign: 'right' }}>Gap $</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {holdings.length === 0 && (
-                <tr><td colSpan={5} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No stock trades yet — upload a statement to populate this.</td></tr>
+              {mergedRows.length === 0 && cashBalance <= 0 && (
+                <tr><td colSpan={10} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No stock trades or targets yet — upload a statement or add a ticker above.</td></tr>
               )}
-              {holdings.map((h, i) => (
-                <tr key={h.symbol}>
-                  <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: tickerColor(i), marginRight: 6 }} />
-                    {h.symbol}
-                  </td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
-                  <td
-                    className="mono"
-                    style={{ textAlign: 'right' }}
-                    title={h.optionsValue !== 0 ? `Includes ${fmt$(h.optionsValue)} from options mark value` : undefined}
-                  >
-                    {fmt$(h.value)}{h.optionsValue !== 0 && <span style={{ color: h.optionsValue > 0 ? '#10b981' : '#f43f5e', fontSize: 10, marginLeft: 4 }}>({h.optionsValue > 0 ? '+' : ''}{fmt$(h.optionsValue)} opt)</span>}
-                  </td>
-                  <td className="mono" style={{ textAlign: 'right' }}>{currentTotal > 0 ? `${(h.value / currentTotal * 100).toFixed(1)}%` : '—'}</td>
-                </tr>
-              ))}
+              {mergedRows.map(({ ticker, holding: h, target: r }, i) => {
+                const currentValue = h?.value ?? 0
+                const gap = r?.dollarValue != null ? r.dollarValue - currentValue : null
+                const isEditing = r != null && editingId === r.id
+                if (isEditing && r) {
+                  return (
+                    <tr key={ticker}>
+                      <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{ticker}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{fmt$(currentValue)}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{currentTotal > 0 ? `${(currentValue / currentTotal * 100).toFixed(1)}%` : '—'}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <input
+                          type="number" min={0} value={editShares} onChange={e => setEditShares(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveEdit(r.id); if (e.key === 'Escape') cancelEdit() }}
+                          autoFocus
+                          style={{ width: 80, padding: '3px 6px', fontSize: 12, textAlign: 'right', borderRadius: 4, border: '1px solid var(--accent-border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}
+                        />
+                      </td>
+                      <td colSpan={3}></td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: 4 }}>
+                          <button onClick={() => saveEdit(r.id)} title="Save" style={{ background: 'none', border: '1px solid var(--accent-border)', color: 'var(--accent)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
+                            <Check size={11} />
+                          </button>
+                          <button onClick={cancelEdit} title="Cancel" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
+                            <X size={11} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                }
+                return (
+                  <tr key={ticker}>
+                    <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: r?.color ?? tickerColor(i), marginRight: 6 }} />
+                      {ticker}
+                    </td>
+                    <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
+                    <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
+                    <td
+                      className="mono"
+                      style={{ textAlign: 'right' }}
+                      title={h && h.optionsValue !== 0 ? `Includes ${fmt$(h.optionsValue)} from options mark value` : undefined}
+                    >
+                      {h ? fmt$(h.value) : '—'}{h && h.optionsValue !== 0 && <span style={{ color: h.optionsValue > 0 ? '#10b981' : '#f43f5e', fontSize: 10, marginLeft: 4 }}>({h.optionsValue > 0 ? '+' : ''}{fmt$(h.optionsValue)} opt)</span>}
+                    </td>
+                    <td className="mono" style={{ textAlign: 'right' }}>{h && currentTotal > 0 ? `${(h.value / currentTotal * 100).toFixed(1)}%` : '—'}</td>
+                    <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{r ? r.shares.toLocaleString() : '—'}</td>
+                    <td className="mono" style={{ textAlign: 'right' }}>{r?.dollarValue != null ? fmt$(r.dollarValue) : '—'}</td>
+                    <td className="mono" style={{ textAlign: 'right' }}>{r?.dollarValue != null && targetAllocatedTotal > 0 ? `${(r.dollarValue / targetAllocatedTotal * 100).toFixed(1)}%` : '—'}</td>
+                    <td className={`mono ${gap != null && gap > 0 ? 'pos' : gap != null && gap < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right', fontWeight: 700 }}>
+                      {gap != null ? fmt$(gap) : '—'}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {r && (
+                        <div style={{ display: 'inline-flex', gap: 4 }}>
+                          <button onClick={() => startEdit(r)} title="Edit target" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
+                            <Pencil size={11} />
+                          </button>
+                          <button onClick={() => removeRow(r.id)} title="Remove target" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
               {cashBalance > 0 && (
                 <tr>
                   <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
@@ -474,124 +560,16 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                     {fmt$(cashBalance)}{nakedOptionsValue !== 0 && <span style={{ color: nakedOptionsValue > 0 ? '#10b981' : '#f43f5e', fontSize: 10, marginLeft: 4 }}>({nakedOptionsValue > 0 ? '+' : ''}{fmt$(nakedOptionsValue)} opt)</span>}
                   </td>
                   <td className="mono" style={{ textAlign: 'right' }}>{currentTotal > 0 ? `${(cashBalance / currentTotal * 100).toFixed(1)}%` : '—'}</td>
+                  <td colSpan={5}></td>
                 </tr>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── Target allocation editor ─────────────────────────────────────── */}
-      <div className="panel" style={{ padding: 0 }}>
-        <div style={{ padding: '12px 18px 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em' }}>
-          TARGET ALLOCATION
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 18px 12px', flexWrap: 'wrap' }}>
-          <input
-            value={newTicker} onChange={e => setNewTicker(e.target.value.toUpperCase())}
-            placeholder="Ticker" style={{ width: 90, padding: '5px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}
-          />
-          <input
-            type="number" min={0} value={newShares} onChange={e => setNewShares(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addRow()}
-            placeholder="# shares"
-            style={{ width: 100, padding: '5px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}
-          />
-          <button onClick={addRow} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', fontSize: 11, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', color: 'var(--accent)', cursor: 'pointer', borderRadius: 4 }}>
-            <Plus size={12} /> Add
-          </button>
-        </div>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table className="trade-table" style={{ width: '100%', fontSize: 12 }}>
-            <thead>
-              <tr>
-                <th>Ticker</th>
-                <th style={{ textAlign: 'right' }}>Shares</th>
-                <th style={{ textAlign: 'right' }}>Price</th>
-                <th style={{ textAlign: 'right' }}>Target $</th>
-                <th style={{ textAlign: 'right' }}>Target %</th>
-                <th style={{ textAlign: 'right' }}>Current $</th>
-                <th style={{ textAlign: 'right' }}>Gap $</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {targetRowsResolved.length === 0 && (
-                <tr><td colSpan={8} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No targets set yet — add a ticker above.</td></tr>
-              )}
-              {targetRowsResolved.map(r => {
-                const currentValue = holdings.find(h => h.symbol === r.ticker)?.value ?? 0
-                const gap = r.dollarValue != null ? r.dollarValue - currentValue : null
-                const isEditing = editingId === r.id
-                if (isEditing) {
-                  return (
-                    <tr key={r.id}>
-                      <td>
-                        <input
-                          value={editTicker} onChange={e => setEditTicker(e.target.value.toUpperCase())}
-                          onKeyDown={e => { if (e.key === 'Enter') saveEdit(r.id); if (e.key === 'Escape') cancelEdit() }}
-                          autoFocus
-                          style={{ width: 80, padding: '3px 6px', fontSize: 12, borderRadius: 4, border: '1px solid var(--accent-border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}
-                        />
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <input
-                          type="number" min={0} value={editShares} onChange={e => setEditShares(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') saveEdit(r.id); if (e.key === 'Escape') cancelEdit() }}
-                          style={{ width: 80, padding: '3px 6px', fontSize: 12, textAlign: 'right', borderRadius: 4, border: '1px solid var(--accent-border)', background: 'var(--bg-elevated)', color: 'var(--text-1)' }}
-                        />
-                      </td>
-                      <td colSpan={4}></td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: 4 }}>
-                          <button onClick={() => saveEdit(r.id)} title="Save" style={{ background: 'none', border: '1px solid var(--accent-border)', color: 'var(--accent)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
-                            <Check size={11} />
-                          </button>
-                          <button onClick={cancelEdit} title="Cancel" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
-                            <X size={11} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                }
-                return (
-                  <tr key={r.id}>
-                    <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: r.color, marginRight: 6 }} />
-                      {r.ticker}
-                    </td>
-                    <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{r.shares.toLocaleString()}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{r.price != null ? `$${r.price.toFixed(2)}` : '—'}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{r.dollarValue != null ? fmt$(r.dollarValue) : '—'}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{r.dollarValue != null && targetAllocatedTotal > 0 ? `${(r.dollarValue / targetAllocatedTotal * 100).toFixed(1)}%` : '—'}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{fmt$(currentValue)}</td>
-                    <td className={`mono ${gap != null && gap > 0 ? 'pos' : gap != null && gap < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right', fontWeight: 700 }}>
-                      {gap != null ? fmt$(gap) : '—'}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: 4 }}>
-                        <button onClick={() => startEdit(r)} title="Edit" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
-                          <Pencil size={11} />
-                        </button>
-                        <button onClick={() => removeRow(r.id)} title="Remove" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4 }}>
-                          <Trash2 size={11} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
               {targetRowsResolved.length > 0 && (
                 <tr style={{ borderTop: '2px solid var(--border)' }}>
                   <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)' }}>Total</td>
-                  <td></td>
+                  <td colSpan={4}></td>
                   <td></td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{fmt$(targetAllocatedTotal)}</td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{targetAllocatedTotal > 0 ? '100.0%' : '—'}</td>
-                  <td></td>
                   <td></td>
                   <td></td>
                 </tr>
@@ -600,7 +578,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
           </table>
         </div>
         <div style={{ padding: '8px 18px', fontSize: 10.5, color: 'var(--text-4)' }}>
-          Each row is priced off a live quote (falling back to this account's own avg cost if the quote fetch fails) — Target % is each row's share of the total, so it always adds up to 100%.
+          Target rows are priced off a live quote (falling back to this account's own avg cost if the quote fetch fails) — Target % is each target row's share of the total target, so it always adds up to 100%.
         </div>
       </div>
     </div>
