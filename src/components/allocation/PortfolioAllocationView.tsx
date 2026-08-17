@@ -283,9 +283,19 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
     if (!sessionKey) return
     let cancelled = false
     loadUserData<Record<string, TargetsState>>('targetAllocations').then(remote => {
-      if (cancelled || !remote || Object.keys(remote).length === 0) return
-      setAllTargets(remote)
-      saveAllTargets(remote)
+      if (cancelled) return
+      if (remote && Object.keys(remote).length > 0) {
+        setAllTargets(remote)
+        saveAllTargets(remote)
+      } else {
+        // Server has nothing yet but this device already has targets
+        // (set up before server sync existed) — push them up so other
+        // devices can see them too.
+        setAllTargets(prev => {
+          if (Object.keys(prev).length > 0) saveUserData('targetAllocations', prev)
+          return prev
+        })
+      }
     })
     return () => { cancelled = true }
   }, [sessionKey])
