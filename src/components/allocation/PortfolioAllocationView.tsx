@@ -170,7 +170,7 @@ function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { slices:
   }
 
   let angle = -90
-  const wedges = slices.filter(s => s.value > 0).map(s => {
+  const wedges = [...slices].filter(s => s.value > 0).sort((a, b) => b.value - a.value).map(s => {
     const frac = s.value / total
     const start = angle
     const end = angle + frac * 360
