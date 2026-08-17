@@ -356,15 +356,6 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   // happens to already hold (most target tickers won't be held yet, that's
   // the point of a target). Falls back to this account's own avg cost only
   // if the live quote fetch comes up empty for that symbol.
-  const targetTickersKey = useMemo(() => [...new Set(targets.rows.map(r => r.ticker))].sort().join(','), [targets.rows])
-  useEffect(() => {
-    const tickers = targetTickersKey ? targetTickersKey.split(',') : []
-    if (tickers.length === 0) { setQuotes({}); return }
-    let cancelled = false
-    fetchQuotes(tickers).then(q => { if (!cancelled) setQuotes(q) })
-    return () => { cancelled = true }
-  }, [targetTickersKey])
-
   function rowPrice(ticker: string): number | null {
     // CASH has no market price — a "CASH" target row's shares field is
     // just entered directly as a dollar amount, so $1/"share" makes that
@@ -406,6 +397,18 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
     holding: holdingFor(ticker),
     target: targetRowsResolved.find(r => r.ticker === ticker) ?? null,
   }))
+
+  // Live quote per ticker — every held-or-targeted ticker now, not just
+  // target rows, so a plain holding with no target set still gets a real
+  // Market Price instead of only ever showing its avg cost.
+  const quoteTickersKey = useMemo(() => mergedTickers.filter(t => t !== 'CASH').sort().join(','), [mergedTickers.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const tickers = quoteTickersKey ? quoteTickersKey.split(',') : []
+    if (tickers.length === 0) { setQuotes({}); return }
+    let cancelled = false
+    fetchQuotes(tickers).then(q => { if (!cancelled) setQuotes(q) })
+    return () => { cancelled = true }
+  }, [quoteTickersKey])
 
   // RSI(14) per ticker for the same mean-reversion Buy/Sell/Hold Signal the
   // Watchlist shows — CASH has no RSI, so it's excluded from the fetch.
@@ -497,6 +500,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                 <th style={{ textAlign: 'center' }} title="Mean-reversion read on RSI(14): oversold (<=30) suggests a bounce, overbought (>=70) suggests a pullback">Signal</th>
                 <th style={{ textAlign: 'right' }}>Shares</th>
                 <th style={{ textAlign: 'right' }}>Avg Cost</th>
+                <th style={{ textAlign: 'right' }}>Market Price</th>
                 <th style={{ textAlign: 'right' }}>Current $</th>
                 <th style={{ textAlign: 'right' }}>Current %</th>
                 <th style={{ textAlign: 'right' }}>Target Shares</th>
@@ -508,13 +512,14 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
             </thead>
             <tbody>
               {mergedRows.length === 0 && cashBalance <= 0 && (
-                <tr><td colSpan={11} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No stock trades or targets yet — upload a statement or add a ticker above.</td></tr>
+                <tr><td colSpan={12} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No stock trades or targets yet — upload a statement or add a ticker above.</td></tr>
               )}
               {mergedRows.map(({ ticker, holding: h, target: r }, i) => {
                 const currentValue = h?.value ?? 0
                 const gap = r?.dollarValue != null ? r.dollarValue - currentValue : null
                 const isEditing = r != null && editingId === r.id
                 const signal = ticker === 'CASH' ? null : meanReversionSignal(rsi[ticker]?.rsi ?? null)
+                const marketPrice = ticker === 'CASH' ? null : quotes[ticker]?.price ?? null
                 if (isEditing && r) {
                   return (
                     <tr key={ticker}>
@@ -533,6 +538,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                       </td>
                       <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{marketPrice != null ? `$${marketPrice.toFixed(2)}` : '—'}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{fmt$(currentValue)}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{currentTotal > 0 ? `${(currentValue / currentTotal * 100).toFixed(1)}%` : '—'}</td>
                       <td style={{ textAlign: 'right' }}>
@@ -577,6 +583,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                     </td>
                     <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
+                    <td className="mono" style={{ textAlign: 'right' }}>{marketPrice != null ? `$${marketPrice.toFixed(2)}` : '—'}</td>
                     <td
                       className="mono"
                       style={{ textAlign: 'right' }}
@@ -609,7 +616,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
               {(holdingsValue + cashBalance > 0 || targetAllocatedTotal > 0) && (
                 <tr style={{ borderTop: '2px solid var(--border)' }}>
                   <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)' }}>Total</td>
-                  <td colSpan={3}></td>
+                  <td colSpan={4}></td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{fmt$(holdingsValue + cashBalance)}</td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{currentTotal > 0 ? `${((holdingsValue + cashBalance) / currentTotal * 100).toFixed(1)}%` : '—'}</td>
                   <td></td>
