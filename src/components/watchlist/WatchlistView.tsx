@@ -219,22 +219,21 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
               <thead>
                 <tr>
                   <th>Ticker</th>
+                  <th style={{ textAlign: 'center' }} title="Mean-reversion read on RSI(14): oversold (<=30) suggests a bounce, overbought (>=70) suggests a pullback">Signal</th>
                   <th style={{ textAlign: 'right' }}>Last</th>
                   <th style={{ textAlign: 'right' }}>Change</th>
                   <th style={{ textAlign: 'right' }}>Change %</th>
                   <th style={{ textAlign: 'right' }}>Volume</th>
-                  <th style={{ textAlign: 'right' }}>Avg Vol</th>
                   <th style={{ textAlign: 'right' }}>52W High</th>
                   <th style={{ textAlign: 'right' }}>52W Low</th>
                   <th style={{ textAlign: 'right' }}>RSI(14)</th>
-                  <th style={{ textAlign: 'center' }} title="Mean-reversion read on RSI(14): oversold (<=30) suggests a bounce, overbought (>=70) suggests a pullback">Signal</th>
                   <th style={{ textAlign: 'right' }}>Next Earnings</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {tickers.length === 0 && (
-                  <tr><td colSpan={12} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No tickers yet — add one above.</td></tr>
+                  <tr><td colSpan={11} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No tickers yet — add one above.</td></tr>
                 )}
                 {tickers.map(sym => {
                   const q = quotes[sym]
@@ -246,18 +245,6 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                   return (
                     <tr key={sym}>
                       <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{sym}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{q ? fmt$(q.price) : loading ? '…' : '—'}</td>
-                      <td className={`mono ${change != null && change > 0 ? 'pos' : change != null && change < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right' }}>
-                        {change != null ? `${change > 0 ? '+' : ''}${change.toFixed(2)}` : '—'}
-                      </td>
-                      <td className={`mono ${changePct != null && changePct > 0 ? 'pos' : changePct != null && changePct < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right' }}>
-                        {changePct != null ? `${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%` : '—'}
-                      </td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{fmtVol(q?.volume ?? null)}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{fmtVol(q?.avgVolume ?? null)}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{fmt$(q?.high52 ?? null)}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{fmt$(q?.low52 ?? null)}</td>
-                      <td className="mono" style={{ textAlign: 'right', color: rsiColor(r), fontWeight: 600 }}>{r != null ? r.toFixed(0) : '—'}</td>
                       <td style={{ textAlign: 'center' }}>
                         {signal ? (
                           <span style={{
@@ -270,6 +257,17 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                           </span>
                         ) : '—'}
                       </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{q ? fmt$(q.price) : loading ? '…' : '—'}</td>
+                      <td className={`mono ${change != null && change > 0 ? 'pos' : change != null && change < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right' }}>
+                        {change != null ? `${change > 0 ? '+' : ''}${change.toFixed(2)}` : '—'}
+                      </td>
+                      <td className={`mono ${changePct != null && changePct > 0 ? 'pos' : changePct != null && changePct < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right' }}>
+                        {changePct != null ? `${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%` : '—'}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{fmtVol(q?.volume ?? null)}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{fmt$(q?.high52 ?? null)}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{fmt$(q?.low52 ?? null)}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: rsiColor(r), fontWeight: 600 }}>{r != null ? r.toFixed(0) : '—'}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>
                         {ne ? <span title={ne} style={{ padding: '1px 5px', fontSize: 10, fontWeight: 700, background: '#F0B42915', border: '1px solid #F0B42940', color: '#F0B429' }}>{fmtEarnings(ne)}</span> : '—'}
                       </td>
