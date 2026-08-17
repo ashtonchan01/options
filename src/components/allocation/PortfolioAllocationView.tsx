@@ -152,7 +152,7 @@ function migrateOldPerAccountTargets(accountId: string): TargetsState | null {
   }
 }
 
-interface Slice { label: string; value: number; color: string }
+interface Slice { label: string; value: number; color: string; shares?: number }
 
 type LabelMode = 'pct' | 'dollar'
 
@@ -224,6 +224,9 @@ function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { slices:
               fontSize="10" fontFamily="Inter, sans-serif" fontWeight={600} fill="var(--text-2)">
               {w.label}
               <tspan fill="var(--text-4)" fontWeight={400}> {labelMode === 'pct' ? `${(w.frac * 100).toFixed(1)}%` : fmt$(w.value)}</tspan>
+              {w.shares != null && w.shares !== 0 && (
+                <tspan fill="var(--text-5)" fontWeight={400}> ({w.shares.toLocaleString()}sh)</tspan>
+              )}
             </text>
           </g>
         )
@@ -369,7 +372,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   const targetAllocatedTotal = targetRowsResolved.reduce((s, r) => s + (r.dollarValue ?? 0), 0)
 
   const currentSlices: Slice[] = [
-    ...holdings.map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i) })),
+    ...holdings.map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i), shares: h.shares })),
     ...(cashBalance > 0 ? [{ label: 'CASH', value: cashBalance, color: '#10b981' }] : []),
     ...(otherValue > 0 ? [{ label: 'OTHER', value: otherValue, color: 'var(--text-5)' }] : []),
   ]
