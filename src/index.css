@@ -1296,7 +1296,15 @@ body {
      flex-basis/overflow interaction to get wrong: children simply stack in
      document order at their natural height, full stop. */
   .jr-page-row { display: block; overflow-y: auto; overflow-x: hidden; }
-  .jr-stacked { display: block; overflow: visible; }
+  /* height:auto (not the base rule's height:100%) — with display:block +
+     overflow:visible, a height:100% box still only claims that (short)
+     height for layout purposes even though its content visibly overflows
+     past it; the next sibling (.jr-page-actions) then gets positioned
+     right after that short box, landing mid-table where the overflowed
+     content visually spills — exactly the "Actions panel overlapping the
+     Journal table" bug. height:auto makes the box's own layout size match
+     its real content height, so the next sibling starts after all of it. */
+  .jr-stacked { display: block; height: auto; overflow: visible; }
   .jr-page-actions { display: block; width: 100%; height: auto; margin-top: 12px; }
   /* .db-sidebar/-body are also flex-column-with-auto-sizing (same shape as
      .jr-page-row above) — same WebKit real-device risk, same fix: block
