@@ -170,7 +170,11 @@ function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { slices:
   }
 
   let angle = -90
-  const wedges = [...slices].filter(s => s.value > 0).sort((a, b) => b.value - a.value).map(s => {
+  const wedges = [...slices].filter(s => s.value > 0).sort((a, b) => {
+    if (a.label === 'CASH') return 1
+    if (b.label === 'CASH') return -1
+    return b.value - a.value
+  }).map(s => {
     const frac = s.value / total
     const start = angle
     const end = angle + frac * 360
@@ -393,7 +397,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
     ...holdings.map(h => h.symbol),
     ...targetRowsResolved.map(r => r.ticker),
     ...(cashHolding ? ['CASH'] : []),
-  ])].sort((a, b) => a.localeCompare(b))
+  ])].sort((a, b) => a === 'CASH' ? 1 : b === 'CASH' ? -1 : a.localeCompare(b))
   const mergedRows = mergedTickers.map(ticker => ({
     ticker,
     holding: holdingFor(ticker),
