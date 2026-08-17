@@ -520,6 +520,9 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                 const isEditing = r != null && editingId === r.id
                 const signal = ticker === 'CASH' ? null : meanReversionSignal(rsi[ticker]?.rsi ?? null)
                 const marketPrice = ticker === 'CASH' ? null : quotes[ticker]?.price ?? null
+                const marketPriceColor = h && h.shares !== 0 && marketPrice != null
+                  ? (marketPrice < h.avgCost ? '#ef4444' : '#10b981')
+                  : undefined
                 if (isEditing && r) {
                   return (
                     <tr key={ticker}>
@@ -537,7 +540,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                         ) : '—'}
                       </td>
                       <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{marketPrice != null ? `$${marketPrice.toFixed(2)}` : '—'}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: marketPriceColor, fontWeight: marketPriceColor ? 700 : undefined }}>{marketPrice != null ? `$${marketPrice.toFixed(2)}` : '—'}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{fmt$(currentValue)}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{currentTotal > 0 ? `${(currentValue / currentTotal * 100).toFixed(1)}%` : '—'}</td>
@@ -582,7 +585,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                       ) : '—'}
                     </td>
                     <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{marketPrice != null ? `$${marketPrice.toFixed(2)}` : '—'}</td>
+                    <td className="mono" style={{ textAlign: 'right', color: marketPriceColor, fontWeight: marketPriceColor ? 700 : undefined }}>{marketPrice != null ? `$${marketPrice.toFixed(2)}` : '—'}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
                     <td
                       className="mono"
