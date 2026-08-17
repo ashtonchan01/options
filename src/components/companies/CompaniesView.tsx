@@ -210,7 +210,7 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
 
   return (
     <div className="jr-root">
-      <div style={{ display: 'flex', gap: 4 }}>
+      <div className="tl-filter-row" style={{ gap: 4 }}>
         {([
           ['all', 'All Time'],
           ['fy2526', 'FY 2025/26 (to 30 Jun 2026)'],
@@ -242,7 +242,7 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
           onChange={e => setQuery(e.target.value)}
           style={{ minWidth: 160 }}
         />
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {(['total', 'realized', 'unrealized', 'symbol'] as SortKey[]).map(k => (
             <button
               key={k}
