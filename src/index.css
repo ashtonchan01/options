@@ -225,8 +225,14 @@ body {
      letting everything below flow to its natural height (overflow:visible,
      no max-height caps) means the whole calendar page scrolls as one unit,
      same pattern already used for the Journal page. */
-  .av-section-calendar { overflow-y: auto !important; overflow-x: hidden !important; }
-  .calendar-page-root { height: auto !important; overflow: visible !important; }
+  /* display:block (not flex-direction:column) on the outer two wrappers —
+     same WebKit-safety reasoning as the Journal page's .jr-page-row: a flex
+     column of auto-height/overflow:visible children is where real-device
+     Safari has shown rendering inconsistencies that don't reproduce in
+     headless Chromium (content overlapping instead of stacking). Block
+     layout has no flex-basis/overflow interaction to get wrong. */
+  .av-section-calendar { display: block !important; overflow-y: auto !important; overflow-x: hidden !important; }
+  .calendar-page-root { display: block !important; height: auto !important; overflow: visible !important; }
   .calendar-layout { flex-direction: column !important; height: auto !important; overflow: visible !important; }
   .calendar-main { flex: none !important; height: auto !important; overflow: visible !important; padding: 8px !important; }
   .calendar-nav { flex-wrap: wrap !important; gap: 6px !important; margin-bottom: 6px !important; }
@@ -1280,9 +1286,18 @@ body {
      auto-height so they just stack as normal content instead of each
      fighting for their own bounded, independently-scrolling slice (that
      split is what made the Actions cards too short to read anything in). */
-  .jr-page-row { flex-direction: column; overflow-y: auto; overflow-x: hidden; }
-  .jr-stacked { flex: 0 0 auto; overflow: visible; }
-  .jr-page-actions { width: 100%; flex: 0 0 auto; height: auto; }
+  /* display:block (not flex-direction:column) — real-device WebKit/iOS
+     Safari testing found the Actions sidebar rendering as an overlapping
+     floating card on top of the Journal table instead of stacking below it,
+     even though this exact layout measured correctly (no overlap, correct
+     y-offsets) in headless Chromium. A flex column whose children rely on
+     auto-height + overflow:visible to size themselves is exactly the kind
+     of layout WebKit has known inconsistencies with — block layout has no
+     flex-basis/overflow interaction to get wrong: children simply stack in
+     document order at their natural height, full stop. */
+  .jr-page-row { display: block; overflow-y: auto; overflow-x: hidden; }
+  .jr-stacked { display: block; overflow: visible; }
+  .jr-page-actions { display: block; width: 100%; height: auto; margin-top: 12px; }
   .jr-page-actions .db-sidebar { max-height: none !important; overflow: visible !important; }
   .jr-page-actions .db-sidebar-body { overflow: visible !important; }
   /* flex-shrink:0 (not the default 1 that "flex: 1 1 100%" implied) — as

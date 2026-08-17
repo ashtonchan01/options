@@ -72,10 +72,7 @@ export default function Sidebar({
       <aside className={`ew-sidebar${drawerOpen ? ' open' : ''}${collapsed ? ' collapsed' : ''}`}>
         <div className="ew-logo">
           <div className="ew-logo-mark">O</div>
-          <div>
-            <div className="ew-logo-name">Options</div>
-            <div className="ew-logo-sub">Trading Journal</div>
-          </div>
+          <div className="ew-logo-name">Options</div>
         </div>
 
         <nav className="ew-nav">
@@ -113,6 +110,10 @@ export default function Sidebar({
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') confirmAdd(); if (e.key === 'Escape') setAdding(false) }}
                 placeholder="Account name"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 style={{
                   flex: 1, minWidth: 0, fontSize: 12, padding: '5px 7px', borderRadius: 5,
                   border: '1px solid var(--sb-border)', background: 'var(--sb-hover)', color: 'var(--sb-text)',
