@@ -393,7 +393,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
     ...holdings.map(h => h.symbol),
     ...targetRowsResolved.map(r => r.ticker),
     ...(cashHolding ? ['CASH'] : []),
-  ])].sort((a, b) => a === 'CASH' ? 1 : b === 'CASH' ? -1 : a.localeCompare(b))
+  ])].sort((a, b) => a.localeCompare(b))
   const mergedRows = mergedTickers.map(ticker => ({
     ticker,
     holding: holdingFor(ticker),
