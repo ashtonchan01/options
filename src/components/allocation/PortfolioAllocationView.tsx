@@ -391,6 +391,24 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
                   <td className="mono" style={{ textAlign: 'right' }}>{currentTotal > 0 ? `${(h.value / currentTotal * 100).toFixed(1)}%` : '—'}</td>
                 </tr>
               ))}
+              {cashBalance > 0 && (
+                <tr>
+                  <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#10b981', marginRight: 6 }} />
+                    CASH
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right' }}>—</td>
+                  <td className="mono" style={{ textAlign: 'right' }}>—</td>
+                  <td
+                    className="mono"
+                    style={{ textAlign: 'right' }}
+                    title={nakedOptionsValue !== 0 ? `Includes ${fmt$(nakedOptionsValue)} from options with no underlying shares held` : undefined}
+                  >
+                    {fmt$(cashBalance)}{nakedOptionsValue !== 0 && <span style={{ color: nakedOptionsValue > 0 ? '#10b981' : '#f43f5e', fontSize: 10, marginLeft: 4 }}>({nakedOptionsValue > 0 ? '+' : ''}{fmt$(nakedOptionsValue)} opt)</span>}
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right' }}>{currentTotal > 0 ? `${(cashBalance / currentTotal * 100).toFixed(1)}%` : '—'}</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
