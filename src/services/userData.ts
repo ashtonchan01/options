@@ -5,7 +5,7 @@
  * localStorage remains the authoritative write on failure and the caller's
  * next mutation retries the PUT.
  */
-export type UserDataKey = 'watchlists' | 'tradeLabels' | 'journalEntries' | 'journalSetups'
+export type UserDataKey = 'watchlists' | 'tradeLabels' | 'journalEntries' | 'journalSetups' | 'targetAllocations'
 
 export async function saveUserData<T>(key: UserDataKey, value: T): Promise<void> {
   try {

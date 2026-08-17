@@ -5,12 +5,15 @@
  * user-defined: add a ticker and a number of shares — a live quote prices
  * each row, and every row's % is derived automatically from its share of
  * the total (always adds up to 100%, no separate %/$-amount inputs to keep
- * in sync by hand). Persisted per account so it survives reloads.
+ * in sync by hand). Persisted per account, mirrored to the server
+ * (/api/user-data) when signed in so targets follow the user across
+ * browsers/devices, same as watchlists/trade labels/journal entries.
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2, Pencil, Check, X } from 'lucide-react'
 import type { AppState, RawPosition, RawTrade } from '../../types'
 import { fetchQuotes, type Quote } from '../../services/quotes'
+import { loadUserData, saveUserData } from '../../services/userData'
 
 function fmt$(n: number): string {
   const abs = Math.abs(n)
@@ -106,23 +109,47 @@ function holdingsFromTrades(trades: RawTrade[]): Holding[] {
 interface TargetRow { id: string; ticker: string; shares: number }
 interface TargetsState { rows: TargetRow[] }
 
-function targetsKey(accountId: string): string {
-  return `options:targets:${accountId}`
-}
-function loadTargets(accountId: string): TargetsState {
+// All accounts' targets live in one blob (Record<accountId, TargetsState>),
+// same "one map, keyed by id" shape journalEntries already uses (keyed by
+// position id there, by account id here) — the generic /api/user-data store
+// is one blob per data_key, not one row per account, so a single account's
+// targets can't be synced independently; every save round-trips the whole
+// map.
+const TARGETS_LS_KEY = 'options:targetAllocations'
+
+function loadAllTargets(): Record<string, TargetsState> {
   try {
-    const raw = localStorage.getItem(targetsKey(accountId))
-    if (!raw) return { rows: [] }
-    const parsed = JSON.parse(raw) as { rows?: Array<{ id: string; ticker: string; shares?: number }> }
-    // Old shape had pct/amount rows too — those can't be priced without a
-    // shares count, so they're dropped on load rather than shown broken.
-    return { rows: (parsed.rows ?? []).filter((r): r is TargetRow => typeof r.shares === 'number') }
+    const raw = localStorage.getItem(TARGETS_LS_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Record<string, { rows?: Array<{ id: string; ticker: string; shares?: number }> }>
+    const out: Record<string, TargetsState> = {}
+    for (const [accountId, state] of Object.entries(parsed)) {
+      // Old shape had pct/amount rows too — those can't be priced without a
+      // shares count, so they're dropped on load rather than shown broken.
+      out[accountId] = { rows: (state.rows ?? []).filter((r): r is TargetRow => typeof r.shares === 'number') }
+    }
+    return out
   } catch {
-    return { rows: [] }
+    return {}
   }
 }
-function saveTargets(accountId: string, state: TargetsState) {
-  try { localStorage.setItem(targetsKey(accountId), JSON.stringify(state)) } catch { /* ignore */ }
+function saveAllTargets(map: Record<string, TargetsState>) {
+  try { localStorage.setItem(TARGETS_LS_KEY, JSON.stringify(map)) } catch { /* ignore */ }
+}
+
+/** Old shape was one localStorage key per account (`options:targets:${id}`),
+ * local-only, never synced. Folded into the new one-blob-per-user map on
+ * first read so accounts that already had targets saved don't lose them. */
+function migrateOldPerAccountTargets(accountId: string): TargetsState | null {
+  try {
+    const raw = localStorage.getItem(`options:targets:${accountId}`)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { rows?: Array<{ id: string; ticker: string; shares?: number }> }
+    const rows = (parsed.rows ?? []).filter((r): r is TargetRow => typeof r.shares === 'number')
+    return rows.length > 0 ? { rows } : null
+  } catch {
+    return null
+  }
 }
 
 interface Slice { label: string; value: number; color: string }
@@ -205,7 +232,7 @@ function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { slices:
   )
 }
 
-export default function PortfolioAllocationView({ state, accountId }: { state: AppState; accountId: string }) {
+export default function PortfolioAllocationView({ state, accountId, sessionKey }: { state: AppState; accountId: string; sessionKey?: string | null }) {
   // Prefer the real XML/Flex positions snapshot (live mark-to-market) —
   // only fall back to trade-derived cost basis for a generic .csv/.xlsx/
   // .pdf statement, which has no positions snapshot at all.
@@ -232,7 +259,15 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
   const otherValue = Math.max(0, currentTotal - holdingsValue - cashBalance)
 
   const [labelMode, setLabelMode] = useState<LabelMode>('pct')
-  const [targets, setTargets] = useState<TargetsState>(() => loadTargets(accountId))
+  const [allTargets, setAllTargets] = useState<Record<string, TargetsState>>(() => {
+    const map = loadAllTargets()
+    if (!map[accountId]) {
+      const migrated = migrateOldPerAccountTargets(accountId)
+      if (migrated) { map[accountId] = migrated; saveAllTargets(map) }
+    }
+    return map
+  })
+  const targets = allTargets[accountId] ?? { rows: [] }
   const [newTicker, setNewTicker] = useState('')
   const [newShares, setNewShares] = useState('')
   const [quotes, setQuotes] = useState<Record<string, Quote>>({})
@@ -240,9 +275,28 @@ export default function PortfolioAllocationView({ state, accountId }: { state: A
   const [editTicker, setEditTicker] = useState('')
   const [editShares, setEditShares] = useState('')
 
+  // Server copy wins once it lands — same "localStorage paints instantly,
+  // server reconciles after" pattern accountsStore/watchlistStore use, so
+  // targets follow the signed-in user across browsers/devices instead of
+  // being stuck on whichever one they were typed into.
+  useEffect(() => {
+    if (!sessionKey) return
+    let cancelled = false
+    loadUserData<Record<string, TargetsState>>('targetAllocations').then(remote => {
+      if (cancelled || !remote || Object.keys(remote).length === 0) return
+      setAllTargets(remote)
+      saveAllTargets(remote)
+    })
+    return () => { cancelled = true }
+  }, [sessionKey])
+
   function persist(next: TargetsState) {
-    setTargets(next)
-    saveTargets(accountId, next)
+    setAllTargets(prev => {
+      const map = { ...prev, [accountId]: next }
+      saveAllTargets(map)
+      if (sessionKey) saveUserData('targetAllocations', map)
+      return map
+    })
   }
 
   function addRow() {
