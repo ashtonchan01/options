@@ -1834,7 +1834,7 @@ body {
   /* No "wide" concept on a single mobile column — every panel is already
      full width, so the drag handle would do nothing useful; hide it. */
   .dash-col-resize-handle, .dash-row-resize-handle { display: none; }
-  .dash-cell { width: 100% !important; height: auto !important; min-height: 260px; resize: none !important; }
+  .dash-cell { width: 100% !important; height: auto !important; min-height: 260px; max-height: 400px; resize: none !important; }
   /* .dash-cell's blanket min-height:260px above (meant for the right-side
      resizable panels) also lands on the fixed-height left map/charts strip
      since both carry the .dash-cell class too, and — same specificity,
