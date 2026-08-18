@@ -19,11 +19,18 @@ import type { RawTrade } from '../types'
 
 const COLUMN_ALIASES: Record<string, string[]> = {
   date:     ['date', 'trade date', 'tradedate', 'transaction date', 'time', 'datetime'],
-  symbol:   ['symbol', 'ticker', 'code', 'stock code', 'security'],
+  symbol:   ['symbol', 'ticker', 'code', 'stock code', 'security code', 'security'],
   side:     ['side', 'action', 'buy/sell', 'direction', 'type'],
   quantity: ['quantity', 'qty', 'shares', 'filled qty', 'filled quantity'],
   price:    ['price', 'avg price', 'average price', 'filled price', 'trade price'],
-  commission: ['commission', 'fee', 'fees', 'commissions'],
+  commission: ['commission', 'fee', 'fees', 'commissions', 'transaction fee(inc.gst)'],
+  // Moomoo's "Transaction Overview" export mixes Stock and Option rows in
+  // one sheet under a "Security Type" column, with the option rows' Security
+  // Code being an OCC-style contract string (e.g. "CLSK250718C7000") rather
+  // than an underlying ticker — this importer only produces STK RawTrade
+  // rows (see file docstring), so those rows need to be identified and
+  // skipped rather than silently imported as a fake stock position.
+  assetType: ['security type', 'asset class', 'instrument type'],
 }
 
 function normalizeHeader(h: string): string {
@@ -46,10 +53,48 @@ function splitCsvLine(line: string): string[] {
   return out.map(s => s.trim())
 }
 
+const SLASH_DATE = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/
+
+/** A "NN/NN/YYYY"-shaped date is genuinely ambiguous (US brokers write
+ * MM/DD/YYYY, e.g. IBKR-adjacent exports; AU/UK brokers — Moomoo's AU
+ * statements chief among them — write DD/MM/YYYY) and JS's native
+ * `new Date(raw)` always assumes the US reading, silently transposing day
+ * and month whenever both are <=12 (e.g. AU "02/07/2025" = 2 July becomes
+ * "Feb 7"). Scanning the whole date column first resolves this for real:
+ * any row where the first component is >12 proves day-first (can't be a
+ * month), any row where the second is >12 proves month-first — whichever
+ * shows up in the data wins. Falls back to the previous month-first/native
+ * assumption only when the column is fully ambiguous (every date has both
+ * components <=12), to avoid changing behavior for exports that already
+ * worked. */
+function detectDayFirst(dateValues: string[]): boolean {
+  let dayFirstEvidence = false
+  let monthFirstEvidence = false
+  for (const raw of dateValues) {
+    const m = SLASH_DATE.exec(raw.trim())
+    if (!m) continue
+    const a = Number(m[1])
+    const b = Number(m[2])
+    if (a > 12) dayFirstEvidence = true
+    if (b > 12) monthFirstEvidence = true
+  }
+  return dayFirstEvidence && !monthFirstEvidence
+}
+
 /** IBKR trade dates are compact "YYYYMMDD" — normalize whatever date format
  * the export uses (2026-08-14, 08/14/2026, 14-Aug-2026, etc.) to match, so
  * this import lines up with the rest of the app's date handling. */
-function normalizeDate(raw: string): string {
+function normalizeDate(raw: string, dayFirst: boolean): string {
+  const slash = SLASH_DATE.exec(raw.trim())
+  if (slash) {
+    const day = dayFirst ? slash[1] : slash[2]
+    const month = dayFirst ? slash[2] : slash[1]
+    const y = Number(slash[3])
+    const mo = Number(month)
+    const d = Number(day)
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) throw new Error(`Unrecognized date: "${raw}"`)
+    return `${y}${String(mo).padStart(2, '0')}${String(d).padStart(2, '0')}`
+  }
   const d = new Date(raw)
   if (isNaN(d.getTime())) throw new Error(`Unrecognized date: "${raw}"`)
   const y = d.getFullYear()
@@ -89,12 +134,23 @@ export function mapRowsToTrades(headerRow: string[], dataRows: string[][]): CsvI
     )
   }
 
+  const dayFirst = detectDayFirst(dataRows.map(cells => cells[colIndex.date!] ?? ''))
+
   const trades: RawTrade[] = []
   let skippedRows = 0
 
   for (const cells of dataRows) {
     if (cells.length < headers.length - 1) { skippedRows++; continue } // clearly malformed row
     try {
+      // Option rows (e.g. Moomoo's "Transaction Overview" mixes Stock and
+      // Option rows in one sheet) have no place in a stock-only importer —
+      // their Security Code is an OCC-style contract string, not an
+      // underlying ticker, so importing them would create a fake stock
+      // position rather than just being silently wrong about the price.
+      if (colIndex.assetType !== undefined) {
+        const assetType = (cells[colIndex.assetType] ?? '').toLowerCase()
+        if (assetType.includes('option')) { skippedRows++; continue }
+      }
       const symbol = cells[colIndex.symbol!]?.toUpperCase()
       const qtyRaw = parseNumber(cells[colIndex.quantity!])
       const price = parseNumber(cells[colIndex.price!])
@@ -110,7 +166,7 @@ export function mapRowsToTrades(headerRow: string[], dataRows: string[][]): CsvI
 
       const proceeds = -signedQty * price
       trades.push({
-        tradeDate: normalizeDate(cells[colIndex.date!]),
+        tradeDate: normalizeDate(cells[colIndex.date!], dayFirst),
         symbol,
         assetClass: 'STK',
         quantity: signedQty,
