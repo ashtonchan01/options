@@ -47,7 +47,7 @@ function SetupInstructions() {
           </li>
           <li>Leave <strong>Symbols</strong> empty (blank = every symbol in the account).</li>
           <li>
-            Under <strong>General Configuration</strong>: set <strong>Format</strong> to <span className="mono">XML</span>, and set <strong>Period</strong> as wide as it goes (e.g. "Since Inception" or the widest Custom Date Range) — each sync only ever replaces trades inside the report's own date window and keeps everything older, so a wide period is always safe to reuse and won't lose history.
+            Under <strong>General Configuration</strong>: set <strong>Format</strong> to <span className="mono">XML</span>, and set <strong>Period</strong> to <strong>Last 365 Calendar Days</strong> — each sync only ever replaces trades inside the report's own date window and keeps everything older, so resyncing on this same period regularly is always safe and won't lose history.
           </li>
           <li>Click <strong>Continue</strong> then <strong>Create</strong>. Back on the Flex Queries list, the new query's <strong>Query ID</strong> is shown right next to its name — copy that.</li>
           <li>
