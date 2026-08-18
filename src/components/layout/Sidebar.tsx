@@ -104,12 +104,24 @@ export default function Sidebar({
 
           {adding ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 12px' }}>
+              {/* Decoy username/password pair — Safari's Keychain autofill
+                  heuristic associates a saved login for this domain with the
+                  first text-feeling input on the page regardless of
+                  autocomplete="off" on the real field below. Giving it these
+                  off-screen (but not display:none, which some heuristics
+                  ignore) fields to latch onto instead keeps the suggestion
+                  off the actual "Account name" input. */}
+              <input type="text" name="username" autoComplete="username" tabIndex={-1} aria-hidden="true"
+                style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
+              <input type="password" name="password" autoComplete="current-password" tabIndex={-1} aria-hidden="true"
+                style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
               <input
                 autoFocus
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') confirmAdd(); if (e.key === 'Escape') setAdding(false) }}
                 placeholder="Account name"
+                name="acct-label"
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
