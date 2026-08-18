@@ -51,7 +51,7 @@ function SetupInstructions() {
           </li>
           <li>Click <strong>Continue</strong> then <strong>Create</strong>. Back on the Flex Queries list, the new query's <strong>Query ID</strong> is shown right next to its name — copy that.</li>
           <li>
-            Generate a token once (separate from the query itself): <strong>Reporting → Flex Queries</strong>, scroll down to <strong>Flex Web Service Configuration</strong>, click <strong>Configure</strong> and generate a <strong>Token</strong> (note its expiry — you'll need to regenerate it when it lapses, same as changing a password).
+            Generate a token once (separate from the query itself — creating the query only gives you a Query ID, not a token): <strong>Reporting → Flex Queries</strong>, scroll down to <strong>Flex Web Service Configuration</strong>. If it's not already on, flip the <strong>Activate</strong> toggle there first — the token option only appears once the Flex Web Service is activated for the account. Then click <strong>Configure</strong> and generate a <strong>Token</strong> (copy it immediately, IBKR won't show the full value again — and note its expiry, you'll need to regenerate it when it lapses, same as changing a password).
           </li>
           <li>Paste that <strong>Token</strong> and the <strong>Query ID</strong> into the two fields below and click <strong>Save & Sync</strong>.</li>
         </ol>
