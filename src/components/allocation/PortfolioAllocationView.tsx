@@ -520,7 +520,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                 const isEditing = r != null && editingId === r.id
                 const signal = ticker === 'CASH' ? null : meanReversionSignal(rsi[ticker]?.rsi ?? null)
                 const marketPrice = ticker === 'CASH' ? null : quotes[ticker]?.price ?? null
-                const avgCostColor = h && h.shares !== 0 && marketPrice != null && h.avgCost < marketPrice
+                const avgCostColor = h && h.shares !== 0 && marketPrice != null && h.avgCost > marketPrice
                   ? '#ef4444'
                   : undefined
                 if (isEditing && r) {
