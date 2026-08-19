@@ -11,7 +11,7 @@ import { useState } from 'react'
 import {
   LayoutDashboard, Briefcase, Radar, ListChecks, Plus, X as XIcon,
   Menu, X,
-  Sun, Moon, LogOut, ChevronLeft, ChevronRight,
+  Sun, Moon, LogOut, ChevronLeft, ChevronRight, RefreshCw,
 } from 'lucide-react'
 import type { Account } from '../../store/accountsStore'
 import { useThemeStore } from '../../store/themeStore'
@@ -32,11 +32,13 @@ interface Props {
   onAddAccount: (name: string) => string
   userEmail?: string
   onSignOut?: () => void
+  onSyncAccount?: (id: string) => void
+  syncingId?: string | null
 }
 
 export default function Sidebar({
   activeTab, onTabChange, accounts, onAddAccount,
-  userEmail, onSignOut,
+  userEmail, onSignOut, onSyncAccount, syncingId,
 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [collapsed, setCollapsed]   = useState(() => localStorage.getItem('options:sidebar-collapsed') !== '0')
@@ -92,15 +94,35 @@ export default function Sidebar({
             <span>Watchlist</span>
           </button>
 
-          {accounts.map(account => (
-            <button key={account.id}
-              className={`ew-nav-item${activeTab === accountTabId(account.id) ? ' active' : ''}`}
-              title={collapsed ? account.name : undefined}
-              onClick={() => selectTab(accountTabId(account.id))}>
-              <Briefcase size={17} />
-              <span>{account.name}</span>
-            </button>
-          ))}
+          {accounts.map(account => {
+            const canSync = !!(account.flexToken && account.flexQueryId)
+            const syncing = syncingId === account.id
+            return (
+              <div key={account.id}
+                role="button" tabIndex={0}
+                className={`ew-nav-item${activeTab === accountTabId(account.id) ? ' active' : ''}`}
+                title={collapsed ? account.name : undefined}
+                onClick={() => selectTab(accountTabId(account.id))}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectTab(accountTabId(account.id)) } }}
+                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                <Briefcase size={17} />
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{account.name}</span>
+                {!collapsed && canSync && (
+                  <button
+                    onClick={e => { e.stopPropagation(); onSyncAccount?.(account.id) }}
+                    disabled={syncing}
+                    title="Sync IBKR Flex"
+                    style={{
+                      background: 'none', border: 'none', color: 'var(--sb-text-faint)',
+                      cursor: syncing ? 'not-allowed' : 'pointer', padding: 3, display: 'flex', flexShrink: 0,
+                    }}
+                  >
+                    <RefreshCw size={12} style={{ animation: syncing ? 'spin 1.5s linear infinite' : 'none' }} />
+                  </button>
+                )}
+              </div>
+            )
+          })}
 
           {adding ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 12px' }}>

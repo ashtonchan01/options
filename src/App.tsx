@@ -74,6 +74,11 @@ export default function App() {
         onAddAccount={accountsStore.addAccount}
         userEmail={auth.user.email}
         onSignOut={auth.logout}
+        syncingId={accountsStore.loadingId}
+        onSyncAccount={id => {
+          const acc = accountsStore.accounts.find(a => a.id === id)
+          if (acc?.flexToken && acc?.flexQueryId) accountsStore.syncFlex(id, acc.flexToken, acc.flexQueryId)
+        }}
       />
 
       <div className="ew-main">
