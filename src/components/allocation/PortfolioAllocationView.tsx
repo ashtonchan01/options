@@ -585,8 +585,8 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                       ) : '—'}
                     </td>
                     <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? h.shares.toLocaleString() : '—'}</td>
-                    <td className="mono" style={{ textAlign: 'right', color: marketPriceColor, fontWeight: marketPriceColor ? 700 : undefined }}>{marketPrice != null ? `$${marketPrice.toFixed(2)}` : '—'}</td>
-                    <td className="mono" style={{ textAlign: 'right' }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
+                    <td className="mono" style={{ textAlign: 'right' }}>{marketPrice != null ? `$${marketPrice.toFixed(2)}` : '—'}</td>
+                    <td className="mono" style={{ textAlign: 'right', color: avgCostColor, fontWeight: avgCostColor ? 700 : undefined }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
                     <td
                       className="mono"
                       style={{ textAlign: 'right' }}
