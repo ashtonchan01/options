@@ -4,11 +4,14 @@
  * should use the Flex XML upload / syncFromXML instead, which is a real
  * parser against a known schema). This is deliberately loose: it matches a
  * handful of common column-name spellings case-insensitively rather than
- * requiring an exact template, and only produces stock-trade RawTrade rows
- * (no options support — most retail exports don't carry option Greeks/
- * expiry/strike columns anyway). Throws with a specific, actionable message
- * on anything it can't confidently map, rather than silently producing
- * wrong numbers.
+ * requiring an exact template. Produces plain stock-trade RawTrade rows,
+ * plus option RawTrade rows when the export both flags a row's asset type
+ * (a "Security Type"-style column) and encodes the contract as an OCC-like
+ * string in the symbol/code column (e.g. Moomoo's "CLSK250718C7000") — see
+ * `parseOccLikeCode`. Any option row that doesn't parse cleanly is skipped
+ * rather than guessed at. Throws with a specific, actionable message on
+ * anything it can't confidently map, rather than silently producing wrong
+ * numbers.
  *
  * Shared by three input shapes — CSV text, XLSX sheets (already array-of-
  * arrays via xlsx's sheet_to_json), and best-effort line-tokenized PDF text
@@ -109,6 +112,37 @@ function parseNumber(raw: string): number {
   return isNaN(n) ? 0 : n
 }
 
+// Moomoo's option "Security Code" is a compact OCC-style string with no
+// separators or padding, e.g. "CLSK250718C7000" = CLSK, expiry 2025-07-18,
+// Call, strike 7.00 (the trailing digits are strike*1000, same encoding IBKR
+// uses, just without IBKR's fixed 8-digit zero-padding). Underlying ticker
+// length varies (1-5 letters), so the split point is found by matching the
+// fixed-width YYMMDD+C/P+digits suffix and taking everything before it as
+// the ticker, rather than assuming a fixed prefix length.
+const OCC_LIKE_CODE = /^([A-Z.]{1,6})(\d{6})([CP])(\d+)$/
+
+interface ParsedOption {
+  underlying: string
+  expiry: string   // YYYYMMDD
+  putCall: 'C' | 'P'
+  strike: number
+}
+
+function parseOccLikeCode(code: string): ParsedOption | null {
+  const m = OCC_LIKE_CODE.exec(code.trim().toUpperCase())
+  if (!m) return null
+  const [, underlying, yymmdd, cp, strikeDigits] = m
+  const yy = yymmdd.slice(0, 2), mm = yymmdd.slice(2, 4), dd = yymmdd.slice(4, 6)
+  const mo = Number(mm), day = Number(dd)
+  if (mo < 1 || mo > 12 || day < 1 || day > 31) return null
+  return {
+    underlying,
+    expiry: `20${yy}${mm}${dd}`,
+    putCall: cp as 'C' | 'P',
+    strike: Number(strikeDigits) / 1000,
+  }
+}
+
 export interface CsvImportResult {
   trades: RawTrade[]
   skippedRows: number
@@ -142,15 +176,6 @@ export function mapRowsToTrades(headerRow: string[], dataRows: string[][]): CsvI
   for (const cells of dataRows) {
     if (cells.length < headers.length - 1) { skippedRows++; continue } // clearly malformed row
     try {
-      // Option rows (e.g. Moomoo's "Transaction Overview" mixes Stock and
-      // Option rows in one sheet) have no place in a stock-only importer —
-      // their Security Code is an OCC-style contract string, not an
-      // underlying ticker, so importing them would create a fake stock
-      // position rather than just being silently wrong about the price.
-      if (colIndex.assetType !== undefined) {
-        const assetType = (cells[colIndex.assetType] ?? '').toLowerCase()
-        if (assetType.includes('option')) { skippedRows++; continue }
-      }
       const symbol = cells[colIndex.symbol!]?.toUpperCase()
       const qtyRaw = parseNumber(cells[colIndex.quantity!])
       const price = parseNumber(cells[colIndex.price!])
@@ -158,6 +183,8 @@ export function mapRowsToTrades(headerRow: string[], dataRows: string[][]): CsvI
       if (!symbol || qtyRaw === 0 || price <= 0) { skippedRows++; continue }
 
       const sideRaw = colIndex.side !== undefined ? (cells[colIndex.side!] ?? '').toLowerCase() : ''
+      // "Sell"/"Sell Short" write/open an option (or open a short stock
+      // position); "Buy Back"/"Cover" close one; plain "Buy" opens a long.
       const isSell = sideRaw.includes('sell') || sideRaw.includes('short')
       const isBuy = sideRaw.includes('buy') || sideRaw.includes('cover') || sideRaw.includes('long')
       // If Side isn't given (or doesn't say buy/sell), trust the quantity's own sign
@@ -165,6 +192,42 @@ export function mapRowsToTrades(headerRow: string[], dataRows: string[][]): CsvI
       const signedQty = isSell ? -Math.abs(qtyRaw) : isBuy ? Math.abs(qtyRaw) : qtyRaw
 
       const proceeds = -signedQty * price
+      const isOption = colIndex.assetType !== undefined
+        && (cells[colIndex.assetType] ?? '').toLowerCase().includes('option')
+
+      if (isOption) {
+        const parsed = parseOccLikeCode(symbol)
+        // Not a recognized OCC-style code — this importer has no schema for
+        // whatever shape this option row actually is, so it's skipped
+        // rather than risk building a nonsense position from it (same
+        // "don't silently produce wrong numbers" rule as everywhere else
+        // in this file).
+        if (!parsed) { skippedRows++; continue }
+        trades.push({
+          tradeDate: normalizeDate(cells[colIndex.date!], dayFirst),
+          symbol,
+          underlyingSymbol: parsed.underlying,
+          assetClass: 'OPT',
+          putCall: parsed.putCall,
+          strike: parsed.strike,
+          expiry: parsed.expiry,
+          quantity: signedQty,
+          tradePrice: price,
+          proceeds,
+          commissions: commission,
+          netCash: proceeds - commission,
+          // "Buy Back"/"Cover" is unambiguously a close; everything else
+          // observed in Moomoo exports ("Sell", "Sell Short", "Buy") opens
+          // a position — matches this importer's covered-call/CSP-writer
+          // use case. A long option later sold-to-close (not seen in any
+          // sample data) would be mis-tagged 'O' here; the position matcher
+          // still resolves it correctly by quantity sign in that case, it
+          // just loses the openCloseIndicator fast-path.
+          openClose: sideRaw.includes('buy back') || sideRaw.includes('cover') ? 'C' : 'O',
+        })
+        continue
+      }
+
       trades.push({
         tradeDate: normalizeDate(cells[colIndex.date!], dayFirst),
         symbol,
