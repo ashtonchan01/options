@@ -42,7 +42,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
   account: Account
   loading: boolean
   error: string | null
-  onUpload: (file: File) => void
+  onUpload: (file: File) => void | Promise<void>
   onClear: () => void
   onSyncFlex: (token: string, queryId: string) => void
   tradeLabels?: TradeLabels

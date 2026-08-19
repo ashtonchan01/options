@@ -16,15 +16,22 @@ export default function AccountUploadBar({ label, fileName, uploadedAt, loading,
   uploadedAt?: number
   loading: boolean
   error: string | null
-  onUpload: (file: File) => void
+  onUpload: (file: File) => void | Promise<void>
   onClear: () => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) onUpload(file)
+  // Sequential, not Promise.all — each upload folds into the account's
+  // trades via a read-then-write of the same account state (mergeTrades),
+  // so firing them concurrently risks one call's write clobbering another's
+  // instead of building on it (e.g. uploading three years of statements at
+  // once used to silently keep only whichever file's parse finished last).
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
     e.target.value = ''
+    for (const file of files) {
+      await onUpload(file)
+    }
   }
 
   return (
@@ -39,10 +46,10 @@ export default function AccountUploadBar({ label, fileName, uploadedAt, loading,
       }}>
         <Upload size={12} />
         {loading ? 'Decoding…' : `Upload ${label} statement`}
-        <input ref={fileRef} type="file" accept=".xml,.csv,.xlsx,.xls,.pdf" style={{ display: 'none' }} onChange={handleFile} disabled={loading} />
+        <input ref={fileRef} type="file" accept=".xml,.csv,.xlsx,.xls,.pdf" multiple style={{ display: 'none' }} onChange={handleFile} disabled={loading} />
       </label>
       <span style={{ fontSize: 11, color: 'var(--text-4)' }}>
-        Accepts an IBKR Flex .xml export, or a .csv/.xlsx/.xls/.pdf statement (Date/Symbol/Quantity/Price columns).
+        Accepts an IBKR Flex .xml export, or a .csv/.xlsx/.xls/.pdf statement (Date/Symbol/Quantity/Price columns) — select multiple files (e.g. several financial years) to import them all at once.
       </span>
       {fileName && (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>
