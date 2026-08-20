@@ -9,7 +9,7 @@
  */
 import { useState } from 'react'
 import {
-  LayoutDashboard, Briefcase, Radar, ListChecks, Plus, X as XIcon,
+  LayoutDashboard, Radar, ListChecks, Plus, X as XIcon,
   Menu, X,
   Sun, Moon, LogOut, ChevronLeft, ChevronRight, RefreshCw,
 } from 'lucide-react'
@@ -17,6 +17,22 @@ import type { Account } from '../../store/accountsStore'
 import { useThemeStore } from '../../store/themeStore'
 
 export type TabId = 'dashboard' | 'watchlist' | 'scanner' | string
+
+// Every account's nav row used to show the same Briefcase icon regardless
+// of which account it was — fine expanded (the name is right there), but
+// once the sidebar collapses to icons-only, every account became visually
+// identical with no way to tell them apart at a glance. A colored initial
+// avatar (deterministic per account id, so it doesn't shuffle around on
+// reorder/rename) gives each one a distinct look even collapsed.
+const ACCOUNT_AVATAR_COLORS = [
+  '#4a72d4', '#f43f5e', '#10b981', '#f59e0b', '#a855f7', '#06b6d4',
+  '#eab308', '#ec4899', '#22c55e', '#6366f1', '#f97316', '#14b8a6',
+]
+function accountAvatarColor(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0
+  return ACCOUNT_AVATAR_COLORS[Math.abs(hash) % ACCOUNT_AVATAR_COLORS.length]
+}
 
 export function accountTabId(accountId: string): TabId {
   return `account:${accountId}`
@@ -105,7 +121,19 @@ export default function Sidebar({
                 onClick={() => selectTab(accountTabId(account.id))}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectTab(accountTabId(account.id)) } }}
                 style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                <Briefcase size={17} />
+                {/* A <div>, not <span> — collapsed sidebar CSS hides every
+                    `.ew-nav-item span` (that's how the text label
+                    disappears when collapsed), which would hide this
+                    avatar too since it's the one thing that's supposed to
+                    stay visible and distinguish accounts in that state. */}
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                  background: accountAvatarColor(account.id), color: '#fff',
+                  fontSize: 10, fontWeight: 700, fontFamily: 'Inter, sans-serif',
+                }}>
+                  {account.name.trim().charAt(0).toUpperCase() || '?'}
+                </div>
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{account.name}</span>
                 {!collapsed && canSync && (
                   <button

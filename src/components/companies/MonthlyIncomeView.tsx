@@ -5,9 +5,10 @@
  * ReportsView.tsx, which owns the shared FY filter and sub-tab nav.
  */
 import { useMemo, useState } from 'react'
-import type { AppState } from '../../types'
+import type { AppState, RawTrade } from '../../types'
 import type { TradeLabels } from '../../App'
 import { buildJournalPositions, buildStockPositions, type JournalPosition } from '../../engine/journal'
+import { tradeId } from '../../store/tradeLabelsStore'
 import { fmtDollar, pnlColor, fyOf, stratLabel, stratRank, monthKey, fmtMonth } from './reportsShared'
 
 type FyFilter = 'all' | string
@@ -60,11 +61,82 @@ function positionLabel(p: JournalPosition): string {
   return `${p.underlying} ${strikes}${p.putCall ?? ''}`.trim()
 }
 
+function tradeDescription(t: RawTrade): string {
+  if (t.assetClass !== 'OPT') return t.symbol
+  const expiry = t.expiry ? fmtTradeDate(t.expiry) : ''
+  const strike = t.strike != null ? (t.strike % 1 === 0 ? t.strike.toLocaleString() : t.strike.toFixed(2)) : ''
+  return `${t.underlyingSymbol ?? t.symbol} ${strike}${t.putCall ?? ''} ${expiry}`.trim()
+}
+
+/** The actual buy/sell fills behind one closed position — matched by
+ * tradeId() against this position's own tradeIds, same lookup the
+ * Journal's SHARES row expansion uses. This is the level of detail that
+ * answers "which trade made this ticker negative this month": the summed
+ * P&L on its own doesn't say whether it was one bad exit or several. */
+function PositionTradesTable({ position, tradesByKey }: { position: JournalPosition; tradesByKey: Map<string, RawTrade> }) {
+  const rows = useMemo(() => position.tradeIds
+    .map(id => tradesByKey.get(id))
+    .filter((t): t is RawTrade => t != null)
+    .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || (a.tradeTime ?? '').localeCompare(b.tradeTime ?? '')),
+    [position.tradeIds, tradesByKey])
+
+  if (rows.length === 0) {
+    return <div style={{ padding: '8px 16px', color: 'var(--text-5)', fontSize: 11.5 }}>No trade history found for this position.</div>
+  }
+
+  return (
+    <div style={{ padding: '8px 16px 8px 32px', background: 'var(--bg-surface)' }}>
+      <table className="mono" style={{ width: '100%', fontSize: 11.5, borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ color: 'var(--text-5)', textAlign: 'left' }}>
+            <th style={{ fontWeight: 500, padding: '3px 8px 3px 0' }}>Date</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px' }}>Description</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px' }}>Action</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Qty</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Price</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Fees</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Net Cash</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((t, i) => {
+            const assigned = Math.abs(t.commissions ?? 0) < 0.005 && t.assetClass === 'STK'
+            const action = t.assetClass === 'OPT'
+              ? `${t.quantity > 0 ? 'Buy' : 'Sell'} ${t.openClose === 'C' ? 'to Close' : 'to Open'}`
+              : `${t.quantity > 0 ? 'Buy' : 'Sell'}${assigned ? ' (assigned)' : ''}`
+            return (
+              <tr key={`${t.tradeDate}|${t.execId ?? i}`} style={{ borderTop: '1px solid var(--border)' }}>
+                <td style={{ padding: '3px 8px 3px 0', color: 'var(--text-4)', whiteSpace: 'nowrap' }}>{fmtTradeDate(t.tradeDate)}</td>
+                <td style={{ padding: '3px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{tradeDescription(t)}</td>
+                <td style={{ padding: '3px 8px', color: t.quantity > 0 ? '#10b981' : '#ef4444', fontWeight: 600, whiteSpace: 'nowrap' }}>{action}</td>
+                <td style={{ padding: '3px 8px', textAlign: 'right' }}>{Math.abs(t.quantity)}</td>
+                <td style={{ padding: '3px 8px', textAlign: 'right' }}>{fmtDollar(t.tradePrice)}</td>
+                <td style={{ padding: '3px 8px', textAlign: 'right', color: 'var(--text-5)' }}>{fmtDollar(Math.abs(t.commissions ?? 0))}</td>
+                <td style={{ padding: '3px 8px', textAlign: 'right', color: pnlColor(t.netCash), fontWeight: 600 }}>{fmtDollar(t.netCash)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 /** Every closed position behind one month's total, biggest winner first —
  * so "which trade made the most/least this month" is a click away instead
- * of just seeing the summed $ per strategy. */
-function MonthPositionsTable({ positions, colSpan }: { positions: JournalPosition[]; colSpan: number }) {
+ * of just seeing the summed $ per strategy. Each position row is itself
+ * clickable to drill one level further into the actual buy/sell fills that
+ * made it up — a summed P&L alone doesn't say which specific trade(s)
+ * drove it. */
+function MonthPositionsTable({ positions, trades, colSpan }: { positions: JournalPosition[]; trades: RawTrade[]; colSpan: number }) {
   const rows = useMemo(() => [...positions].sort((a, b) => (b.pnl ?? 0) - (a.pnl ?? 0)), [positions])
+  const tradesByKey = useMemo(() => {
+    const m = new Map<string, RawTrade>()
+    for (const t of trades) m.set(tradeId(t), t)
+    return m
+  }, [trades])
+  const [openId, setOpenId] = useState<string | null>(null)
+
   return (
     <tr>
       <td colSpan={colSpan} style={{ padding: 0 }}>
@@ -81,16 +153,31 @@ function MonthPositionsTable({ positions, colSpan }: { positions: JournalPositio
               </tr>
             </thead>
             <tbody>
-              {rows.map(p => (
-                <tr key={p.id} style={{ borderTop: '1px solid var(--border)' }}>
-                  <td style={{ padding: '4px 8px 4px 0', fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{positionLabel(p)}</td>
-                  <td style={{ padding: '4px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{stratLabel(p.strategy ?? 'unlabelled')}</td>
-                  <td style={{ padding: '4px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtTradeDate(p.dateOpen)}</td>
-                  <td style={{ padding: '4px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{p.dateClosed ? fmtTradeDate(p.dateClosed) : '—'}</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-4)' }}>{fmtDollar(p.openFees + (p.closeFees ?? 0))}</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 700, color: pnlColor(p.pnl ?? 0) }}>{fmtDollar(p.pnl ?? 0)}</td>
-                </tr>
-              ))}
+              {rows.map(p => {
+                const isOpen = openId === p.id
+                return (
+                  <>
+                    <tr key={p.id} onClick={() => setOpenId(isOpen ? null : p.id)} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
+                      <td style={{ padding: '4px 8px 4px 0', fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-block', width: 10, color: 'var(--text-5)', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.1s' }}>▸</span>
+                        {positionLabel(p)}
+                      </td>
+                      <td style={{ padding: '4px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{stratLabel(p.strategy ?? 'unlabelled')}</td>
+                      <td style={{ padding: '4px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtTradeDate(p.dateOpen)}</td>
+                      <td style={{ padding: '4px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{p.dateClosed ? fmtTradeDate(p.dateClosed) : '—'}</td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-4)' }}>{fmtDollar(p.openFees + (p.closeFees ?? 0))}</td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 700, color: pnlColor(p.pnl ?? 0) }}>{fmtDollar(p.pnl ?? 0)}</td>
+                    </tr>
+                    {isOpen && (
+                      <tr key={`${p.id}-detail`}>
+                        <td colSpan={6} style={{ padding: 0 }}>
+                          <PositionTradesTable position={p} tradesByKey={tradesByKey} />
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -186,7 +273,7 @@ export default function MonthlyIncomeView({ state, tradeLabels, fy }: { state: A
                             <td className="mono" style={{ textAlign: 'right', color: 'var(--text-4)', whiteSpace: 'nowrap' }}>{fmtDollar(monthFees(m))}</td>
                             <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(monthTotal(m)), whiteSpace: 'nowrap' }}>{fmtDollar(monthTotal(m))}</td>
                           </tr>
-                          {isOpen && <MonthPositionsTable positions={block.positionsByMonth.get(m) ?? []} colSpan={block.strategyList.length + 3} />}
+                          {isOpen && <MonthPositionsTable positions={block.positionsByMonth.get(m) ?? []} trades={state.sync.trades} colSpan={block.strategyList.length + 3} />}
                         </>
                       )
                     })}
