@@ -182,19 +182,61 @@ export function currentAllocationSlices(state: { sync: { positions: RawPosition[
 
 /** Google-Sheets-style pie: labels sit outside the circle with a bent leader
  * line back to the wedge, instead of a separate legend list. */
-export function PortfolioPie({ slices, centerLabel, centerValue, labelMode, radius }: { slices: Slice[]; centerLabel: string; centerValue: string; labelMode: LabelMode; radius?: number }) {
+function annulusPath(cx: number, cy: number, r0: number, r1: number, startDeg: number, endDeg: number): string {
+  const pt = (r: number, deg: number) => ({ x: cx + r * Math.cos(deg * Math.PI / 180), y: cy + r * Math.sin(deg * Math.PI / 180) })
+  const largeArc = endDeg - startDeg > 180 ? 1 : 0
+  const o0 = pt(r1, startDeg), o1 = pt(r1, endDeg)
+  const i0 = pt(r0, startDeg), i1 = pt(r0, endDeg)
+  return `M${o0.x},${o0.y} A${r1},${r1} 0 ${largeArc} 1 ${o1.x},${o1.y} L${i1.x},${i1.y} A${r0},${r0} 0 ${largeArc} 0 ${i0.x},${i0.y} Z`
+}
+
+/** Measures its own container (ResizeObserver) instead of assuming a fixed
+ * canvas size, so the donut actually grows/shrinks to fill whatever cell
+ * it's placed in — a fixed W/H canvas capped at its own native size left a
+ * visible gap around the disc in any panel bigger than that native size. */
+function useElementSize<T extends HTMLElement>() {
+  const ref = useState<T | null>(null)
+  const [node, setNode] = ref
+  const [size, setSize] = useState({ width: 0, height: 0 })
+  useEffect(() => {
+    if (!node) return
+    const ro = new ResizeObserver(entries => {
+      const box = entries[0]?.contentBoxSize?.[0]
+      if (box) setSize({ width: box.inlineSize, height: box.blockSize })
+      else setSize({ width: node.clientWidth, height: node.clientHeight })
+    })
+    ro.observe(node)
+    setSize({ width: node.clientWidth, height: node.clientHeight })
+    return () => ro.disconnect()
+  }, [node])
+  return [setNode, size] as const
+}
+
+export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { slices: Slice[]; centerLabel: string; centerValue: string; labelMode: LabelMode }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
-  // radius is the only thing callers can grow — everything else (font
-  // sizes, W/H canvas, center-hole size) stays fixed so a bigger disc
-  // doesn't drag the labels up in size with it. The label geometry below
-  // (ELBOW_R, OUTER_X) derives from R, so it automatically makes room.
-  const W = 440, H = 260, CX = 220, CY = 130, R = radius ?? 68
+  const [setNode, measured] = useElementSize<HTMLDivElement>()
+  // Fixed font sizes below are in the same units as W/H/R — since the SVG's
+  // viewBox is set to the container's own measured pixel size (not some
+  // arbitrary fixed canvas scaled to fit), 1 viewBox unit is always 1 real
+  // pixel, so growing the donut to fill its cell never drags the label
+  // text size along with it.
+  const W = measured.width || 440, H = measured.height || 260
+  const CX = W / 2, CY = H / 2
   const LABEL_ROW_H = 17
-  const ELBOW_R = R + 10
-  const OUTER_X = R + 42
+  // Horizontal/vertical margin reserved for the outward label lines + text,
+  // so the ring itself grows to fill everything left over instead of
+  // overflowing into that space.
+  const H_MARGIN = 96, V_MARGIN = 14
+  const outerR = Math.max(24, Math.min((W - H_MARGIN * 2) / 2, (H - V_MARGIN * 2) / 2))
+  // A thin ring with a big open hole — was a near-solid disc before, which
+  // left almost no room for the center value once the disc grew to fill
+  // its panel. 0.62 keeps the hole roomy at any size.
+  const innerR = outerR * 0.62
+  const ELBOW_R = outerR + 8
+  const OUTER_X = outerR + 34
 
   if (total <= 0) {
-    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: H, color: 'var(--text-4)', fontSize: 12 }}>No data</div>
+    return <div ref={setNode} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', color: 'var(--text-4)', fontSize: 12 }}>No data</div>
   }
 
   let angle = -90
@@ -208,16 +250,13 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode, radi
     const end = angle + frac * 360
     const mid = (start + end) / 2
     angle = end
-    const p0 = { x: CX + R * Math.cos(start * Math.PI / 180), y: CY + R * Math.sin(start * Math.PI / 180) }
-    const p1 = { x: CX + R * Math.cos(end * Math.PI / 180), y: CY + R * Math.sin(end * Math.PI / 180) }
-    const largeArc = end - start > 180 ? 1 : 0
     const midRad = mid * Math.PI / 180
-    const edge = { x: CX + R * Math.cos(midRad), y: CY + R * Math.sin(midRad) }
+    const edge = { x: CX + outerR * Math.cos(midRad), y: CY + outerR * Math.sin(midRad) }
     const elbow = { x: CX + ELBOW_R * Math.cos(midRad), y: CY + ELBOW_R * Math.sin(midRad) }
     const side: 'left' | 'right' = Math.cos(midRad) >= 0 ? 'right' : 'left'
     return {
       ...s, frac,
-      path: `M${CX},${CY} L${p0.x},${p0.y} A${R},${R} 0 ${largeArc} 1 ${p1.x},${p1.y} Z`,
+      path: annulusPath(CX, CY, innerR, outerR, start, end),
       edge, elbow, side, idealY: elbow.y,
     }
   })
@@ -234,9 +273,10 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode, radi
   }
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 440, display: 'block', margin: '0 auto', overflow: 'visible' }}>
+    <div ref={setNode} style={{ width: '100%', height: '100%' }}>
+      {W > 0 && H > 0 && (
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: 'block', overflow: 'visible' }}>
       {wedges.map((w, i) => <path key={i} d={w.path} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />)}
-      <circle cx={CX} cy={CY} r={30} fill="var(--bg-card)" />
       <text x={CX} y={CY - 6} textAnchor="middle" fontSize="9.5" fill="var(--text-4)" fontFamily="Inter, sans-serif" letterSpacing="1px">
         {centerLabel.toUpperCase()}
       </text>
@@ -264,6 +304,8 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode, radi
         )
       })}
     </svg>
+      )}
+    </div>
   )
 }
 
@@ -482,17 +524,21 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
 
       {/* ── Current vs Target pies ────────────────────────────────────────── */}
       <div className="jr-2col">
-        <div className="panel" style={{ padding: 16 }}>
+        <div className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 10 }}>
             CURRENT ALLOCATION
           </div>
-          <PortfolioPie slices={currentSlices} centerLabel="Current" centerValue={fmt$(currentTotal)} labelMode={labelMode} />
+          <div style={{ height: 280 }}>
+            <PortfolioPie slices={currentSlices} centerLabel="Current" centerValue={fmt$(currentTotal)} labelMode={labelMode} />
+          </div>
         </div>
-        <div className="panel" style={{ padding: 16 }}>
+        <div className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 10 }}>
             TARGET ALLOCATION
           </div>
-          <PortfolioPie slices={targetSlices} centerLabel="Target" centerValue={fmt$(targetAllocatedTotal)} labelMode={labelMode} />
+          <div style={{ height: 280 }}>
+            <PortfolioPie slices={targetSlices} centerLabel="Target" centerValue={fmt$(targetAllocatedTotal)} labelMode={labelMode} />
+          </div>
         </div>
       </div>
 
