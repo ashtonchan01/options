@@ -26,15 +26,17 @@ export const FOMC_FALLBACK_DATES: string[] = [
   '2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09',
 ]
 
-/** The Friday keynote of the KC Fed's Jackson Hole Economic Symposium (a
- * Thu-Sat retreat; the Friday morning speech — usually the Fed Chair's —
- * is the day that actually moves markets, so that's the one marked, same
- * "one headline day" treatment as FOMC). 2026 date is the Fed's usual
- * pattern (a Thu-Sat in the last full week of August) — confirm against
- * the KC Fed's release closer to the date since, unlike FOMC, no live
- * calendar feed exists for this to auto-correct from. */
+/** The KC Fed's Jackson Hole Economic Symposium runs Thursday–Saturday, so
+ * all three days are marked (not just the Friday keynote) — attendees
+ * arrive Thursday and market-moving remarks (not only the Chair's, whose
+ * keynote is usually Friday) can come from any session across the retreat.
+ * 2026 dates are the Fed's usual pattern (Thu-Sat in the last full week of
+ * August) — confirm against the KC Fed's release closer to the date since,
+ * unlike FOMC, no live calendar feed exists for this to auto-correct from. */
 export const JACKSON_HOLE_DATES: string[] = [
-  '2024-08-23', '2025-08-22', '2026-08-28',
+  '2024-08-22', '2024-08-23', '2024-08-24',
+  '2025-08-21', '2025-08-22', '2025-08-23',
+  '2026-08-27', '2026-08-28', '2026-08-29',
 ]
 
 export function buildEconEventMap(fomcDates: string[], jacksonHoleDates: string[] = JACKSON_HOLE_DATES): Record<string, EconEvent[]> {

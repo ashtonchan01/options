@@ -267,17 +267,16 @@ function DayCell({
           </div>
         )}
 
-        {/* Economic events (FOMC, Jackson Hole, etc.) — Jackson Hole gets its
-            own color (amber) so it reads as a distinct event type from FOMC
-            (purple) at a glance, not just another purple pill. */}
+        {/* Economic events (FOMC, Jackson Hole, etc.) — one shared purple
+            treatment for every kind, the label text is what tells them
+            apart. */}
         {econEvents.map((e, i) => {
-          const color = e.kind === 'jackson_hole' ? '#f59e0b' : '#a78bfa'
           return (
-            <div key={`econ-${i}`} data-cal-item title={e.kind === 'jackson_hole' ? 'Jackson Hole Economic Symposium — Fed Chair keynote' : 'FOMC rate decision'} style={{
+            <div key={`econ-${i}`} data-cal-item title={e.kind === 'jackson_hole' ? 'Jackson Hole Economic Symposium' : 'FOMC rate decision'} style={{
               fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
-              color, background: `${color}14`,
+              color: '#a78bfa', background: '#a78bfa14',
               padding: '1px 4px', marginBottom: 1, borderRadius: 3,
-              textAlign: 'center', border: `1px solid ${color}30`, flexShrink: 0,
+              textAlign: 'center', border: '1px solid #a78bfa30', flexShrink: 0,
               fontFamily: 'Inter, sans-serif',
             }}>
               {e.label}

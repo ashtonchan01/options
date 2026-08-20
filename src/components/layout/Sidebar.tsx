@@ -21,17 +21,15 @@ export type TabId = 'dashboard' | 'watchlist' | 'scanner' | string
 // Every account's nav row used to show the same Briefcase icon regardless
 // of which account it was — fine expanded (the name is right there), but
 // once the sidebar collapses to icons-only, every account became visually
-// identical with no way to tell them apart at a glance. A colored initial
-// avatar (deterministic per account id, so it doesn't shuffle around on
-// reorder/rename) gives each one a distinct look even collapsed.
-const ACCOUNT_AVATAR_COLORS = [
-  '#4a72d4', '#f43f5e', '#10b981', '#f59e0b', '#a855f7', '#06b6d4',
-  '#eab308', '#ec4899', '#22c55e', '#6366f1', '#f97316', '#14b8a6',
-]
-function accountAvatarColor(id: string): string {
-  let hash = 0
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0
-  return ACCOUNT_AVATAR_COLORS[Math.abs(hash) % ACCOUNT_AVATAR_COLORS.length]
+// identical with no way to tell them apart at a glance. An initials avatar
+// (first letter of each of the first two words — one letter for a
+// single-word name) gives each one a distinct look even collapsed, no
+// color-coding needed since the letters themselves already differ.
+function accountInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return '?'
+  if (words.length === 1) return words[0].charAt(0).toUpperCase()
+  return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase()
 }
 
 export function accountTabId(accountId: string): TabId {
@@ -129,10 +127,10 @@ export default function Sidebar({
                 <div style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                  background: accountAvatarColor(account.id), color: '#fff',
-                  fontSize: 10, fontWeight: 700, fontFamily: 'Inter, sans-serif',
+                  background: 'var(--sb-hover)', color: 'var(--sb-text)',
+                  fontSize: 9, fontWeight: 700, fontFamily: 'Inter, sans-serif',
                 }}>
-                  {account.name.trim().charAt(0).toUpperCase() || '?'}
+                  {accountInitials(account.name)}
                 </div>
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{account.name}</span>
                 {!collapsed && canSync && (
