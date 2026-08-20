@@ -270,13 +270,21 @@ export default function OverviewView({ state, account, loading, error, onUpload,
                 <MonthlyPnlChart state={state} />
               </div>
             </div>
-            <div className="dash-panel" style={{ minHeight: 0 }}>
+            <div className="dash-panel" style={{ minHeight: 0, overflow: 'hidden' }}>
               <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Allocation by Position</span></div>
-              <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {(() => {
-                  const { slices, total } = currentAllocationSlices(state)
-                  return <PortfolioPie slices={slices} centerLabel="Current" centerValue={fmtAllocation(total)} labelMode="pct" />
-                })()}
+              {/* PortfolioPie draws its outside labels with overflow:visible
+                  (by design, for the Allocation tab's much wider column) —
+                  in this narrower cell that spilled the pie and its labels
+                  past the card's own edge instead of shrinking to fit.
+                  Clipping here + capping the pie's own width keeps it inside
+                  its cell. */}
+              <div style={{ flex: '1 1 0', minHeight: 0, width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '100%', maxWidth: 340 }}>
+                  {(() => {
+                    const { slices, total } = currentAllocationSlices(state)
+                    return <PortfolioPie slices={slices} centerLabel="Current" centerValue={fmtAllocation(total)} labelMode="pct" />
+                  })()}
+                </div>
               </div>
             </div>
           </div>
