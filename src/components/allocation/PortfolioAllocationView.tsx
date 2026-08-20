@@ -182,9 +182,13 @@ export function currentAllocationSlices(state: { sync: { positions: RawPosition[
 
 /** Google-Sheets-style pie: labels sit outside the circle with a bent leader
  * line back to the wedge, instead of a separate legend list. */
-export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { slices: Slice[]; centerLabel: string; centerValue: string; labelMode: LabelMode }) {
+export function PortfolioPie({ slices, centerLabel, centerValue, labelMode, radius }: { slices: Slice[]; centerLabel: string; centerValue: string; labelMode: LabelMode; radius?: number }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
-  const W = 440, H = 260, CX = 220, CY = 130, R = 68
+  // radius is the only thing callers can grow — everything else (font
+  // sizes, W/H canvas, center-hole size) stays fixed so a bigger disc
+  // doesn't drag the labels up in size with it. The label geometry below
+  // (ELBOW_R, OUTER_X) derives from R, so it automatically makes room.
+  const W = 440, H = 260, CX = 220, CY = 130, R = radius ?? 68
   const LABEL_ROW_H = 17
   const ELBOW_R = R + 10
   const OUTER_X = R + 42
