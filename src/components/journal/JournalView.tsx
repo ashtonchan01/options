@@ -176,6 +176,7 @@ function SharesTradesTable({ pos, tradesByKey }: { pos: JournalPosition; tradesB
             <th style={{ fontWeight: 500, padding: '3px 8px' }}>Action</th>
             <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Qty</th>
             <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Price</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Fees</th>
             <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Total</th>
           </tr>
         </thead>
@@ -189,6 +190,7 @@ function SharesTradesTable({ pos, tradesByKey }: { pos: JournalPosition; tradesB
                 <td style={{ padding: '4px 8px', color: t.quantity > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>{action}</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right' }}>{Math.abs(t.quantity)}</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right' }}>{fmt$(t.tradePrice, 2)}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-4)' }}>{fmt$(Math.abs(t.commissions ?? 0), 2)}</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-2)' }}>{fmt$(Math.abs(t.quantity) * t.tradePrice, 2)}</td>
               </tr>
             )
@@ -408,7 +410,7 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
       .map(([key, groupRows]) => ({ label: stratGroupLabel(key), rows: groupRows }))
   }, [rows, groupByStrategy])
 
-  const COLS = 12
+  const COLS = 13
 
   return (
     <>
@@ -505,6 +507,7 @@ function TableHead() {
         <th style={{ textAlign: 'right' }}>Unrealised</th>
         <th style={{ textAlign: 'right' }}>%</th>
         <th className="jr-col-dte" style={{ textAlign: 'right' }}>DTE</th>
+        <th style={{ textAlign: 'right' }}>Fees</th>
         <th style={{ textAlign: 'right' }}>P&L</th>
       </tr>
     </thead>
@@ -632,6 +635,9 @@ function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor 
         </td>
         <td className="mono jr-col-dte" style={{ textAlign: 'right', color: urgent ? '#ef4444' : 'var(--text-3)', fontWeight: urgent ? 700 : 400 }}>
           {daysLeft != null ? `${daysLeft}d` : '—'}
+        </td>
+        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-4)', whiteSpace: 'nowrap' }}>
+          {fmt$(p.openFees + (p.closeFees ?? 0), 2)}
         </td>
         <td className={`mono ${p.pnl != null ? pnlCls(p.pnl) : ''}`} style={{ textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
           {p.pnl != null ? fmt$(p.pnl, 2) : '—'}

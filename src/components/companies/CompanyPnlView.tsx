@@ -27,6 +27,10 @@ interface CompanyRow {
   total: number
   closedTrades: number
   openPositions: number
+  /** IBKR commissions/fees on this ticker's closed positions — pnl is
+   * already net of these (see engine/journal.ts), this is just so the fee
+   * drag is visible instead of buried inside the P&L number. */
+  fees: number
 }
 
 type SortKey = 'total' | 'realized' | 'unrealized' | 'symbol'
@@ -41,7 +45,7 @@ function buildRows(
   const get = (symbol: string) => {
     let row = byCompany.get(symbol)
     if (!row) {
-      row = { symbol, realized: 0, unrealized: 0, total: 0, closedTrades: 0, openPositions: 0 }
+      row = { symbol, realized: 0, unrealized: 0, total: 0, closedTrades: 0, openPositions: 0, fees: 0 }
       byCompany.set(symbol, row)
     }
     return row
@@ -60,6 +64,7 @@ function buildRows(
     const row = get(p.underlying)
     row.realized += p.pnl
     row.closedTrades++
+    row.fees += p.openFees + (p.closeFees ?? 0)
   }
 
   if (fy === 'all' || fy === nowFy) {
@@ -117,6 +122,7 @@ function CompanyTradesTable({ symbol, trades, fy }: { symbol: string; trades: Ra
             <th style={{ fontWeight: 500, padding: '3px 8px' }}>Action</th>
             <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Qty</th>
             <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Price</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Fees</th>
             <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Net Cash</th>
           </tr>
         </thead>
@@ -133,6 +139,7 @@ function CompanyTradesTable({ symbol, trades, fy }: { symbol: string; trades: Ra
                 <td style={{ padding: '4px 8px', color: t.quantity > 0 ? '#10b981' : '#ef4444', fontWeight: 600, whiteSpace: 'nowrap' }}>{action}</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right' }}>{Math.abs(t.quantity)}</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right' }}>{fmtDollar(t.tradePrice)}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-4)' }}>{fmtDollar(Math.abs(t.commissions ?? 0))}</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', color: pnlColor(t.netCash), fontWeight: 600 }}>{fmtDollar(t.netCash)}</td>
               </tr>
             )
@@ -174,7 +181,8 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
     realized: acc.realized + r.realized,
     unrealized: acc.unrealized + r.unrealized,
     total: acc.total + r.total,
-  }), { realized: 0, unrealized: 0, total: 0 }), [rows])
+    fees: acc.fees + r.fees,
+  }), { realized: 0, unrealized: 0, total: 0, fees: 0 }), [rows])
 
   const filteredTotals = useMemo(() => filtered.reduce((acc, r) => ({
     realized: acc.realized + r.realized,
@@ -182,7 +190,8 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
     total: acc.total + r.total,
     closedTrades: acc.closedTrades + r.closedTrades,
     openPositions: acc.openPositions + r.openPositions,
-  }), { realized: 0, unrealized: 0, total: 0, closedTrades: 0, openPositions: 0 }), [filtered])
+    fees: acc.fees + r.fees,
+  }), { realized: 0, unrealized: 0, total: 0, closedTrades: 0, openPositions: 0, fees: 0 }), [filtered])
 
   const hasData = state.sync.trades.length > 0
 
@@ -205,6 +214,7 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
         <div className="jr-mini"><span className="label">Unrealised</span><b style={{ color: pnlColor(grand.unrealized) }}>{fmtDollar(grand.unrealized)}</b></div>
         <div className="jr-mini"><span className="label">Winners</span><b style={{ color: '#10b981' }}>{winners}</b></div>
         <div className="jr-mini"><span className="label">Losers</span><b style={{ color: '#ef4444' }}>{losers}</b></div>
+        <div className="jr-mini"><span className="label">Fees</span><b style={{ color: 'var(--text-2)' }}>{fmtDollar(grand.fees)}</b></div>
       </div>
 
       <div className="cc-controls" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -240,6 +250,7 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
                 <th style={{ textAlign: 'right' }}>Total P&amp;L</th>
                 <th style={{ textAlign: 'right' }}>Closed Trades</th>
                 <th style={{ textAlign: 'right' }}>Open</th>
+                <th style={{ textAlign: 'right' }}>Fees</th>
               </tr>
             </thead>
             <tbody>
@@ -259,10 +270,11 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
                     <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(r.total), whiteSpace: 'nowrap' }}>{fmtDollar(r.total)}</td>
                     <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{r.closedTrades}</td>
                     <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{r.openPositions}</td>
+                    <td className="mono" style={{ textAlign: 'right', color: 'var(--text-4)', whiteSpace: 'nowrap' }}>{fmtDollar(r.fees)}</td>
                   </tr>
                   {expanded === r.symbol && (
                     <tr key={`${r.symbol}-detail`}>
-                      <td colSpan={6} style={{ padding: 0 }}>
+                      <td colSpan={7} style={{ padding: 0 }}>
                         <CompanyTradesTable symbol={r.symbol} trades={state.sync.trades} fy={fy} />
                       </td>
                     </tr>
@@ -270,7 +282,7 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
                 </>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>No matches</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>No matches</td></tr>
               )}
             </tbody>
             {filtered.length > 0 && (
@@ -282,6 +294,7 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(filteredTotals.total), whiteSpace: 'nowrap' }}>{fmtDollar(filteredTotals.total)}</td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{filteredTotals.closedTrades}</td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{filteredTotals.openPositions}</td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{fmtDollar(filteredTotals.fees)}</td>
                 </tr>
               </tfoot>
             )}
