@@ -909,7 +909,15 @@ body {
   align-items: center;
   gap: 22px;
   border-bottom: 1px solid var(--border);
+  /* On a narrow viewport 5 tabs (Overview/Calendar/Journal/Reports/
+     Allocation) don't fit — the row used to just silently clip the last
+     tab(s) off-screen with no way to reach them. Scrolls horizontally
+     instead now. */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.ph-underline-tabs::-webkit-scrollbar { display: none; }
 .ph-underline-tab {
   background: none;
   border: none;
@@ -1263,6 +1271,15 @@ body {
 @media (max-width: 768px) {
   .jr-root { padding: 12px; }
   .jr-2col { grid-template-columns: 1fr; }
+  /* Overview tab: the sync/upload + key-metrics row, and the Monthly P&L +
+     Allocation row, are both a 2-column grid built for desktop — on a phone
+     width that squeezed the second column down to an unreadable, clipped
+     sliver (Net Liquidation/Unrealised P&L/Cash tiles cut off, no room for
+     labels). Stack to one column and let each panel size to its own
+     content instead of the fixed minHeight/flex-basis meant for splitting
+     a wide desktop row. */
+  .ov-top-grid, .ov-bottom-grid { grid-template-columns: 1fr !important; }
+  .ov-equity-panel, .ov-monthly-panel, .ov-pie-panel { min-height: 220px !important; }
   /* flex-shrink:0 — same bug as jr-stacked-bottom below: an "auto"-height
      child of a flex-column parent still gets compressed by the default
      flex-shrink:1 to fit whatever space is available above it, rather

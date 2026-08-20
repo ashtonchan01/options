@@ -275,7 +275,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
 
   return (
     <div className="jr-root" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'stretch', flex: '0 0 auto' }}>
+      <div className="ov-top-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'stretch', flex: '0 0 auto' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <FlexSyncBar
             savedToken={account.flexToken}
@@ -317,7 +317,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
               scales with the viewBox, so letting these panels grow to fill
               whatever vertical space the window actually has no longer
               inflates the text along with them. */}
-          <div className="dash-panel" style={{ flex: '1.3 1 0', minHeight: 260 }}>
+          <div className="dash-panel ov-equity-panel" style={{ flex: '1.3 1 0', minHeight: 260 }}>
             <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Equity Curve</span></div>
             <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
               <EquityChart points={equityCurve(closedByDate([
@@ -326,14 +326,14 @@ export default function OverviewView({ state, account, loading, error, onUpload,
               ]))} />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 10, flex: '1 1 0', minHeight: 260 }}>
-            <div className="dash-panel" style={{ minHeight: 0 }}>
+          <div className="ov-bottom-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 10, flex: '1 1 0', minHeight: 260 }}>
+            <div className="dash-panel ov-monthly-panel" style={{ minHeight: 0 }}>
               <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Monthly Realised P&amp;L</span></div>
               <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
                 <MonthlyPnlChart state={state} />
               </div>
             </div>
-            <div className="dash-panel" style={{ minHeight: 0, overflow: 'hidden' }}>
+            <div className="dash-panel ov-pie-panel" style={{ minHeight: 0, overflow: 'hidden' }}>
               <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Allocation by Position</span></div>
               {/* PortfolioPie draws its outside labels with overflow:visible
                   (by design, for the Allocation tab's much wider column) —
