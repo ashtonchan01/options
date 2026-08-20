@@ -73,15 +73,13 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
     if (!key) continue
     byMonth.set(key, (byMonth.get(key) ?? 0) + p.pnl!)
   }
-  const fyOptions = [...new Set(closed.map(p => fyOf(p.dateClosed!)))]
-    .sort((a, b) => b.startYear - a.startYear)
+  const fyOptions = [...new Map(closed.map(p => {
+    const f = fyOf(p.dateClosed!)
+    return [f.key, f] as const
+  })).values()].sort((a, b) => a.startYear - b.startYear)
 
   const allRows = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  // '' (nothing picked yet) keeps the chart's original "last 8 months"
-  // behavior; 'all' shows every month ever; anything else is one FY's months.
-  const rows = fy === '' ? allRows.slice(-8)
-    : fy === 'all' ? allRows
-    : allRows.filter(([key]) => fyOf(`${key}-01`).key === fy)
+  const rows = fy === 'all' ? allRows : allRows.filter(([key]) => fyOf(`${key}-01`).key === fy)
   if (rows.length === 0) return (
     <div className="db-empty-msg" style={{ minHeight: 140 }}>
       {closed.length === 0 ? 'No closed trades yet' : 'No closed trades in that financial year'}
@@ -100,18 +98,22 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px 2px', fontFamily: 'Inter, sans-serif', flex: '0 0 auto', gap: 8 }}>
-        <select
-          value={fy}
-          onChange={e => onFyChange(e.target.value)}
-          style={{
-            fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)', background: 'transparent',
-            border: 'none', fontFamily: 'Inter, sans-serif', cursor: 'pointer', padding: 0,
-          }}
-        >
-          <option value="">Last 8 months</option>
-          <option value="all">All time</option>
-          {fyOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-        </select>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {[{ key: 'all', label: 'All' }, ...fyOptions.map(o => ({ key: o.key, label: o.label.replace('FY ', '') }))].map(o => (
+            <button
+              key={o.key}
+              onClick={() => onFyChange(o.key)}
+              style={{
+                fontSize: AXIS_LABEL_SIZE, fontFamily: 'Inter, sans-serif', cursor: 'pointer',
+                border: 'none', borderRadius: 4, padding: '2px 7px',
+                background: fy === o.key ? 'var(--accent, #10b981)' : 'transparent',
+                color: fy === o.key ? '#fff' : 'var(--text-4)',
+              }}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
         <span style={{ fontSize: VALUE_LABEL_SIZE, fontWeight: 700, color: total >= 0 ? '#10b981' : '#ef4444' }}>
           Net {total >= 0 ? '+' : ''}{fmtDollar(total)}
         </span>
@@ -235,12 +237,16 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
   const mid = points[Math.floor(points.length / 2)]
 
   // Financial-year boundaries — every point where the FY changes from the
-  // previous one gets a dividing line + label, so multi-year curves show
-  // where each FY starts instead of reading as one undifferentiated slope.
+  // previous one starts a new band, so multi-year curves read as distinct
+  // FY segments (alternating shading) instead of one undifferentiated slope.
   const fyBoundaries = points.flatMap((p, i) => {
     if (i === 0) return [{ i, label: fyOf(p.date).label }]
     return fyOf(p.date).key !== fyOf(points[i - 1].date).key ? [{ i, label: fyOf(p.date).label }] : []
   })
+  const fyBands = fyBoundaries.map((b, bi) => ({
+    ...b,
+    endI: bi + 1 < fyBoundaries.length ? fyBoundaries[bi + 1].i : points.length - 1,
+  }))
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -251,15 +257,19 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
             <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
           </linearGradient>
         </defs>
+        {fyBands.map((b, bi) => (
+          <rect key={b.i} x={x(b.i)} y={PT} width={Math.max(0, x(b.endI) - x(b.i))} height={H - PT - PB}
+            fill={bi % 2 === 0 ? 'var(--text-5)' : 'transparent'} opacity={0.08} />
+        ))}
         {gridVals.map((v, i) => (
           <line key={i} x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="rgba(16,185,129,0.08)" strokeWidth="0.15" vectorEffect="non-scaling-stroke" />
         ))}
         {min < 0 && <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="rgba(239,68,68,0.35)" strokeWidth="0.15" strokeDasharray="1.2 0.9" vectorEffect="non-scaling-stroke" />}
-        {fyBoundaries.filter(b => b.i > 0).map(b => (
-          <line key={b.i} x1={x(b.i)} x2={x(b.i)} y1={PT} y2={H - PB} stroke="var(--text-5)" strokeWidth="0.2" strokeDasharray="0.8 0.8" vectorEffect="non-scaling-stroke" />
+        {fyBands.filter(b => b.i > 0).map(b => (
+          <line key={b.i} x1={x(b.i)} x2={x(b.i)} y1={PT} y2={H - PB} stroke="var(--text-4)" strokeWidth="0.25" strokeDasharray="0.8 0.8" vectorEffect="non-scaling-stroke" />
         ))}
         <path d={area} fill="url(#ov-eq-fill)" />
-        <path d={line} fill="none" stroke="#10b981" strokeWidth="0.5" vectorEffect="non-scaling-stroke" style={{ filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.45))' }} />
+        <path d={line} fill="none" stroke="#10b981" strokeWidth="1" vectorEffect="non-scaling-stroke" style={{ filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.45))' }} />
         <circle cx={x(points.length - 1)} cy={y(last.equity)} r="1" fill="#10b981" vectorEffect="non-scaling-stroke" />
       </svg>
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: 'Inter, sans-serif' }}>
@@ -317,7 +327,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
   onSyncFlex: (token: string, queryId: string) => void
 }) {
   const hasData = state.sync.trades.length > 0
-  const [monthlyFy, setMonthlyFy] = useState('')
+  const [monthlyFy, setMonthlyFy] = useState('all')
 
   return (
     <div className="jr-root" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -381,26 +391,15 @@ export default function OverviewView({ state, account, loading, error, onUpload,
             </div>
             <div className="dash-panel ov-pie-panel" style={{ minHeight: 0, overflow: 'hidden' }}>
               <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Allocation by Position</span></div>
-              {/* PortfolioPie draws its outside labels with overflow:visible
-                  (by design, for the Allocation tab's much wider column) —
-                  in this narrower cell that spilled the pie and its labels
-                  past the card's own edge instead of shrinking to fit.
-                  Clipping here + capping the pie's own width keeps it inside
-                  its cell. */}
-              <div style={{ flex: '1 1 0', minHeight: 0, width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {/* maxWidth matches PortfolioPie's own native size (440,
-                    same viewBox width) exactly — capping it any narrower
-                    than that scaled its fixed SVG font sizes down along
-                    with it, undoing the "match the KPI strip" text-size fix
-                    everywhere else on this page. The outer overflow:hidden
-                    wrapper above still catches the rare case where there's
-                    less than 440px of real width to give it. */}
-                <div style={{ width: '100%', maxWidth: 440 }}>
-                  {(() => {
-                    const { slices, total } = currentAllocationSlices(state)
-                    return <PortfolioPie slices={slices} centerLabel="Current" centerValue={fmtAllocation(total)} labelMode="pct" radius={92} />
-                  })()}
-                </div>
+              {/* PortfolioPie now measures this wrapper itself (ResizeObserver)
+                  and sizes its own ring + fixed-size labels to fill exactly
+                  this box — no more fixed-canvas-plus-maxWidth-cap leaving a
+                  gap around a small pie in a bigger cell. */}
+              <div style={{ flex: '1 1 0', minHeight: 0, width: '100%' }}>
+                {(() => {
+                  const { slices, total } = currentAllocationSlices(state)
+                  return <PortfolioPie slices={slices} centerLabel="Current" centerValue={fmtAllocation(total)} labelMode="pct" />
+                })()}
               </div>
             </div>
           </div>
