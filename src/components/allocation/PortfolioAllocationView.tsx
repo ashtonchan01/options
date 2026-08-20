@@ -185,7 +185,7 @@ export function currentAllocationSlices(state: { sync: { positions: RawPosition[
 export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { slices: Slice[]; centerLabel: string; centerValue: string; labelMode: LabelMode }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
   const W = 440, H = 260, CX = 220, CY = 130, R = 68
-  const LABEL_ROW_H = 15
+  const LABEL_ROW_H = 17
   const ELBOW_R = R + 10
   const OUTER_X = R + 42
 
@@ -233,10 +233,10 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 440, display: 'block', margin: '0 auto', overflow: 'visible' }}>
       {wedges.map((w, i) => <path key={i} d={w.path} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />)}
       <circle cx={CX} cy={CY} r={30} fill="var(--bg-card)" />
-      <text x={CX} y={CY - 5} textAnchor="middle" fontSize="8" fill="var(--text-4)" fontFamily="Inter, sans-serif" letterSpacing="1px">
+      <text x={CX} y={CY - 6} textAnchor="middle" fontSize="9.5" fill="var(--text-4)" fontFamily="Inter, sans-serif" letterSpacing="1px">
         {centerLabel.toUpperCase()}
       </text>
-      <text x={CX} y={CY + 9} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--text-1)" fontFamily="Inter, sans-serif">
+      <text x={CX} y={CY + 11} textAnchor="middle" fontSize="12.5" fontWeight="700" fill="var(--text-1)" fontFamily="Inter, sans-serif">
         {centerValue}
       </text>
       {labeled.map((w, i) => {
@@ -249,7 +249,7 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
               fill="none" stroke="var(--text-5)" strokeWidth={0.75}
             />
             <text x={textX} y={w.idealY} dy={3} textAnchor={w.side === 'right' ? 'start' : 'end'}
-              fontSize="10" fontFamily="Inter, sans-serif" fontWeight={600} fill="var(--text-2)">
+              fontSize="12.5" fontFamily="Inter, sans-serif" fontWeight={600} fill="var(--text-2)">
               {w.label}
               <tspan fill="var(--text-4)" fontWeight={400}> {labelMode === 'pct' ? `${(w.frac * 100).toFixed(1)}%` : fmt$(w.value)}</tspan>
               {w.shares != null && w.shares !== 0 && (
