@@ -85,6 +85,7 @@ export default function App() {
         <main style={{ flex: 1, overflow: 'hidden' }}>
           {activeAccount ? (
             <AccountView
+              key={activeAccount.id}
               account={activeAccount}
               loading={accountsStore.loadingId === activeAccount.id}
               error={accountsStore.error}
