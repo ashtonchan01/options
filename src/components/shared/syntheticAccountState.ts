@@ -1,7 +1,8 @@
 /**
  * Wraps an Account's data in a minimal AppState so components that expect a
- * full AppState (CompaniesView, CalendarView, JournalPageView,
- * PortfolioAllocationView) can be reused for per-user accounts. Accounts
+ * full AppState (CompanyPnlView, MonthlyIncomeView, CalendarView,
+ * JournalPageView, PortfolioAllocationView) can be reused for per-user
+ * accounts. Accounts
  * synced via XML/Flex carry a real positions/cash snapshot; accounts
  * populated from a generic .csv/.xlsx/.pdf statement only have trades, so
  * those fields stay empty/zero for them.
