@@ -23,7 +23,7 @@ const REQUIRED_SECTIONS = [
 ]
 
 function SetupInstructions() {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-elevated)' }}>
       <button onClick={() => setOpen(o => !o)} style={{
