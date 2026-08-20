@@ -1111,14 +1111,16 @@ body {
   gap: 16px;
 }
 
-/* Overview tab is laid out to fit one desktop screen with no scrolling
-   (every section sized by flex ratios against the fixed container height) —
-   but on a narrow/short mobile viewport there isn't room for that, so it
-   falls back to the normal .jr-root scroll behavior there instead of
-   clipping content. */
-@media (min-width: 901px) {
-  .ov-root { overflow-y: hidden; }
-}
+/* Overview tab is laid out to fit one desktop screen without needing to
+   scroll (every section sized by flex ratios against the fixed container
+   height) — but overflow-y stays auto rather than hidden, since expanding
+   the Flex "Steps for a new IBKR account" instructions panel adds real
+   height that the flex ratios can't shrink away to nothing without
+   squashing every chart into an unreadable sliver. auto only shows a
+   scrollbar when content actually exceeds the viewport (i.e. once that
+   panel is open), so the common case still needs no scrolling at all. On a
+   narrow/short mobile viewport this is the same as the normal .jr-root
+   scroll behavior already falls back to. */
 
 /* Portfolio tab — Analytics / Journal Overview / Trade Journal side by side. */
 /* Each column has a min-width and wraps to the next row (not a hard breakpoint

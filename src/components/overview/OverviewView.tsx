@@ -224,7 +224,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
   const hasData = state.sync.trades.length > 0
 
   return (
-    <div className="jr-root ov-root" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="jr-root" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'stretch', flex: '0 0 auto' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <FlexSyncBar
