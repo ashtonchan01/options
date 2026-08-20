@@ -1,13 +1,15 @@
 /**
  * Overview tab — the account's landing page. Key summary stats (moved here
  * from Journal Overview), the Flex Web Service sync + statement upload
- * controls (moved here from Reports), and a metrics/charts strip: win rate,
- * a monthly realized-P&L bar chart, and the current portfolio allocation
- * pie.
+ * controls (moved here from Reports), and a metrics/charts strip: the old
+ * Journal KPI row (win rate, profit factor, avg win/loss, max drawdown,
+ * streak, etc.), an equity curve, a monthly realized-P&L bar chart, and the
+ * current portfolio allocation pie.
  */
+import { useMemo } from 'react'
 import type { AppState } from '../../types'
 import type { Account } from '../../store/accountsStore'
-import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
+import { buildJournalPositions, buildStockPositions, closedByDate, computeStats, openPremiumTotal, equityCurve, type EquityPoint } from '../../engine/journal'
 import { PortfolioSummaryPanel, AllocationPieCard } from '../analytics/AnalyticsView'
 import AccountUploadBar from '../shared/AccountUploadBar'
 import FlexSyncBar from '../shared/FlexSyncBar'
@@ -104,34 +106,99 @@ function MonthlyPnlChart({ state }: { state: AppState }) {
   )
 }
 
-/** Win rate + winners/losers strip — same closed-position set the Companies
- * (Reports) "All Time" mini strip uses, so the numbers agree with Reports. */
-function WinRateCard({ state }: { state: AppState }) {
-  const closed = [
+function pnlColor(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'var(--text-4)' }
+
+/** The old Journal Overview KPI row — Net P&L, Win Rate, Profit Factor, Avg
+ * Win/Loss, Max Drawdown, Open Premium, Closed trade count, and current
+ * Streak — restored here since it moved off the Journal tab. */
+function KpiStrip({ state }: { state: AppState }) {
+  const positions = useMemo(() => [
     ...buildJournalPositions(state.sync.trades, {}),
     ...buildStockPositions(state.sync.trades, {}),
-  ].filter(p => p.status !== 'Active' && p.pnl != null)
+  ], [state.sync.trades])
+  const closed = useMemo(() => closedByDate(positions), [positions])
+  const s = useMemo(() => computeStats(closed), [closed])
+  const openPremium = useMemo(() => openPremiumTotal(positions), [positions])
+  const pf = s.profitFactor === Infinity ? '∞' : s.profitFactor.toFixed(2)
 
-  const wins = closed.filter(p => p.pnl! > 0).length
-  const losses = closed.filter(p => p.pnl! < 0).length
-  const decided = wins + losses
-  const winRate = decided > 0 ? (wins / decided) * 100 : 0
-  const winRateColor = winRate >= 70 ? '#10b981' : winRate >= 50 ? '#f59e0b' : '#ef4444'
+  const stats = [
+    { label: 'Net P&L',       value: fmtDollar(s.netPnl),       color: pnlColor(s.netPnl) },
+    { label: 'Win Rate',      value: s.trades ? `${s.winRate.toFixed(0)}%` : '—',
+      color: s.winRate >= 65 ? '#10b981' : s.winRate >= 50 ? '#f59e0b' : '#ef4444' },
+    { label: 'Profit Factor', value: s.trades ? pf : '—', color: s.profitFactor >= 1.5 ? '#10b981' : s.profitFactor >= 1 ? '#f59e0b' : '#ef4444' },
+    { label: 'Avg Win',       value: fmtDollar(s.avgWin),       color: '#10b981' },
+    { label: 'Avg Loss',      value: fmtDollar(s.avgLoss),      color: '#ef4444' },
+    { label: 'Max DD',        value: fmtDollar(-s.maxDrawdown), color: '#f59e0b' },
+    { label: 'Open Premium',  value: fmtDollar(openPremium),    color: 'var(--text-1)' },
+    { label: 'Closed',        value: String(s.trades),          color: 'var(--text-1)' },
+    { label: 'Streak',        value: s.currentStreak === 0 ? '—' : `${s.currentStreak > 0 ? 'W' : 'L'}${Math.abs(s.currentStreak)}`, color: 'var(--text-1)' },
+  ]
 
   return (
-    <div className="dash-panel" style={{ padding: 0, overflow: 'hidden' }}>
-      <div className="dash-panel-header" style={{ padding: '8px 8px 0' }}><span>Win Rate</span></div>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '10px 0 16px' }}>
-        <div style={{ fontSize: 34, fontWeight: 800, fontFamily: 'Inter, sans-serif', color: winRateColor }}>
-          {decided > 0 ? `${winRate.toFixed(0)}%` : '—'}
+    <div className="jr-mini-strip">
+      {stats.map(c => (
+        <div key={c.label} className="jr-mini">
+          <span style={{ color: 'var(--text-4)' }}>{c.label}</span>
+          <b style={{ color: c.color }}>{c.value}</b>
         </div>
-        <div style={{ display: 'flex', gap: 18, fontSize: 12, fontFamily: 'Inter, sans-serif' }}>
-          <span style={{ color: '#10b981', fontWeight: 600 }}>{wins} wins</span>
-          <span style={{ color: 'var(--text-4)' }}>{closed.length} closed</span>
-          <span style={{ color: '#ef4444', fontWeight: 600 }}>{losses} losses</span>
-        </div>
-      </div>
+      ))}
     </div>
+  )
+}
+
+function fmtDateShort(s: string) {
+  const iso = /^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : s
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? s : d.toLocaleDateString('en-AU', { month: 'short', year: '2-digit' })
+}
+
+/** Cumulative realized P&L across every closed position, oldest to newest. */
+function EquityChart({ points }: { points: EquityPoint[] }) {
+  if (points.length < 2) {
+    return <div className="db-empty-msg" style={{ minHeight: 140 }}>Need at least 2 closed trades to draw the curve</div>
+  }
+  const W = 1000, H = 178, PL = 58, PR = 14, PT = 12, PB = 22
+  const min = Math.min(0, ...points.map(p => p.equity))
+  const max = Math.max(1, ...points.map(p => p.equity))
+  const x = (i: number) => PL + (i / (points.length - 1)) * (W - PL - PR)
+  const y = (v: number) => PT + (1 - (v - min) / (max - min)) * (H - PT - PB)
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.equity).toFixed(1)}`).join(' ')
+  const y0 = y(0)
+  const area = `${line} L${x(points.length - 1).toFixed(1)},${y0.toFixed(1)} L${x(0).toFixed(1)},${y0.toFixed(1)} Z`
+  const gridVals = [0, 0.25, 0.5, 0.75, 1].map(f => min + f * (max - min))
+  const last = points[points.length - 1]
+  const mid = points[Math.floor(points.length / 2)]
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }}>
+      <defs>
+        <linearGradient id="ov-eq-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      {gridVals.map((v, i) => (
+        <g key={i}>
+          <line x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="rgba(16,185,129,0.08)" strokeWidth="1" />
+          <text x={PL - 6} y={y(v) + 3} textAnchor="end" fill="var(--text-4)" fontSize="10" fontFamily="Inter, sans-serif">
+            {fmtDollar(v)}
+          </text>
+        </g>
+      ))}
+      {min < 0 && <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="rgba(239,68,68,0.35)" strokeWidth="1" strokeDasharray="4 3" />}
+      <path d={area} fill="url(#ov-eq-fill)" />
+      <path d={line} fill="none" stroke="#10b981" strokeWidth="1.8" style={{ filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.45))' }} />
+      <circle cx={x(points.length - 1)} cy={y(last.equity)} r="3.5" fill="#10b981" />
+      <text x={x(points.length - 1) - 6} y={y(last.equity) - 8} textAnchor="end" fill="#10b981" fontSize="11" fontWeight="700" fontFamily="Inter, sans-serif">
+        {fmtDollar(last.equity)}
+      </text>
+      {[points[0], mid, last].map((p, i) => (
+        <text key={i} x={x(i === 0 ? 0 : i === 1 ? Math.floor(points.length / 2) : points.length - 1)} y={H - 8}
+          textAnchor={i === 0 ? 'start' : i === 1 ? 'middle' : 'end'} fill="var(--text-4)" fontSize="10" fontFamily="Inter, sans-serif">
+          {fmtDateShort(p.date)}
+        </text>
+      ))}
+    </svg>
   )
 }
 
@@ -172,8 +239,17 @@ export default function OverviewView({ state, account, loading, error, onUpload,
       ) : (
         <>
           <PortfolioSummaryPanel state={state} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr 1.4fr', gap: 12 }}>
-            <WinRateCard state={state} />
+          <KpiStrip state={state} />
+          <div className="dash-panel">
+            <div className="dash-panel-header"><span>Equity Curve</span></div>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}>
+              <EquityChart points={equityCurve(closedByDate([
+                ...buildJournalPositions(state.sync.trades, {}),
+                ...buildStockPositions(state.sync.trades, {}),
+              ]))} />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12 }}>
             <div className="dash-panel">
               <div className="dash-panel-header"><span>Monthly Realised P&amp;L</span></div>
               <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}>
