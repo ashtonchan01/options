@@ -465,7 +465,18 @@ export function buildStockPositions(
       const sellFeesTotal = Math.abs(t.commissions ?? 0)
 
       while (sellRemaining > 0 && openLots.length > 0) {
-        const lot = openLots[0]
+        // IBKR's Tax Optimizer lets an account elect a cost-basis/lot-
+        // matching method other than FIFO — LIFO closes the most recently
+        // opened lot first instead of the oldest one. This was hardcoded to
+        // FIFO (openLots[0]) regardless of the account's actual election,
+        // which silently produced a different realized P&L than IBKR's own
+        // LIFO-based accounting for any ticker bought at multiple prices
+        // across multiple lots (verified case: TSLA, whose FIFO-matched
+        // closing lot showed a loss that didn't match the account's real,
+        // LIFO-matched result). Taking the newest lot (LIFO) matches IBKR's
+        // Tax Optimizer setting instead of assuming the broker default.
+        const lotIndex = openLots.length - 1
+        const lot = openLots[lotIndex]
         const matched = Math.min(lot.remaining, sellRemaining)
         const buyTrade = lot.trade
         const buyFeesShare  = Math.abs(buyTrade.commissions ?? 0) * (matched / Math.abs(buyTrade.quantity))
@@ -495,7 +506,7 @@ export function buildStockPositions(
         })
         lot.remaining -= matched
         sellRemaining -= matched
-        if (lot.remaining <= 0) openLots.shift()
+        if (lot.remaining <= 0) openLots.splice(lotIndex, 1)
       }
       // A sell with no matching buy lot (short sale) isn't modeled — skip.
     }
