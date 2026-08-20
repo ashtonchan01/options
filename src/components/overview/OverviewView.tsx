@@ -39,6 +39,18 @@ function fmtMonthFull(ym: string) {
   return `${MONTHS[parseInt(m, 10) - 1] ?? ym} ${y}`
 }
 
+// Every label on every chart on this page (Equity Curve, Monthly P&L) is
+// plain HTML overlaid on top of a text-free SVG (axis lines/bars/area only),
+// positioned by percentage. An SVG <text> node's font-size is just another
+// viewBox unit, so it scales up or down with however wide or tall the panel
+// happens to render — which is exactly why the same nominal font size read
+// as "too big" in one panel and "too small" in another once the charts
+// stopped being a fixed size. HTML text ignores the SVG's viewBox entirely,
+// so one fixed CSS font size actually looks the same size everywhere,
+// regardless of how big any chart's panel grows.
+const AXIS_LABEL_SIZE = 10
+const VALUE_LABEL_SIZE = 10.5
+
 /** Realized P&L by close month, most recent 8 months — same bar-chart shape
  * as the old Monthly Cash Flow chart, but driven off actual closed-position
  * P&L (buildJournalPositions/buildStockPositions) rather than raw trade cash
@@ -58,16 +70,10 @@ function MonthlyPnlChart({ state }: { state: AppState }) {
   const rows = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-8)
   if (rows.length === 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No closed trades yet</div>
 
-  // W widened from the old 380 — this chart's column is nearly as wide as
-  // the Equity Curve's (viewBox 1000), and a narrow viewBox stretched over
-  // that much real width scaled the fixed font-size units up along with it,
-  // making the bar labels look oversized next to the other charts on this
-  // page. A wider viewBox at the same font sizes keeps text proportionate
-  // regardless of how wide the column actually renders.
-  const W = 760, H = 178, PL = 60, PR = 12, PT = 22, PB = 26
+  const W = 100, H = 100, PL = 12, PR = 1, PT = 10, PB = 12
   const maxAbs = Math.max(...rows.map(([, v]) => Math.abs(v)), 1)
   const y0 = PT + (H - PT - PB) / 2
-  const LABEL_ROOM = 16
+  const LABEL_ROOM = 9
   const halfHeight = (H - PT - PB) / 2 - LABEL_ROOM
   const scale = halfHeight / maxAbs
   const bw = (W - PL - PR) / rows.length
@@ -76,39 +82,61 @@ function MonthlyPnlChart({ state }: { state: AppState }) {
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px 2px', fontFamily: 'Inter, sans-serif', flex: '0 0 auto' }}>
-        <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Last {rows.length} months</span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: total >= 0 ? '#10b981' : '#ef4444' }}>
+        <span style={{ fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>Last {rows.length} months</span>
+        <span style={{ fontSize: VALUE_LABEL_SIZE, fontWeight: 700, color: total >= 0 ? '#10b981' : '#ef4444' }}>
           Net {total >= 0 ? '+' : ''}{fmtDollar(total)}
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', flex: '1 1 0', minHeight: 0, display: 'block' }}>
-        <line x1={PL} x2={W - PR} y1={PT} y2={PT} stroke="var(--border-light)" strokeWidth="0.5" strokeDasharray="2,2" />
-        <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="var(--border-light)" strokeWidth="1" />
-        <line x1={PL} x2={W - PR} y1={H - PB} y2={H - PB} stroke="var(--border-light)" strokeWidth="0.5" strokeDasharray="2,2" />
-        <text x={PL - 6} y={PT + 3} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">{fmtDollar(maxAbs)}</text>
-        <text x={PL - 6} y={y0 + 3} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">$0</text>
-        <text x={PL - 6} y={H - PB + 3} textAnchor="end" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">-{fmtDollar(maxAbs)}</text>
-        {rows.map(([key, val], i) => {
-          const h = Math.abs(val) * scale
-          const bx = PL + i * bw + bw * 0.2
-          const by = val >= 0 ? y0 - h : y0
-          const labelY = val >= 0 ? by - 4 : by + h + 10
-          return (
-            <g key={key}>
-              <rect x={bx} y={by} width={bw * 0.6} height={Math.max(h, 1)} rx={2}
-                fill={val >= 0 ? '#10b981' : '#ef4444'} opacity={0.85}>
+      <div style={{ position: 'relative', flex: '1 1 0', minHeight: 0 }}>
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
+          <line x1={PL} x2={W - PR} y1={PT} y2={PT} stroke="var(--border-light)" strokeWidth="0.15" strokeDasharray="0.6,0.6" />
+          <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="var(--border-light)" strokeWidth="0.3" />
+          <line x1={PL} x2={W - PR} y1={H - PB} y2={H - PB} stroke="var(--border-light)" strokeWidth="0.15" strokeDasharray="0.6,0.6" />
+          {rows.map(([key, val], i) => {
+            const h = Math.abs(val) * scale
+            const bx = PL + i * bw + bw * 0.2
+            const by = val >= 0 ? y0 - h : y0
+            return (
+              <rect key={key} x={bx} y={by} width={bw * 0.6} height={Math.max(h, 0.3)} rx={0.3}
+                fill={val >= 0 ? '#10b981' : '#ef4444'} opacity={0.85} vectorEffect="non-scaling-stroke">
                 <title>{fmtMonthFull(key)}: {val >= 0 ? '+' : ''}{fmtDollar(val)}</title>
               </rect>
-              <text x={bx + bw * 0.3} y={labelY} textAnchor="middle" fill={val >= 0 ? '#10b981' : '#ef4444'} fontSize="8" fontWeight="600" fontFamily="Inter, sans-serif">
+            )
+          })}
+        </svg>
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: 'Inter, sans-serif' }}>
+          <span style={{ position: 'absolute', left: 2, top: `${(PT / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>{fmtDollar(maxAbs)}</span>
+          <span style={{ position: 'absolute', left: 2, top: `${(y0 / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>$0</span>
+          <span style={{ position: 'absolute', left: 2, top: `${((H - PB) / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>-{fmtDollar(maxAbs)}</span>
+          {rows.map(([key, val], i) => {
+            const h = Math.abs(val) * scale
+            const bx = PL + i * bw + bw * 0.2
+            const by = val >= 0 ? y0 - h : y0
+            const labelTop = val >= 0 ? by - 2.5 : by + h + 2.5
+            return (
+              <span key={key} style={{
+                position: 'absolute',
+                left: `${((bx + bw * 0.3) / W) * 100}%`, top: `${(labelTop / H) * 100}%`,
+                transform: `translate(-50%, ${val >= 0 ? '-100%' : '0%'})`,
+                fontSize: VALUE_LABEL_SIZE, fontWeight: 600, color: val >= 0 ? '#10b981' : '#ef4444', whiteSpace: 'nowrap',
+              }}>
                 {val >= 0 ? '+' : '-'}{fmt(Math.abs(val))}
-              </text>
-              <text x={bx + bw * 0.3} y={H - 6} textAnchor="middle" fill="var(--text-4)" fontSize="9" fontFamily="Inter, sans-serif">
+              </span>
+            )
+          })}
+          {rows.map(([key], i) => {
+            const bx = PL + i * bw + bw * 0.2
+            return (
+              <span key={key} style={{
+                position: 'absolute', left: `${((bx + bw * 0.3) / W) * 100}%`, top: `${((H - PB + 3) / H) * 100}%`,
+                transform: 'translate(-50%, 0)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)', whiteSpace: 'nowrap',
+              }}>
                 {fmtMonthShort(key)}
-              </text>
-            </g>
-          )
-        })}
-      </svg>
+              </span>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
@@ -164,57 +192,68 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
   if (points.length < 2) {
     return <div className="db-empty-msg" style={{ minHeight: 140 }}>Need at least 2 closed trades to draw the curve</div>
   }
-  const W = 1000, H = 178, PL = 58, PR = 14, PT = 12, PB = 22
+  const W = 100, H = 100, PL = 8, PR = 1.5, PT = 8, PB = 12
   const min = Math.min(0, ...points.map(p => p.equity))
   const max = Math.max(1, ...points.map(p => p.equity))
   const x = (i: number) => PL + (i / (points.length - 1)) * (W - PL - PR)
   const y = (v: number) => PT + (1 - (v - min) / (max - min)) * (H - PT - PB)
-  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.equity).toFixed(1)}`).join(' ')
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(2)},${y(p.equity).toFixed(2)}`).join(' ')
   const y0 = y(0)
-  const area = `${line} L${x(points.length - 1).toFixed(1)},${y0.toFixed(1)} L${x(0).toFixed(1)},${y0.toFixed(1)} Z`
+  const area = `${line} L${x(points.length - 1).toFixed(2)},${y0.toFixed(2)} L${x(0).toFixed(2)},${y0.toFixed(2)} Z`
   const gridVals = [0, 0.25, 0.5, 0.75, 1].map(f => min + f * (max - min))
   const last = points[points.length - 1]
   const mid = points[Math.floor(points.length / 2)]
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }}>
-      <defs>
-        <linearGradient id="ov-eq-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      {gridVals.map((v, i) => (
-        <g key={i}>
-          <line x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="rgba(16,185,129,0.08)" strokeWidth="1" />
-          <text x={PL - 6} y={y(v) + 3} textAnchor="end" fill="var(--text-4)" fontSize="10" fontFamily="Inter, sans-serif">
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
+        <defs>
+          <linearGradient id="ov-eq-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {gridVals.map((v, i) => (
+          <line key={i} x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="rgba(16,185,129,0.08)" strokeWidth="0.15" vectorEffect="non-scaling-stroke" />
+        ))}
+        {min < 0 && <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="rgba(239,68,68,0.35)" strokeWidth="0.15" strokeDasharray="1.2 0.9" vectorEffect="non-scaling-stroke" />}
+        <path d={area} fill="url(#ov-eq-fill)" />
+        <path d={line} fill="none" stroke="#10b981" strokeWidth="0.5" vectorEffect="non-scaling-stroke" style={{ filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.45))' }} />
+        <circle cx={x(points.length - 1)} cy={y(last.equity)} r="1" fill="#10b981" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: 'Inter, sans-serif' }}>
+        {gridVals.map((v, i) => (
+          <span key={i} style={{ position: 'absolute', left: 2, top: `${(y(v) / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>
             {fmtDollar(v)}
-          </text>
-        </g>
-      ))}
-      {min < 0 && <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="rgba(239,68,68,0.35)" strokeWidth="1" strokeDasharray="4 3" />}
-      <path d={area} fill="url(#ov-eq-fill)" />
-      <path d={line} fill="none" stroke="#10b981" strokeWidth="1.8" style={{ filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.45))' }} />
-      <circle cx={x(points.length - 1)} cy={y(last.equity)} r="3.5" fill="#10b981" />
-      <text x={x(points.length - 1) - 6} y={y(last.equity) - 8} textAnchor="end" fill="#10b981" fontSize="11" fontWeight="700" fontFamily="Inter, sans-serif">
-        {fmtDollar(last.equity)}
-      </text>
-      {/* Dedupe by index — with few points (e.g. only 2-3 closed trades) the
-          "middle" and/or first/last indices can coincide, which used to
-          render the same date label twice on top of itself at the same x
-          position. */}
-      {[...new Map([
-        [0, points[0]],
-        [Math.floor(points.length / 2), mid],
-        [points.length - 1, last],
-      ]).entries()].map(([idx, p]) => (
-        <text key={idx} x={x(idx)} y={H - 8}
-          textAnchor={idx === 0 ? 'start' : idx === points.length - 1 ? 'end' : 'middle'}
-          fill="var(--text-4)" fontSize="10" fontFamily="Inter, sans-serif">
-          {fmtDateShort(p.date)}
-        </text>
-      ))}
-    </svg>
+          </span>
+        ))}
+        {/* Pinned to a fixed corner instead of tracking the curve's actual
+            last point — anchoring it at the point itself clipped off-panel
+            whenever the series ended near the very top or right edge. */}
+        <span style={{ position: 'absolute', top: 2, right: 4, fontSize: 12, fontWeight: 700, color: '#10b981' }}>
+          {fmtDollar(last.equity)}
+        </span>
+        {/* Dedupe by index — with few points (e.g. only 2-3 closed trades) the
+            "middle" and/or first/last indices can coincide, which used to
+            render the same date label twice on top of itself at the same x
+            position. */}
+        {[...new Map([
+          [0, points[0]],
+          [Math.floor(points.length / 2), mid],
+          [points.length - 1, last],
+        ]).entries()].map(([idx, p]) => (
+          <span key={idx} style={{
+            position: 'absolute', top: `${((H - PB + 3) / H) * 100}%`,
+            left: idx === points.length - 1 ? undefined : `${(x(idx) / W) * 100}%`,
+            right: idx === points.length - 1 ? `${PR}%` : undefined,
+            transform: idx === 0 ? 'translate(0, 0)' : idx === points.length - 1 ? undefined : 'translate(-50%, 0)',
+            fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)', whiteSpace: 'nowrap',
+          }}>
+            {fmtDateShort(p.date)}
+          </span>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -267,15 +306,13 @@ export default function OverviewView({ state, account, loading, error, onUpload,
               overflow-y:auto do its job. Expanding the Flex setup
               instructions above adds real height that these panels have no
               business absorbing, so they now hold their size and the page
-              scrolls for it instead. */}
-          {/* maxHeight on all three of these — on a tall viewport, flex:1.3/
-              flex:1 happily grows them to fill whatever's left over, which
-              stretched the Equity Curve's fixed-viewBox font sizes up along
-              with it (correct aspect ratio, but oversized text next to
-              everything else on the page). Capping height keeps the charts
-              — and the text sized relative to them — at a consistent scale
-              regardless of window height. */}
-          <div className="dash-panel" style={{ flex: '1.3 1 0', minHeight: 260, maxHeight: 340 }}>
+              scrolls for it instead. No maxHeight — both charts' labels are
+              now fixed-size HTML overlaid on a text-free SVG (see
+              AXIS_LABEL_SIZE/VALUE_LABEL_SIZE above), not SVG <text> that
+              scales with the viewBox, so letting these panels grow to fill
+              whatever vertical space the window actually has no longer
+              inflates the text along with them. */}
+          <div className="dash-panel" style={{ flex: '1.3 1 0', minHeight: 260 }}>
             <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Equity Curve</span></div>
             <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
               <EquityChart points={equityCurve(closedByDate([
@@ -284,7 +321,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
               ]))} />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 10, flex: '1 1 0', minHeight: 260, maxHeight: 300 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 10, flex: '1 1 0', minHeight: 260 }}>
             <div className="dash-panel" style={{ minHeight: 0 }}>
               <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Monthly Realised P&amp;L</span></div>
               <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
