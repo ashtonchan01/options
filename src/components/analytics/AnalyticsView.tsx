@@ -582,27 +582,33 @@ function AllocationPieRightLegend({ slices, centerLabel, centerValue }: { slices
     return `M${PIE_CARD_CX},${PIE_CARD_CY} L${p0.x},${p0.y} A${PIE_CARD_R},${PIE_CARD_R} 0 ${largeArc} 1 ${p1.x},${p1.y} Z`
   }
 
+  // Legend is capped (not flex:1) so the pie+legend pair forms one fixed-width
+  // group that can be centered as a whole in the panel — an unbounded flex:1
+  // legend used to stretch to fill whatever width the panel happened to have,
+  // shoving the pie off to the left edge instead of the pair looking centered.
   return (
-    <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0, alignItems: 'center' }}>
-      <div style={{ position: 'relative', flexShrink: 0, width: '42%', maxWidth: 200 }}>
-        <svg viewBox={`0 0 ${PIE_CARD_SIZE} ${PIE_CARD_SIZE}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
-          {wedges.map((w, i) => (
-            <path key={i} d={wedgePath(w.startAngle, w.endAngle)} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />
-          ))}
-        </svg>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase' }}>{centerLabel}</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{centerValue}</span>
-        </div>
-      </div>
-      <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
-        {wedges.map((w, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontFamily: 'Inter, sans-serif' }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: w.color, flexShrink: 0 }} />
-            <span style={{ color: 'var(--text-2)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.label}</span>
-            <span style={{ color: 'var(--text-4)', marginLeft: 'auto', flexShrink: 0 }}>{(w.frac * 100).toFixed(1)}%</span>
+    <div style={{ display: 'flex', justifyContent: 'center', flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', gap: 20, alignItems: 'center', minHeight: 0, maxWidth: '100%' }}>
+        <div style={{ position: 'relative', flexShrink: 0, width: 170 }}>
+          <svg viewBox={`0 0 ${PIE_CARD_SIZE} ${PIE_CARD_SIZE}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+            {wedges.map((w, i) => (
+              <path key={i} d={wedgePath(w.startAngle, w.endAngle)} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />
+            ))}
+          </svg>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+            <span style={{ fontSize: 9, color: 'var(--text-4)', letterSpacing: '1px', textTransform: 'uppercase' }}>{centerLabel}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{centerValue}</span>
           </div>
-        ))}
+        </div>
+        <div style={{ width: 160, minWidth: 0, maxHeight: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {wedges.map((w, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontFamily: 'Inter, sans-serif' }}>
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: w.color, flexShrink: 0 }} />
+              <span style={{ color: 'var(--text-2)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.label}</span>
+              <span style={{ color: 'var(--text-4)', marginLeft: 'auto', flexShrink: 0 }}>{(w.frac * 100).toFixed(1)}%</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
