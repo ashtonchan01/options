@@ -76,6 +76,7 @@ function MonthPositionsTable({ positions, colSpan }: { positions: JournalPositio
                 <th style={{ fontWeight: 500, padding: '3px 8px' }}>Strategy</th>
                 <th style={{ fontWeight: 500, padding: '3px 8px' }}>Open</th>
                 <th style={{ fontWeight: 500, padding: '3px 8px' }}>Closed</th>
+                <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Fees</th>
                 <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>P&amp;L</th>
               </tr>
             </thead>
@@ -86,6 +87,7 @@ function MonthPositionsTable({ positions, colSpan }: { positions: JournalPositio
                   <td style={{ padding: '4px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{stratLabel(p.strategy ?? 'unlabelled')}</td>
                   <td style={{ padding: '4px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtTradeDate(p.dateOpen)}</td>
                   <td style={{ padding: '4px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{p.dateClosed ? fmtTradeDate(p.dateClosed) : '—'}</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-4)' }}>{fmtDollar(p.openFees + (p.closeFees ?? 0))}</td>
                   <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 700, color: pnlColor(p.pnl ?? 0) }}>{fmtDollar(p.pnl ?? 0)}</td>
                 </tr>
               ))}
@@ -141,6 +143,8 @@ export default function MonthlyIncomeView({ state, tradeLabels, fy }: { state: A
         const monthTotal = (m: string) => [...block.byMonth.get(m)!.values()].reduce((s, v) => s + v, 0)
         const stratTotal = (s: string) => block.months.reduce((sum, m) => sum + (block.byMonth.get(m)!.get(s) ?? 0), 0)
         const grandTotal = block.months.reduce((sum, m) => sum + monthTotal(m), 0)
+        const monthFees = (m: string) => (block.positionsByMonth.get(m) ?? []).reduce((s, p) => s + p.openFees + (p.closeFees ?? 0), 0)
+        const grandFees = block.months.reduce((sum, m) => sum + monthFees(m), 0)
         return (
           <div key={block.fy}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.05em', margin: '2px 0' }}>
@@ -155,6 +159,7 @@ export default function MonthlyIncomeView({ state, tradeLabels, fy }: { state: A
                       {block.strategyList.map(s => (
                         <th key={s} style={{ textAlign: 'right' }}>{stratLabel(s)}</th>
                       ))}
+                      <th style={{ textAlign: 'right' }}>Fees</th>
                       <th style={{ textAlign: 'right', fontWeight: 800 }}>Total</th>
                     </tr>
                   </thead>
@@ -178,9 +183,10 @@ export default function MonthlyIncomeView({ state, tradeLabels, fy }: { state: A
                                 </td>
                               )
                             })}
+                            <td className="mono" style={{ textAlign: 'right', color: 'var(--text-4)', whiteSpace: 'nowrap' }}>{fmtDollar(monthFees(m))}</td>
                             <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(monthTotal(m)), whiteSpace: 'nowrap' }}>{fmtDollar(monthTotal(m))}</td>
                           </tr>
-                          {isOpen && <MonthPositionsTable positions={block.positionsByMonth.get(m) ?? []} colSpan={block.strategyList.length + 2} />}
+                          {isOpen && <MonthPositionsTable positions={block.positionsByMonth.get(m) ?? []} colSpan={block.strategyList.length + 3} />}
                         </>
                       )
                     })}
@@ -189,6 +195,7 @@ export default function MonthlyIncomeView({ state, tradeLabels, fy }: { state: A
                       {block.strategyList.map(s => (
                         <td key={s} className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(stratTotal(s)), whiteSpace: 'nowrap' }}>{fmtDollar(stratTotal(s))}</td>
                       ))}
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{fmtDollar(grandFees)}</td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 800, color: pnlColor(grandTotal) }}>{fmtDollar(grandTotal)}</td>
                     </tr>
                   </tbody>

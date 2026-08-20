@@ -172,6 +172,7 @@ function KpiStrip({ state }: { state: AppState }) {
     { label: 'Open Premium',  value: fmtDollar(openPremium),    color: 'var(--text-1)' },
     { label: 'Closed',        value: String(s.trades),          color: 'var(--text-1)' },
     { label: 'Streak',        value: s.currentStreak === 0 ? '—' : `${s.currentStreak > 0 ? 'W' : 'L'}${Math.abs(s.currentStreak)}`, color: 'var(--text-1)' },
+    { label: 'Total Fees',    value: fmtDollar(s.totalFees),     color: 'var(--text-2)' },
   ]
 
   return (
