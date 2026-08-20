@@ -272,8 +272,10 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
           </linearGradient>
         </defs>
         {fyBands.map((b, bi) => (
-          <rect key={b.i} x={x(b.i)} y={PT} width={Math.max(0, x(b.endI) - x(b.i))} height={H - PT - PB}
-            fill={bi % 2 === 0 ? 'var(--text-5)' : 'transparent'} opacity={0.08} />
+          bi % 2 === 0 && (
+            <rect key={b.i} x={x(b.i)} y={PT} width={Math.max(0, x(b.endI) - x(b.i))} height={H - PT - PB}
+              fill="#f59e0b" opacity={0.14} />
+          )
         ))}
         {gridVals.map((v, i) => (
           <line key={i} x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="rgba(16,185,129,0.08)" strokeWidth="0.15" vectorEffect="non-scaling-stroke" />
