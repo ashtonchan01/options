@@ -10,7 +10,8 @@ import { useMemo } from 'react'
 import type { AppState } from '../../types'
 import type { Account } from '../../store/accountsStore'
 import { buildJournalPositions, buildStockPositions, closedByDate, computeStats, openPremiumTotal, equityCurve, type EquityPoint } from '../../engine/journal'
-import { PortfolioSummaryCard, AllocationPieCard } from '../analytics/AnalyticsView'
+import { PortfolioSummaryCard } from '../analytics/AnalyticsView'
+import { PortfolioPie, currentAllocationSlices, fmt$ as fmtAllocation } from '../allocation/PortfolioAllocationView'
 import AccountUploadBar from '../shared/AccountUploadBar'
 import FlexSyncBar from '../shared/FlexSyncBar'
 
@@ -269,8 +270,14 @@ export default function OverviewView({ state, account, loading, error, onUpload,
                 <MonthlyPnlChart state={state} />
               </div>
             </div>
-            <div style={{ minHeight: 0, display: 'flex' }}>
-              <AllocationPieCard state={state} />
+            <div className="dash-panel" style={{ minHeight: 0 }}>
+              <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Allocation by Position</span></div>
+              <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {(() => {
+                  const { slices, total } = currentAllocationSlices(state)
+                  return <PortfolioPie slices={slices} centerLabel="Current" centerValue={fmtAllocation(total)} labelMode="pct" />
+                })()}
+              </div>
             </div>
           </div>
         </>

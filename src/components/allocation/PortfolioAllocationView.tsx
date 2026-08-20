@@ -17,7 +17,7 @@ import { fetchRSI, type RsiData } from '../../services/rsi'
 import { loadUserData, saveUserData } from '../../services/userData'
 import { meanReversionSignal, SIGNAL_STYLE } from '../../services/signal'
 
-function fmt$(n: number): string {
+export function fmt$(n: number): string {
   const abs = Math.abs(n)
   const sign = n < 0 ? '-' : ''
   if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`
@@ -25,7 +25,7 @@ function fmt$(n: number): string {
   return `${sign}$${abs.toFixed(0)}`
 }
 
-function tickerColor(i: number): string {
+export function tickerColor(i: number): string {
   const hue = (i * 47) % 360
   return `hsl(${hue}, 62%, 55%)`
 }
@@ -53,7 +53,7 @@ interface Holding { symbol: string; shares: number; avgCost: number; value: numb
  * don't. Their combined mark value is returned separately so the caller can
  * fold it into cash instead — the premium collected/paid for them already
  * lives in cash, so that's where their current gain/loss actually sits. */
-function holdingsFromPositions(positions: RawPosition[]): { holdings: Holding[]; nakedOptionsValue: number } {
+export function holdingsFromPositions(positions: RawPosition[]): { holdings: Holding[]; nakedOptionsValue: number } {
   const stkSymbols = new Set(
     positions.filter(p => p.assetClass === 'STK' && Math.abs(p.quantity) > 1e-6).map(p => p.symbol),
   )
@@ -88,7 +88,7 @@ function holdingsFromPositions(positions: RawPosition[]): { holdings: Holding[];
  * generic .csv/.xlsx/.pdf statement upload that has no positions snapshot.
  * Value is the remaining cost basis (what's actually invested), not a live
  * mark — used only as a fallback when there's no real positions data. */
-function holdingsFromTrades(trades: RawTrade[]): Holding[] {
+export function holdingsFromTrades(trades: RawTrade[]): Holding[] {
   const bySymbol = new Map<string, { shares: number; costBasis: number }>()
   for (const t of trades) {
     if (t.assetClass !== 'STK') continue
@@ -154,13 +154,35 @@ function migrateOldPerAccountTargets(accountId: string): TargetsState | null {
   }
 }
 
-interface Slice { label: string; value: number; color: string; shares?: number }
+export interface Slice { label: string; value: number; color: string; shares?: number }
 
-type LabelMode = 'pct' | 'dollar'
+export type LabelMode = 'pct' | 'dollar'
+
+/** Same "Current Allocation" slice set the Allocation tab's pie uses — real
+ * mark-to-market holdings (stocks + their own written options folded in),
+ * cash (including naked options' mark value), and an "Other" catch-all so
+ * the pie's total always reconciles to net liquidation instead of silently
+ * falling short of it. Exported so other pages (e.g. Overview) show the
+ * exact same allocation breakdown instead of a different, narrower one. */
+export function currentAllocationSlices(state: { sync: { positions: RawPosition[]; trades: RawTrade[]; cashBalance?: number; netLiquidation?: number } }): { slices: Slice[]; total: number } {
+  const { holdings, nakedOptionsValue } = state.sync.positions.length > 0
+    ? holdingsFromPositions(state.sync.positions)
+    : { holdings: holdingsFromTrades(state.sync.trades), nakedOptionsValue: 0 }
+  const holdingsValue = holdings.reduce((s, h) => s + h.value, 0)
+  const cashBalance = (state.sync.cashBalance ?? 0) + nakedOptionsValue
+  const total = state.sync.netLiquidation ?? (holdingsValue + cashBalance)
+  const otherValue = Math.max(0, total - holdingsValue - cashBalance)
+  const slices: Slice[] = [
+    ...holdings.map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i), shares: h.shares })),
+    ...(cashBalance > 0 ? [{ label: 'CASH', value: cashBalance, color: '#10b981' }] : []),
+    ...(otherValue > 0 ? [{ label: 'OTHER', value: otherValue, color: 'var(--text-5)' }] : []),
+  ]
+  return { slices, total }
+}
 
 /** Google-Sheets-style pie: labels sit outside the circle with a bent leader
  * line back to the wedge, instead of a separate legend list. */
-function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { slices: Slice[]; centerLabel: string; centerValue: string; labelMode: LabelMode }) {
+export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { slices: Slice[]; centerLabel: string; centerValue: string; labelMode: LabelMode }) {
   const total = slices.reduce((s, x) => s + x.value, 0)
   const W = 440, H = 260, CX = 220, CY = 130, R = 68
   const LABEL_ROW_H = 15
