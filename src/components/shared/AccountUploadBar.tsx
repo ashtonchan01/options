@@ -49,7 +49,7 @@ export default function AccountUploadBar({ label, fileName, uploadedAt, loading,
         <input ref={fileRef} type="file" accept=".xml,.csv,.xlsx,.xls,.pdf" multiple style={{ display: 'none' }} onChange={handleFile} disabled={loading} />
       </label>
       <span style={{ fontSize: 11, color: 'var(--text-4)' }}>
-        Accepts an IBKR Flex .xml export, or a .csv/.xlsx/.xls/.pdf statement (Date/Symbol/Quantity/Price columns) — select multiple files (e.g. several financial years) to import them all at once.
+        Works with statements from any broker — an IBKR Flex .xml export, or a .csv/.xlsx/.xls/.pdf statement (Moomoo, etc. — needs Date/Symbol/Quantity/Price columns) — select multiple files (e.g. several financial years) to import them all at once.
       </span>
       {fileName && (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>
