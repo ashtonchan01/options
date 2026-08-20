@@ -48,8 +48,11 @@ function fmtMonthFull(ym: string) {
 // stopped being a fixed size. HTML text ignores the SVG's viewBox entirely,
 // so one fixed CSS font size actually looks the same size everywhere,
 // regardless of how big any chart's panel grows.
+// Matches the KPI strip immediately above these charts (.label class is
+// 10px, its bold value spans are fontSize 12.5) — chart text at any other
+// size read as inconsistent with the metrics bar right next to it.
 const AXIS_LABEL_SIZE = 10
-const VALUE_LABEL_SIZE = 10.5
+const VALUE_LABEL_SIZE = 12.5
 
 /** Realized P&L by close month, most recent 8 months — same bar-chart shape
  * as the old Monthly Cash Flow chart, but driven off actual closed-position
@@ -230,7 +233,7 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
         {/* Pinned to a fixed corner instead of tracking the curve's actual
             last point — anchoring it at the point itself clipped off-panel
             whenever the series ended near the very top or right edge. */}
-        <span style={{ position: 'absolute', top: 2, right: 4, fontSize: 12, fontWeight: 700, color: '#10b981' }}>
+        <span style={{ position: 'absolute', top: 2, right: 4, fontSize: VALUE_LABEL_SIZE, fontWeight: 700, color: '#10b981' }}>
           {fmtDollar(last.equity)}
         </span>
         {/* Dedupe by index — with few points (e.g. only 2-3 closed trades) the
