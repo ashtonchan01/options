@@ -23,6 +23,10 @@ export interface RawPosition {
   multiplier?: number
   underlyingSymbol?: string
   currency: string
+  // IBKR Flex "Open Positions" level of detail, when the report includes it
+  // ("SUMMARY" vs per-lot "LOT") — used only to dedupe a report that has
+  // both checked, so a multi-lot position doesn't get counted twice.
+  levelOfDetail?: string
 }
 
 export interface RawTrade {
