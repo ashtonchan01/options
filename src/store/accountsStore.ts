@@ -75,9 +75,28 @@ function mergeTrades(existing: RawTrade[], incoming: RawTrade[], fromDate?: stri
     // No declared window — fall back to a straight union, deduped by key,
     // incoming wins on collision (a trade already cached can be missing a
     // field a later parser fix started populating).
+    //
+    // The key alone (date|symbol|quantity|price) isn't unique per trade —
+    // a systematic accumulation strategy genuinely buying the same 100
+    // shares of the same ETF at the same price on the same day more than
+    // once (verified against a real multi-year Moomoo export: 13 such
+    // trades) would collapse those separate real trades into one, silently
+    // understating cost basis. Appending each key's occurrence rank makes
+    // the map operate as a multiset: re-uploading the same data still
+    // replaces 1:1 by matching rank (so it stays idempotent), but a
+    // genuinely repeated trade beyond how many existed before is kept as
+    // its own entry instead of overwriting an unrelated one.
+    const rank = new Map<string, number>()
+    function keyed(t: RawTrade): string {
+      const base = `${t.tradeDate}|${t.symbol}|${t.quantity}|${t.tradePrice}`
+      const n = (rank.get(base) ?? 0) + 1
+      rank.set(base, n)
+      return `${base}|${n}`
+    }
     const byKey = new Map<string, RawTrade>()
-    for (const t of existing) byKey.set(`${t.tradeDate}|${t.symbol}|${t.quantity}|${t.tradePrice}`, t)
-    for (const t of incoming) byKey.set(`${t.tradeDate}|${t.symbol}|${t.quantity}|${t.tradePrice}`, t)
+    for (const t of existing) byKey.set(keyed(t), t)
+    rank.clear()
+    for (const t of incoming) byKey.set(keyed(t), t)
     return [...byKey.values()]
   }
   return [...before, ...incoming]
