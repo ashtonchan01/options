@@ -192,9 +192,18 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
       <text x={x(points.length - 1) - 6} y={y(last.equity) - 8} textAnchor="end" fill="#10b981" fontSize="11" fontWeight="700" fontFamily="Inter, sans-serif">
         {fmtDollar(last.equity)}
       </text>
-      {[points[0], mid, last].map((p, i) => (
-        <text key={i} x={x(i === 0 ? 0 : i === 1 ? Math.floor(points.length / 2) : points.length - 1)} y={H - 8}
-          textAnchor={i === 0 ? 'start' : i === 1 ? 'middle' : 'end'} fill="var(--text-4)" fontSize="10" fontFamily="Inter, sans-serif">
+      {/* Dedupe by index — with few points (e.g. only 2-3 closed trades) the
+          "middle" and/or first/last indices can coincide, which used to
+          render the same date label twice on top of itself at the same x
+          position. */}
+      {[...new Map([
+        [0, points[0]],
+        [Math.floor(points.length / 2), mid],
+        [points.length - 1, last],
+      ]).entries()].map(([idx, p]) => (
+        <text key={idx} x={x(idx)} y={H - 8}
+          textAnchor={idx === 0 ? 'start' : idx === points.length - 1 ? 'end' : 'middle'}
+          fill="var(--text-4)" fontSize="10" fontFamily="Inter, sans-serif">
           {fmtDateShort(p.date)}
         </text>
       ))}
