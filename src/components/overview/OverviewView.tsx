@@ -58,7 +58,13 @@ function MonthlyPnlChart({ state }: { state: AppState }) {
   const rows = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-8)
   if (rows.length === 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No closed trades yet</div>
 
-  const W = 380, H = 178, PL = 42, PR = 8, PT = 22, PB = 26
+  // W widened from the old 380 — this chart's column is nearly as wide as
+  // the Equity Curve's (viewBox 1000), and a narrow viewBox stretched over
+  // that much real width scaled the fixed font-size units up along with it,
+  // making the bar labels look oversized next to the other charts on this
+  // page. A wider viewBox at the same font sizes keeps text proportionate
+  // regardless of how wide the column actually renders.
+  const W = 760, H = 178, PL = 60, PR = 12, PT = 22, PB = 26
   const maxAbs = Math.max(...rows.map(([, v]) => Math.abs(v)), 1)
   const y0 = PT + (H - PT - PB) / 2
   const LABEL_ROOM = 16
@@ -262,7 +268,14 @@ export default function OverviewView({ state, account, loading, error, onUpload,
               instructions above adds real height that these panels have no
               business absorbing, so they now hold their size and the page
               scrolls for it instead. */}
-          <div className="dash-panel" style={{ flex: '1.3 1 0', minHeight: 260 }}>
+          {/* maxHeight on all three of these — on a tall viewport, flex:1.3/
+              flex:1 happily grows them to fill whatever's left over, which
+              stretched the Equity Curve's fixed-viewBox font sizes up along
+              with it (correct aspect ratio, but oversized text next to
+              everything else on the page). Capping height keeps the charts
+              — and the text sized relative to them — at a consistent scale
+              regardless of window height. */}
+          <div className="dash-panel" style={{ flex: '1.3 1 0', minHeight: 260, maxHeight: 340 }}>
             <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Equity Curve</span></div>
             <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
               <EquityChart points={equityCurve(closedByDate([
@@ -271,7 +284,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
               ]))} />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 10, flex: '1 1 0', minHeight: 260 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 10, flex: '1 1 0', minHeight: 260, maxHeight: 300 }}>
             <div className="dash-panel" style={{ minHeight: 0 }}>
               <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Monthly Realised P&amp;L</span></div>
               <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
@@ -287,7 +300,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
                   Clipping here + capping the pie's own width keeps it inside
                   its cell. */}
               <div style={{ flex: '1 1 0', minHeight: 0, width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ width: '100%', maxWidth: 340 }}>
+                <div style={{ width: '100%', maxWidth: 380 }}>
                   {(() => {
                     const { slices, total } = currentAllocationSlices(state)
                     return <PortfolioPie slices={slices} centerLabel="Current" centerValue={fmtAllocation(total)} labelMode="pct" />
