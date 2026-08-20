@@ -6,12 +6,13 @@
  * streak, etc.), an equity curve, a monthly realized-P&L bar chart, and the
  * current portfolio allocation pie.
  */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { AppState } from '../../types'
 import type { Account } from '../../store/accountsStore'
 import { buildJournalPositions, buildStockPositions, closedByDate, computeStats, openPremiumTotal, equityCurve, type EquityPoint } from '../../engine/journal'
 import { PortfolioSummaryCard } from '../analytics/AnalyticsView'
 import { PortfolioPie, currentAllocationSlices, fmt$ as fmtAllocation } from '../allocation/PortfolioAllocationView'
+import { fyOf } from '../companies/reportsShared'
 import AccountUploadBar from '../shared/AccountUploadBar'
 import FlexSyncBar from '../shared/FlexSyncBar'
 
@@ -60,7 +61,7 @@ const VALUE_LABEL_SIZE = 12.5
  * as the old Monthly Cash Flow chart, but driven off actual closed-position
  * P&L (buildJournalPositions/buildStockPositions) rather than raw trade cash
  * flow, so it agrees with the Win Rate/Reports numbers next to it. */
-function MonthlyPnlChart({ state }: { state: AppState }) {
+function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: string; onFyChange: (fy: string) => void }) {
   const closed = [
     ...buildJournalPositions(state.sync.trades, {}),
     ...buildStockPositions(state.sync.trades, {}),
@@ -72,8 +73,20 @@ function MonthlyPnlChart({ state }: { state: AppState }) {
     if (!key) continue
     byMonth.set(key, (byMonth.get(key) ?? 0) + p.pnl!)
   }
-  const rows = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-8)
-  if (rows.length === 0) return <div className="db-empty-msg" style={{ minHeight: 140 }}>No closed trades yet</div>
+  const fyOptions = [...new Set(closed.map(p => fyOf(p.dateClosed!)))]
+    .sort((a, b) => b.startYear - a.startYear)
+
+  const allRows = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  // '' (nothing picked yet) keeps the chart's original "last 8 months"
+  // behavior; 'all' shows every month ever; anything else is one FY's months.
+  const rows = fy === '' ? allRows.slice(-8)
+    : fy === 'all' ? allRows
+    : allRows.filter(([key]) => fyOf(`${key}-01`).key === fy)
+  if (rows.length === 0) return (
+    <div className="db-empty-msg" style={{ minHeight: 140 }}>
+      {closed.length === 0 ? 'No closed trades yet' : 'No closed trades in that financial year'}
+    </div>
+  )
 
   const W = 100, H = 100, PL = 12, PR = 1, PT = 10, PB = 12
   const maxAbs = Math.max(...rows.map(([, v]) => Math.abs(v)), 1)
@@ -86,8 +99,19 @@ function MonthlyPnlChart({ state }: { state: AppState }) {
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px 2px', fontFamily: 'Inter, sans-serif', flex: '0 0 auto' }}>
-        <span style={{ fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>Last {rows.length} months</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px 2px', fontFamily: 'Inter, sans-serif', flex: '0 0 auto', gap: 8 }}>
+        <select
+          value={fy}
+          onChange={e => onFyChange(e.target.value)}
+          style={{
+            fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)', background: 'transparent',
+            border: 'none', fontFamily: 'Inter, sans-serif', cursor: 'pointer', padding: 0,
+          }}
+        >
+          <option value="">Last 8 months</option>
+          <option value="all">All time</option>
+          {fyOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+        </select>
         <span style={{ fontSize: VALUE_LABEL_SIZE, fontWeight: 700, color: total >= 0 ? '#10b981' : '#ef4444' }}>
           Net {total >= 0 ? '+' : ''}{fmtDollar(total)}
         </span>
@@ -210,6 +234,14 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
   const last = points[points.length - 1]
   const mid = points[Math.floor(points.length / 2)]
 
+  // Financial-year boundaries — every point where the FY changes from the
+  // previous one gets a dividing line + label, so multi-year curves show
+  // where each FY starts instead of reading as one undifferentiated slope.
+  const fyBoundaries = points.flatMap((p, i) => {
+    if (i === 0) return [{ i, label: fyOf(p.date).label }]
+    return fyOf(p.date).key !== fyOf(points[i - 1].date).key ? [{ i, label: fyOf(p.date).label }] : []
+  })
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
@@ -223,6 +255,9 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
           <line key={i} x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="rgba(16,185,129,0.08)" strokeWidth="0.15" vectorEffect="non-scaling-stroke" />
         ))}
         {min < 0 && <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="rgba(239,68,68,0.35)" strokeWidth="0.15" strokeDasharray="1.2 0.9" vectorEffect="non-scaling-stroke" />}
+        {fyBoundaries.filter(b => b.i > 0).map(b => (
+          <line key={b.i} x1={x(b.i)} x2={x(b.i)} y1={PT} y2={H - PB} stroke="var(--text-5)" strokeWidth="0.2" strokeDasharray="0.8 0.8" vectorEffect="non-scaling-stroke" />
+        ))}
         <path d={area} fill="url(#ov-eq-fill)" />
         <path d={line} fill="none" stroke="#10b981" strokeWidth="0.5" vectorEffect="non-scaling-stroke" style={{ filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.45))' }} />
         <circle cx={x(points.length - 1)} cy={y(last.equity)} r="1" fill="#10b981" vectorEffect="non-scaling-stroke" />
@@ -231,6 +266,15 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
         {gridVals.map((v, i) => (
           <span key={i} style={{ position: 'absolute', left: 2, top: `${(y(v) / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>
             {fmtDollar(v)}
+          </span>
+        ))}
+        {fyBoundaries.map(b => (
+          <span key={b.i} style={{
+            position: 'absolute', left: `${(x(b.i) / W) * 100}%`, top: `${((PT - 3) / H) * 100}%`,
+            transform: b.i === 0 ? 'translate(0, -100%)' : 'translate(-50%, -100%)',
+            fontSize: AXIS_LABEL_SIZE, fontWeight: 600, color: 'var(--text-4)', whiteSpace: 'nowrap',
+          }}>
+            {b.label}
           </span>
         ))}
         {/* Pinned to a fixed corner instead of tracking the curve's actual
@@ -273,6 +317,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
   onSyncFlex: (token: string, queryId: string) => void
 }) {
   const hasData = state.sync.trades.length > 0
+  const [monthlyFy, setMonthlyFy] = useState('')
 
   return (
     <div className="jr-root" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -331,7 +376,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
             <div className="dash-panel ov-monthly-panel" style={{ minHeight: 0 }}>
               <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Monthly Realised P&amp;L</span></div>
               <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
-                <MonthlyPnlChart state={state} />
+                <MonthlyPnlChart state={state} fy={monthlyFy} onFyChange={setMonthlyFy} />
               </div>
             </div>
             <div className="dash-panel ov-pie-panel" style={{ minHeight: 0, overflow: 'hidden' }}>
@@ -353,7 +398,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
                 <div style={{ width: '100%', maxWidth: 440 }}>
                   {(() => {
                     const { slices, total } = currentAllocationSlices(state)
-                    return <PortfolioPie slices={slices} centerLabel="Current" centerValue={fmtAllocation(total)} labelMode="pct" />
+                    return <PortfolioPie slices={slices} centerLabel="Current" centerValue={fmtAllocation(total)} labelMode="pct" radius={92} />
                   })()}
                 </div>
               </div>
