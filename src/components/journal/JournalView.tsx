@@ -1,15 +1,14 @@
 /**
  * Trade Journal building blocks — Edgewonk-style journal & analytics over IBKR
- * Flex data. Exports OverviewTab (Portfolio Summary key metrics) and
- * JournalTab (per-position setup/mistake/rating/notes), both rendered as
- * columns on the Journal tab (see JournalPageView.tsx).
+ * Flex data. Exports JournalTab (per-position setup/mistake/rating/notes),
+ * rendered alongside the Actions sidebar on the Journal tab (see
+ * JournalPageView.tsx).
  */
 import { useMemo, useState } from 'react'
 import { type JournalPosition } from '../../engine/journal'
 import { MISTAKES, type JournalEntry } from '../../store/journalStore'
 import { tradeId } from '../../store/tradeLabelsStore'
-import type { AppState, RawPosition, RawTrade } from '../../types'
-import { PortfolioSummaryPanel } from '../analytics/AnalyticsView'
+import type { RawPosition, RawTrade } from '../../types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -70,18 +69,6 @@ const LABEL_SHORT: Record<string, string> = {
   ptos: 'PTOS', dcas: 'DCAS', profit_taking: 'PT', lilo: 'LILO',
   arb_cloud: 'ARB', tabi: 'TABI', forex: 'FX', assignment: 'ASGN', unlabelled: '—',
   put_spread: 'BPS', shares: 'SHARES',
-}
-
-// ─── Overview sub-view ────────────────────────────────────────────────────────
-
-export function OverviewTab({ state }: { state: AppState }) {
-  // KPI chips + Equity Curve dropped — just the Portfolio Summary (key
-  // metrics) strip now, so the Trade Journal table below gets the space.
-  return (
-    <div className="jr-overview-compact">
-      <PortfolioSummaryPanel state={state} />
-    </div>
-  )
 }
 
 // ─── Journal sub-view ─────────────────────────────────────────────────────────

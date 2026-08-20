@@ -1,12 +1,13 @@
 /**
- * Journal tab — Journal Overview (Portfolio Summary key metrics) and Trade
- * Journal (per-position setup/mistake/rating/notes) stacked, side by side
- * with the Actions sidebar.
+ * Journal tab — Trade Journal (per-position setup/mistake/rating/notes),
+ * side by side with the Actions sidebar. The key-metrics summary that used
+ * to sit above this (Journal Overview / Portfolio Summary panel) now lives
+ * on the account's Overview tab instead.
  */
 import { useMemo } from 'react'
 import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
-import { OverviewTab, JournalTab } from './JournalView'
+import { JournalTab } from './JournalView'
 import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
 import { useJournalStore } from '../../store/journalStore'
 import { ActionsSidebar } from '../analytics/AnalyticsView'
@@ -34,10 +35,6 @@ export default function JournalPageView({ state, tradeLabels, sessionKey }: { st
   return (
     <div className="jr-page-row">
       <div className="jr-stacked">
-        <div className="jr-stacked-top jr-root">
-          <div className="cc-section-title" style={{ padding: 0 }}>Journal Overview</div>
-          {hasTrades ? <OverviewTab state={state} /> : <NoTradeData />}
-        </div>
         <div className="jr-stacked-bottom jr-root">
           {hasTrades ? (
             <JournalTab positions={positions} livePositions={state.sync.positions} trades={state.sync.trades} entries={entries} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />

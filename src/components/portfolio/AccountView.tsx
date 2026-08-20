@@ -21,17 +21,17 @@
 import { useState } from 'react'
 import type { TradeLabels } from '../../App'
 import type { Account } from '../../store/accountsStore'
+import OverviewView from '../overview/OverviewView'
 import CalendarView from '../calendar/CalendarView'
 import JournalPageView from '../journal/JournalPageView'
 import PortfolioAllocationView from '../allocation/PortfolioAllocationView'
 import CompaniesView from '../companies/CompaniesView'
-import AccountUploadBar from '../shared/AccountUploadBar'
-import FlexSyncBar from '../shared/FlexSyncBar'
 import { accountToAppState } from '../shared/syntheticAccountState'
 
-type Section = 'calendar' | 'journal' | 'reports' | 'allocation'
+type Section = 'overview' | 'calendar' | 'journal' | 'reports' | 'allocation'
 
 const SECTION_TABS: { id: Section; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'journal', label: 'Journal' },
   { id: 'reports', label: 'Reports' },
@@ -49,7 +49,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
   watchlistTickers: string[]
   sessionKey: string | null
 }) {
-  const [section, setSection] = useState<Section>('reports')
+  const [section, setSection] = useState<Section>('overview')
   const accountState = accountToAppState(account)
 
   return (
@@ -67,28 +67,23 @@ export default function AccountView({ account, loading, error, onUpload, onClear
           ))}
         </div>
 
-        <div className={`av-section-body${section === 'calendar' ? ' av-section-calendar' : ''}`} style={{ flex: 1, minHeight: 0, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
+        <div className={`av-section-body${section === 'calendar' ? ' av-section-calendar' : ''}`} style={{ flex: 1, minHeight: 0, overflow: section === 'reports' || section === 'overview' ? 'auto' : 'hidden' }}>
+          {section === 'overview' && (
+            <OverviewView
+              state={accountState}
+              account={account}
+              loading={loading}
+              error={error}
+              onUpload={onUpload}
+              onClear={onClear}
+              onSyncFlex={onSyncFlex}
+            />
+          )}
           {section === 'calendar' && <CalendarView state={accountState} watchlistTickers={watchlistTickers} />}
           {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} sessionKey={sessionKey} />}
           {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} sessionKey={sessionKey} />}
           {section === 'reports' && (
             <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>
-              <FlexSyncBar
-                savedToken={account.flexToken}
-                savedQueryId={account.flexQueryId}
-                loading={loading}
-                error={error}
-                onSync={onSyncFlex}
-              />
-              <AccountUploadBar
-                label={account.name}
-                fileName={account.fileName}
-                uploadedAt={account.uploadedAt}
-                loading={loading}
-                error={error}
-                onUpload={onUpload}
-                onClear={onClear}
-              />
               <CompaniesView state={accountState} tradeLabels={tradeLabels} />
             </div>
           )}
