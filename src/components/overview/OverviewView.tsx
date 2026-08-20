@@ -67,14 +67,14 @@ function MonthlyPnlChart({ state }: { state: AppState }) {
   const total = rows.reduce((s, [, v]) => s + v, 0)
 
   return (
-    <div style={{ width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px 2px', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px 2px', fontFamily: 'Inter, sans-serif', flex: '0 0 auto' }}>
         <span style={{ fontSize: 10, color: 'var(--text-4)' }}>Last {rows.length} months</span>
         <span style={{ fontSize: 11, fontWeight: 700, color: total >= 0 ? '#10b981' : '#ef4444' }}>
           Net {total >= 0 ? '+' : ''}{fmtDollar(total)}
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', flex: '1 1 0', minHeight: 0, display: 'block' }}>
         <line x1={PL} x2={W - PR} y1={PT} y2={PT} stroke="var(--border-light)" strokeWidth="0.5" strokeDasharray="2,2" />
         <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="var(--border-light)" strokeWidth="1" />
         <line x1={PL} x2={W - PR} y1={H - PB} y2={H - PB} stroke="var(--border-light)" strokeWidth="0.5" strokeDasharray="2,2" />
@@ -214,9 +214,9 @@ export default function OverviewView({ state, account, loading, error, onUpload,
   const hasData = state.sync.trades.length > 0
 
   return (
-    <div className="jr-root" style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'stretch' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="jr-root ov-root" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'stretch', flex: '0 0 auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <FlexSyncBar
             savedToken={account.flexToken}
             savedQueryId={account.flexQueryId}
@@ -243,24 +243,26 @@ export default function OverviewView({ state, account, loading, error, onUpload,
         </div>
       ) : (
         <>
-          <KpiStrip state={state} />
-          <div className="dash-panel" style={{ minHeight: 320 }}>
-            <div className="dash-panel-header"><span>Equity Curve</span></div>
-            <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}>
+          <div style={{ flex: '0 0 auto' }}><KpiStrip state={state} /></div>
+          <div className="dash-panel" style={{ flex: '1.3 1 0', minHeight: 0 }}>
+            <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Equity Curve</span></div>
+            <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
               <EquityChart points={equityCurve(closedByDate([
                 ...buildJournalPositions(state.sync.trades, {}),
                 ...buildStockPositions(state.sync.trades, {}),
               ]))} />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 12 }}>
-            <div className="dash-panel">
-              <div className="dash-panel-header"><span>Monthly Realised P&amp;L</span></div>
-              <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 10, flex: '1 1 0', minHeight: 0 }}>
+            <div className="dash-panel" style={{ minHeight: 0 }}>
+              <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Monthly Realised P&amp;L</span></div>
+              <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
                 <MonthlyPnlChart state={state} />
               </div>
             </div>
-            <AllocationPieCard state={state} />
+            <div style={{ minHeight: 0, display: 'flex' }}>
+              <AllocationPieCard state={state} />
+            </div>
           </div>
         </>
       )}
