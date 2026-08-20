@@ -87,7 +87,7 @@ export default function FlexSyncBar({ savedToken, savedQueryId, loading, error, 
       background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-2)' }}>IBKR Flex Web Service</span>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-1)' }}>IBKR Flex Web Service</span>
         {hasSaved && !expanded ? (
           <>
             <span style={{ fontSize: 11, color: 'var(--text-4)' }}>Query ID {savedQueryId}</span>

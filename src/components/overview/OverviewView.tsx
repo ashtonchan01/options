@@ -10,7 +10,7 @@ import { useMemo } from 'react'
 import type { AppState } from '../../types'
 import type { Account } from '../../store/accountsStore'
 import { buildJournalPositions, buildStockPositions, closedByDate, computeStats, openPremiumTotal, equityCurve, type EquityPoint } from '../../engine/journal'
-import { PortfolioSummaryPanel, AllocationPieCard } from '../analytics/AnalyticsView'
+import { PortfolioSummaryCard, AllocationPieCard } from '../analytics/AnalyticsView'
 import AccountUploadBar from '../shared/AccountUploadBar'
 import FlexSyncBar from '../shared/FlexSyncBar'
 
@@ -138,8 +138,8 @@ function KpiStrip({ state }: { state: AppState }) {
     <div className="jr-mini-strip">
       {stats.map(c => (
         <div key={c.label} className="jr-mini">
-          <span style={{ color: 'var(--text-4)' }}>{c.label}</span>
-          <b style={{ color: c.color }}>{c.value}</b>
+          <span className="label">{c.label}</span>
+          <b style={{ fontSize: 12.5, color: c.color }}>{c.value}</b>
         </div>
       ))}
     </div>
@@ -215,22 +215,27 @@ export default function OverviewView({ state, account, loading, error, onUpload,
 
   return (
     <div className="jr-root" style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <FlexSyncBar
-        savedToken={account.flexToken}
-        savedQueryId={account.flexQueryId}
-        loading={loading}
-        error={error}
-        onSync={onSyncFlex}
-      />
-      <AccountUploadBar
-        label={account.name}
-        fileName={account.fileName}
-        uploadedAt={account.uploadedAt}
-        loading={loading}
-        error={error}
-        onUpload={onUpload}
-        onClear={onClear}
-      />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'stretch' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <FlexSyncBar
+            savedToken={account.flexToken}
+            savedQueryId={account.flexQueryId}
+            loading={loading}
+            error={error}
+            onSync={onSyncFlex}
+          />
+          <AccountUploadBar
+            label={account.name}
+            fileName={account.fileName}
+            uploadedAt={account.uploadedAt}
+            loading={loading}
+            error={error}
+            onUpload={onUpload}
+            onClear={onClear}
+          />
+        </div>
+        {hasData && <PortfolioSummaryCard state={state} />}
+      </div>
 
       {!hasData ? (
         <div className="db-empty-msg" style={{ flex: 1 }}>
@@ -238,9 +243,8 @@ export default function OverviewView({ state, account, loading, error, onUpload,
         </div>
       ) : (
         <>
-          <PortfolioSummaryPanel state={state} />
           <KpiStrip state={state} />
-          <div className="dash-panel">
+          <div className="dash-panel" style={{ minHeight: 320 }}>
             <div className="dash-panel-header"><span>Equity Curve</span></div>
             <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}>
               <EquityChart points={equityCurve(closedByDate([
@@ -249,7 +253,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
               ]))} />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 12 }}>
             <div className="dash-panel">
               <div className="dash-panel-header"><span>Monthly Realised P&amp;L</span></div>
               <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}>
