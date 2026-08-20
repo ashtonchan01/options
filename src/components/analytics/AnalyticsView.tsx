@@ -3,6 +3,7 @@ import type { AppState, Action, UrgencyLevel, StrategyType, RawTrade } from '../
 import { tradeId } from '../../store/tradeLabelsStore'
 import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
 import { fetchQuotes, type Quote } from '../../services/quotes'
+import { generateActions } from '../../engine/actions'
 
 // ─── Urgency config ───────────────────────────────────────────────────────────
 
@@ -70,7 +71,32 @@ function fmtDollar(n: number): string {
 // ─── Actions Sidebar ──────────────────────────────────────────────────────────
 
 export function ActionsSidebar({ state }: { state: AppState }) {
-  const { actions } = state
+  // state.actions was generated with NO live prices at all (accountToAppState
+  // calls generateActions(strategies, positions) with no third argument) —
+  // its only price source is an IBKR STK position's own markPrice, which
+  // doesn't exist for a naked short option (a CSP with no shares held, e.g.
+  // SPCX here) even though the Allocation page fetches a live quote for
+  // every underlying regardless of whether shares are held. That's exactly
+  // why the same ticker had a real market price on Allocation but showed
+  // "Live price unavailable" here. Fetching quotes for every strategy's
+  // underlying and re-deriving actions with them fixes that gap without
+  // changing what Allocation already does right.
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({})
+  const underlyingsKey = [...new Set(state.strategies.map(s => s.underlying))].sort().join(',')
+  useEffect(() => {
+    const underlyings = underlyingsKey ? underlyingsKey.split(',') : []
+    if (underlyings.length === 0) { setLivePrices({}); return }
+    let cancelled = false
+    fetchQuotes(underlyings).then(quotes => {
+      if (cancelled) return
+      const prices: Record<string, number> = {}
+      for (const [sym, q] of Object.entries(quotes)) prices[sym] = q.price
+      setLivePrices(prices)
+    })
+    return () => { cancelled = true }
+  }, [underlyingsKey])
+
+  const actions = generateActions(state.strategies, state.sync.positions, livePrices)
 
   const byUrgency = URGENCY_ORDER.reduce<Record<UrgencyLevel, Action[]>>((acc, u) => {
     acc[u] = actions.filter(a => a.urgency === u)
