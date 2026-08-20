@@ -79,7 +79,21 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
   })).values()].sort((a, b) => a.startYear - b.startYear)
 
   const allRows = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  const rows = fy === 'all' ? allRows : allRows.filter(([key]) => fyOf(`${key}-01`).key === fy)
+  // A specific FY always shows its full 12 months (Jul-Jun), zero-filled
+  // where there's no closed trade that month, instead of only the months
+  // that happen to have data — so the chart reads as "this FY's shape" at
+  // a glance instead of silently compressing quiet months out of existence.
+  const fySelected = fy !== 'all' ? fyOptions.find(o => o.key === fy) : undefined
+  const rows = fy === 'all'
+    ? allRows
+    : fySelected
+      ? Array.from({ length: 12 }, (_, i) => {
+          const y = fySelected.startYear + (i < 6 ? 0 : 1)
+          const m = ((i + 6) % 12) + 1
+          const key = `${y}-${String(m).padStart(2, '0')}`
+          return [key, byMonth.get(key) ?? 0] as const
+        })
+      : []
   if (rows.length === 0) return (
     <div className="db-empty-msg" style={{ minHeight: 140 }}>
       {closed.length === 0 ? 'No closed trades yet' : 'No closed trades in that financial year'}
