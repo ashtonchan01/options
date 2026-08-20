@@ -1,10 +1,10 @@
 /**
- * Account content view — Overview / Calendar / Journal / Company P&L /
- * Monthly Income / Allocation for one user-created account. Trades come
- * from either a one-off statement upload or a per-account IBKR Flex Web
- * Service sync (its own Token/Query ID, not a single app-wide primary
- * account) — both feed the same trades array, so everything downstream
- * doesn't care which source populated it.
+ * Account content view — Overview / Calendar / Journal / Reports /
+ * Allocation for one user-created account. Trades come from either a
+ * one-off statement upload or a per-account IBKR Flex Web Service sync
+ * (its own Token/Query ID, not a single app-wide primary account) — both
+ * feed the same trades array, so everything downstream doesn't care which
+ * source populated it.
  *
  * <main> in App.tsx is always `overflow: hidden`, so this component owns
  * being the single bounded box: fixed-height header (the Section tab row)
@@ -13,10 +13,11 @@
  * directly under <main>), so the body wrapper for those stays
  * overflow:hidden and lets the child scroll itself — wrapping them in
  * another scrolling box double-nests overflow and breaks child scrolling
- * (see the .jr-stacked-top / pf-column comments in index.css). Company
- * P&L/Monthly Income (formerly one combined "Reports" page, CompaniesView)
- * don't self-manage overflow, so those get a `jr-root` wrapper (height:100%
- * + its own overflow-y:auto), same as the old standalone ReportsView did.
+ * (see the .jr-stacked-top / pf-column comments in index.css). Reports
+ * (ReportsView — Company P&L and Monthly Income as its own internal
+ * sub-nav) doesn't self-manage overflow, so that gets a `jr-root` wrapper
+ * (height:100% + its own overflow-y:auto), same as the old standalone
+ * ReportsView did.
  */
 import { useState } from 'react'
 import type { TradeLabels } from '../../App'
@@ -25,18 +26,16 @@ import OverviewView from '../overview/OverviewView'
 import CalendarView from '../calendar/CalendarView'
 import JournalPageView from '../journal/JournalPageView'
 import PortfolioAllocationView from '../allocation/PortfolioAllocationView'
-import CompanyPnlView from '../companies/CompanyPnlView'
-import MonthlyIncomeView from '../companies/MonthlyIncomeView'
+import ReportsView from '../companies/ReportsView'
 import { accountToAppState } from '../shared/syntheticAccountState'
 
-type Section = 'overview' | 'calendar' | 'journal' | 'company_pnl' | 'monthly_income' | 'allocation'
+type Section = 'overview' | 'calendar' | 'journal' | 'reports' | 'allocation'
 
 const SECTION_TABS: { id: Section; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'journal', label: 'Journal' },
-  { id: 'company_pnl', label: 'Company P&L' },
-  { id: 'monthly_income', label: 'Monthly Income' },
+  { id: 'reports', label: 'Reports' },
   { id: 'allocation', label: 'Allocation' },
 ]
 
@@ -69,7 +68,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
           ))}
         </div>
 
-        <div className={`av-section-body${section === 'calendar' ? ' av-section-calendar' : ''}`} style={{ flex: 1, minHeight: 0, overflow: section === 'company_pnl' || section === 'monthly_income' ? 'auto' : 'hidden' }}>
+        <div className={`av-section-body${section === 'calendar' ? ' av-section-calendar' : ''}`} style={{ flex: 1, minHeight: 0, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
           {section === 'overview' && (
             <OverviewView
               state={accountState}
@@ -84,14 +83,9 @@ export default function AccountView({ account, loading, error, onUpload, onClear
           {section === 'calendar' && <CalendarView state={accountState} watchlistTickers={watchlistTickers} />}
           {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} sessionKey={sessionKey} />}
           {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} sessionKey={sessionKey} />}
-          {section === 'company_pnl' && (
+          {section === 'reports' && (
             <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>
-              <CompanyPnlView state={accountState} tradeLabels={tradeLabels} />
-            </div>
-          )}
-          {section === 'monthly_income' && (
-            <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>
-              <MonthlyIncomeView state={accountState} tradeLabels={tradeLabels} />
+              <ReportsView state={accountState} tradeLabels={tradeLabels} />
             </div>
           )}
         </div>
