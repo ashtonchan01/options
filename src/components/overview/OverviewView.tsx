@@ -274,7 +274,7 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
         {fyBands.map((b, bi) => (
           bi % 2 === 0 && (
             <rect key={b.i} x={x(b.i)} y={PT} width={Math.max(0, x(b.endI) - x(b.i))} height={H - PT - PB}
-              fill="#f59e0b" opacity={0.14} />
+              fill="#f59e0b" opacity={0.1} />
           )
         ))}
         {gridVals.map((v, i) => (
