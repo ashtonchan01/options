@@ -48,10 +48,12 @@ function fmtMonthFull(ym: string) {
 // stopped being a fixed size. HTML text ignores the SVG's viewBox entirely,
 // so one fixed CSS font size actually looks the same size everywhere,
 // regardless of how big any chart's panel grows.
-// Matches the KPI strip immediately above these charts (.label class is
-// 10px, its bold value spans are fontSize 12.5) — chart text at any other
-// size read as inconsistent with the metrics bar right next to it.
-const AXIS_LABEL_SIZE = 10
+// One single size for every label on every chart on this page — axis
+// labels, bar/line values, month labels, all of it — matching the KPI
+// strip's bold value spans (12.5px) directly above them. Two different
+// sizes (a smaller one for axis text) kept reading as "still too small"
+// next to the KPI strip's uniform size, so there's just one constant now.
+const AXIS_LABEL_SIZE = 12.5
 const VALUE_LABEL_SIZE = 12.5
 
 /** Realized P&L by close month, most recent 8 months — same bar-chart shape
@@ -340,7 +342,14 @@ export default function OverviewView({ state, account, loading, error, onUpload,
                   Clipping here + capping the pie's own width keeps it inside
                   its cell. */}
               <div style={{ flex: '1 1 0', minHeight: 0, width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ width: '100%', maxWidth: 380 }}>
+                {/* maxWidth matches PortfolioPie's own native size (440,
+                    same viewBox width) exactly — capping it any narrower
+                    than that scaled its fixed SVG font sizes down along
+                    with it, undoing the "match the KPI strip" text-size fix
+                    everywhere else on this page. The outer overflow:hidden
+                    wrapper above still catches the rare case where there's
+                    less than 440px of real width to give it. */}
+                <div style={{ width: '100%', maxWidth: 440 }}>
                   {(() => {
                     const { slices, total } = currentAllocationSlices(state)
                     return <PortfolioPie slices={slices} centerLabel="Current" centerValue={fmtAllocation(total)} labelMode="pct" />
