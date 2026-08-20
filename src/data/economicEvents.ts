@@ -1,14 +1,19 @@
 /**
- * Market-moving macro/economic events — currently just FOMC rate-decision
- * days. Live dates are fetched from the Fed's published calendar via
- * src/services/fomc.ts (re-checked weekly); this file only holds a small
- * offline fallback used if that live fetch fails, plus the helper to turn
- * a flat date list into the per-day map the calendar renders.
+ * Market-moving macro/economic events — FOMC rate-decision days, plus the
+ * Kansas City Fed's annual Jackson Hole Economic Symposium (the Fed Chair's
+ * keynote there has moved markets nearly every year — Powell's 2022 "pain"
+ * speech alone triggered a same-day S&P selloff). Live FOMC dates are
+ * fetched from the Fed's published calendar via src/services/fomc.ts
+ * (re-checked weekly); this file holds the offline FOMC fallback used if
+ * that live fetch fails, the Jackson Hole dates (no live source — the KC
+ * Fed doesn't publish a machine-readable calendar for it, so these are
+ * hardcoded same as the FOMC fallback), and the helper that turns both
+ * flat date lists into the per-day map the calendar renders.
  */
 
 export interface EconEvent {
   label: string
-  kind: 'fomc'
+  kind: 'fomc' | 'jackson_hole'
 }
 
 /** Offline fallback only — used if the live federalreserve.gov fetch fails. */
@@ -21,8 +26,20 @@ export const FOMC_FALLBACK_DATES: string[] = [
   '2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09',
 ]
 
-export function buildEconEventMap(fomcDates: string[]): Record<string, EconEvent[]> {
+/** The Friday keynote of the KC Fed's Jackson Hole Economic Symposium (a
+ * Thu-Sat retreat; the Friday morning speech — usually the Fed Chair's —
+ * is the day that actually moves markets, so that's the one marked, same
+ * "one headline day" treatment as FOMC). 2026 date is the Fed's usual
+ * pattern (a Thu-Sat in the last full week of August) — confirm against
+ * the KC Fed's release closer to the date since, unlike FOMC, no live
+ * calendar feed exists for this to auto-correct from. */
+export const JACKSON_HOLE_DATES: string[] = [
+  '2024-08-23', '2025-08-22', '2026-08-28',
+]
+
+export function buildEconEventMap(fomcDates: string[], jacksonHoleDates: string[] = JACKSON_HOLE_DATES): Record<string, EconEvent[]> {
   const map: Record<string, EconEvent[]> = {}
-  for (const d of fomcDates) map[d] = [{ label: 'FOMC', kind: 'fomc' }]
+  for (const d of fomcDates) map[d] = [...(map[d] ?? []), { label: 'FOMC', kind: 'fomc' }]
+  for (const d of jacksonHoleDates) map[d] = [...(map[d] ?? []), { label: 'Jackson Hole', kind: 'jackson_hole' }]
   return map
 }

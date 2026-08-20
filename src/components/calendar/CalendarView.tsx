@@ -267,18 +267,23 @@ function DayCell({
           </div>
         )}
 
-        {/* Economic events (FOMC, etc.) */}
-        {econEvents.map((e, i) => (
-          <div key={`econ-${i}`} data-cal-item style={{
-            fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
-            color: '#a78bfa', background: '#a78bfa14',
-            padding: '1px 4px', marginBottom: 1, borderRadius: 3,
-            textAlign: 'center', border: '1px solid #a78bfa30', flexShrink: 0,
-            fontFamily: 'Inter, sans-serif',
-          }}>
-            {e.label}
-          </div>
-        ))}
+        {/* Economic events (FOMC, Jackson Hole, etc.) — Jackson Hole gets its
+            own color (amber) so it reads as a distinct event type from FOMC
+            (purple) at a glance, not just another purple pill. */}
+        {econEvents.map((e, i) => {
+          const color = e.kind === 'jackson_hole' ? '#f59e0b' : '#a78bfa'
+          return (
+            <div key={`econ-${i}`} data-cal-item title={e.kind === 'jackson_hole' ? 'Jackson Hole Economic Symposium — Fed Chair keynote' : 'FOMC rate decision'} style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
+              color, background: `${color}14`,
+              padding: '1px 4px', marginBottom: 1, borderRadius: 3,
+              textAlign: 'center', border: `1px solid ${color}30`, flexShrink: 0,
+              fontFamily: 'Inter, sans-serif',
+            }}>
+              {e.label}
+            </div>
+          )
+        })}
 
         {/* Earnings badges */}
         {earnings.length > 0 && (
