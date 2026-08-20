@@ -61,7 +61,7 @@ function numAttr(el: Element, ...names: string[]): number {
 // ─── Parsers ──────────────────────────────────────────────────────────────────
 
 function parsePositions(doc: Document): RawPosition[] {
-  const positions = Array.from(doc.querySelectorAll('OpenPosition')).map(el => {
+  let positions = Array.from(doc.querySelectorAll('OpenPosition')).map(el => {
     // IBKR Flex XML uses assetCategory in most reports, assetClass in some
     const ac = attr(el, 'assetCategory', 'assetClass') ?? ''
     const pc = attr(el, 'putCall')
@@ -82,8 +82,26 @@ function parsePositions(doc: Document): RawPosition[] {
       multiplier:       attr(el, 'multiplier') ? Number(attr(el, 'multiplier')) : undefined,
       underlyingSymbol: attr(el, 'underlyingSymbol') ?? undefined,
       currency:         el.getAttribute('currency') ?? 'USD',
+      levelOfDetail:    attr(el, 'levelOfDetail') ?? undefined,
     }
   })
+
+  // A Flex Query with both "Summary" and "Lot" level of detail checked under
+  // Open Positions emits ONE <OpenPosition> row per tax lot AND a separate
+  // SUMMARY row that's already the sum of those lots — querying every
+  // <OpenPosition> element without account for that double-counts
+  // costBasisMoney/positionValue/unrealizedPnL for any position with more
+  // than one lot (verified: a real TSLA 320P CSP reported costBasisMoney
+  // twice over, -$1,707.89 shown instead of IBKR's own -$854 SUMMARY row).
+  // When a key has a SUMMARY row, keep only that; a key with LOT rows and no
+  // SUMMARY (report configured for LOT only) is left alone since summing
+  // those actually-distinct lots is correct there.
+  const hasAnyLevelOfDetail = positions.some(p => p.levelOfDetail)
+  if (hasAnyLevelOfDetail) {
+    const keyOf = (p: typeof positions[number]) => `${p.accountId}|${p.assetClass}|${p.symbol}|${p.strike ?? ''}|${p.expiry ?? ''}|${p.putCall ?? ''}`
+    const keysWithSummary = new Set(positions.filter(p => p.levelOfDetail === 'SUMMARY').map(keyOf))
+    positions = positions.filter(p => p.levelOfDetail !== 'LOT' || !keysWithSummary.has(keyOf(p)))
+  }
 
   // Debug: log first few positions so we can verify parsing
   if (positions.length > 0) {
