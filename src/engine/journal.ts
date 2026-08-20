@@ -413,7 +413,7 @@ export function buildJournalPositions(
 
     const expired = expDate ? expDate < TODAY : false
     if (expired) {
-      const closeDate = expDate!.toISOString().slice(0, 10)
+      const closeDate = expDate!.toISOString().slice(0, 10).replace(/-/g, '')
       return {
         ...base,
         status: 'Expired' as const,
