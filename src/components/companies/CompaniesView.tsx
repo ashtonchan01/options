@@ -23,8 +23,25 @@ function normalizeDateStr(s: string): string {
   return /^\d{8}$/.test(s) ? s : s.replace(/-/g, '')
 }
 
-// Australian financial year: FY2025/26 runs to 30 June 2026; FY2026/27 starts 1 July 2026.
-const FY_CUTOFF = '20260701'
+/** Australian financial year (1 Jul – 30 Jun) that a YYYYMMDD date falls in,
+ * keyed by its starting calendar year (e.g. 1 Jul 2025 – 30 Jun 2026 is
+ * "fy2526", key "2025"). Computed from the actual dates present in the data
+ * rather than a hardcoded pair, so older financial years automatically get
+ * their own tab instead of being silently folded into "All Time". */
+function fyOf(dateStr: string): { key: string; label: string; startYear: number } {
+  const d = normalizeDateStr(dateStr)
+  const year = parseInt(d.slice(0, 4), 10)
+  const month = parseInt(d.slice(4, 6), 10)
+  const startYear = month >= 7 ? year : year - 1
+  const key = String(startYear)
+  const label = `FY ${startYear}/${String((startYear + 1) % 100).padStart(2, '0')}`
+  return { key, label, startYear }
+}
+
+function currentFyKey(): string {
+  const now = new Date()
+  return fyOf(`${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`).key
+}
 
 const STRAT_ORDER = [
   'shares', 'leap', 'put_spread', 'spx', 'csp', 'covered_calls',
@@ -50,11 +67,6 @@ function fmtMonth(m: string): string {
   return `${MONTHS[parseInt(mo, 10) - 1] ?? mo} ${y}`
 }
 
-const FY_LABEL: Record<'fy2526' | 'fy2627', string> = {
-  fy2526: 'FY 2025/26',
-  fy2627: 'FY 2026/27',
-}
-
 /** Monthly realized income (closed-position P&L) split by strategy — a
  * separate table from the per-company breakdown above, since "which
  * strategy is actually making money, month to month" is a different
@@ -63,15 +75,14 @@ const FY_LABEL: Record<'fy2526' | 'fy2627', string> = {
  * financial year (mirrors the FY-by-FY layout of a manual tracking
  * spreadsheet) — the top FY filter just controls which block(s) show. */
 function buildMonthlyStrategyByFy(positions: JournalPosition[], fy: FyFilter) {
-  const buckets: Record<'fy2526' | 'fy2627', { byMonth: Map<string, Map<string, number>>; strategies: Set<string> }> = {
-    fy2526: { byMonth: new Map(), strategies: new Set() },
-    fy2627: { byMonth: new Map(), strategies: new Set() },
-  }
+  const buckets = new Map<string, { label: string; startYear: number; byMonth: Map<string, Map<string, number>>; strategies: Set<string> }>()
 
   for (const p of positions) {
     if (p.status === 'Active' || p.pnl == null || !p.dateClosed) continue
-    const closedFy: 'fy2526' | 'fy2627' = normalizeDateStr(p.dateClosed) >= FY_CUTOFF ? 'fy2627' : 'fy2526'
-    const bucket = buckets[closedFy]
+    const closedFy = fyOf(p.dateClosed)
+    if (fy !== 'all' && fy !== closedFy.key) continue
+    if (!buckets.has(closedFy.key)) buckets.set(closedFy.key, { label: closedFy.label, startYear: closedFy.startYear, byMonth: new Map(), strategies: new Set() })
+    const bucket = buckets.get(closedFy.key)!
     const strategy = p.strategy ?? 'unlabelled'
     const month = monthKey(p.dateClosed)
     bucket.strategies.add(strategy)
@@ -80,18 +91,15 @@ function buildMonthlyStrategyByFy(positions: JournalPosition[], fy: FyFilter) {
     row.set(strategy, (row.get(strategy) ?? 0) + p.pnl)
   }
 
-  return (['fy2526', 'fy2627'] as const)
-    .filter(k => fy === 'all' || fy === k)
-    .map(k => {
-      const bucket = buckets[k]
-      return {
-        fy: k,
-        label: FY_LABEL[k],
-        months: [...bucket.byMonth.keys()].sort(),
-        strategyList: [...bucket.strategies].sort((a, b) => stratRank(a) - stratRank(b)),
-        byMonth: bucket.byMonth,
-      }
-    })
+  return [...buckets.entries()]
+    .sort((a, b) => a[1].startYear - b[1].startYear)
+    .map(([key, bucket]) => ({
+      fy: key,
+      label: bucket.label,
+      months: [...bucket.byMonth.keys()].sort(),
+      strategyList: [...bucket.strategies].sort((a, b) => stratRank(a) - stratRank(b)),
+      byMonth: bucket.byMonth,
+    }))
     .filter(b => b.months.length > 0)
 }
 
@@ -105,7 +113,7 @@ interface CompanyRow {
 }
 
 type SortKey = 'total' | 'realized' | 'unrealized' | 'symbol'
-type FyFilter = 'all' | 'fy2526' | 'fy2627'
+type FyFilter = 'all' | string
 
 function buildRows(
   positions: JournalPosition[],
@@ -122,13 +130,15 @@ function buildRows(
     return row
   }
 
+  const nowFy = currentFyKey()
+
   for (const p of positions) {
     if (p.status === 'Active') {
-      if (fy === 'all' || fy === 'fy2627') get(p.underlying).openPositions++
+      if (fy === 'all' || fy === nowFy) get(p.underlying).openPositions++
       continue
     }
     if (p.pnl == null) continue
-    const closedFy: FyFilter = p.dateClosed && normalizeDateStr(p.dateClosed) >= FY_CUTOFF ? 'fy2627' : 'fy2526'
+    const closedFy = p.dateClosed ? fyOf(p.dateClosed).key : nowFy
     if (fy !== 'all' && fy !== closedFy) continue
     const row = get(p.underlying)
     row.realized += p.pnl
@@ -137,8 +147,8 @@ function buildRows(
 
   // Unrealized P&L is a live mark-to-market snapshot of currently open positions —
   // it has no realization date, so it only belongs to "now" (All / current FY),
-  // never to the closed-out prior financial year.
-  if (fy === 'all' || fy === 'fy2627') {
+  // never to a closed-out prior financial year.
+  if (fy === 'all' || fy === nowFy) {
     for (const pos of livePositions) {
       const symbol = pos.assetClass === 'STK' ? pos.symbol : (pos.underlyingSymbol ?? pos.symbol)
       get(symbol).unrealized += pos.unrealizedPnL
@@ -161,6 +171,26 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
       ...buildStockPositions(state.sync.trades, labels),
     ]
   }, [state.sync.trades, tradeLabels?.labels])
+
+  const nowFy = currentFyKey()
+
+  // Every financial year actually present in the data (closed trades by
+  // close date, plus the current FY whenever there's an open position) —
+  // so older years get their own tab instead of being silently folded into
+  // "All Time" with no way to isolate them.
+  const fyTabs = useMemo(() => {
+    const seen = new Map<string, { label: string; startYear: number }>()
+    for (const p of positions) {
+      if (p.status === 'Active') {
+        if (!seen.has(nowFy)) seen.set(nowFy, fyOf(`${nowFy}0701`))
+        continue
+      }
+      if (p.pnl == null || !p.dateClosed) continue
+      const f = fyOf(p.dateClosed)
+      if (!seen.has(f.key)) seen.set(f.key, f)
+    }
+    return [...seen.entries()].sort((a, b) => a[1].startYear - b[1].startYear)
+  }, [positions, nowFy])
 
   const rows = useMemo(
     () => buildRows(positions, state.sync.positions, fy),
@@ -211,15 +241,18 @@ export default function CompaniesView({ state, tradeLabels }: { state: AppState;
   return (
     <div className="jr-root">
       <div className="tl-filter-row" style={{ gap: 4 }}>
-        {([
-          ['all', 'All Time'],
-          ['fy2526', 'FY 2025/26 (to 30 Jun 2026)'],
-          ['fy2627', 'FY 2026/27 (from 1 Jul 2026)'],
-        ] as [FyFilter, string][]).map(([id, label]) => (
+        <button
+          className={`tl-filter-chip${fy === 'all' ? ' active' : ''}`}
+          onClick={() => setFy('all')}
+        >
+          All Time
+        </button>
+        {fyTabs.map(([key, { label, startYear }]) => (
           <button
-            key={id}
-            className={`tl-filter-chip${fy === id ? ' active' : ''}`}
-            onClick={() => setFy(id)}
+            key={key}
+            className={`tl-filter-chip${fy === key ? ' active' : ''}`}
+            onClick={() => setFy(key)}
+            title={`1 Jul ${startYear} – 30 Jun ${startYear + 1}`}
           >
             {label}
           </button>
