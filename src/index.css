@@ -1111,6 +1111,15 @@ body {
   gap: 16px;
 }
 
+/* Overview tab is laid out to fit one desktop screen with no scrolling
+   (every section sized by flex ratios against the fixed container height) —
+   but on a narrow/short mobile viewport there isn't room for that, so it
+   falls back to the normal .jr-root scroll behavior there instead of
+   clipping content. */
+@media (min-width: 901px) {
+  .ov-root { overflow-y: hidden; }
+}
+
 /* Portfolio tab — Analytics / Journal Overview / Trade Journal side by side. */
 /* Each column has a min-width and wraps to the next row (not a hard breakpoint
    stack) as the screen narrows — as many columns fit per row as space allows,

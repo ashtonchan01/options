@@ -67,7 +67,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
           ))}
         </div>
 
-        <div className={`av-section-body${section === 'calendar' ? ' av-section-calendar' : ''}`} style={{ flex: 1, minHeight: 0, overflow: section === 'reports' || section === 'overview' ? 'auto' : 'hidden' }}>
+        <div className={`av-section-body${section === 'calendar' ? ' av-section-calendar' : ''}`} style={{ flex: 1, minHeight: 0, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
           {section === 'overview' && (
             <OverviewView
               state={accountState}
