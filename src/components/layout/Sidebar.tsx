@@ -127,7 +127,7 @@ export default function Sidebar({
                 <div style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                  background: 'var(--sb-hover)', color: 'var(--sb-text)',
+                  background: 'var(--sb-text)', color: 'var(--sb-bg)',
                   fontSize: 9, fontWeight: 700, fontFamily: 'Inter, sans-serif',
                 }}>
                   {accountInitials(account.name)}
