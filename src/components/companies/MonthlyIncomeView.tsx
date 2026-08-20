@@ -128,8 +128,53 @@ function PositionTradesTable({ position, tradesByKey }: { position: JournalPosit
  * clickable to drill one level further into the actual buy/sell fills that
  * made it up — a summed P&L alone doesn't say which specific trade(s)
  * drove it. */
+type SortKey = 'ticker' | 'strategy' | 'open' | 'closed' | 'fees' | 'pnl'
+type SortDir = 'asc' | 'desc'
+
+const SORT_ACCESSORS: Record<SortKey, (p: JournalPosition) => string | number> = {
+  ticker:   p => positionLabel(p),
+  strategy: p => stratLabel(p.strategy ?? 'unlabelled'),
+  open:     p => p.dateOpen,
+  closed:   p => p.dateClosed ?? '',
+  fees:     p => p.openFees + (p.closeFees ?? 0),
+  pnl:      p => p.pnl ?? 0,
+}
+
+function SortableTh({ label, sortKey, align, sort, setSort }: {
+  label: string
+  sortKey: SortKey
+  align?: 'right'
+  sort: { key: SortKey; dir: SortDir }
+  setSort: (s: { key: SortKey; dir: SortDir }) => void
+}) {
+  const active = sort.key === sortKey
+  return (
+    <th
+      onClick={() => setSort(active ? { key: sortKey, dir: sort.dir === 'asc' ? 'desc' : 'asc' } : { key: sortKey, dir: 'desc' })}
+      style={{
+        fontWeight: 500, padding: '3px 8px', textAlign: align ?? 'left', cursor: 'pointer',
+        userSelect: 'none', color: active ? 'var(--text-2)' : 'var(--text-4)',
+      }}
+    >
+      {label}
+      <span style={{ display: 'inline-block', width: 10, marginLeft: 3, opacity: active ? 1 : 0.35 }}>
+        {active ? (sort.dir === 'asc' ? '▲' : '▼') : '▼'}
+      </span>
+    </th>
+  )
+}
+
 function MonthPositionsTable({ positions, trades, colSpan }: { positions: JournalPosition[]; trades: RawTrade[]; colSpan: number }) {
-  const rows = useMemo(() => [...positions].sort((a, b) => (b.pnl ?? 0) - (a.pnl ?? 0)), [positions])
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'pnl', dir: 'desc' })
+  const rows = useMemo(() => {
+    const accessor = SORT_ACCESSORS[sort.key]
+    const dir = sort.dir === 'asc' ? 1 : -1
+    return [...positions].sort((a, b) => {
+      const av = accessor(a), bv = accessor(b)
+      if (typeof av === 'string' || typeof bv === 'string') return String(av).localeCompare(String(bv)) * dir
+      return (av - bv) * dir
+    })
+  }, [positions, sort])
   const tradesByKey = useMemo(() => {
     const m = new Map<string, RawTrade>()
     for (const t of trades) m.set(tradeId(t), t)
@@ -143,13 +188,13 @@ function MonthPositionsTable({ positions, trades, colSpan }: { positions: Journa
         <div style={{ padding: '10px 16px', background: 'var(--bg-elevated)' }}>
           <table className="mono" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ color: 'var(--text-4)', textAlign: 'left' }}>
-                <th style={{ fontWeight: 500, padding: '3px 8px 3px 0' }}>Ticker</th>
-                <th style={{ fontWeight: 500, padding: '3px 8px' }}>Strategy</th>
-                <th style={{ fontWeight: 500, padding: '3px 8px' }}>Open</th>
-                <th style={{ fontWeight: 500, padding: '3px 8px' }}>Closed</th>
-                <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Fees</th>
-                <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>P&amp;L</th>
+              <tr style={{ textAlign: 'left' }}>
+                <SortableTh label="Ticker"   sortKey="ticker"   sort={sort} setSort={setSort} />
+                <SortableTh label="Strategy" sortKey="strategy" sort={sort} setSort={setSort} />
+                <SortableTh label="Open"     sortKey="open"     sort={sort} setSort={setSort} />
+                <SortableTh label="Closed"   sortKey="closed"   sort={sort} setSort={setSort} />
+                <SortableTh label="Fees"     sortKey="fees"     align="right" sort={sort} setSort={setSort} />
+                <SortableTh label="P&L" sortKey="pnl"       align="right" sort={sort} setSort={setSort} />
               </tr>
             </thead>
             <tbody>

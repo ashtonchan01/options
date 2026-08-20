@@ -33,7 +33,8 @@ interface CompanyRow {
   fees: number
 }
 
-type SortKey = 'total' | 'realized' | 'unrealized' | 'symbol'
+type SortKey = 'total' | 'realized' | 'unrealized' | 'symbol' | 'closedTrades' | 'openPositions' | 'fees'
+type SortDir = 'asc' | 'desc'
 type FyFilter = 'all' | string
 
 function buildRows(
@@ -150,8 +151,31 @@ function CompanyTradesTable({ symbol, trades, fy }: { symbol: string; trades: Ra
   )
 }
 
+function CompanySortTh({ label, sortKey, align, sortKeyState, sortDir, onSort }: {
+  label: string
+  sortKey: SortKey
+  align?: 'right'
+  sortKeyState: SortKey
+  sortDir: SortDir
+  onSort: (k: SortKey) => void
+}) {
+  const active = sortKeyState === sortKey
+  return (
+    <th
+      onClick={() => onSort(sortKey)}
+      style={{ textAlign: align ?? 'left', cursor: 'pointer', userSelect: 'none', color: active ? 'var(--text-1)' : undefined }}
+    >
+      {label}
+      <span style={{ display: 'inline-block', width: 10, marginLeft: 3, opacity: active ? 1 : 0.35 }}>
+        {active ? (sortDir === 'asc' ? '▲' : '▼') : '▼'}
+      </span>
+    </th>
+  )
+}
+
 export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppState; tradeLabels?: TradeLabels; fy: FyFilter }) {
   const [sortKey, setSortKey] = useState<SortKey>('total')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
 
@@ -171,11 +195,21 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
   const filtered = useMemo(() => {
     const q = query.trim().toUpperCase()
     const list = q ? rows.filter(r => r.symbol.includes(q)) : rows
+    const dir = sortDir === 'asc' ? 1 : -1
     return [...list].sort((a, b) => {
-      if (sortKey === 'symbol') return a.symbol.localeCompare(b.symbol)
-      return b[sortKey] - a[sortKey]
+      if (sortKey === 'symbol') return a.symbol.localeCompare(b.symbol) * dir
+      return (a[sortKey] - b[sortKey]) * dir
     })
-  }, [rows, query, sortKey])
+  }, [rows, query, sortKey, sortDir])
+
+  function toggleSort(k: SortKey) {
+    if (k === sortKey) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(k)
+      setSortDir(k === 'symbol' ? 'asc' : 'desc')
+    }
+  }
 
   const grand = useMemo(() => rows.reduce((acc, r) => ({
     realized: acc.realized + r.realized,
@@ -225,18 +259,7 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
           onChange={e => setQuery(e.target.value)}
           style={{ minWidth: 160 }}
         />
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {(['total', 'realized', 'unrealized', 'symbol'] as SortKey[]).map(k => (
-            <button
-              key={k}
-              className={`tl-filter-chip${sortKey === k ? ' active' : ''}`}
-              onClick={() => setSortKey(k)}
-            >
-              {k === 'total' ? 'Total P&L' : k === 'realized' ? 'Realised' : k === 'unrealized' ? 'Unrealised' : 'A–Z'}
-            </button>
-          ))}
-        </div>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-4)' }}>Click a row to see its trades</span>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-4)' }}>Click a column to sort, a row to see its trades</span>
       </div>
 
       <div className="cc-section cc-table-section" style={{ flex: '0 0 auto', minHeight: 'auto' }}>
@@ -244,13 +267,13 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
           <table className="trade-table jr-companies-table" style={{ fontSize: 13 }}>
             <thead>
               <tr>
-                <th>Company</th>
-                <th style={{ textAlign: 'right' }}>Realised</th>
-                <th style={{ textAlign: 'right' }}>Unrealised</th>
-                <th style={{ textAlign: 'right' }}>Total P&amp;L</th>
-                <th style={{ textAlign: 'right' }}>Closed Trades</th>
-                <th style={{ textAlign: 'right' }}>Open</th>
-                <th style={{ textAlign: 'right' }}>Fees</th>
+                <CompanySortTh label="Company" sortKey="symbol" sortKeyState={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <CompanySortTh label="Realised" sortKey="realized" align="right" sortKeyState={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <CompanySortTh label="Unrealised" sortKey="unrealized" align="right" sortKeyState={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <CompanySortTh label="Total P&L" sortKey="total" align="right" sortKeyState={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <CompanySortTh label="Closed Trades" sortKey="closedTrades" align="right" sortKeyState={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <CompanySortTh label="Open" sortKey="openPositions" align="right" sortKeyState={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <CompanySortTh label="Fees" sortKey="fees" align="right" sortKeyState={sortKey} sortDir={sortDir} onSort={toggleSort} />
               </tr>
             </thead>
             <tbody>
