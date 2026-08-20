@@ -254,7 +254,15 @@ export default function OverviewView({ state, account, loading, error, onUpload,
       ) : (
         <>
           <div style={{ flex: '0 0 auto' }}><KpiStrip state={state} /></div>
-          <div className="dash-panel" style={{ flex: '1.3 1 0', minHeight: 0 }}>
+          {/* minHeight (not 0) on these three panels — without a real floor,
+              flex-shrink happily squashes them down to nothing to keep
+              everything inside the container's fixed height, instead of the
+              container actually overflowing and letting .jr-root's
+              overflow-y:auto do its job. Expanding the Flex setup
+              instructions above adds real height that these panels have no
+              business absorbing, so they now hold their size and the page
+              scrolls for it instead. */}
+          <div className="dash-panel" style={{ flex: '1.3 1 0', minHeight: 260 }}>
             <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Equity Curve</span></div>
             <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
               <EquityChart points={equityCurve(closedByDate([
@@ -263,7 +271,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
               ]))} />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 10, flex: '1 1 0', minHeight: 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 10, flex: '1 1 0', minHeight: 260 }}>
             <div className="dash-panel" style={{ minHeight: 0 }}>
               <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Monthly Realised P&amp;L</span></div>
               <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
