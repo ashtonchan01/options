@@ -1,30 +1,31 @@
 /**
  * Monthly Income by Strategy — realized P&L (closed positions only) broken
- * down by month and strategy, one block per financial year. Was part of
- * the same page as Company P&L (CompaniesView); split into its own page
- * per request since the two are different questions ("which ticker" vs
- * "which strategy, which month").
+ * down by month and strategy, one block per financial year. One of the two
+ * Reports sub-pages (the other is Company P&L) — both live under
+ * ReportsView.tsx, which owns the shared FY filter and sub-tab nav.
  */
 import { useMemo, useState } from 'react'
 import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
 import { buildJournalPositions, buildStockPositions, type JournalPosition } from '../../engine/journal'
-import { fmtDollar, pnlColor, fyOf, currentFyKey, stratLabel, stratRank, monthKey, fmtMonth } from './reportsShared'
+import { fmtDollar, pnlColor, fyOf, stratLabel, stratRank, monthKey, fmtMonth } from './reportsShared'
 
 type FyFilter = 'all' | string
 
 /** Monthly realized income (closed-position P&L) split by strategy, one
  * block per financial year (mirrors the FY-by-FY layout of a manual
  * tracking spreadsheet) — the top FY filter just controls which block(s)
- * show. */
+ * show. Keeps the actual closed positions behind each month too (not just
+ * the summed $ per cell) so a month row can be expanded into "which trade
+ * made this number" instead of just showing the total. */
 function buildMonthlyStrategyByFy(positions: JournalPosition[], fy: FyFilter) {
-  const buckets = new Map<string, { label: string; startYear: number; byMonth: Map<string, Map<string, number>>; strategies: Set<string> }>()
+  const buckets = new Map<string, { label: string; startYear: number; byMonth: Map<string, Map<string, number>>; positionsByMonth: Map<string, JournalPosition[]>; strategies: Set<string> }>()
 
   for (const p of positions) {
     if (p.status === 'Active' || p.pnl == null || !p.dateClosed) continue
     const closedFy = fyOf(p.dateClosed)
     if (fy !== 'all' && fy !== closedFy.key) continue
-    if (!buckets.has(closedFy.key)) buckets.set(closedFy.key, { label: closedFy.label, startYear: closedFy.startYear, byMonth: new Map(), strategies: new Set() })
+    if (!buckets.has(closedFy.key)) buckets.set(closedFy.key, { label: closedFy.label, startYear: closedFy.startYear, byMonth: new Map(), positionsByMonth: new Map(), strategies: new Set() })
     const bucket = buckets.get(closedFy.key)!
     const strategy = p.strategy ?? 'unlabelled'
     const month = monthKey(p.dateClosed)
@@ -32,6 +33,8 @@ function buildMonthlyStrategyByFy(positions: JournalPosition[], fy: FyFilter) {
     if (!bucket.byMonth.has(month)) bucket.byMonth.set(month, new Map())
     const row = bucket.byMonth.get(month)!
     row.set(strategy, (row.get(strategy) ?? 0) + p.pnl)
+    if (!bucket.positionsByMonth.has(month)) bucket.positionsByMonth.set(month, [])
+    bucket.positionsByMonth.get(month)!.push(p)
   }
 
   return [...buckets.entries()]
@@ -42,12 +45,60 @@ function buildMonthlyStrategyByFy(positions: JournalPosition[], fy: FyFilter) {
       months: [...bucket.byMonth.keys()].sort(),
       strategyList: [...bucket.strategies].sort((a, b) => stratRank(a) - stratRank(b)),
       byMonth: bucket.byMonth,
+      positionsByMonth: bucket.positionsByMonth,
     }))
     .filter(b => b.months.length > 0)
 }
 
-export default function MonthlyIncomeView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
-  const [fy, setFy] = useState<FyFilter>('all')
+function fmtTradeDate(s: string): string {
+  return /^\d{8}$/.test(s) ? `${s.slice(6, 8)}/${s.slice(4, 6)}/${s.slice(0, 4)}` : s
+}
+
+function positionLabel(p: JournalPosition): string {
+  if (p.strikeDisplay === 'SHARES') return p.underlying
+  const strikes = p.strikes.length ? p.strikes.map(s => s % 1 === 0 ? s.toLocaleString() : s.toFixed(2)).join('/') : ''
+  return `${p.underlying} ${strikes}${p.putCall ?? ''}`.trim()
+}
+
+/** Every closed position behind one month's total, biggest winner first —
+ * so "which trade made the most/least this month" is a click away instead
+ * of just seeing the summed $ per strategy. */
+function MonthPositionsTable({ positions, colSpan }: { positions: JournalPosition[]; colSpan: number }) {
+  const rows = useMemo(() => [...positions].sort((a, b) => (b.pnl ?? 0) - (a.pnl ?? 0)), [positions])
+  return (
+    <tr>
+      <td colSpan={colSpan} style={{ padding: 0 }}>
+        <div style={{ padding: '10px 16px', background: 'var(--bg-elevated)' }}>
+          <table className="mono" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ color: 'var(--text-4)', textAlign: 'left' }}>
+                <th style={{ fontWeight: 500, padding: '3px 8px 3px 0' }}>Ticker</th>
+                <th style={{ fontWeight: 500, padding: '3px 8px' }}>Strategy</th>
+                <th style={{ fontWeight: 500, padding: '3px 8px' }}>Open</th>
+                <th style={{ fontWeight: 500, padding: '3px 8px' }}>Closed</th>
+                <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>P&amp;L</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(p => (
+                <tr key={p.id} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ padding: '4px 8px 4px 0', fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{positionLabel(p)}</td>
+                  <td style={{ padding: '4px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{stratLabel(p.strategy ?? 'unlabelled')}</td>
+                  <td style={{ padding: '4px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtTradeDate(p.dateOpen)}</td>
+                  <td style={{ padding: '4px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{p.dateClosed ? fmtTradeDate(p.dateClosed) : '—'}</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 700, color: pnlColor(p.pnl ?? 0) }}>{fmtDollar(p.pnl ?? 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+export default function MonthlyIncomeView({ state, tradeLabels, fy }: { state: AppState; tradeLabels?: TradeLabels; fy: FyFilter }) {
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   const positions = useMemo(() => {
     const labels = tradeLabels?.labels ?? {}
@@ -56,22 +107,6 @@ export default function MonthlyIncomeView({ state, tradeLabels }: { state: AppSt
       ...buildStockPositions(state.sync.trades, labels),
     ]
   }, [state.sync.trades, tradeLabels?.labels])
-
-  const nowFy = currentFyKey()
-
-  const fyTabs = useMemo(() => {
-    const seen = new Map<string, { label: string; startYear: number }>()
-    for (const p of positions) {
-      if (p.status === 'Active') {
-        if (!seen.has(nowFy)) seen.set(nowFy, fyOf(`${nowFy}0701`))
-        continue
-      }
-      if (p.pnl == null || !p.dateClosed) continue
-      const f = fyOf(p.dateClosed)
-      if (!seen.has(f.key)) seen.set(f.key, f)
-    }
-    return [...seen.entries()].sort((a, b) => a[1].startYear - b[1].startYear)
-  }, [positions, nowFy])
 
   const monthlyStrategyBlocks = useMemo(() => buildMonthlyStrategyByFy(positions, fy), [positions, fy])
 
@@ -86,30 +121,15 @@ export default function MonthlyIncomeView({ state, tradeLabels }: { state: AppSt
   }
 
   return (
-    <div className="jr-root">
-      <div className="tl-filter-row" style={{ gap: 4 }}>
-        <button className={`tl-filter-chip${fy === 'all' ? ' active' : ''}`} onClick={() => setFy('all')}>
-          All Time
-        </button>
-        {fyTabs.map(([key, { label, startYear }]) => (
-          <button
-            key={key}
-            className={`tl-filter-chip${fy === key ? ' active' : ''}`}
-            onClick={() => setFy(key)}
-            title={`1 Jul ${startYear} – 30 Jun ${startYear + 1}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div
         className="cc-section-title"
         style={{ padding: 0, cursor: 'help', width: 'fit-content' }}
-        title="Realized P&L by close date — each closed position's full gain/loss is attributed to the month it closed, not the month(s) it was opened or traded in. This is NOT the same as the Calendar page's monthly total, which is cash flow by trade date, so the two won't match for the same month."
+        title="Realized P&L by close date — each closed position's full gain/loss is attributed to the month it closed, not the month(s) it was opened or traded in. This is NOT the same as the Calendar page's monthly total, which is cash flow by trade date, so the two won't match for the same month. Click a month row to see every closed position behind that total, biggest winner first."
       >
         Monthly Income by Strategy
       </div>
+      <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: -8 }}>Click a month to see which trades drove it</div>
 
       {monthlyStrategyBlocks.length === 0 && (
         <div className="cc-section cc-table-section" style={{ flexShrink: 1, padding: 24, textAlign: 'center', color: 'var(--text-5)' }}>
@@ -141,19 +161,27 @@ export default function MonthlyIncomeView({ state, tradeLabels }: { state: AppSt
                   <tbody>
                     {block.months.map(m => {
                       const row = block.byMonth.get(m)!
+                      const key = `${block.fy}|${m}`
+                      const isOpen = expanded === key
                       return (
-                        <tr key={m}>
-                          <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{fmtMonth(m)}</td>
-                          {block.strategyList.map(s => {
-                            const v = row.get(s)
-                            return (
-                              <td key={s} className="mono" style={{ textAlign: 'right', color: v != null ? pnlColor(v) : 'var(--text-5)', whiteSpace: 'nowrap' }}>
-                                {v != null ? fmtDollar(v) : '—'}
-                              </td>
-                            )
-                          })}
-                          <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(monthTotal(m)), whiteSpace: 'nowrap' }}>{fmtDollar(monthTotal(m))}</td>
-                        </tr>
+                        <>
+                          <tr key={m} onClick={() => setExpanded(isOpen ? null : key)} style={{ cursor: 'pointer' }}>
+                            <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>
+                              <span style={{ display: 'inline-block', width: 12, color: 'var(--text-4)', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.1s' }}>▸</span>
+                              {fmtMonth(m)}
+                            </td>
+                            {block.strategyList.map(s => {
+                              const v = row.get(s)
+                              return (
+                                <td key={s} className="mono" style={{ textAlign: 'right', color: v != null ? pnlColor(v) : 'var(--text-5)', whiteSpace: 'nowrap' }}>
+                                  {v != null ? fmtDollar(v) : '—'}
+                                </td>
+                              )
+                            })}
+                            <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(monthTotal(m)), whiteSpace: 'nowrap' }}>{fmtDollar(monthTotal(m))}</td>
+                          </tr>
+                          {isOpen && <MonthPositionsTable positions={block.positionsByMonth.get(m) ?? []} colSpan={block.strategyList.length + 2} />}
+                        </>
                       )
                     })}
                     <tr style={{ borderTop: '2px solid var(--border)' }}>

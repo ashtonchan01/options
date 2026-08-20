@@ -900,6 +900,34 @@ body {
 .tl-filter-chip:hover { border-color: var(--text-3); color: var(--text-2); }
 .tl-filter-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
+/* Reports sub-nav (Company P&L / Monthly Income) — a second, lighter level
+   of navigation nested inside the Reports tab, styled as a filled pill
+   group (not the page-level ph-underline-tabs look, which would read as a
+   sibling of Overview/Calendar/Journal/Allocation instead of a child of
+   Reports) so the hierarchy is visually obvious at a glance. */
+.rp-subnav {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.rp-subnav-tab {
+  padding: 5px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.rp-subnav-tab:hover { color: var(--text-2); }
+.rp-subnav-tab.active { background: var(--accent-dim); color: var(--accent); }
+
 /* Underline tab row — top-level (Account) and the in-page Section switch,
    modelled on a bank dashboard's "All accounts / Current / Deposits" nav:
    plain text, no border/background, active tab picked out by color +

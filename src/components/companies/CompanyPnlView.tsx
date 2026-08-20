@@ -6,12 +6,13 @@
  * an IBKR account statement, grouped by underlying instead of by
  * individual option contract.
  *
- * Was one page together with Monthly Income by Strategy (CompaniesView);
- * split into two pages per request. Clicking a row expands it into every
- * individual trade (stock or option) tied to that ticker, same idea as the
- * Journal's per-position "SHARES" row expansion — so "how did this P&L
- * number happen" is always one click away instead of having to cross-
- * reference the raw statement yourself.
+ * One of the two Reports sub-pages (the other is Monthly Income by
+ * Strategy) — both live under ReportsView.tsx, which owns the shared FY
+ * filter and sub-tab nav so the two pages can't drift onto different years.
+ * Clicking a row expands it into every individual trade (stock or option)
+ * tied to that ticker, same idea as the Journal's per-position "SHARES" row
+ * expansion — so "how did this P&L number happen" is always one click away
+ * instead of having to cross-reference the raw statement yourself.
  */
 import { useMemo, useState } from 'react'
 import type { AppState, RawTrade } from '../../types'
@@ -142,10 +143,9 @@ function CompanyTradesTable({ symbol, trades, fy }: { symbol: string; trades: Ra
   )
 }
 
-export default function CompanyPnlView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
+export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppState; tradeLabels?: TradeLabels; fy: FyFilter }) {
   const [sortKey, setSortKey] = useState<SortKey>('total')
   const [query, setQuery] = useState('')
-  const [fy, setFy] = useState<FyFilter>('all')
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const positions = useMemo(() => {
@@ -155,22 +155,6 @@ export default function CompanyPnlView({ state, tradeLabels }: { state: AppState
       ...buildStockPositions(state.sync.trades, labels),
     ]
   }, [state.sync.trades, tradeLabels?.labels])
-
-  const nowFy = currentFyKey()
-
-  const fyTabs = useMemo(() => {
-    const seen = new Map<string, { label: string; startYear: number }>()
-    for (const p of positions) {
-      if (p.status === 'Active') {
-        if (!seen.has(nowFy)) seen.set(nowFy, fyOf(`${nowFy}0701`))
-        continue
-      }
-      if (p.pnl == null || !p.dateClosed) continue
-      const f = fyOf(p.dateClosed)
-      if (!seen.has(f.key)) seen.set(f.key, f)
-    }
-    return [...seen.entries()].sort((a, b) => a[1].startYear - b[1].startYear)
-  }, [positions, nowFy])
 
   const rows = useMemo(
     () => buildRows(positions, state.sync.positions, fy),
@@ -214,23 +198,7 @@ export default function CompanyPnlView({ state, tradeLabels }: { state: AppState
   const losers = filtered.filter(r => r.total < 0).length
 
   return (
-    <div className="jr-root">
-      <div className="tl-filter-row" style={{ gap: 4 }}>
-        <button className={`tl-filter-chip${fy === 'all' ? ' active' : ''}`} onClick={() => setFy('all')}>
-          All Time
-        </button>
-        {fyTabs.map(([key, { label, startYear }]) => (
-          <button
-            key={key}
-            className={`tl-filter-chip${fy === key ? ' active' : ''}`}
-            onClick={() => setFy(key)}
-            title={`1 Jul ${startYear} – 30 Jun ${startYear + 1}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="jr-mini-strip">
         <div className="jr-mini"><span className="label">Total P&amp;L</span><b style={{ color: pnlColor(grand.total) }}>{fmtDollar(grand.total)}</b></div>
         <div className="jr-mini"><span className="label">Realised</span><b style={{ color: pnlColor(grand.realized) }}>{fmtDollar(grand.realized)}</b></div>
@@ -261,8 +229,8 @@ export default function CompanyPnlView({ state, tradeLabels }: { state: AppState
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-4)' }}>Click a row to see its trades</span>
       </div>
 
-      <div className="cc-section cc-table-section" style={{ flex: 1, minHeight: 0 }}>
-        <div className="cc-companies-table-scroll" style={{ overflow: 'auto', height: '100%' }}>
+      <div className="cc-section cc-table-section" style={{ flex: '0 0 auto', minHeight: 'auto' }}>
+        <div className="cc-companies-table-scroll" style={{ overflow: 'auto' }}>
           <table className="trade-table jr-companies-table" style={{ fontSize: 13 }}>
             <thead>
               <tr>
