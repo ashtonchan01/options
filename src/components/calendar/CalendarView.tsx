@@ -10,6 +10,13 @@ import { buildJournalPositions, buildStockPositions } from '../../engine/journal
 import { tradeId } from '../../store/tradeLabelsStore'
 import { STRAT_ORDER, stratLabel } from '../companies/reportsShared'
 
+// Calendar's filter chips are a fixed 76px wide — "Synthetic Long" and
+// "Shares" (the full labels used elsewhere, e.g. Journal/Reports) don't fit
+// that without ellipsis-truncating unhelpfully, so this chip row gets its
+// own shorter overrides while the hover title still shows the full name.
+const CALENDAR_CHIP_LABEL: Record<string, string> = { leap: 'SYN', shares: 'SH' }
+function calendarChipLabel(s: string): string { return CALENDAR_CHIP_LABEL[s] ?? stratLabel(s) }
+
 interface Props { state: AppState; watchlistTickers?: string[]; tradeLabels?: TradeLabels }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -794,7 +801,7 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
                     title={active ? `Click to exclude ${stratLabel(s)}` : `Click to include ${stratLabel(s)}`}
                     style={{ width: 76, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                   >
-                    {stratLabel(s)}
+                    {calendarChipLabel(s)}
                   </button>
                 )
               })}
