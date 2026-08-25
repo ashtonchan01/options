@@ -604,6 +604,17 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
     ]
     const map = new Map<string, string>()
     for (const p of positions) for (const id of p.tradeIds) map.set(id, p.strategy ?? 'unlabelled')
+    // FX conversions (assetClass CASH) aren't options or stock, so neither
+    // engine above ever sees them — they had no strategy anywhere and
+    // silently fell to "unlabelled" here, which isn't even a selectable
+    // filter chip since nothing else ever sets it explicitly. Auto-classify
+    // them as 'forex' (still overridable by an explicit manual label) so
+    // they're a real, filterable "FX" bucket instead of invisible.
+    for (const t of state.sync.trades) {
+      if (t.assetClass !== 'CASH') continue
+      const id = tradeId(t)
+      map.set(id, labels[id] ?? 'forex')
+    }
     return map
   }, [state.sync.trades, labels])
 
@@ -781,6 +792,7 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
                     onClick={() => toggleStrategy(s)}
                     className={`tl-filter-chip${active ? ' active' : ''}`}
                     title={active ? `Click to exclude ${stratLabel(s)}` : `Click to include ${stratLabel(s)}`}
+                    style={{ width: 76, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                   >
                     {stratLabel(s)}
                   </button>
