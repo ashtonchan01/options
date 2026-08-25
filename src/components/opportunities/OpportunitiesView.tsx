@@ -168,7 +168,7 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
 // previously several (DELTA, CREDIT, YIELD) were narrower than their own header
 // text, so the header overflowed left past its column and never lined up with
 // the right-aligned numbers below it.
-const GRID = '16px minmax(48px,1fr) 46px 26px 36px 42px 42px 36px 26px'
+const GRID = '16px minmax(48px,1fr) 46px 26px 36px 42px 42px 36px 40px 26px'
 
 function OptionRow({ r, rank, nextEarnings, fomcDates }: { r: ScanResult; rank: number; nextEarnings: string | null; fomcDates: string[] }) {
   const ty = tradeYield(r)
@@ -193,6 +193,7 @@ function OptionRow({ r, rank, nextEarnings, fomcDates }: { r: ScanResult; rank: 
       <span style={{ color: '#10b981', textAlign: 'right' }}>${r.mid.toFixed(2)}</span>
       <span style={{ color: 'var(--text-2)', textAlign: 'right' }}>${breakeven(r).toFixed(2)}</span>
       <span style={{ color: ty >= 1 ? '#10b981' : 'var(--text-3)', fontWeight: 600, textAlign: 'right' }}>{ty.toFixed(1)}%</span>
+      <span style={{ color: r.annualizedYield >= 20 ? '#10b981' : 'var(--text-3)', textAlign: 'right' }}>{r.annualizedYield.toFixed(0)}%</span>
       <span style={{ color: scoreColor(r.score), fontWeight: 700, fontFamily: "'Inter', sans-serif", textAlign: 'right' }}>{r.score}</span>
     </div>
   )
@@ -205,7 +206,8 @@ function MiniHeader() {
       <span style={{ textAlign: 'right' }}>EXP</span><span style={{ textAlign: 'right' }}>DTE</span>
       <span style={{ textAlign: 'right' }}>DELTA</span><span style={{ textAlign: 'right' }}>CREDIT</span>
       <span style={{ textAlign: 'right' }}>BEP</span>
-      <span style={{ textAlign: 'right' }}>YIELD</span><span style={{ textAlign: 'right' }}>SCR</span>
+      <span style={{ textAlign: 'right' }}>YIELD</span><span style={{ textAlign: 'right' }}>APY</span>
+      <span style={{ textAlign: 'right' }}>SCR</span>
     </div>
   )
 }
