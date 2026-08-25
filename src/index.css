@@ -797,16 +797,17 @@ body {
 .jr-strategy-cell table th:nth-child(1),  .jr-strategy-cell table td:nth-child(1)  { width: 90px; }  /* Open */
 .jr-strategy-cell table th:nth-child(2),  .jr-strategy-cell table td:nth-child(2)  { width: 90px; }  /* Closed */
 .jr-strategy-cell table th:nth-child(3),  .jr-strategy-cell table td:nth-child(3)  { width: 70px; }  /* Ticker */
-.jr-strategy-cell table th:nth-child(4),  .jr-strategy-cell table td:nth-child(4)  { width: 150px; } /* Position */
-.jr-strategy-cell table th:nth-child(5),  .jr-strategy-cell table td:nth-child(5)  { width: 90px; }  /* Avg Price */
-.jr-strategy-cell table th:nth-child(6),  .jr-strategy-cell table td:nth-child(6)  { width: 110px; } /* Cost Basis */
-.jr-strategy-cell table th:nth-child(7),  .jr-strategy-cell table td:nth-child(7)  { width: 100px; } /* Breakeven */
-.jr-strategy-cell table th:nth-child(8),  .jr-strategy-cell table td:nth-child(8)  { width: 100px; } /* Market Price */
-.jr-strategy-cell table th:nth-child(9),  .jr-strategy-cell table td:nth-child(9)  { width: 110px; } /* Unrealised */
-.jr-strategy-cell table th:nth-child(10), .jr-strategy-cell table td:nth-child(10) { width: 90px; }  /* % */
-.jr-strategy-cell table th:nth-child(11), .jr-strategy-cell table td:nth-child(11) { width: 70px; }  /* DTE */
-.jr-strategy-cell table th:nth-child(12), .jr-strategy-cell table td:nth-child(12) { width: 80px; }  /* Fees */
-.jr-strategy-cell table th:nth-child(13), .jr-strategy-cell table td:nth-child(13) { width: 90px; }  /* P&L */
+.jr-strategy-cell table th:nth-child(4),  .jr-strategy-cell table td:nth-child(4)  { width: 90px; }  /* Stock Price */
+.jr-strategy-cell table th:nth-child(5),  .jr-strategy-cell table td:nth-child(5)  { width: 150px; } /* Position */
+.jr-strategy-cell table th:nth-child(6),  .jr-strategy-cell table td:nth-child(6)  { width: 90px; }  /* Avg Price */
+.jr-strategy-cell table th:nth-child(7),  .jr-strategy-cell table td:nth-child(7)  { width: 110px; } /* Cost Basis */
+.jr-strategy-cell table th:nth-child(8),  .jr-strategy-cell table td:nth-child(8)  { width: 100px; } /* Breakeven */
+.jr-strategy-cell table th:nth-child(9),  .jr-strategy-cell table td:nth-child(9)  { width: 100px; } /* Market Price */
+.jr-strategy-cell table th:nth-child(10), .jr-strategy-cell table td:nth-child(10) { width: 110px; } /* Unrealised */
+.jr-strategy-cell table th:nth-child(11), .jr-strategy-cell table td:nth-child(11) { width: 90px; }  /* % */
+.jr-strategy-cell table th:nth-child(12), .jr-strategy-cell table td:nth-child(12) { width: 70px; }  /* DTE */
+.jr-strategy-cell table th:nth-child(13), .jr-strategy-cell table td:nth-child(13) { width: 80px; }  /* Fees */
+.jr-strategy-cell table th:nth-child(14), .jr-strategy-cell table td:nth-child(14) { width: 90px; }  /* P&L */
 
 .cc-section-title {
   font-size: 10px;
