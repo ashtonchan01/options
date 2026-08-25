@@ -6,7 +6,7 @@
  * streak, etc.), an equity curve, a monthly realized-P&L bar chart, and the
  * current portfolio allocation pie.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { AppState } from '../../types'
 import type { Account } from '../../store/accountsStore'
 import { buildJournalPositions, buildStockPositions, closedByDate, computeStats, openPremiumTotal, equityCurve, type EquityPoint } from '../../engine/journal'
@@ -22,6 +22,21 @@ function fmtDollar(n: number): string {
 }
 function fmt(n: number): string {
   return Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+}
+
+/** Tracks the same phone-width breakpoint the rest of the app's mobile CSS
+ * uses. A narrow chart has real px width to spare for maybe 5-6 bar labels
+ * before adjacent months' text starts overlapping — used to thin the
+ * Monthly P&L chart's labels instead of letting them collide. */
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 700px)')
+    const onChange = () => setNarrow(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return narrow
 }
 
 /** IBKR dates come as raw "YYYYMMDD" — plain string slicing is enough, no Date parsing needed. */
@@ -62,6 +77,7 @@ const VALUE_LABEL_SIZE = 12.5
  * P&L (buildJournalPositions/buildStockPositions) rather than raw trade cash
  * flow, so it agrees with the Win Rate/Reports numbers next to it. */
 function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: string; onFyChange: (fy: string) => void }) {
+  const narrow = useNarrow()
   const closed = [
     ...buildJournalPositions(state.sync.trades, {}),
     ...buildStockPositions(state.sync.trades, {}),
@@ -150,10 +166,15 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
           })}
         </svg>
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: 'Inter, sans-serif' }}>
-          <span style={{ position: 'absolute', left: 2, top: `${(PT / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>{fmtDollar(maxAbs)}</span>
-          <span style={{ position: 'absolute', left: 2, top: `${(y0 / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>$0</span>
-          <span style={{ position: 'absolute', left: 2, top: `${((H - PB) / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>-{fmtDollar(maxAbs)}</span>
-          {rows.map(([key, val], i) => {
+          <span style={{ position: 'absolute', left: 6, top: `${(PT / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>{fmtDollar(maxAbs)}</span>
+          <span style={{ position: 'absolute', left: 6, top: `${(y0 / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>$0</span>
+          <span style={{ position: 'absolute', left: 6, top: `${((H - PB) / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>-{fmtDollar(maxAbs)}</span>
+          {/* On a narrow phone width there's only real room for ~5-6 bar
+              labels before adjacent months' text starts overlapping — thin
+              both label rows to an even stride instead of letting every bar
+              print its own number/month on top of its neighbors. Full detail
+              is still one tap away via each bar's own tooltip. */}
+          {!(narrow && rows.length > 6) && rows.map(([key, val], i) => {
             const h = Math.abs(val) * scale
             const bx = PL + i * bw + bw * 0.2
             const by = val >= 0 ? y0 - h : y0
@@ -170,6 +191,8 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
             )
           })}
           {rows.map(([key], i) => {
+            const labelStep = narrow && rows.length > 6 ? Math.ceil(rows.length / 6) : 1
+            if (i % labelStep !== 0) return null
             const bx = PL + i * bw + bw * 0.2
             return (
               <span key={key} style={{
@@ -290,14 +313,14 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
       </svg>
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: 'Inter, sans-serif' }}>
         {gridVals.map((v, i) => (
-          <span key={i} style={{ position: 'absolute', left: 2, top: `${(y(v) / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>
+          <span key={i} style={{ position: 'absolute', left: 6, top: `${(y(v) / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>
             {fmtDollar(v)}
           </span>
         ))}
         {fyBoundaries.map(b => (
           <span key={b.i} style={{
-            position: 'absolute', left: `${(x(b.i) / W) * 100}%`, top: `${((PT - 3) / H) * 100}%`,
-            transform: b.i === 0 ? 'translate(0, -100%)' : 'translate(-50%, -100%)',
+            position: 'absolute', left: `${(x(b.i) / W) * 100}%`, top: `${((PT - 6) / H) * 100}%`,
+            transform: b.i === 0 ? 'translate(6px, -100%)' : 'translate(-50%, -100%)',
             fontSize: AXIS_LABEL_SIZE, fontWeight: 600, color: 'var(--text-4)', whiteSpace: 'nowrap',
           }}>
             {b.label}
@@ -306,7 +329,7 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
         {/* Pinned to a fixed corner instead of tracking the curve's actual
             last point — anchoring it at the point itself clipped off-panel
             whenever the series ended near the very top or right edge. */}
-        <span style={{ position: 'absolute', top: 2, right: 4, fontSize: VALUE_LABEL_SIZE, fontWeight: 700, color: '#10b981' }}>
+        <span style={{ position: 'absolute', top: 4, right: 8, fontSize: VALUE_LABEL_SIZE, fontWeight: 700, color: '#10b981' }}>
           {fmtDollar(last.equity)}
         </span>
         {/* Dedupe by index — with few points (e.g. only 2-3 closed trades) the
@@ -320,9 +343,10 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
         ]).entries()].map(([idx, p]) => (
           <span key={idx} style={{
             position: 'absolute', top: `${((H - PB + 3) / H) * 100}%`,
-            left: idx === points.length - 1 ? undefined : `${(x(idx) / W) * 100}%`,
-            right: idx === points.length - 1 ? `${PR}%` : undefined,
-            transform: idx === 0 ? 'translate(0, 0)' : idx === points.length - 1 ? undefined : 'translate(-50%, 0)',
+            left: idx === points.length - 1 ? undefined : idx === 0 ? undefined : `${(x(idx) / W) * 100}%`,
+            right: idx === points.length - 1 ? 6 : undefined,
+            transform: idx === points.length - 1 ? undefined : idx === 0 ? undefined : 'translate(-50%, 0)',
+            marginLeft: idx === 0 ? 6 : undefined,
             fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)', whiteSpace: 'nowrap',
           }}>
             {fmtDateShort(p.date)}
