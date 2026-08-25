@@ -288,18 +288,6 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
   const filtered = useMemo(() => filterByMode(results, customCfg), [results, customCfg])
   const cards    = useMemo(() => buildCards(filtered, tickers, earningsMap), [filtered, tickers, earningsMap])
 
-  // Single best pick across the whole scan (within the active term + strategy
-  // filter) — ranked by score first, annualized-adjusted trade yield as the
-  // tiebreaker, so "best in score and yield" surfaces as one concrete answer
-  // instead of making you scan every ticker card yourself.
-  const bestOverall = useMemo(() => {
-    const pool = filtered.filter(r =>
-      strategyFilter === 'all' ||
-      (strategyFilter === 'csp' && r.strategyType === 'csp') ||
-      (strategyFilter === 'cc' && r.strategyType === 'covered_call'))
-    return [...pool].sort((a, b) => b.score - a.score || tradeYield(b) - tradeYield(a))[0] ?? null
-  }, [filtered, strategyFilter])
-
   function toggleCollapse(sym: string) {
     setCollapsed(prev => { const n = new Set(prev); n.has(sym) ? n.delete(sym) : n.add(sym); return n })
   }
@@ -485,39 +473,6 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
           <div className="chakra" style={{ fontSize: 13, color: 'var(--text-3)', letterSpacing: '1px' }}>NO RESULTS FOR CURRENT PARAMS</div>
           <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 6, fontFamily: 'Inter, sans-serif' }}>
             Δ {customCfg.deltaMin}–{customCfg.deltaMax} · {customCfg.dteMin}–{customCfg.dteMax}d · bid ≥ ${customCfg.minBid} — widen above to see more
-          </div>
-        </div>
-      )}
-
-      {/* ── Best trade banner ──────────────────────────────────────────────── */}
-      {scanned && cards.length > 0 && bestOverall && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12, padding: '8px 14px', flexShrink: 0,
-          background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', borderRadius: 6,
-        }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif", flexShrink: 0 }}>
-            🏆 BEST TRADE
-          </span>
-          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>
-            {bestOverall.underlying}
-          </span>
-          <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 3, color: bestOverall.strategyType === 'csp' ? '#f43f5e' : '#3b82f6', background: bestOverall.strategyType === 'csp' ? '#f43f5e15' : '#3b82f615', border: `1px solid ${bestOverall.strategyType === 'csp' ? '#f43f5e40' : '#3b82f640'}` }}>
-            {bestOverall.strategyType === 'csp' ? 'CSP' : 'CC'}
-          </span>
-          <span style={{ fontSize: 12, color: 'var(--text-2)', fontFamily: 'Inter, sans-serif' }}>
-            ${bestOverall.strike} · {fmtExp(bestOverall.expiry)} · {bestOverall.dte}d
-          </span>
-          <span style={{ fontSize: 12, color: '#10b981', fontFamily: 'Inter, sans-serif' }}>${bestOverall.mid.toFixed(2)} credit</span>
-          <span style={{ fontSize: 12, color: 'var(--text-2)', fontFamily: 'Inter, sans-serif' }}>BEP ${breakeven(bestOverall).toFixed(2)}</span>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 7, color: 'var(--text-4)', letterSpacing: '1px', fontWeight: 600 }}>YIELD</div>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 700, color: '#10b981' }}>{tradeYield(bestOverall).toFixed(1)}%</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 7, color: 'var(--text-4)', letterSpacing: '1px', fontWeight: 600 }}>SCORE</div>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 700, color: scoreColor(bestOverall.score) }}>{bestOverall.score}</div>
-            </div>
           </div>
         </div>
       )}
