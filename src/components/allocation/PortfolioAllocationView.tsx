@@ -260,7 +260,14 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
   // Horizontal/vertical margin reserved for the outward label lines + text,
   // so the ring itself grows to fill everything left over instead of
   // overflowing into that space.
-  const H_MARGIN = 96, V_MARGIN = 14
+  // H_MARGIN reserves room on each side for the leader line + label text.
+  // With OUTER_X = outerR + 34 and the text itself starting 4px past that,
+  // the real usable text width per side works out to H_MARGIN - 38 — 96 left
+  // only ~58px, not enough for a label like "TSLA 18.8%" (worse with a share-
+  // count suffix), so on any container narrower than a wide desktop panel
+  // the text ran past the pie's own bounding box and got hard-clipped by the
+  // ancestor's overflow:hidden. 140 gives ~100px of real text room instead.
+  const H_MARGIN = 140, V_MARGIN = 14
   const outerR = Math.max(24, Math.min((W - H_MARGIN * 2) / 2, (H - V_MARGIN * 2) / 2))
   // A thin ring with a big open hole — was a near-solid disc before, which
   // left almost no room for the center value once the disc grew to fill
