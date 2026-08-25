@@ -228,8 +228,18 @@ function StrategySection({ label, color, items, nextEarnings, fomcDates }: { lab
           {flags.map(f => <span key={f} style={{ padding: '0 4px', fontSize: 8, fontWeight: 700, background: `${FLAG_COLORS[f]}12`, color: FLAG_COLORS[f], fontFamily: "'Inter', sans-serif" }}>{FLAG_LABELS[f]}</span>)}
         </div>
       </div>
-      <MiniHeader />
-      {items.map((r, i) => <OptionRow key={i} r={r} rank={i + 1} nextEarnings={nextEarnings} fomcDates={fomcDates} />)}
+      {/* The GRID's fixed-px columns need ~410px of real content width —
+          wider than the card itself gets on a phone (card width is capped
+          at 100% of the viewport there). Without its own scroll container,
+          the right-hand columns (YIELD/SCR) just overflowed the card and
+          were unreachable; this lets the table scroll horizontally within
+          its own bounds instead. */}
+      <div style={{ overflowX: 'auto' }}>
+        <div style={{ minWidth: 410 }}>
+          <MiniHeader />
+          {items.map((r, i) => <OptionRow key={i} r={r} rank={i + 1} nextEarnings={nextEarnings} fomcDates={fomcDates} />)}
+        </div>
+      </div>
     </div>
   )
 }
@@ -326,75 +336,29 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
     <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
+      {/* Always-visible slim title bar — everything else (scan controls,
+          term/strategy toggles, ticker chips, params) collapses away while
+          scrolling results, leaving just this + the chevron to reclaim
+          screen space on a phone. Clicking the chevron also toggles it
+          manually regardless of scroll position. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <Activity size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
         <span className="chakra" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '1px' }}>SCANNER</span>
-
-        <button onClick={handleScan} disabled={scanning || tickers.length === 0} title={tickers.length === 0 ? 'Add a ticker first' : undefined} style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600,
-          background: scanning || tickers.length === 0 ? 'var(--bg-elevated)' : 'var(--accent-dim)',
-          border: `1px solid ${scanning || tickers.length === 0 ? 'var(--border)' : 'var(--accent-border)'}`,
-          color: scanning || tickers.length === 0 ? 'var(--text-3)' : 'var(--accent)', cursor: scanning || tickers.length === 0 ? 'not-allowed' : 'pointer',
-          fontFamily: "'Inter', sans-serif", letterSpacing: '1px', textTransform: 'uppercase',
-        }}>
-          <Scan size={12} style={{ animation: scanning ? 'spin 1.5s linear infinite' : 'none' }} />
-          {scanning ? 'Scanning…' : 'Scan'}
-        </button>
-
-        {/* fontSize must be >= 16px — below that, iOS Safari running as an
-            installed home-screen app (apple-mobile-web-app-capable) has a
-            known bug where focusing the input triggers its auto-zoom-to-16px
-            behavior but the on-screen keyboard never actually appears. */}
-        <input type="text" value={tickerInput}
-          onChange={e => setTickerInput(e.target.value.toUpperCase())}
-          onKeyDown={e => e.key === 'Enter' && addTicker()}
-          placeholder="+ TICKER"
-          autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
-          className="scanner-ticker-input"
-          style={{ width: 112, padding: '5px 8px', fontSize: 16, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }}
-        />
-
-        {/* Term toggle — Short Term (≤60 DTE) vs Long Term (60-365 DTE), each
-            its own independently-tuned param set (see CUSTOM_CFG_KEY above) */}
-        <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-          {(['short', 'long'] as const).map(term => (
-            <button key={term} onClick={() => selectTerm(term)} style={{
-              padding: '5px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px',
-              background: scanTerm === term ? 'var(--accent-dim)' : 'var(--bg-elevated)',
-              color: scanTerm === term ? 'var(--accent)' : 'var(--text-3)',
-              border: 'none', borderLeft: term !== 'short' ? '1px solid var(--border)' : 'none',
-              cursor: 'pointer', fontFamily: "'Inter', sans-serif", textTransform: 'uppercase',
-            }}>
-              {TERM_LABEL[term]}
-            </button>
-          ))}
-        </div>
-
-        {/* Strategy toggle — show CSP, CC, or both */}
-        <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-          {(['all', 'csp', 'cc'] as const).map(f => (
-            <button key={f} onClick={() => setStrategyFilter(f)} style={{
-              padding: '5px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px',
-              background: strategyFilter === f ? 'var(--accent-dim)' : 'var(--bg-elevated)',
-              color: strategyFilter === f ? 'var(--accent)' : 'var(--text-3)',
-              border: 'none', borderLeft: f !== 'all' ? '1px solid var(--border)' : 'none',
-              cursor: 'pointer', fontFamily: "'Inter', sans-serif", textTransform: 'uppercase',
-            }}>
-              {f === 'all' ? 'All' : f}
-            </button>
-          ))}
-        </div>
-
         {scanning && <span style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'Inter, sans-serif', animation: 'pulse 2s infinite' }}>{scanProgress || 'Initializing…'}</span>}
-
         {scanned && (
           <span style={{ fontSize: 11, color: 'var(--text-4)', marginLeft: 'auto', fontFamily: 'Inter, sans-serif' }}>
             {filtered.length} results · {cards.length} tickers
           </span>
         )}
+        <button onClick={() => setTopCollapsed(c => !c)} title={topCollapsed ? 'Expand controls' : 'Collapse controls'} style={{
+          background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer',
+          padding: '3px 6px', display: 'flex', borderRadius: 4, marginLeft: scanned ? 0 : 'auto', flexShrink: 0,
+        }}>
+          {topCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+        </button>
       </div>
 
-      {/* ── Collapsible: params + custom tickers (hides while scrolling results) ── */}
+      {/* ── Collapsible: scan controls + params + custom tickers (hides while scrolling results) ── */}
       <div style={{
         display: 'grid',
         gridTemplateRows: topCollapsed ? '0fr' : '1fr',
@@ -408,6 +372,64 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
           display: 'flex', flexDirection: 'column', gap: 10,
           minHeight: 0,
         }}>
+        {/* ── Scan controls (button, ticker input, term/strategy toggles) ─────── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
+          <button onClick={handleScan} disabled={scanning || tickers.length === 0} title={tickers.length === 0 ? 'Add a ticker first' : undefined} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600,
+            background: scanning || tickers.length === 0 ? 'var(--bg-elevated)' : 'var(--accent-dim)',
+            border: `1px solid ${scanning || tickers.length === 0 ? 'var(--border)' : 'var(--accent-border)'}`,
+            color: scanning || tickers.length === 0 ? 'var(--text-3)' : 'var(--accent)', cursor: scanning || tickers.length === 0 ? 'not-allowed' : 'pointer',
+            fontFamily: "'Inter', sans-serif", letterSpacing: '1px', textTransform: 'uppercase',
+          }}>
+            <Scan size={12} style={{ animation: scanning ? 'spin 1.5s linear infinite' : 'none' }} />
+            {scanning ? 'Scanning…' : 'Scan'}
+          </button>
+
+          {/* fontSize must be >= 16px — below that, iOS Safari running as an
+              installed home-screen app (apple-mobile-web-app-capable) has a
+              known bug where focusing the input triggers its auto-zoom-to-16px
+              behavior but the on-screen keyboard never actually appears. */}
+          <input type="text" value={tickerInput}
+            onChange={e => setTickerInput(e.target.value.toUpperCase())}
+            onKeyDown={e => e.key === 'Enter' && addTicker()}
+            placeholder="+ TICKER"
+            autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
+            className="scanner-ticker-input"
+            style={{ width: 112, padding: '5px 8px', fontSize: 16, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }}
+          />
+
+          {/* Term toggle — Short Term (≤60 DTE) vs Long Term (60-365 DTE), each
+              its own independently-tuned param set (see CUSTOM_CFG_KEY above) */}
+          <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+            {(['short', 'long'] as const).map(term => (
+              <button key={term} onClick={() => selectTerm(term)} style={{
+                padding: '5px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px',
+                background: scanTerm === term ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                color: scanTerm === term ? 'var(--accent)' : 'var(--text-3)',
+                border: 'none', borderLeft: term !== 'short' ? '1px solid var(--border)' : 'none',
+                cursor: 'pointer', fontFamily: "'Inter', sans-serif", textTransform: 'uppercase',
+              }}>
+                {TERM_LABEL[term]}
+              </button>
+            ))}
+          </div>
+
+          {/* Strategy toggle — show CSP, CC, or both */}
+          <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+            {(['all', 'csp', 'cc'] as const).map(f => (
+              <button key={f} onClick={() => setStrategyFilter(f)} style={{
+                padding: '5px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px',
+                background: strategyFilter === f ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                color: strategyFilter === f ? 'var(--accent)' : 'var(--text-3)',
+                border: 'none', borderLeft: f !== 'all' ? '1px solid var(--border)' : 'none',
+                cursor: 'pointer', fontFamily: "'Inter', sans-serif", textTransform: 'uppercase',
+              }}>
+                {f === 'all' ? 'All' : f}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* ── Scan params (manual) ────────────────────────────────────────────── */}
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, flexShrink: 0, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--signature)', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>PARAMS</span>

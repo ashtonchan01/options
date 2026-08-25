@@ -1409,6 +1409,13 @@ body {
      this: it fought the base rule's widths and collapsed the header row).
      Only the vertical scroll direction actually differs on a phone. */
   .jr-strategy-cell-scroll { overflow-y: visible !important; overflow-x: auto !important; }
+  /* Desktop's 8px/10px cell padding at 12px font reads as a lot of empty
+     vertical space once stacked full-page-height on a phone instead of a
+     small fixed-height scroll cell — tighten both down to match how dense
+     the rest of the mobile UI already is. */
+  .jr-strategy-cell table th, .jr-strategy-cell table td { padding: 4px 8px !important; }
+  .jr-strategy-cell table { font-size: 11px !important; }
+  .jr-strategy-cell-header { padding: 5px 10px !important; }
   /* Portfolio tab's right column (Income Channels / Stocks / Options tables)
      had each of its 3 sub-panels internally scrolling to share a fixed
      height — same "just grow, let the page scroll" treatment as everywhere
