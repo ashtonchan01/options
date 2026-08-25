@@ -20,11 +20,33 @@ interface ModeConfig {
   minBid: number
 }
 
-const CUSTOM_CFG_KEY = 'options:custom_cfg'
-const DEFAULT_CUSTOM: ModeConfig = { deltaMin: 0.10, deltaMax: 0.25, dteMin: 7, dteMax: 21, minBid: 0.05 }
+// Two independent scanners, not one shared param set with a shared DTE
+// range — Short Term (0-60 DTE, weekly/monthly premium-selling territory)
+// and Long Term (60-365 DTE, LEAP-style) want genuinely different delta/DTE
+// defaults, and switching between them shouldn't clobber whichever one you
+// were tuning. Each term keeps its own params, persisted separately.
+export type ScanTerm = 'short' | 'long'
+const TERM_BOUNDS: Record<ScanTerm, { dteFloor: number; dteCeil: number }> = {
+  short: { dteFloor: 1,  dteCeil: 60 },
+  long:  { dteFloor: 60, dteCeil: 365 },
+}
+const CUSTOM_CFG_KEY: Record<ScanTerm, string> = {
+  short: 'options:custom_cfg_short',
+  long:  'options:custom_cfg_long',
+}
+const DEFAULT_CUSTOM: Record<ScanTerm, ModeConfig> = {
+  short: { deltaMin: 0.10, deltaMax: 0.25, dteMin: 7,  dteMax: 60,  minBid: 0.05 },
+  long:  { deltaMin: 0.10, deltaMax: 0.30, dteMin: 60, dteMax: 365, minBid: 0.05 },
+}
+const TERM_LABEL: Record<ScanTerm, string> = { short: 'Short Term (≤60d)', long: 'Long Term (60-365d)' }
+const SCAN_TERM_KEY = 'options:scan_term'
 
-function loadCustomCfg(): ModeConfig {
-  try { return JSON.parse(localStorage.getItem(CUSTOM_CFG_KEY) || 'null') ?? DEFAULT_CUSTOM } catch { return DEFAULT_CUSTOM }
+function loadCustomCfg(term: ScanTerm): ModeConfig {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_CFG_KEY[term]) || 'null') ?? DEFAULT_CUSTOM[term] } catch { return DEFAULT_CUSTOM[term] }
+}
+function loadScanTerm(): ScanTerm {
+  const v = localStorage.getItem(SCAN_TERM_KEY)
+  return v === 'long' ? 'long' : 'short'
 }
 
 function filterByMode(results: ScanResult[], cfg: ModeConfig): ScanResult[] {
@@ -223,16 +245,25 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
   const [scanProgress,  setScanProgress] = useState('')
   const [collapsed,     setCollapsed]    = useState<Set<string>>(new Set())
   const [tickerInput,   setTickerInput]  = useState('')
-  const [customCfg,     setCustomCfg]    = useState<ModeConfig>(loadCustomCfg)
+  const [scanTerm,      setScanTerm]     = useState<ScanTerm>(loadScanTerm)
+  const [shortCfg,      setShortCfg]     = useState<ModeConfig>(() => loadCustomCfg('short'))
+  const [longCfg,       setLongCfg]      = useState<ModeConfig>(() => loadCustomCfg('long'))
+  const customCfg = scanTerm === 'short' ? shortCfg : longCfg
   const [topCollapsed,  setTopCollapsed] = useState(false)
   const [strategyFilter, setStrategyFilter] = useState<'all' | 'csp' | 'cc'>('all')
+
+  function selectTerm(term: ScanTerm) {
+    setScanTerm(term)
+    localStorage.setItem(SCAN_TERM_KEY, term)
+  }
 
   function handleResultsScroll(e: React.UIEvent<HTMLDivElement>) {
     setTopCollapsed(e.currentTarget.scrollTop > 24)
   }
 
   function updateCustom(patch: Partial<ModeConfig>) {
-    setCustomCfg(prev => { const n = { ...prev, ...patch }; localStorage.setItem(CUSTOM_CFG_KEY, JSON.stringify(n)); return n })
+    const setCfg = scanTerm === 'short' ? setShortCfg : setLongCfg
+    setCfg(prev => { const n = { ...prev, ...patch }; localStorage.setItem(CUSTOM_CFG_KEY[scanTerm], JSON.stringify(n)); return n })
   }
 
   const stocksHeld = useMemo(() => {
@@ -257,6 +288,18 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
   const filtered = useMemo(() => filterByMode(results, customCfg), [results, customCfg])
   const cards    = useMemo(() => buildCards(filtered, tickers, earningsMap), [filtered, tickers, earningsMap])
 
+  // Single best pick across the whole scan (within the active term + strategy
+  // filter) — ranked by score first, annualized-adjusted trade yield as the
+  // tiebreaker, so "best in score and yield" surfaces as one concrete answer
+  // instead of making you scan every ticker card yourself.
+  const bestOverall = useMemo(() => {
+    const pool = filtered.filter(r =>
+      strategyFilter === 'all' ||
+      (strategyFilter === 'csp' && r.strategyType === 'csp') ||
+      (strategyFilter === 'cc' && r.strategyType === 'covered_call'))
+    return [...pool].sort((a, b) => b.score - a.score || tradeYield(b) - tradeYield(a))[0] ?? null
+  }, [filtered, strategyFilter])
+
   function toggleCollapse(sym: string) {
     setCollapsed(prev => { const n = new Set(prev); n.has(sym) ? n.delete(sym) : n.add(sym); return n })
   }
@@ -272,7 +315,13 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
     setScanning(true); setError(null); setResults([]); setScanProgress('')
     try {
       setScanProgress('Fetching chains…')
-      const all = await scanAllTickersCboe(tickers, (sym, i, total) => setScanProgress(`${sym} (${i}/${total})`))
+      // The service itself hard-filters by DTE before returning any data at
+      // all (its own default window is 7-60 days) — without passing the
+      // active term's actual bounds through, a Long Term scan would fetch
+      // chains and then have every 60+ DTE option already thrown away
+      // upstream, regardless of what the DTE min/max params below say.
+      const dteRange = { min: TERM_BOUNDS[scanTerm].dteFloor, max: TERM_BOUNDS[scanTerm].dteCeil }
+      const all = await scanAllTickersCboe(tickers, (sym, i, total) => setScanProgress(`${sym} (${i}/${total})`), dteRange)
       if (!all.length && tickers.length) setError('No results — try again in 30s.')
       setResults(all); setScanned(true)
     } catch (e) { setError(String(e)) }
@@ -310,6 +359,22 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
           className="scanner-ticker-input"
           style={{ width: 112, padding: '5px 8px', fontSize: 16, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-1)', fontFamily: 'Inter, sans-serif', outline: 'none', borderRadius: 3 }}
         />
+
+        {/* Term toggle — Short Term (≤60 DTE) vs Long Term (60-365 DTE), each
+            its own independently-tuned param set (see CUSTOM_CFG_KEY above) */}
+        <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+          {(['short', 'long'] as const).map(term => (
+            <button key={term} onClick={() => selectTerm(term)} style={{
+              padding: '5px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px',
+              background: scanTerm === term ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+              color: scanTerm === term ? 'var(--accent)' : 'var(--text-3)',
+              border: 'none', borderLeft: term !== 'short' ? '1px solid var(--border)' : 'none',
+              cursor: 'pointer', fontFamily: "'Inter', sans-serif", textTransform: 'uppercase',
+            }}>
+              {TERM_LABEL[term]}
+            </button>
+          ))}
+        </div>
 
         {/* Strategy toggle — show CSP, CC, or both */}
         <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
@@ -354,8 +419,8 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
           <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--signature)', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>PARAMS</span>
           <label style={labelStyle}>Δ min <input type="number" value={customCfg.deltaMin} step={0.01} min={0.01} max={0.49} onChange={e => updateCustom({ deltaMin: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
           <label style={labelStyle}>Δ max <input type="number" value={customCfg.deltaMax} step={0.01} min={0.02} max={0.55} onChange={e => updateCustom({ deltaMax: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
-          <label style={labelStyle}>DTE min <input type="number" value={customCfg.dteMin} step={1} min={1} max={59} onChange={e => updateCustom({ dteMin: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
-          <label style={labelStyle}>DTE max <input type="number" value={customCfg.dteMax} step={1} min={2} max={90} onChange={e => updateCustom({ dteMax: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
+          <label style={labelStyle}>DTE min <input type="number" value={customCfg.dteMin} step={1} min={TERM_BOUNDS[scanTerm].dteFloor} max={TERM_BOUNDS[scanTerm].dteCeil} onChange={e => updateCustom({ dteMin: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
+          <label style={labelStyle}>DTE max <input type="number" value={customCfg.dteMax} step={1} min={TERM_BOUNDS[scanTerm].dteFloor} max={TERM_BOUNDS[scanTerm].dteCeil} onChange={e => updateCustom({ dteMax: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
           <label style={labelStyle}>Min bid <input type="number" value={customCfg.minBid} step={0.01} min={0.01} max={5} onChange={e => updateCustom({ minBid: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
         </div>
 
@@ -420,6 +485,39 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
           <div className="chakra" style={{ fontSize: 13, color: 'var(--text-3)', letterSpacing: '1px' }}>NO RESULTS FOR CURRENT PARAMS</div>
           <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 6, fontFamily: 'Inter, sans-serif' }}>
             Δ {customCfg.deltaMin}–{customCfg.deltaMax} · {customCfg.dteMin}–{customCfg.dteMax}d · bid ≥ ${customCfg.minBid} — widen above to see more
+          </div>
+        </div>
+      )}
+
+      {/* ── Best trade banner ──────────────────────────────────────────────── */}
+      {scanned && cards.length > 0 && bestOverall && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, padding: '8px 14px', flexShrink: 0,
+          background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', borderRadius: 6,
+        }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1.5, fontFamily: "'Inter', sans-serif", flexShrink: 0 }}>
+            🏆 BEST TRADE
+          </span>
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>
+            {bestOverall.underlying}
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 3, color: bestOverall.strategyType === 'csp' ? '#f43f5e' : '#3b82f6', background: bestOverall.strategyType === 'csp' ? '#f43f5e15' : '#3b82f615', border: `1px solid ${bestOverall.strategyType === 'csp' ? '#f43f5e40' : '#3b82f640'}` }}>
+            {bestOverall.strategyType === 'csp' ? 'CSP' : 'CC'}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--text-2)', fontFamily: 'Inter, sans-serif' }}>
+            ${bestOverall.strike} · {fmtExp(bestOverall.expiry)} · {bestOverall.dte}d
+          </span>
+          <span style={{ fontSize: 12, color: '#10b981', fontFamily: 'Inter, sans-serif' }}>${bestOverall.mid.toFixed(2)} credit</span>
+          <span style={{ fontSize: 12, color: 'var(--text-2)', fontFamily: 'Inter, sans-serif' }}>BEP ${breakeven(bestOverall).toFixed(2)}</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 7, color: 'var(--text-4)', letterSpacing: '1px', fontWeight: 600 }}>YIELD</div>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 700, color: '#10b981' }}>{tradeYield(bestOverall).toFixed(1)}%</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 7, color: 'var(--text-4)', letterSpacing: '1px', fontWeight: 600 }}>SCORE</div>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 700, color: scoreColor(bestOverall.score) }}>{bestOverall.score}</div>
+            </div>
           </div>
         </div>
       )}

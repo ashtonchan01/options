@@ -64,6 +64,7 @@ function expiryToMs(expiry: string): number {
 
 const MIN_DTE = 7
 const MAX_DTE = 60
+export interface DteRange { min: number; max: number }
 const MIN_DELTA = 0.05
 const MAX_DELTA = 0.55
 const MIN_BID = 0.05
@@ -161,6 +162,7 @@ async function fetchCboeChain(symbol: string, attempt = 0): Promise<CboeData | n
 function processChain(
   data: CboeData,
   underlying: string,
+  dteRange: DteRange,
 ): ScanResult[] {
   const now = Date.now()
   const stockPrice = data.current_price
@@ -176,7 +178,7 @@ function processChain(
   // Filter by DTE
   const inWindow = parsed.filter(({ parsed: p }) => {
     const dte = Math.round((expiryToMs(p.expiry) - now) / 86400000)
-    return dte >= MIN_DTE && dte <= MAX_DTE
+    return dte >= dteRange.min && dte <= dteRange.max
   })
 
   // Split puts and calls
@@ -271,6 +273,7 @@ const BATCH_STAGGER_MS = 250
 export async function scanAllTickersCboe(
   tickers: string[],
   onProgress?: (ticker: string, i: number, total: number) => void,
+  dteRange: DteRange = { min: MIN_DTE, max: MAX_DTE },
 ): Promise<ScanResult[]> {
   onProgress?.('Fetching all chains...', 0, tickers.length)
 
@@ -285,7 +288,7 @@ export async function scanAllTickersCboe(
           const data = await fetchCboeChain(sym)
           onProgress?.(sym, i + 1, tickers.length)
           if (!data) return []
-          return processChain(data, sym)
+          return processChain(data, sym, dteRange)
         } catch (e) {
           console.warn(`[CBOE] ${sym} failed:`, e)
           return []
