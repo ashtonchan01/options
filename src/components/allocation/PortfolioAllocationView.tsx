@@ -60,6 +60,34 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
   const byUnderlying = new Map<string, { shares: number; avgCost: number; stockValue: number; optionsValue: number }>()
   let nakedOptionsValue = 0
 
+  // Options on an underlying with no shares held are usually a pure income
+  // play (naked CSP) — no real exposure to attribute a pie slice to, so they
+  // fold into cash below same as before. But a long call + short put on the
+  // same underlying with no shares is a risk reversal / synthetic long (a
+  // LEAP-style stock substitute, typically >1yr out) — that combo *is* real
+  // directional exposure to the underlying, just built from options instead
+  // of shares, so it earns its own slice (netting both legs' mark value
+  // together) instead of disappearing into the cash bucket.
+  const nakedOptsByUnderlying = new Map<string, RawPosition[]>()
+  for (const p of positions) {
+    if (p.assetClass !== 'OPT' || Math.abs(p.quantity) < 1e-6) continue
+    const under = p.underlyingSymbol || p.symbol
+    if (stkSymbols.has(under)) continue
+    if (!nakedOptsByUnderlying.has(under)) nakedOptsByUnderlying.set(under, [])
+    nakedOptsByUnderlying.get(under)!.push(p)
+  }
+  // A pie can't render a negative wedge — only break a risk reversal out of
+  // the cash bucket when its two legs actually net to positive exposure;
+  // otherwise leave it folded into cash same as any other naked option.
+  const riskReversalUnderlyings = new Set(
+    [...nakedOptsByUnderlying.entries()]
+      .filter(([, opts]) =>
+        opts.some(o => o.quantity > 0 && o.putCall === 'C') &&
+        opts.some(o => o.quantity < 0 && o.putCall === 'P') &&
+        opts.reduce((s, o) => s + o.positionValue, 0) > 0)
+      .map(([under]) => under),
+  )
+
   for (const p of positions) {
     if (Math.abs(p.quantity) < 1e-6) continue
     if (p.assetClass === 'STK') {
@@ -70,7 +98,13 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
       byUnderlying.set(p.symbol, e)
     } else if (p.assetClass === 'OPT') {
       const under = p.underlyingSymbol || p.symbol
-      if (!stkSymbols.has(under)) { nakedOptionsValue += p.positionValue; continue }
+      if (!stkSymbols.has(under)) {
+        if (!riskReversalUnderlyings.has(under)) { nakedOptionsValue += p.positionValue; continue }
+        const e = byUnderlying.get(under) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0 }
+        e.optionsValue += p.positionValue
+        byUnderlying.set(under, e)
+        continue
+      }
       const e = byUnderlying.get(under) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0 }
       e.optionsValue += p.positionValue
       byUnderlying.set(under, e)
