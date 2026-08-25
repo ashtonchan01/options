@@ -1,12 +1,16 @@
 import { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { AppState, Strategy, StrategyType, RawTrade } from '../../types'
+import type { TradeLabels } from '../../App'
 import { HOLIDAY_MAP } from '../../data/marketHolidays'
 import { fetchEarningsDates, earningsByDate } from '../../services/earnings'
 import { fetchFomcDates } from '../../services/fomc'
 import { buildEconEventMap, type EconEvent } from '../../data/economicEvents'
+import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
+import { tradeId } from '../../store/tradeLabelsStore'
+import { STRAT_ORDER, stratLabel } from '../companies/reportsShared'
 
-interface Props { state: AppState; watchlistTickers?: string[] }
+interface Props { state: AppState; watchlistTickers?: string[]; tradeLabels?: TradeLabels }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -578,11 +582,58 @@ function ActivitySidebar({
 
 // ─── Main view ────────────────────────────────────────────────────────────────
 
-export default function CalendarView({ state, watchlistTickers = [] }: Props) {
+export default function CalendarView({ state, watchlistTickers = [], tradeLabels }: Props) {
   const today = new Date()
   const [year, setYear]     = useState(today.getFullYear())
   const [month, setMonth]   = useState(today.getMonth())
   const [selected, setSelected] = useState<string | null>(null)
+
+  // Reuses the same trade-labeling/auto-classification engine that drives
+  // Journal/Reports (buildJournalPositions/buildStockPositions resolve each
+  // closed or open position's `strategy` from manual labels, falling back to
+  // auto-classification for unlabeled short puts/calls) so "CSP" or "LEAP"
+  // means the same thing here as everywhere else in the app, instead of a
+  // second, calendar-only classification. Every trade that ends up in some
+  // position's tradeIds gets that position's strategy; a trade in no
+  // position at all (shouldn't normally happen) falls back to 'unlabelled'.
+  const labels = tradeLabels?.labels ?? {}
+  const tradeStrategy = useMemo(() => {
+    const positions = [
+      ...buildJournalPositions(state.sync.trades, labels),
+      ...buildStockPositions(state.sync.trades, labels),
+    ]
+    const map = new Map<string, string>()
+    for (const p of positions) for (const id of p.tradeIds) map.set(id, p.strategy ?? 'unlabelled')
+    return map
+  }, [state.sync.trades, labels])
+
+  const availableStrategies = useMemo(() => {
+    const present = new Set(tradeStrategy.values())
+    return STRAT_ORDER.filter(s => present.has(s))
+      .concat(present.has('unlabelled') ? ['unlabelled'] : [])
+  }, [tradeStrategy])
+
+  // null = no filter applied (show everything); otherwise only trades whose
+  // resolved strategy is in this set count toward every total/list below.
+  const [strategyFilter, setStrategyFilter] = useState<Set<string> | null>(null)
+
+  function toggleStrategy(s: string) {
+    setStrategyFilter(prev => {
+      const base = prev ?? new Set(availableStrategies)
+      const next = new Set(base)
+      if (next.has(s)) next.delete(s)
+      else next.add(s)
+      // Every available strategy selected is the same as no filter — collapse
+      // back to null so re-adding a newly-appearing strategy later (e.g. after
+      // syncing new trades) doesn't get silently excluded by a stale "all"-set.
+      return next.size === availableStrategies.length ? null : next
+    })
+  }
+
+  const filteredTrades = useMemo(() => {
+    if (!strategyFilter) return state.sync.trades
+    return state.sync.trades.filter(t => strategyFilter.has(tradeStrategy.get(tradeId(t)) ?? 'unlabelled'))
+  }, [state.sync.trades, strategyFilter, tradeStrategy])
 
   // The sidebar must never grow past the calendar box's own height (a long
   // trade day list was pushing the whole card taller than the calendar and
@@ -625,7 +676,7 @@ export default function CalendarView({ state, watchlistTickers = [] }: Props) {
   const econEventMap = useMemo(() => buildEconEventMap(fomcDates), [fomcDates])
 
   const events = useMemo(() => deriveEvents(state.strategies), [state.strategies])
-  const dailyTrades = useMemo(() => buildDailyTrades(state.sync.trades), [state.sync.trades])
+  const dailyTrades = useMemo(() => buildDailyTrades(filteredTrades), [filteredTrades])
 
   const eventsByDate = useMemo(() => {
     const map: Record<string, ExpiryEvent[]> = {}
@@ -718,6 +769,33 @@ export default function CalendarView({ state, watchlistTickers = [] }: Props) {
               </button>
             )}
           </div>
+
+          {availableStrategies.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10, flexShrink: 0 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-4)', marginRight: 2 }}>Strategy:</span>
+              {availableStrategies.map(s => {
+                const active = !strategyFilter || strategyFilter.has(s)
+                return (
+                  <button
+                    key={s}
+                    onClick={() => toggleStrategy(s)}
+                    className={`tl-filter-chip${active ? ' active' : ''}`}
+                    title={active ? `Click to exclude ${stratLabel(s)}` : `Click to include ${stratLabel(s)}`}
+                  >
+                    {stratLabel(s)}
+                  </button>
+                )
+              })}
+              {strategyFilter && (
+                <button
+                  onClick={() => setStrategyFilter(null)}
+                  style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '3px 8px', fontSize: 11, fontFamily: 'inherit', borderRadius: 4 }}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Fixed-ratio landscape calendar block — headers + grid together */}
           <div className="calendar-ratio-box" style={{ width: '100%', aspectRatio: '16 / 9', maxHeight: '100%', display: 'flex', flexDirection: 'column', margin: '0 auto' }}>
