@@ -80,7 +80,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
               onSyncFlex={onSyncFlex}
             />
           )}
-          {section === 'calendar' && <CalendarView state={accountState} watchlistTickers={watchlistTickers} />}
+          {section === 'calendar' && <CalendarView state={accountState} watchlistTickers={watchlistTickers} tradeLabels={tradeLabels} />}
           {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} sessionKey={sessionKey} />}
           {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} sessionKey={sessionKey} />}
           {section === 'reports' && (
