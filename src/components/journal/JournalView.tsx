@@ -65,7 +65,7 @@ function dte(expiry: string): number | null {
 }
 
 const LABEL_SHORT: Record<string, string> = {
-  covered_calls: 'CC', csp: 'CSP', leap: 'LEAP', spx: 'SPX', rotation: 'ROT',
+  covered_calls: 'CC', csp: 'CSP', leap: 'SYNL', spx: 'SPX', rotation: 'ROT',
   ptos: 'PTOS', dcas: 'DCAS', profit_taking: 'PT', lilo: 'LILO',
   arb_cloud: 'ARB', tabi: 'TABI', forex: 'FX', assignment: 'ASGN', unlabelled: '—',
   put_spread: 'BPS', shares: 'SHARES',

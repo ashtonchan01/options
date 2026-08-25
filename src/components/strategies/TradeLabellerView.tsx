@@ -8,7 +8,7 @@ import { tradeId } from '../../store/tradeLabelsStore'
 export const STRATEGY_OPTIONS: { value: TradeLabel; label: string; color: string }[] = [
   { value: 'covered_calls',  label: 'Covered Calls',     color: '#3b82f6' },
   { value: 'csp',            label: 'Cash Secured Puts',  color: '#f43f5e' },
-  { value: 'leap',           label: 'LEAP',              color: '#10b981' },
+  { value: 'leap',           label: 'Synthetic Long',    color: '#10b981' },
   { value: 'spx',            label: 'SPX',               color: '#8b5cf6' },
   { value: 'rotation',       label: 'Rotation Model',    color: '#f59e0b' },
   { value: 'ptos',           label: 'PTOS',              color: '#06b6d4' },

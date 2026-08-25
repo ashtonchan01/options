@@ -192,7 +192,7 @@ export default function PhasesView({ state }: Props) {
   const STRAT_LABELS: Record<string, string> = {
     covered_call: 'Covered Calls', csp: 'Cash-Secured Puts', pmcc: 'PMCCs',
     risk_reversal: 'Risk Reversals', put_spread: 'Put Spreads', call_spread: 'Call Spreads',
-    leap: 'LEAPs', other: 'Other',
+    leap: 'Synthetic Longs', other: 'Other',
   }
 
   return (

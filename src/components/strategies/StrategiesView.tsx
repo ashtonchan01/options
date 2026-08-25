@@ -20,8 +20,8 @@ const STRAT_CONFIGS = {
     filter: (t: import('../../types').RawTrade) => t.assetClass === 'OPT' && t.putCall === 'P',
   },
   leap: {
-    id: 'LEAP', label: 'LEAP', color: '#10b981',
-    description: 'Trade log — LEAP & risk reversal legs (long-dated options)',
+    id: 'SYNL', label: 'Synthetic Long', color: '#10b981',
+    description: 'Trade log — synthetic long (risk reversal) legs (long-dated options)',
     filter: (t: import('../../types').RawTrade) => t.assetClass === 'OPT',
   },
   spx: {
@@ -86,7 +86,7 @@ const STRAT_LABEL: Record<StrategyType, string> = {
   risk_reversal: 'RR',
   put_spread:    'PUT SPD',
   call_spread:   'CALL SPD',
-  leap:          'LEAP',
+  leap:          'Synthetic Long',
   other:         'OTHER',
 }
 
