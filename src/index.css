@@ -1411,10 +1411,11 @@ body {
   .jr-strategy-cell-scroll { overflow-y: visible !important; overflow-x: auto !important; }
   /* Desktop's 8px/10px cell padding at 12px font reads as a lot of empty
      vertical space once stacked full-page-height on a phone instead of a
-     small fixed-height scroll cell — tighten both down to match how dense
-     the rest of the mobile UI already is. */
-  .jr-strategy-cell table th, .jr-strategy-cell table td { padding: 4px 8px !important; }
-  .jr-strategy-cell table { font-size: 11px !important; }
+     small fixed-height scroll cell — match the density of Reports' own
+     mobile table (.trade-table's generic 8px/4px + 13px font override)
+     instead of a separate, looser number here. */
+  .jr-strategy-cell table th, .jr-strategy-cell table td { padding: 8px 4px !important; }
+  .jr-strategy-cell table { font-size: 13px !important; }
   .jr-strategy-cell-header { padding: 5px 10px !important; }
   /* Portfolio tab's right column (Income Channels / Stocks / Options tables)
      had each of its 3 sub-panels internally scrolling to share a fixed

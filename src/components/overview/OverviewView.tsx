@@ -24,6 +24,35 @@ function fmt(n: number): string {
   return Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
+/** Rounds a positive value up to a "nice" number (1/2/5 x a power of ten) —
+ * e.g. 17,798 -> 20,000, 64,104 -> 70,000 — so chart axes read like a human
+ * picked the increments instead of whatever the data happened to compute to. */
+function niceCeil(v: number): number {
+  if (v <= 0) return 0
+  const mag = 10 ** Math.floor(Math.log10(v))
+  const norm = v / mag
+  const niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10
+  return niceNorm * mag
+}
+
+/** Nice evenly-spaced axis ticks spanning at least [rawMin, rawMax] — same
+ * "round numbers, not whatever the data computes to" idea as niceCeil, but
+ * for a multi-tick axis (min isn't always 0, e.g. a curve that dipped
+ * negative). Returns the tick values plus the (possibly widened) domain
+ * they span, since the last tick can extend past the raw max. */
+function niceAxisTicks(rawMin: number, rawMax: number, count = 5): { min: number; max: number; ticks: number[] } {
+  if (rawMin === rawMax) { rawMin -= 1; rawMax += 1 }
+  const rawStep = (rawMax - rawMin) / (count - 1)
+  const mag = 10 ** Math.floor(Math.log10(rawStep))
+  const norm = rawStep / mag
+  const niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10
+  const step = niceNorm * mag
+  const min = Math.floor(rawMin / step) * step
+  const ticks: number[] = []
+  for (let v = min, i = 0; i < count + 1 && v <= rawMax + step * 0.5 + 1e-9; v += step, i++) ticks.push(v)
+  return { min, max: ticks[ticks.length - 1], ticks }
+}
+
 /** Tracks the same phone-width breakpoint the rest of the app's mobile CSS
  * uses. A narrow chart has real px width to spare for maybe 5-6 bar labels
  * before adjacent months' text starts overlapping — used to thin the
@@ -117,7 +146,12 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
   )
 
   const W = 100, H = 100, PL = 12, PR = 1, PT = 10, PB = 12
-  const maxAbs = Math.max(...rows.map(([, v]) => Math.abs(v)), 1)
+  // Rounded up to a "nice" number (e.g. 17,798 -> 20,000) so the axis reads
+  // like a human picked the increment instead of whatever the data computed
+  // to — bars scale against this slightly-larger ceiling, so they no longer
+  // quite touch the label row, which is the expected/normal look for a
+  // rounded axis.
+  const maxAbs = niceCeil(Math.max(...rows.map(([, v]) => Math.abs(v)), 1))
   const y0 = PT + (H - PT - PB) / 2
   const LABEL_ROOM = 9
   const halfHeight = (H - PT - PB) / 2 - LABEL_ROOM
@@ -261,15 +295,20 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
   if (points.length < 2) {
     return <div className="db-empty-msg" style={{ minHeight: 140 }}>Need at least 2 closed trades to draw the curve</div>
   }
-  const W = 100, H = 100, PL = 8, PR = 1.5, PT = 8, PB = 12
-  const min = Math.min(0, ...points.map(p => p.equity))
-  const max = Math.max(1, ...points.map(p => p.equity))
+  // FY boundary labels get their own dedicated strip above the plot (see
+  // FY_STRIP below) instead of sharing the plot's own top margin with the
+  // $ axis labels — sharing that corner is what previously put "FY 2025/26"
+  // and the top $ value almost exactly on top of each other.
+  const FY_STRIP = 10
+  const W = 100, H = 100 + FY_STRIP, PL = 8, PR = 1.5, PT = FY_STRIP + 4, PB = 12
+  const rawMin = Math.min(0, ...points.map(p => p.equity))
+  const rawMax = Math.max(1, ...points.map(p => p.equity))
+  const { min, max, ticks: gridVals } = niceAxisTicks(rawMin, rawMax, 5)
   const x = (i: number) => PL + (i / (points.length - 1)) * (W - PL - PR)
   const y = (v: number) => PT + (1 - (v - min) / (max - min)) * (H - PT - PB)
   const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(2)},${y(p.equity).toFixed(2)}`).join(' ')
   const y0 = y(0)
   const area = `${line} L${x(points.length - 1).toFixed(2)},${y0.toFixed(2)} L${x(0).toFixed(2)},${y0.toFixed(2)} Z`
-  const gridVals = [0, 0.25, 0.5, 0.75, 1].map(f => min + f * (max - min))
   const last = points[points.length - 1]
   const mid = points[Math.floor(points.length / 2)]
 
@@ -317,10 +356,13 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
             {fmtDollar(v)}
           </span>
         ))}
+        {/* Own dedicated strip at the very top (see FY_STRIP) — sharing the
+            plot's own top margin with the $ axis labels previously put them
+            almost exactly on top of each other in that corner. */}
         {fyBoundaries.map(b => (
           <span key={b.i} style={{
-            position: 'absolute', left: `${(x(b.i) / W) * 100}%`, top: `${((PT - 6) / H) * 100}%`,
-            transform: b.i === 0 ? 'translate(6px, -100%)' : 'translate(-50%, -100%)',
+            position: 'absolute', left: `${(x(b.i) / W) * 100}%`, top: 0,
+            transform: b.i === 0 ? 'translate(6px, 0)' : 'translate(-50%, 0)',
             fontSize: AXIS_LABEL_SIZE, fontWeight: 600, color: 'var(--text-4)', whiteSpace: 'nowrap',
           }}>
             {b.label}
@@ -329,7 +371,7 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
         {/* Pinned to a fixed corner instead of tracking the curve's actual
             last point — anchoring it at the point itself clipped off-panel
             whenever the series ended near the very top or right edge. */}
-        <span style={{ position: 'absolute', top: 4, right: 8, fontSize: VALUE_LABEL_SIZE, fontWeight: 700, color: '#10b981' }}>
+        <span style={{ position: 'absolute', top: 18, right: 8, fontSize: VALUE_LABEL_SIZE, fontWeight: 700, color: '#10b981' }}>
           {fmtDollar(last.equity)}
         </span>
         {/* Dedupe by index — with few points (e.g. only 2-3 closed trades) the
