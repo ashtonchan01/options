@@ -344,7 +344,17 @@ export function buildJournalPositions(
     const strikes = uniqueLegs.map(l => l.strike!)
     const putCall = sells[0]?.putCall ?? openLegs[0]?.putCall ?? ''
 
-    const tradeIds = og.legs.map(tradeId)
+    // Built from openLegs + this position's own settlementLegs only, not all
+    // of og.legs — og.legs can carry a same-day close leg reattached from an
+    // entirely different position (e.g. buying back an old CSP the same
+    // moment a new covered call opens on the same underlying/expiry, both
+    // sharing this group's key). Blindly including it here put that old
+    // buyback's trade id into the NEW position's tradeIds, which then let the
+    // new position's strategy label bleed onto the old close (verified: a CSP
+    // closed the same instant a covered call was opened on the same
+    // underlying/expiry showed that CSP's buyback trade classified as the
+    // covered call in the Calendar's strategy filter).
+    const tradeIds = [...openLegs, ...settlementLegs].map(tradeId)
     const strategy = tradeIds.map(id => labels[id]).find(Boolean) ?? autoClassify(og.underlying, openLegs)
 
     const base = {
@@ -382,6 +392,15 @@ export function buildJournalPositions(
         closeFees    += (pool.feesPerUnit.get(k) ?? 0) * contracts
       }
       const cg = pool.cg
+      // The closing trade(s) themselves never had a tradeId in `base.tradeIds`
+      // (that's built from this position's own opening/settlement legs only) —
+      // add them here, filtered to this position's own strikes since one
+      // closeGroup's legs can be shared across several open positions via the
+      // pool's per-strike remaining-quantity bookkeeping above. Without this,
+      // a closing buy-to-close trade had no strategy of its own anywhere and
+      // silently fell back to "unlabelled" in anything keyed off tradeIds
+      // (e.g. the Calendar's per-trade strategy filter).
+      const closeLegIds = cg.legs.filter(l => uniqueKeys.has(legKeyOf(l))).map(tradeId)
       return {
         ...base,
         status: 'Closed' as const,
@@ -389,6 +408,7 @@ export function buildJournalPositions(
         closeFees,
         pnl: openingNetCash + closeNetCash,
         holdDays: Math.max(0, daysBetween(og.date, cg.date)),
+        tradeIds: [...tradeIds, ...closeLegIds],
       }
     }
 
