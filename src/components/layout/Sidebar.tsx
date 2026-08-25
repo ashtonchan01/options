@@ -158,10 +158,18 @@ export default function Sidebar({
                   autocomplete="off" on the real field below. Giving it these
                   off-screen (but not display:none, which some heuristics
                   ignore) fields to latch onto instead keeps the suggestion
-                  off the actual "Account name" input. */}
+                  off the actual "Account name" input.
+                  Both decoys use type="text", not type="password" — a real
+                  password-type input, even hidden/off-screen, still gets
+                  seen by the OS-level password manager (not just Safari's
+                  own in-page autofill), which surfaced as an unrelated
+                  "Sign in with your saved password" prompt appearing when
+                  taking a screenshot. name="password" alone is enough to
+                  keep Safari's own heuristic satisfied without exposing a
+                  real password field system-wide. */}
               <input type="text" name="username" autoComplete="username" tabIndex={-1} aria-hidden="true"
                 style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
-              <input type="password" name="password" autoComplete="current-password" tabIndex={-1} aria-hidden="true"
+              <input type="text" name="password" autoComplete="off" tabIndex={-1} aria-hidden="true"
                 style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
               <input
                 autoFocus

@@ -264,24 +264,23 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
   const W = measured.width, H = measured.height
   const CX = W / 2, CY = H / 2
   const LABEL_ROW_H = 17
-  // Horizontal/vertical margin reserved for the outward label lines + text,
-  // so the ring itself grows to fill everything left over instead of
-  // overflowing into that space.
-  // H_MARGIN reserves room on each side for the leader line + label text.
-  // With OUTER_X = outerR + 34 and the text itself starting 4px past that,
-  // the real usable text width per side works out to H_MARGIN - 38 — 96 left
-  // only ~58px, not enough for a label like "TSLA 18.8%" (worse with a share-
-  // count suffix), so on any container narrower than a wide desktop panel
-  // the text ran past the pie's own bounding box and got hard-clipped by the
-  // ancestor's overflow:hidden. 140 gives ~100px of real text room instead.
-  const H_MARGIN = 140, V_MARGIN = 14
-  const outerR = Math.max(24, Math.min((W - H_MARGIN * 2) / 2, (H - V_MARGIN * 2) / 2))
+  // The ring's own radius is a flat fraction of the container's shorter
+  // side — simple and predictable at any container size — instead of
+  // "whatever's left after subtracting a label margin," which could
+  // degenerate to the emergency floor (a barely-visible ring) whenever the
+  // margin math and the container's actual W:H ratio didn't line up. Label
+  // placement derives FROM the ring afterward, not the other way around.
+  const outerR = Math.max(28, Math.min(W, H) * 0.32)
+  // Below ~340px wide there usually isn't room for a share-count suffix
+  // alongside the ticker/percentage without running into the container's
+  // own edge — drop it there rather than risk clipping.
+  const tightLabels = W < 340
   // A thin ring with a big open hole — was a near-solid disc before, which
   // left almost no room for the center value once the disc grew to fill
   // its panel. 0.62 keeps the hole roomy at any size.
   const innerR = outerR * 0.62
   const ELBOW_R = outerR + 8
-  const OUTER_X = outerR + 34
+  const OUTER_X = outerR + 22
 
   if (total <= 0) {
     return <div ref={setNode} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', color: 'var(--text-4)', fontSize: 12 }}>No data</div>
@@ -344,7 +343,7 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
               fontSize="12.5" fontFamily="Inter, sans-serif" fontWeight={600} fill="var(--text-2)">
               {w.label}
               <tspan fill="var(--text-4)" fontWeight={400}> {labelMode === 'pct' ? `${(w.frac * 100).toFixed(1)}%` : fmt$(w.value)}</tspan>
-              {w.shares != null && w.shares !== 0 && (
+              {!tightLabels && w.shares != null && w.shares !== 0 && (
                 <tspan fill="var(--text-5)" fontWeight={400}> ({w.shares.toLocaleString()}sh)</tspan>
               )}
             </text>
@@ -576,7 +575,13 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 10 }}>
             CURRENT ALLOCATION
           </div>
-          <div style={{ height: 280, width: '100%', overflow: 'hidden' }}>
+          {/* aspectRatio (not a fixed height) — a fixed height paired with a
+              fluid width meant the ring's own size math (which balances
+              against both dimensions) could land on a badly mismatched
+              W:H ratio depending on the viewport, at worst floor-clamping
+              to a barely-visible ring. Keeping height proportional to
+              width keeps that math sane at any screen size. */}
+          <div style={{ width: '100%', aspectRatio: '4 / 3', overflow: 'hidden' }}>
             <PortfolioPie slices={currentSlices} centerLabel="Current" centerValue={fmt$(currentTotal)} labelMode={labelMode} />
           </div>
         </div>
@@ -584,7 +589,13 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 10 }}>
             TARGET ALLOCATION
           </div>
-          <div style={{ height: 280, width: '100%', overflow: 'hidden' }}>
+          {/* aspectRatio (not a fixed height) — a fixed height paired with a
+              fluid width meant the ring's own size math (which balances
+              against both dimensions) could land on a badly mismatched
+              W:H ratio depending on the viewport, at worst floor-clamping
+              to a barely-visible ring. Keeping height proportional to
+              width keeps that math sane at any screen size. */}
+          <div style={{ width: '100%', aspectRatio: '4 / 3', overflow: 'hidden' }}>
             <PortfolioPie slices={targetSlices} centerLabel="Target" centerValue={fmt$(targetAllocatedTotal)} labelMode={labelMode} />
           </div>
         </div>
