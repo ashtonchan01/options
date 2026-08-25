@@ -98,9 +98,11 @@ function fmtEr(d: string): string {
 function scoreColor(s: number)  { return s >= 70 ? '#10b981' : s >= 40 ? '#f59e0b' : 'var(--text-4)' }
 function deltaColor(d: number)  { const a = Math.abs(d); return a < 0.15 ? 'var(--text-3)' : a > 0.40 ? '#f59e0b' : '#10b981' }
 function tradeYield(r: ScanResult) { return r.annualizedYield * r.dte / 365 }
-/** Breakeven price after the premium received: strike minus credit for a CSP
- * (effective cost basis if assigned), current price minus credit for a covered call. */
-function breakeven(r: ScanResult) { return r.strategyType === 'csp' ? r.strike - r.mid : r.stockPrice - r.mid }
+/** Breakeven price after the premium received: strike minus credit, for
+ * both a CSP (effective cost basis if assigned) and a covered call (the
+ * cost basis of the shares being called away is the strike, not the
+ * current stock price — the call is only ever exercised at the strike). */
+function breakeven(r: ScanResult) { return r.strike - r.mid }
 
 // ─── Card width ───────────────────────────────────────────────────────────────
 
