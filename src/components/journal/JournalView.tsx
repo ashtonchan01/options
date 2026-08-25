@@ -4,10 +4,11 @@
  * rendered alongside the Actions sidebar on the Journal tab (see
  * JournalPageView.tsx).
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { type JournalPosition } from '../../engine/journal'
 import { MISTAKES, type JournalEntry } from '../../store/journalStore'
 import { tradeId } from '../../store/tradeLabelsStore'
+import { fetchQuotes } from '../../services/quotes'
 import type { RawPosition, RawTrade } from '../../types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -324,6 +325,26 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
 
   const displayPositions = useMemo(() => aggregateActiveOptionLots(aggregateShares(positions)), [positions])
 
+  // Underlying's live stock price, shown in its own column — fetched
+  // regardless of whether shares of that ticker are actually held, since a
+  // naked CSP/covered call has no STK leg in livePositions to read a price
+  // off (same gap the Actions sidebar had before it started fetching quotes
+  // directly rather than relying on live IBKR STK positions).
+  const [underlyingPrices, setUnderlyingPrices] = useState<Record<string, number>>({})
+  const underlyingsKey = [...new Set(displayPositions.map(p => p.underlying))].sort().join(',')
+  useEffect(() => {
+    const underlyings = underlyingsKey ? underlyingsKey.split(',') : []
+    if (underlyings.length === 0) { setUnderlyingPrices({}); return }
+    let cancelled = false
+    fetchQuotes(underlyings).then(quotes => {
+      if (cancelled) return
+      const prices: Record<string, number> = {}
+      for (const [sym, q] of Object.entries(quotes)) prices[sym] = q.price
+      setUnderlyingPrices(prices)
+    })
+    return () => { cancelled = true }
+  }, [underlyingsKey])
+
   const tradesByKey = useMemo(() => {
     const m = new Map<string, RawTrade>()
     for (const t of trades) if (t.assetClass === 'STK') m.set(tradeId(t), t)
@@ -410,7 +431,7 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
       .map(([key, groupRows]) => ({ label: stratGroupLabel(key), rows: groupRows }))
   }, [rows, groupByStrategy])
 
-  const COLS = 13
+  const COLS = 14
 
   return (
     <>
@@ -449,7 +470,7 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
                       const e = entries[p.id] ?? {}
                       const open = expanded === p.id
                       return (
-                        <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} entry={e} open={open} cols={COLS}
+                        <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} underlyingPrice={underlyingPrices[p.underlying] ?? null} entry={e} open={open} cols={COLS}
                           onToggle={() => setExpanded(open ? null : p.id)}
                           editor={p.strikeDisplay === 'SHARES'
                             ? <SharesTradesTable pos={p} tradesByKey={tradesByKey} />
@@ -473,7 +494,7 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
                   const e = entries[p.id] ?? {}
                   const open = expanded === p.id
                   return (
-                    <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} entry={e} open={open} cols={COLS}
+                    <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} underlyingPrice={underlyingPrices[p.underlying] ?? null} entry={e} open={open} cols={COLS}
                       onToggle={() => setExpanded(open ? null : p.id)}
                       editor={p.strikeDisplay === 'SHARES'
                         ? <SharesTradesTable pos={p} tradesByKey={tradesByKey} />
@@ -499,6 +520,7 @@ function TableHead() {
         <th className="jr-col-open">Open</th>
         <th className="jr-col-closed">Closed</th>
         <th>Ticker</th>
+        <th style={{ textAlign: 'right' }}>Stock Price</th>
         <th style={{ textAlign: 'right' }}>Position</th>
         <th style={{ textAlign: 'right' }}>Avg Price</th>
         <th style={{ textAlign: 'right' }}>Cost Basis</th>
@@ -514,8 +536,9 @@ function TableHead() {
   )
 }
 
-function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor }: {
+function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, open, cols, onToggle, editor }: {
   pos: JournalPosition; livePositions: RawPosition[]; strikeUsage: Map<string, number>
+  underlyingPrice: number | null
   entry: JournalEntry; open: boolean; cols: number
   onToggle: () => void; editor: React.ReactNode
 }) {
@@ -612,6 +635,9 @@ function Row({ pos: p, livePositions, strikeUsage, open, cols, onToggle, editor 
           {p.dateClosed ? fmtDate(p.dateClosed) : '—'}
         </td>
         <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>{p.underlying}</td>
+        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
+          {underlyingPrice != null ? fmt$(underlyingPrice, 2) : '—'}
+        </td>
         <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
           {p.strikeDisplay === 'SHARES' ? `${p.contracts} sh` : `${p.contracts}× ${p.strikeDisplay}`}
         </td>
