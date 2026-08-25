@@ -128,7 +128,11 @@ function breakeven(r: ScanResult) { return r.strategyType === 'csp' ? r.strike -
 
 // ─── Card width ───────────────────────────────────────────────────────────────
 
-const CARD_W = 'min(400px, 100%)'
+// Widened from 400px — the results grid (STRIKE/EXP/DTE/DELTA/CREDIT/BEP/
+// YIELD/APY/SCR) no longer fit comfortably at 400px once the APY column was
+// added, squeezing the STRIKE column and making header labels crowd each
+// other.
+const CARD_W = 'min(460px, 100%)'
 
 // ─── Ticker card data ─────────────────────────────────────────────────────────
 
@@ -168,7 +172,7 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
 // previously several (DELTA, CREDIT, YIELD) were narrower than their own header
 // text, so the header overflowed left past its column and never lined up with
 // the right-aligned numbers below it.
-const GRID = '16px minmax(48px,1fr) 46px 26px 36px 42px 42px 36px 40px 26px'
+const GRID = '16px minmax(56px,1fr) 46px 28px 40px 46px 46px 40px 40px 28px'
 
 function OptionRow({ r, rank, nextEarnings, fomcDates }: { r: ScanResult; rank: number; nextEarnings: string | null; fomcDates: string[] }) {
   const ty = tradeYield(r)
