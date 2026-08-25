@@ -37,7 +37,7 @@ const STRAT_LABEL: Record<StrategyType, string> = {
   risk_reversal: 'RR',
   put_spread:    'PUT SPD',
   call_spread:   'CALL SPD',
-  leap:          'LEAP',
+  leap:          'Synthetic Long',
   other:         'OTHER',
 }
 
@@ -326,7 +326,7 @@ const INCOME_CHANNELS: Array<{ page: string; label: string; color: string }> = [
   { page: 'covered_calls', label: 'Covered Calls', color: '#3b82f6' },
   { page: 'csp',           label: 'CSP',           color: '#f43f5e' },
   { page: 'spx',           label: 'SPX',           color: '#8b5cf6' },
-  { page: 'leap',          label: 'LEAP',          color: '#10b981' },
+  { page: 'leap',          label: 'Synthetic Long', color: '#10b981' },
   { page: 'ptos',          label: 'PTOS',          color: '#06b6d4' },
   { page: 'lilo',          label: 'LILO',          color: '#f97316' },
   { page: 'arb_cloud',     label: 'ARB Cloud',     color: '#a78bfa' },
@@ -467,7 +467,7 @@ const STRAT_META: Record<string, { label: string; color: string; order: number }
   put_spread:    { label: 'Put Spread',    color: '#fbbf24', order: 4 },
   call_spread:   { label: 'Call Spread',   color: '#fb923c', order: 5 },
   csp:           { label: 'CSP',           color: '#f43f5e', order: 6 },
-  leap:          { label: 'LEAP',          color: '#10b981', order: 7 },
+  leap:          { label: 'Synthetic Long', color: '#10b981', order: 7 },
   other:         { label: 'Other',         color: '#64748b', order: 8 },
 }
 

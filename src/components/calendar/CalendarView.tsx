@@ -32,7 +32,7 @@ const STRAT_LABEL: Record<StrategyType, string> = {
   risk_reversal: 'RR',
   put_spread:    'P SPD',
   call_spread:   'C SPD',
-  leap:          'LEAP',
+  leap:          'SYN L',
   other:         'OTH',
 }
 

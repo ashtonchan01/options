@@ -43,7 +43,7 @@ export const STRAT_ORDER = [
   'rotation', 'ptos', 'dcas', 'profit_taking', 'lilo', 'arb_cloud', 'tabi', 'forex', 'assignment',
 ]
 export const STRAT_LABEL: Record<string, string> = {
-  shares: 'Shares', leap: 'LEAP', put_spread: 'BPS', spx: 'SPX', csp: 'CSP', covered_calls: 'CC',
+  shares: 'Shares', leap: 'Synthetic Long', put_spread: 'BPS', spx: 'SPX', csp: 'CSP', covered_calls: 'CC',
   rotation: 'Rotation', ptos: 'PTOS', dcas: 'DCAs', profit_taking: 'PT', lilo: 'LILO',
   arb_cloud: 'Arb Cloud', tabi: 'TABI', forex: 'FX', assignment: 'Assignment', unlabelled: 'Unlabelled',
 }
