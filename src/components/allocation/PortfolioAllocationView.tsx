@@ -254,7 +254,14 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
   // arbitrary fixed canvas scaled to fit), 1 viewBox unit is always 1 real
   // pixel, so growing the donut to fill its cell never drags the label
   // text size along with it.
-  const W = measured.width || 440, H = measured.height || 260
+  // No fallback to a fixed desktop size here — a truthy-but-wrong fallback
+  // (e.g. 440) would still pass the `W > 0 && H > 0` render guard below, so
+  // on any container narrower than that fallback the SVG's own explicit
+  // width/height would render literally wider than its actual box until the
+  // real measurement landed (verified: the Allocation page's fixed-height
+  // pie wrapper showed a full desktop-sized ring overflowing off a phone
+  // screen). 0 means "not measured yet" and genuinely skips rendering.
+  const W = measured.width, H = measured.height
   const CX = W / 2, CY = H / 2
   const LABEL_ROW_H = 17
   // Horizontal/vertical margin reserved for the outward label lines + text,
@@ -316,7 +323,7 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
   return (
     <div ref={setNode} style={{ width: '100%', height: '100%' }}>
       {W > 0 && H > 0 && (
-    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: 'block', overflow: 'visible' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}>
       {wedges.map((w, i) => <path key={i} d={w.path} fill={w.color} stroke="var(--bg-card)" strokeWidth={1.5} />)}
       <text x={CX} y={CY - 6} textAnchor="middle" fontSize="9.5" fill="var(--text-4)" fontFamily="Inter, sans-serif" letterSpacing="1px">
         {centerLabel.toUpperCase()}
@@ -569,7 +576,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 10 }}>
             CURRENT ALLOCATION
           </div>
-          <div style={{ height: 280 }}>
+          <div style={{ height: 280, width: '100%', overflow: 'hidden' }}>
             <PortfolioPie slices={currentSlices} centerLabel="Current" centerValue={fmt$(currentTotal)} labelMode={labelMode} />
           </div>
         </div>
@@ -577,7 +584,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 10 }}>
             TARGET ALLOCATION
           </div>
-          <div style={{ height: 280 }}>
+          <div style={{ height: 280, width: '100%', overflow: 'hidden' }}>
             <PortfolioPie slices={targetSlices} centerLabel="Target" centerValue={fmt$(targetAllocatedTotal)} labelMode={labelMode} />
           </div>
         </div>
