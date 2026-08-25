@@ -236,6 +236,8 @@ body {
   .calendar-layout { flex-direction: column !important; height: auto !important; overflow: visible !important; }
   .calendar-main { flex: none !important; height: auto !important; overflow: visible !important; padding: 8px !important; }
   .calendar-nav { flex-wrap: wrap !important; gap: 6px !important; margin-bottom: 6px !important; }
+  .calendar-strategy-filter { gap: 4px !important; margin-bottom: 6px !important; }
+  .calendar-strategy-filter .tl-filter-chip { padding: 3px 8px !important; font-size: 11px !important; }
   .calendar-header-grid { grid-template-columns: repeat(5, 1fr) 50px !important; }
   .calendar-grid-wrap { grid-template-columns: repeat(5, 1fr) 50px !important; }
   .calendar-ratio-box { aspect-ratio: 4 / 5 !important; }
