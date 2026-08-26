@@ -136,7 +136,13 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, currentYear, m
   const actualT = (currentYear - cfg.startYear) + monthsElapsed / 12
   const actualInRange = actualT >= 0 && actualT <= totalMonths / 12
 
-  const W = 1000, H = 220, padL = 54, padR = 16, padT = 16, padB = 24
+  // viewBox width is picked close to the chart's typical real rendered
+  // width (desktop, sidebar expanded) rather than an arbitrary round number
+  // — text/dot sizes are defined in user-space units that scale with
+  // whatever the browser stretches this viewBox to, so a too-narrow viewBox
+  // on a wide container scales everything up (this is what made "Actual
+  // $269K" render nearly 2x its authored 10px size before).
+  const W = 1800, H = 260, padL = 60, padR = 24, padT = 20, padB = 26
   const plotW = W - padL - padR, plotH = H - padT - padB
 
   const allValues = [...points.map(p => p.value), ...(actualInRange ? [actualDisplay] : [])]
@@ -157,29 +163,31 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, currentYear, m
   const yearTicks = Array.from({ length: cfg.numYears + 1 }, (_, i) => cfg.startYear + i)
     .filter((_, i) => cfg.numYears <= 10 || i % 2 === 0)
 
+  const actualLabelRight = actualInRange && x(actualT) < W - 140
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
       {milestoneLines.map(m => (
         <g key={m.label}>
           <line x1={padL} x2={W - padR} y1={y(m.display)} y2={y(m.display)}
-            stroke="var(--border)" strokeDasharray="3,3" strokeWidth={1} />
-          <text x={padL + 2} y={y(m.display) - 3} fontSize={9} fill="var(--text-4)" fontFamily="JetBrains Mono, monospace">
+            stroke="var(--text-5)" strokeOpacity={0.4} strokeDasharray="3,3" strokeWidth={1} />
+          <text x={padL + 4} y={y(m.display) - 4} fontSize={9} fill="var(--text-4)" fontFamily="JetBrains Mono, monospace">
             {m.label}
           </text>
         </g>
       ))}
 
-      <path d={linePath} fill="none" stroke="#10b981" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+      <path d={linePath} fill="none" stroke="#10b981" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
 
       {points.filter(p => p.t % 12 === 0).map(p => (
-        <circle key={p.t} cx={x(p.t / 12)} cy={y(p.value)} r={2.5} fill="#10b981" />
+        <circle key={p.t} cx={x(p.t / 12)} cy={y(p.value)} r={1.8} fill="#10b981" />
       ))}
 
       {actualInRange && (
         <g>
-          <circle cx={x(actualT)} cy={y(actualDisplay)} r={4.5} fill="#38bdf8" stroke="var(--bg-card)" strokeWidth={1.5} />
-          <text x={x(actualT)} y={y(actualDisplay) - 8} fontSize={10} fontWeight={700} fill="#38bdf8"
-            textAnchor="middle" fontFamily="JetBrains Mono, monospace">
+          <circle cx={x(actualT)} cy={y(actualDisplay)} r={3} fill="#38bdf8" stroke="var(--bg-card)" strokeWidth={1} />
+          <text x={x(actualT) + (actualLabelRight ? 6 : -6)} y={y(actualDisplay) - 6} fontSize={9} fontWeight={600} fill="#38bdf8"
+            textAnchor={actualLabelRight ? 'start' : 'end'} fontFamily="JetBrains Mono, monospace">
             Actual {fmtCompact(actualDisplay)}
           </text>
         </g>
@@ -188,7 +196,7 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, currentYear, m
       {yearTicks.map(yr => {
         const t = yr - cfg.startYear
         return (
-          <text key={yr} x={x(t)} y={H - 6} fontSize={10} fill="var(--text-4)" textAnchor="middle" fontFamily="Inter, sans-serif">
+          <text key={yr} x={x(t)} y={H - 8} fontSize={9} fill="var(--text-4)" textAnchor="middle" fontFamily="Inter, sans-serif">
             {yr}
           </text>
         )
