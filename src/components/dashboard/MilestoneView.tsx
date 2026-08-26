@@ -243,6 +243,14 @@ function fmtCompact(n: number): string {
   return `${sign}$${abs.toFixed(0)}`
 }
 
+// Chart viewBox/padding constants, shared with the Timeline strip below the
+// chart so its cards line up under the chart's own x-axis instead of being
+// an independently-spaced row that just happens to sit underneath it.
+const CHART_W = 1800, CHART_PAD_L = 60, CHART_PAD_R = 24
+const CHART_PAD_L_PCT = (CHART_PAD_L / CHART_W) * 100
+const CHART_PAD_R_PCT = (CHART_PAD_R / CHART_W) * 100
+const CHART_PLOT_W_PCT = 100 - CHART_PAD_L_PCT - CHART_PAD_R_PCT
+
 /** Catmull-Rom-through-cubic-Bezier smoothing — turns a polyline of many
  * short straight segments (one per month, plus a sharp corner at every FY
  * boundary where tax drags the curve down) into one continuously smooth
@@ -315,7 +323,7 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
   // whatever the browser stretches this viewBox to, so a too-narrow viewBox
   // on a wide container scales everything up (this is what made "Actual
   // $269K" render nearly 2x its authored 10px size before).
-  const W = 1800, H = 260, padL = 60, padR = 24, padT = 20, padB = 26
+  const W = CHART_W, H = 260, padL = CHART_PAD_L, padR = CHART_PAD_R, padT = 20, padB = 26
   const plotW = W - padL - padR, plotH = H - padT - padB
 
   // The x-axis normally starts at t=0 (today) — a recorded history stretches
@@ -534,11 +542,6 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
       <div className="dash-panel" style={{ flex: '0 0 auto' }}>
         <div className="dash-panel-header">
           <span>Wealth Timeline</span>
-          <div className="ms-currency-toggle">
-            {(['AUD', 'USD'] as const).map(c => (
-              <button key={c} className={`ms-chip${currency === c ? ' active' : ''}`} onClick={() => setCurrency(c)}>{c}</button>
-            ))}
-          </div>
         </div>
         <div className="ms-config-row">
           <label>Start capital
@@ -557,9 +560,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
             <input type="number" value={cfg.numYears}
               onChange={e => setCfg({ ...cfg, numYears: Math.max(1, Number(e.target.value) || 1) })} />
           </label>
-        </div>
-        {accounts.length > 0 && (
-          <div className="ms-config-row" style={{ paddingTop: 0 }}>
+          {accounts.length > 0 && (
             <label>Include in Actual
               <div className="ms-currency-toggle" style={{ marginTop: 3 }}>
                 {accounts.map(a => (
@@ -570,8 +571,15 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
                 ))}
               </div>
             </label>
-          </div>
-        )}
+          )}
+          <label>Currency
+            <div className="ms-currency-toggle" style={{ marginTop: 3 }}>
+              {(['AUD', 'USD'] as const).map(c => (
+                <button key={c} className={`ms-chip${currency === c ? ' active' : ''}`} onClick={() => setCurrency(c)}>{c}</button>
+              ))}
+            </div>
+          </label>
+        </div>
       </div>
 
       <div className="ms-summary-row">
@@ -606,9 +614,10 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
         <div className="dash-panel-header"><span>Timeline</span></div>
         <TimelineChart cfg={cfg} r={r} toDisplayFromAud={toDisplayFromAud}
           actualDisplay={actualDisplay} accountActuals={accountActuals} history={historyDisplay} years={years} />
-        <div className="ms-timeline-scroll">
+        <div className="ms-timeline-scroll" style={{ paddingLeft: `${CHART_PAD_L_PCT}%`, paddingRight: `${CHART_PAD_R_PCT}%` }}>
           {years.map(y => (
-            <div key={y.idx} className={`ms-timeline-year${y.crossed.length ? ' hit' : ''}${y.idx === 0 ? ' current' : ''}`}>
+            <div key={y.idx} className={`ms-timeline-year${y.crossed.length ? ' hit' : ''}${y.idx === 0 ? ' current' : ''}`}
+              style={{ width: `${(y.months / (years[years.length - 1]?.tEnd || 1)) * CHART_PLOT_W_PCT}%` }}>
               <div className="ms-timeline-year-label">{fmtMonthYear(y.startDate)}</div>
               <div className="ms-timeline-year-value">{fmt$(toDisplayFromAud(y.grossEnd))}</div>
               {y.crossed.map(c => <div key={c} className="ms-timeline-badge">{c}</div>)}
