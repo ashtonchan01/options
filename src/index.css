@@ -2074,23 +2074,31 @@ body {
 .ms-milestone-tile.hit { border-color: #10b981; }
 
 .ms-timeline-panel { flex: 0 0 auto; }
+/* Each card's width is set inline as a percentage matching the chart's own
+ * x-scale (months-in-that-row / total months) — with matching left/right
+ * padding this strip lines up under the chart's own year ticks above it,
+ * instead of an independently-spaced row of fixed-width cards that just
+ * happens to sit below the chart. */
 .ms-timeline-scroll {
   display: flex;
-  gap: 8px;
   overflow-x: auto;
   padding-bottom: 4px;
+  box-sizing: border-box;
 }
 .ms-timeline-year {
-  flex: 0 0 96px;
+  flex: 0 0 auto;
+  min-width: 64px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 6px;
+  border-right-width: 0;
+  padding: 8px 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
   background: var(--bg-elevated);
+  overflow: hidden;
 }
+.ms-timeline-year:last-child { border-right-width: 1px; }
 .ms-timeline-year.current { border-color: #38bdf8; }
 .ms-timeline-year.hit { background: rgba(16,185,129,0.08); }
 .ms-timeline-year-label { font-size: 11px; color: var(--text-3); font-weight: 700; }
