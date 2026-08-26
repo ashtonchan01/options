@@ -68,7 +68,7 @@ const DEFAULT_CONFIG: Config = {
   startCapital: 500_000,
   targetPct: 30,
   taxRate: 25,
-  numYears: 14,
+  numYears: 17,
 }
 
 const CONFIG_KEY = 'options:milestone-config'
