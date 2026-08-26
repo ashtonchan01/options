@@ -120,9 +120,13 @@ function parsePositions(doc: Document): RawPosition[] {
 }
 
 function parseCash(doc: Document): number {
-  // Prefer BASE_SUMMARY row; fall back to summing all currency rows
+  // Prefer BASE_SUMMARY row; fall back to summing all currency rows. A
+  // multi-date Flex query can carry one BASE_SUMMARY row per date (same
+  // trap as parseNetLiq below) — take the most recent one, not whichever
+  // happens to be first in the document.
   const rows = Array.from(doc.querySelectorAll('CashReportCurrency'))
-  const base = rows.find(el => el.getAttribute('currency') === 'BASE_SUMMARY')
+  const baseRows = rows.filter(el => el.getAttribute('currency') === 'BASE_SUMMARY')
+  const base = latestByReportDate(baseRows)
   if (base) return Number(base.getAttribute('endingCash') ?? 0)
   return rows.reduce((sum, el) => sum + Number(el.getAttribute('endingCash') ?? 0), 0)
 }
@@ -141,15 +145,32 @@ function parseReportWindow(doc: Document): { fromDate?: string; toDate?: string 
   }
 }
 
+/** Both EquitySummaryInBase and EquitySummaryByReportDateInBase can carry one
+ * row per date when the Flex query spans a date range, not just a single
+ * row for "today" — querySelector only ever returns the FIRST one in
+ * document order, which is the oldest date in the report window, not the
+ * current balance (verified against a real account: this silently returned
+ * a stale netLiquidation from over a year ago, understating the real
+ * current net worth by over $90K). Picking the row with the latest
+ * reportDate (falling back to last-in-document-order if reportDate is
+ * missing) gets the actual current figure instead. */
+function latestByReportDate(rows: Element[]): Element | undefined {
+  if (rows.length === 0) return undefined
+  const withDates = rows.filter(el => el.getAttribute('reportDate'))
+  if (withDates.length === 0) return rows[rows.length - 1]
+  return withDates.reduce((latest, el) =>
+    (el.getAttribute('reportDate')! > latest.getAttribute('reportDate')!) ? el : latest)
+}
+
 function parseNetLiq(doc: Document): number | undefined {
   // IBKR Flex reports include EquitySummaryInBase with exact netLiquidation
-  const eqBase = doc.querySelector('EquitySummaryInBase')
+  const eqBase = latestByReportDate(Array.from(doc.querySelectorAll('EquitySummaryInBase')))
   if (eqBase) {
     const nl = eqBase.getAttribute('netLiquidation')
     if (nl) return Number(nl)
   }
   // Also try EquitySummaryByReportDateInBase
-  const eqDate = doc.querySelector('EquitySummaryByReportDateInBase')
+  const eqDate = latestByReportDate(Array.from(doc.querySelectorAll('EquitySummaryByReportDateInBase')))
   if (eqDate) {
     const nl = eqDate.getAttribute('netLiquidation')
     if (nl) return Number(nl)
