@@ -6,12 +6,15 @@
  * Base"). Both the target curve and the Actual marker share the exact same
  * starting point — today, at t=0 — rather than one starting from a
  * financial-year boundary and the other from a live snapshot at some
- * offset into it. Every time the portfolio's Actual total changes (a fresh
- * IBKR sync), that day's figure is recorded to localStorage so the Actual
- * side grows into a real history line over time rather than staying a
- * single live point. Highlights the year each of $1M/$5M/$10M is first
- * crossed, breaks each year down into the monthly dollar return the target
- * implies, and shows the year's tax bill + after-tax profit at a flat
+ * offset into it. Reporting periods still run 1 Jul–30 Jun (the Australian
+ * financial year), not calendar years or a rolling 12 months from today —
+ * only the very first row is partial (today → the next 30 June), every row
+ * after that is a full FY. Every time the portfolio's Actual total changes
+ * (a fresh IBKR sync), that day's figure is recorded to localStorage so the
+ * Actual side grows into a real history line over time rather than staying
+ * a single live point. Highlights the year each of $1M/$5M/$10M is first
+ * crossed, breaks each row down into the monthly dollar return the target
+ * implies, and shows the row's tax bill + after-tax profit at a flat
  * configurable rate.
  *
  * The target is modelled entirely in AUD (the config's own currency) since
@@ -133,6 +136,14 @@ interface YearRow {
   idx: number
   startDate: Date
   endDate: Date
+  /** Exact whole months this row spans — 12 for every row except the
+   * first, which runs from today to the next 30 June and so is however
+   * many months that actually is. */
+  months: number
+  /** Months-from-today offset of this row's start/end, for placing it on
+   * the chart (which is itself t=0-at-today, independent of FY boundaries). */
+  tStart: number
+  tEnd: number
   start: number
   end: number
   grossPnl: number
@@ -141,18 +152,36 @@ interface YearRow {
   crossed: string[]
 }
 
-/** Rolling 12-month rows from `today` — year 1 is today→+12mo, year 2 is
- * +12mo→+24mo, and so on — rather than calendar or financial-year
- * boundaries, so the very first row (and the chart's t=0) is exactly where
- * "Actual" is measured from. */
+function monthIndex(d: Date): number {
+  return d.getFullYear() * 12 + d.getMonth()
+}
+function monthIndexToDate(idx: number): Date {
+  return new Date(Math.floor(idx / 12), ((idx % 12) + 12) % 12, 1)
+}
+
+/** Financial-year-aligned rows (1 Jul–30 Jun), not calendar or
+ * rolling-from-today rows — the first row is a partial year running from
+ * today to the next 30 June (whatever's left of the FY already under way),
+ * every row after that is a full Jul–Jun year. The chart itself still
+ * measures everything in months-from-today (t=0 = today) regardless of
+ * where these FY boundaries fall — tStart/tEnd carry that mapping. */
 function buildYears(cfg: Config, today: Date): YearRow[] {
   const r = monthlyRate(cfg.targetPct)
+  const todayIdx = monthIndex(today)
+  const boundaries = [todayIdx]
+  let b = todayIdx + 1
+  while (b % 12 !== 6) b++ // next July (month index 6 = July, 0 = January)
+  boundaries.push(b)
+  for (let i = 1; i < cfg.numYears; i++) boundaries.push(boundaries[boundaries.length - 1] + 12)
+
   const rows: YearRow[] = []
   let balance = cfg.startCapital
   let prevMilestonesHit = new Set<string>()
+  let tCursor = 0
   for (let i = 0; i < cfg.numYears; i++) {
+    const months = boundaries[i + 1] - boundaries[i]
     const start = balance
-    const end = start * Math.pow(1 + r, 12)
+    const end = start * Math.pow(1 + r, months)
     const grossPnl = end - start
     const tax = grossPnl > 0 ? grossPnl * (cfg.taxRate / 100) : 0
     const netPnl = grossPnl - tax
@@ -164,21 +193,26 @@ function buildYears(cfg: Config, today: Date): YearRow[] {
       }
     }
     rows.push({
-      idx: i, startDate: addMonths(today, i * 12), endDate: addMonths(today, (i + 1) * 12),
+      idx: i,
+      startDate: i === 0 ? today : monthIndexToDate(boundaries[i]),
+      endDate: monthIndexToDate(boundaries[i + 1]),
+      months, tStart: tCursor, tEnd: tCursor + months,
       start, end, grossPnl, tax, netPnl, crossed,
     })
+    tCursor += months
     balance = end
   }
   return rows
 }
 
-/** Which month (1-indexed) within the year a milestone is first reached, or
- * null if it isn't reached that year at all — used to phrase "reached in
- * month 8" rather than just flagging the whole year. */
-function crossingMonth(start: number, end: number, target: number, r: number): number | null {
+/** Which month (1-indexed) within the row a milestone is first reached, or
+ * null if it isn't reached in this row at all — used to phrase "reached in
+ * month 8" rather than just flagging the whole row. Capped to the row's
+ * own length since the first row may run fewer than 12 months. */
+function crossingMonth(start: number, end: number, target: number, r: number, months: number): number | null {
   if (target < start || target > end) return null
   const t = Math.log(target / start) / Math.log(1 + r)
-  return Math.max(1, Math.min(12, Math.ceil(t)))
+  return Math.max(1, Math.min(months, Math.ceil(t)))
 }
 
 function fmt$(n: number): string {
@@ -206,14 +240,15 @@ interface AccountActual { name: string; display: number }
  * account, and each account's own figure as its own marker so e.g.
  * Personal and Business stay visually distinguishable instead of only ever
  * appearing pre-summed. */
-function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals, today, history }: {
+function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals, history, years }: {
   cfg: Config; r: number; toDisplayFromAud: (v: number) => number
-  actualDisplay: number; accountActuals: AccountActual[]; today: Date
+  actualDisplay: number; accountActuals: AccountActual[]
   /** Recorded past "Actual" points, in chart-years-from-today (negative =
    * past) and already display-currency-converted. */
   history: { t: number; value: number }[]
+  years: YearRow[]
 }) {
-  const totalMonths = cfg.numYears * 12
+  const totalMonths = years[years.length - 1]?.tEnd ?? cfg.numYears * 12
   const points = useMemo(() => {
     const pts: { t: number; value: number }[] = []
     for (let t = 0; t <= totalMonths; t++) {
@@ -258,11 +293,11 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
     .map(m => ({ ...m, display: toDisplayFromAud(m.value) }))
     .filter(m => m.display >= minV && m.display <= maxV)
 
-  // One tick per anniversary of today (plus one for the earliest history
-  // point, if any) — every "today +N years" tick lands on the same
-  // calendar month, so labelling by year alone is unambiguous.
-  const yearTicks = Array.from({ length: cfg.numYears - Math.ceil(domainMinYears) + 1 }, (_, i) => Math.ceil(domainMinYears) + i)
-    .filter((_, i) => cfg.numYears <= 10 || i % 2 === 0)
+  // One tick per FY boundary (today, then each row's 30 June end) rather
+  // than a generic anniversary-of-today grid — ticks land exactly where
+  // the Yearly Breakdown table's own rows do.
+  const tickDefs = [{ t: 0, label: 'Today' }, ...years.map(row => ({ t: row.tEnd / 12, label: String(row.endDate.getFullYear()) }))]
+  const yearTicks = tickDefs.filter((_, i) => years.length <= 10 || i % 2 === 0)
 
   const actualLabelRight = x(0) < W - 200
 
@@ -304,7 +339,7 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
 
       <path d={linePath} fill="none" stroke="#10b981" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
 
-      {points.filter(p => p.t % 12 === 0).map(p => (
+      {[{ t: 0, value: toDisplayFromAud(cfg.startCapital) }, ...years.map(row => ({ t: row.tEnd, value: toDisplayFromAud(row.end) }))].map(p => (
         <circle key={p.t} cx={x(p.t / 12)} cy={y(p.value)} r={1.8} fill="#10b981" />
       ))}
 
@@ -331,9 +366,9 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
         </g>
       ))}
 
-      {yearTicks.map(i => (
-        <text key={i} x={x(i)} y={H - 8} fontSize={9} fill="var(--text-4)" textAnchor="middle" fontFamily="Inter, sans-serif">
-          {i === 0 ? 'Today' : addMonths(today, Math.round(i * 12)).getFullYear()}
+      {yearTicks.map(tick => (
+        <text key={tick.t} x={x(tick.t)} y={H - 8} fontSize={9} fill="var(--text-4)" textAnchor="middle" fontFamily="Inter, sans-serif">
+          {tick.label}
         </text>
       ))}
     </svg>
@@ -502,10 +537,10 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
             <div key={m.label} className={`dash-panel ms-summary-tile ms-milestone-tile${row ? ' hit' : ''}`}>
               <div className="dash-panel-sub">{m.label} Target</div>
               <div className="ms-summary-value">
-                {row ? fmtMonthYear(row.endDate) : '—'}
+                {row ? fmtMonthYear(addMonths(row.endDate, -1)) : '—'}
               </div>
               {row && (() => {
-                const month = crossingMonth(row.start, row.end, m.value, r)
+                const month = crossingMonth(row.start, row.end, m.value, r, row.months)
                 if (!month) return null
                 return <div className="ms-summary-sub">{fmtMonthYear(addMonths(row.startDate, month - 1))}</div>
               })()}
@@ -518,7 +553,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
       <div className="dash-panel ms-timeline-panel">
         <div className="dash-panel-header"><span>Timeline</span></div>
         <TimelineChart cfg={cfg} r={r} toDisplayFromAud={toDisplayFromAud}
-          actualDisplay={actualDisplay} accountActuals={accountActuals} today={today} history={historyDisplay} />
+          actualDisplay={actualDisplay} accountActuals={accountActuals} history={historyDisplay} years={years} />
         <div className="ms-timeline-scroll">
           {years.map(y => (
             <div key={y.idx} className={`ms-timeline-year${y.crossed.length ? ' hit' : ''}${y.idx === 0 ? ' current' : ''}`}>
@@ -567,7 +602,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
                       <tr>
                         <td colSpan={8} style={{ padding: 0 }}>
                           <div className="ms-month-grid">
-                            {Array.from({ length: 12 }, (_, i) => {
+                            {Array.from({ length: y.months }, (_, i) => {
                               const monthStart = y.start * Math.pow(1 + r, i)
                               const required = monthStart * r
                               return (
