@@ -294,17 +294,20 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
   // paid/deducted once a year, so the real trajectory isn't one smooth
   // curve across the whole timeline, it's this sawtooth: each year's gain
   // gets taxed before the after-tax remainder compounds into the next one.
+  // Drawn as one continuous exponential from today at the target rate —
+  // the annual tax drag (each row's real, lower after-tax start) is still
+  // exactly what the Yearly Breakdown table and every dollar figure use,
+  // but charting it produced a sawtooth that read as jagged/broken rather
+  // than informative. This line is the smooth "if nothing were ever taxed"
+  // reference curve; the actual after-tax numbers live in the table below.
+  const totalMonths = years[years.length - 1]?.tEnd ?? cfg.numYears * 12
   const points = useMemo(() => {
     const pts: { t: number; value: number }[] = []
-    for (const row of years) {
-      for (let m = 0; m <= row.months; m++) {
-        pts.push({ t: row.tStart + m, value: toDisplayFromAud(row.start * Math.pow(1 + r, m)) })
-      }
-      pts.push({ t: row.tEnd, value: toDisplayFromAud(row.end) })
+    for (let t = 0; t <= totalMonths; t++) {
+      pts.push({ t, value: toDisplayFromAud(cfg.startCapital * Math.pow(1 + r, t)) })
     }
-    if (pts.length === 0) pts.push({ t: 0, value: toDisplayFromAud(cfg.startCapital) })
     return pts
-  }, [years, r, cfg.startCapital, toDisplayFromAud])
+  }, [totalMonths, r, cfg.startCapital, toDisplayFromAud])
 
   // viewBox width is picked close to the chart's typical real rendered
   // width (desktop, sidebar expanded) rather than an arbitrary round number
@@ -388,8 +391,8 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
 
       <path d={linePath} fill="none" stroke="#10b981" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
 
-      {[{ t: 0, value: toDisplayFromAud(cfg.startCapital) }, ...years.map(row => ({ t: row.tEnd, value: toDisplayFromAud(row.end) }))].map(p => (
-        <circle key={p.t} cx={x(p.t / 12)} cy={y(p.value)} r={1.8} fill="#10b981" />
+      {[0, ...years.map(row => row.tEnd)].map(t => (
+        <circle key={t} cx={x(t / 12)} cy={y(toDisplayFromAud(cfg.startCapital * Math.pow(1 + r, t)))} r={1.8} fill="#10b981" />
       ))}
 
       {historyPath && <path d={historyPath} fill="none" stroke="#e5e7eb" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />}
