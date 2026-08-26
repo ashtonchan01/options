@@ -114,15 +114,22 @@ function fmtCompact(n: number): string {
   return `${sign}$${abs.toFixed(0)}`
 }
 
+const ACCOUNT_COLORS = ['#38bdf8', '#f59e0b', '#a78bfa', '#f472b6', '#34d399', '#fb923c']
+
+interface AccountActual { name: string; display: number }
+
 /** Horizontal timeline: monthly-resolution target curve on a log-value
  * y-axis (compounding growth would otherwise squash the early, still-small
  * years down near zero pixels next to an $11M+ later year on a linear
  * scale) with the actual net-worth-today figure plotted as its own marker
  * against where the target curve expects the portfolio to be at this exact
- * point in time. */
-function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, currentYear, monthsElapsed }: {
+ * point in time — both the combined total across every account, and each
+ * account's own figure as its own line/marker so e.g. Personal and
+ * Business stay visually distinguishable instead of only ever appearing
+ * pre-summed. */
+function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals, currentYear, monthsElapsed }: {
   cfg: Config; r: number; toDisplayFromAud: (v: number) => number
-  actualDisplay: number; currentYear: number; monthsElapsed: number
+  actualDisplay: number; accountActuals: AccountActual[]; currentYear: number; monthsElapsed: number
 }) {
   const totalMonths = cfg.numYears * 12
   const points = useMemo(() => {
@@ -145,7 +152,10 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, currentYear, m
   const W = 1800, H = 260, padL = 60, padR = 24, padT = 20, padB = 26
   const plotW = W - padL - padR, plotH = H - padT - padB
 
-  const allValues = [...points.map(p => p.value), ...(actualInRange ? [actualDisplay] : [])]
+  const allValues = [
+    ...points.map(p => p.value),
+    ...(actualInRange ? [actualDisplay, ...accountActuals.map(a => a.display)] : []),
+  ]
   const minV = Math.min(cfg.startCapital * 0.5, ...allValues)
   const maxV = Math.max(...allValues) * 1.08
   const logMin = Math.log10(Math.max(1, minV))
@@ -183,15 +193,33 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, currentYear, m
         <circle key={p.t} cx={x(p.t / 12)} cy={y(p.value)} r={1.8} fill="#10b981" />
       ))}
 
-      {actualInRange && (
+      {actualInRange && accountActuals.length > 1 && (
         <g>
-          <circle cx={x(actualT)} cy={y(actualDisplay)} r={3} fill="#38bdf8" stroke="var(--bg-card)" strokeWidth={1} />
-          <text x={x(actualT) + (actualLabelRight ? 6 : -6)} y={y(actualDisplay) - 6} fontSize={9} fontWeight={600} fill="#38bdf8"
+          <circle cx={x(actualT)} cy={y(actualDisplay)} r={3.2} fill="#e5e7eb" stroke="var(--bg-card)" strokeWidth={1} />
+          <text x={x(actualT) + (actualLabelRight ? 6 : -6)} y={y(actualDisplay) - 6} fontSize={9} fontWeight={700} fill="var(--text-1)"
             textAnchor={actualLabelRight ? 'start' : 'end'} fontFamily="JetBrains Mono, monospace">
-            Actual {fmtCompact(actualDisplay)}
+            Combined {fmtCompact(actualDisplay)}
           </text>
         </g>
       )}
+
+      {actualInRange && accountActuals.map((a, i) => {
+        const color = ACCOUNT_COLORS[i % ACCOUNT_COLORS.length]
+        // accountActuals.length === 1 means the combined dot above was
+        // skipped (it'd sit exactly on top of this one account's own dot),
+        // so this is the only marker on the chart in that case.
+        const soloAccount = accountActuals.length === 1
+        return (
+          <g key={a.name}>
+            <circle cx={x(actualT)} cy={y(a.display)} r={3} fill={color} stroke="var(--bg-card)" strokeWidth={1} />
+            <text x={x(actualT) + (actualLabelRight ? 6 : -6)} y={y(a.display) - 6 + (soloAccount ? 0 : i % 2 === 0 ? -8 : 8)}
+              fontSize={9} fontWeight={600} fill={color}
+              textAnchor={actualLabelRight ? 'start' : 'end'} fontFamily="JetBrains Mono, monospace">
+              {a.name} {fmtCompact(a.display)}
+            </text>
+          </g>
+        )
+      })}
 
       {yearTicks.map(yr => {
         const t = yr - cfg.startYear
@@ -239,6 +267,10 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
     [accounts],
   )
   const actualDisplay = toDisplayFromUsd(actualNetWorthUsd)
+
+  const accountActuals: AccountActual[] = accounts
+    .filter(a => (a.netLiquidation ?? a.cashBalance ?? 0) !== 0)
+    .map(a => ({ name: a.name, display: toDisplayFromUsd(a.netLiquidation ?? a.cashBalance ?? 0) }))
 
   const currentYear = new Date().getFullYear()
   const currentRow = years.find(y => y.year === currentYear)
@@ -314,7 +346,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
       <div className="dash-panel ms-timeline-panel">
         <div className="dash-panel-header"><span>Timeline</span></div>
         <TimelineChart cfg={cfg} r={r} toDisplayFromAud={toDisplayFromAud}
-          actualDisplay={actualDisplay} currentYear={currentYear} monthsElapsed={monthsElapsed} />
+          actualDisplay={actualDisplay} accountActuals={accountActuals} currentYear={currentYear} monthsElapsed={monthsElapsed} />
         <div className="ms-timeline-scroll">
           {years.map(y => (
             <div key={y.year} className={`ms-timeline-year${y.crossed.length ? ' hit' : ''}${y.year === currentYear ? ' current' : ''}`}>
