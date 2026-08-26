@@ -106,6 +106,97 @@ function fmt$(n: number): string {
   return `${sign}$${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 }
 
+function fmtCompact(n: number): string {
+  const abs = Math.abs(n)
+  const sign = n < 0 ? '-' : ''
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(0)}K`
+  return `${sign}$${abs.toFixed(0)}`
+}
+
+/** Horizontal timeline: monthly-resolution target curve on a log-value
+ * y-axis (compounding growth would otherwise squash the early, still-small
+ * years down near zero pixels next to an $11M+ later year on a linear
+ * scale) with the actual net-worth-today figure plotted as its own marker
+ * against where the target curve expects the portfolio to be at this exact
+ * point in time. */
+function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, currentYear, monthsElapsed }: {
+  cfg: Config; r: number; toDisplayFromAud: (v: number) => number
+  actualDisplay: number; currentYear: number; monthsElapsed: number
+}) {
+  const totalMonths = cfg.numYears * 12
+  const points = useMemo(() => {
+    const pts: { t: number; value: number }[] = []
+    for (let t = 0; t <= totalMonths; t++) {
+      pts.push({ t, value: toDisplayFromAud(cfg.startCapital * Math.pow(1 + r, t)) })
+    }
+    return pts
+  }, [cfg.startCapital, r, totalMonths, toDisplayFromAud])
+
+  const actualT = (currentYear - cfg.startYear) + monthsElapsed / 12
+  const actualInRange = actualT >= 0 && actualT <= totalMonths / 12
+
+  const W = 1000, H = 220, padL = 54, padR = 16, padT = 16, padB = 24
+  const plotW = W - padL - padR, plotH = H - padT - padB
+
+  const allValues = [...points.map(p => p.value), ...(actualInRange ? [actualDisplay] : [])]
+  const minV = Math.min(cfg.startCapital * 0.5, ...allValues)
+  const maxV = Math.max(...allValues) * 1.08
+  const logMin = Math.log10(Math.max(1, minV))
+  const logMax = Math.log10(Math.max(10, maxV))
+
+  const x = (tYears: number) => padL + (tYears / (totalMonths / 12)) * plotW
+  const y = (v: number) => padT + plotH - ((Math.log10(Math.max(1, v)) - logMin) / (logMax - logMin)) * plotH
+
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.t / 12).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ')
+
+  const milestoneLines = MILESTONES
+    .map(m => ({ ...m, display: toDisplayFromAud(m.value) }))
+    .filter(m => m.display >= minV && m.display <= maxV)
+
+  const yearTicks = Array.from({ length: cfg.numYears + 1 }, (_, i) => cfg.startYear + i)
+    .filter((_, i) => cfg.numYears <= 10 || i % 2 === 0)
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+      {milestoneLines.map(m => (
+        <g key={m.label}>
+          <line x1={padL} x2={W - padR} y1={y(m.display)} y2={y(m.display)}
+            stroke="var(--border)" strokeDasharray="3,3" strokeWidth={1} />
+          <text x={padL + 2} y={y(m.display) - 3} fontSize={9} fill="var(--text-4)" fontFamily="JetBrains Mono, monospace">
+            {m.label}
+          </text>
+        </g>
+      ))}
+
+      <path d={linePath} fill="none" stroke="#10b981" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+
+      {points.filter(p => p.t % 12 === 0).map(p => (
+        <circle key={p.t} cx={x(p.t / 12)} cy={y(p.value)} r={2.5} fill="#10b981" />
+      ))}
+
+      {actualInRange && (
+        <g>
+          <circle cx={x(actualT)} cy={y(actualDisplay)} r={4.5} fill="#38bdf8" stroke="var(--bg-card)" strokeWidth={1.5} />
+          <text x={x(actualT)} y={y(actualDisplay) - 8} fontSize={10} fontWeight={700} fill="#38bdf8"
+            textAnchor="middle" fontFamily="JetBrains Mono, monospace">
+            Actual {fmtCompact(actualDisplay)}
+          </text>
+        </g>
+      )}
+
+      {yearTicks.map(yr => {
+        const t = yr - cfg.startYear
+        return (
+          <text key={yr} x={x(t)} y={H - 6} fontSize={10} fill="var(--text-4)" textAnchor="middle" fontFamily="Inter, sans-serif">
+            {yr}
+          </text>
+        )
+      })}
+    </svg>
+  )
+}
+
 export default function MilestoneView({ accounts }: { accounts: Account[] }) {
   const [cfg, setCfg] = useState<Config>(loadConfig)
   const [currency, setCurrency] = useState<'AUD' | 'USD'>('AUD')
@@ -214,6 +305,8 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
 
       <div className="dash-panel ms-timeline-panel">
         <div className="dash-panel-header"><span>Timeline</span></div>
+        <TimelineChart cfg={cfg} r={r} toDisplayFromAud={toDisplayFromAud}
+          actualDisplay={actualDisplay} currentYear={currentYear} monthsElapsed={monthsElapsed} />
         <div className="ms-timeline-scroll">
           {years.map(y => (
             <div key={y.year} className={`ms-timeline-year${y.crossed.length ? ' hit' : ''}${y.year === currentYear ? ' current' : ''}`}>

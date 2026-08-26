@@ -6,6 +6,7 @@ import { useAuthStore } from './store/authStore'
 import { useAccounts } from './store/accountsStore'
 import { useWatchlists } from './store/watchlistStore'
 import DashboardView from './components/dashboard/DashboardView'
+import MilestoneView from './components/dashboard/MilestoneView'
 import AccountView from './components/portfolio/AccountView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import WatchlistView from './components/watchlist/WatchlistView'
@@ -114,8 +115,10 @@ export default function App() {
               onAddTicker={sym => watchlists.activeId && watchlists.addTicker(watchlists.activeId, sym)}
               onRemoveTicker={sym => watchlists.activeId && watchlists.removeTicker(watchlists.activeId, sym)}
             />
+          ) : activeTab === 'milestone' ? (
+            <MilestoneView accounts={accountsStore.accounts} />
           ) : (
-            <DashboardView state={EMPTY_STATE} accounts={accountsStore.accounts} />
+            <DashboardView state={EMPTY_STATE} />
           )}
         </main>
       </div>
