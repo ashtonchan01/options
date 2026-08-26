@@ -9,7 +9,13 @@
  * offset into it. Reporting periods still run 1 Jul–30 Jun (the Australian
  * financial year), not calendar years or a rolling 12 months from today —
  * only the very first row is partial (today → the next 30 June), every row
- * after that is a full FY. Every time the portfolio's Actual total changes
+ * after that is a full FY. Tax is paid once a year, at each FY boundary —
+ * only the after-tax remainder (start + net P&L) compounds into the next
+ * year, not the full pre-tax gain, so both the Yearly Breakdown table and
+ * the chart itself show that as a real drag: the target curve rises
+ * smoothly within a year then visibly steps down at each 30 June before
+ * continuing, rather than compounding as one smooth pre-tax exponential
+ * across the whole timeline. Every time the portfolio's Actual total changes
  * (a fresh IBKR sync), that day's figure is recorded to localStorage so the
  * Actual side grows into a real history line over time rather than staying
  * a single live point. Highlights the year each of $1M/$5M/$10M is first
@@ -145,6 +151,14 @@ interface YearRow {
   tStart: number
   tEnd: number
   start: number
+  /** Pre-tax compounded value this row would reach at `targetPct` — used
+   * only to work out the milestone-crossing month within the row (the
+   * smooth exponential path tax is paid on, before it's deducted). */
+  grossEnd: number
+  /** The actual carried-forward balance: start + netPnl. This — not
+   * grossEnd — is what next year's Start is: paying tax on this year's
+   * gain (assumed paid from the account) means only the after-tax amount
+   * compounds forward into the next FY, not the full pre-tax gain. */
   end: number
   grossPnl: number
   tax: number
@@ -181,13 +195,14 @@ function buildYears(cfg: Config, today: Date): YearRow[] {
   for (let i = 0; i < cfg.numYears; i++) {
     const months = boundaries[i + 1] - boundaries[i]
     const start = balance
-    const end = start * Math.pow(1 + r, months)
-    const grossPnl = end - start
+    const grossEnd = start * Math.pow(1 + r, months)
+    const grossPnl = grossEnd - start
     const tax = grossPnl > 0 ? grossPnl * (cfg.taxRate / 100) : 0
     const netPnl = grossPnl - tax
+    const end = start + netPnl
     const crossed: string[] = []
     for (const m of MILESTONES) {
-      if (end >= m.value && !prevMilestonesHit.has(m.label)) {
+      if (grossEnd >= m.value && !prevMilestonesHit.has(m.label)) {
         crossed.push(m.label)
         prevMilestonesHit = new Set(prevMilestonesHit).add(m.label)
       }
@@ -197,7 +212,7 @@ function buildYears(cfg: Config, today: Date): YearRow[] {
       startDate: i === 0 ? today : monthIndexToDate(boundaries[i]),
       endDate: monthIndexToDate(boundaries[i + 1]),
       months, tStart: tCursor, tEnd: tCursor + months,
-      start, end, grossPnl, tax, netPnl, crossed,
+      start, grossEnd, end, grossPnl, tax, netPnl, crossed,
     })
     tCursor += months
     balance = end
@@ -248,14 +263,23 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
   history: { t: number; value: number }[]
   years: YearRow[]
 }) {
-  const totalMonths = years[years.length - 1]?.tEnd ?? cfg.numYears * 12
+  // Smooth exponential rise WITHIN each FY (compounding at the target rate
+  // off that row's own post-tax start), then a vertical drop at the FY
+  // boundary down to the after-tax carried balance — tax is only actually
+  // paid/deducted once a year, so the real trajectory isn't one smooth
+  // curve across the whole timeline, it's this sawtooth: each year's gain
+  // gets taxed before the after-tax remainder compounds into the next one.
   const points = useMemo(() => {
     const pts: { t: number; value: number }[] = []
-    for (let t = 0; t <= totalMonths; t++) {
-      pts.push({ t, value: toDisplayFromAud(cfg.startCapital * Math.pow(1 + r, t)) })
+    for (const row of years) {
+      for (let m = 0; m <= row.months; m++) {
+        pts.push({ t: row.tStart + m, value: toDisplayFromAud(row.start * Math.pow(1 + r, m)) })
+      }
+      pts.push({ t: row.tEnd, value: toDisplayFromAud(row.end) })
     }
+    if (pts.length === 0) pts.push({ t: 0, value: toDisplayFromAud(cfg.startCapital) })
     return pts
-  }, [cfg.startCapital, r, totalMonths, toDisplayFromAud])
+  }, [years, r, cfg.startCapital, toDisplayFromAud])
 
   // viewBox width is picked close to the chart's typical real rendered
   // width (desktop, sidebar expanded) rather than an arbitrary round number
@@ -540,7 +564,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
                 {row ? fmtMonthYear(addMonths(row.endDate, -1)) : '—'}
               </div>
               {row && (() => {
-                const month = crossingMonth(row.start, row.end, m.value, r, row.months)
+                const month = crossingMonth(row.start, row.grossEnd, m.value, r, row.months)
                 if (!month) return null
                 return <div className="ms-summary-sub">{fmtMonthYear(addMonths(row.startDate, month - 1))}</div>
               })()}
