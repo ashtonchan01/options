@@ -266,6 +266,30 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
 
   const actualLabelRight = x(0) < W - 200
 
+  // Today's markers (Combined + each account) can land within a few pixels
+  // of each other's y whenever their dollar values are close — text at a
+  // fixed offset from each dot then overlaps illegibly. Laying every
+  // label's y out in one pass, sorted top-to-bottom with a minimum gap
+  // enforced between consecutive labels, keeps them readable regardless of
+  // how close together the underlying values are; each label still draws a
+  // thin leader line back to its own dot so it's still clear which is which
+  // once they've been pushed apart.
+  const showCombined = accountActuals.length > 1
+  const labelDefs = [
+    ...(showCombined ? [{ key: 'combined', dotY: y(actualDisplay), text: `Combined ${fmtCompact(actualDisplay)}`, color: 'var(--text-1)', weight: 700 }] : []),
+    ...accountActuals.map((a, i) => ({
+      key: a.name, dotY: y(a.display), text: `${a.name} ${fmtCompact(a.display)}`,
+      color: ACCOUNT_COLORS[i % ACCOUNT_COLORS.length], weight: 600,
+    })),
+  ].sort((a, b) => a.dotY - b.dotY)
+  const MIN_LABEL_GAP = 11
+  let prevLabelY = -Infinity
+  const labels = labelDefs.map(l => {
+    const labelY = Math.max(l.dotY - 6, prevLabelY + MIN_LABEL_GAP)
+    prevLabelY = labelY
+    return { ...l, labelY }
+  })
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
       {milestoneLines.map(m => (
@@ -289,33 +313,23 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
         <circle key={h.t} cx={x(h.t)} cy={y(h.value)} r={1.6} fill="#e5e7eb" />
       ))}
 
-      {accountActuals.length > 1 && (
-        <g>
-          <circle cx={x(0)} cy={y(actualDisplay)} r={3.2} fill="#e5e7eb" stroke="var(--bg-card)" strokeWidth={1} />
-          <text x={x(0) + (actualLabelRight ? 6 : -6)} y={y(actualDisplay) - 6} fontSize={9} fontWeight={700} fill="var(--text-1)"
+      {showCombined && <circle cx={x(0)} cy={y(actualDisplay)} r={3.2} fill="#e5e7eb" stroke="var(--bg-card)" strokeWidth={1} />}
+      {accountActuals.map((a, i) => (
+        <circle key={a.name} cx={x(0)} cy={y(a.display)} r={3} fill={ACCOUNT_COLORS[i % ACCOUNT_COLORS.length]} stroke="var(--bg-card)" strokeWidth={1} />
+      ))}
+
+      {labels.map(l => (
+        <g key={l.key}>
+          {Math.abs(l.labelY - (l.dotY - 6)) > 2 && (
+            <line x1={x(0)} y1={l.dotY} x2={x(0) + (actualLabelRight ? 4 : -4)} y2={l.labelY + 2}
+              stroke={l.color} strokeOpacity={0.4} strokeWidth={0.75} />
+          )}
+          <text x={x(0) + (actualLabelRight ? 6 : -6)} y={l.labelY} fontSize={9} fontWeight={l.weight} fill={l.color}
             textAnchor={actualLabelRight ? 'start' : 'end'} fontFamily="JetBrains Mono, monospace">
-            Combined {fmtCompact(actualDisplay)}
+            {l.text}
           </text>
         </g>
-      )}
-
-      {accountActuals.map((a, i) => {
-        const color = ACCOUNT_COLORS[i % ACCOUNT_COLORS.length]
-        // accountActuals.length === 1 means the combined dot above was
-        // skipped (it'd sit exactly on top of this one account's own dot),
-        // so this is the only marker on the chart in that case.
-        const soloAccount = accountActuals.length === 1
-        return (
-          <g key={a.name}>
-            <circle cx={x(0)} cy={y(a.display)} r={3} fill={color} stroke="var(--bg-card)" strokeWidth={1} />
-            <text x={x(0) + (actualLabelRight ? 6 : -6)} y={y(a.display) - 6 + (soloAccount ? 0 : i % 2 === 0 ? -8 : 8)}
-              fontSize={9} fontWeight={600} fill={color}
-              textAnchor={actualLabelRight ? 'start' : 'end'} fontFamily="JetBrains Mono, monospace">
-              {a.name} {fmtCompact(a.display)}
-            </text>
-          </g>
-        )
-      })}
+      ))}
 
       {yearTicks.map(i => (
         <text key={i} x={x(i)} y={H - 8} fontSize={9} fill="var(--text-4)" textAnchor="middle" fontFamily="Inter, sans-serif">
