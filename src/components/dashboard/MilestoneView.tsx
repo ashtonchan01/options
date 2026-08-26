@@ -18,6 +18,23 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { Account } from '../../store/accountsStore'
 import { fetchQuotes } from '../../services/quotes'
 
+/** An account's real net worth, not just its cash balance — falling back to
+ * cashBalance alone (as this page used to) silently ignores every open
+ * stock/option position's value, understating a portfolio holding real
+ * positions by however much those positions are worth. Most Flex queries
+ * report `netLiquidation` directly (IBKR's own cash + all positions'
+ * market value), but a query that never enabled "Equity Summary in Base"
+ * leaves it undefined forever — this recomputes the same total from the
+ * positions this app already has (cash + each position's own positionValue,
+ * IBKR's own per-leg market value) so the number doesn't silently stay
+ * cash-only just because the account's Flex config didn't opt into that
+ * one column. */
+function accountNetWorth(a: Account): number {
+  if (a.netLiquidation != null) return a.netLiquidation
+  const positionsValue = (a.positions ?? []).reduce((s, p) => s + (p.positionValue ?? 0), 0)
+  return (a.cashBalance ?? 0) + positionsValue
+}
+
 const MILESTONES = [
   { label: '$1M', value: 1_000_000 },
   { label: '$5M', value: 5_000_000 },
@@ -323,14 +340,14 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
   const r = monthlyRate(cfg.targetPct)
 
   const actualNetWorthUsd = useMemo(
-    () => includedAccounts.reduce((s, a) => s + (a.netLiquidation ?? a.cashBalance ?? 0), 0),
+    () => includedAccounts.reduce((s, a) => s + accountNetWorth(a), 0),
     [includedAccounts],
   )
   const actualDisplay = toDisplayFromUsd(actualNetWorthUsd)
 
   const accountActuals: AccountActual[] = includedAccounts
-    .filter(a => (a.netLiquidation ?? a.cashBalance ?? 0) !== 0)
-    .map(a => ({ name: a.name, display: toDisplayFromUsd(a.netLiquidation ?? a.cashBalance ?? 0) }))
+    .filter(a => accountNetWorth(a) !== 0)
+    .map(a => ({ name: a.name, display: toDisplayFromUsd(accountNetWorth(a)) }))
 
   const currentYear = currentFyStartYear()
   const currentRow = years.find(y => y.year === currentYear)
