@@ -57,6 +57,21 @@ const DEFAULT_CONFIG: Config = {
 }
 
 const CONFIG_KEY = 'options:milestone-config'
+const EXCLUDED_ACCOUNTS_KEY = 'options:milestone-excluded-accounts'
+
+/** Which accounts are excluded from "Actual", from localStorage — or, on a
+ * fresh load with no saved preference yet, any account that looks like a
+ * non-IBKR broker (e.g. "Moomoo"), since the target/tax framework here is
+ * built around the IBKR-denominated figure and a differently-currencied
+ * account would silently skew the combined total. Purely a one-time
+ * default — the chips let it be changed either way afterward. */
+function loadExcludedAccounts(accounts: Account[]): Set<string> {
+  try {
+    const raw = localStorage.getItem(EXCLUDED_ACCOUNTS_KEY)
+    if (raw) return new Set(JSON.parse(raw))
+  } catch { /* fall through to the name-based default below */ }
+  return new Set(accounts.filter(a => /moomoo/i.test(a.name)).map(a => a.id))
+}
 
 function loadConfig(): Config {
   try {
@@ -265,10 +280,28 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
   const [currency, setCurrency] = useState<'AUD' | 'USD'>('USD')
   const [expandedYear, setExpandedYear] = useState<number | null>(null)
   const [audUsd, setAudUsd] = useState<number | null>(null)
+  // Which accounts to leave OUT of "Actual" — e.g. a broker whose synced
+  // balance isn't trustworthy/relevant yet. Defaults to none excluded;
+  // toggled per-account via the chips below and remembered across reloads.
+  const [excludedAccounts, setExcludedAccounts] = useState<Set<string>>(() => loadExcludedAccounts(accounts))
 
   useEffect(() => {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg))
   }, [cfg])
+
+  useEffect(() => {
+    localStorage.setItem(EXCLUDED_ACCOUNTS_KEY, JSON.stringify([...excludedAccounts]))
+  }, [excludedAccounts])
+
+  function toggleAccount(id: string) {
+    setExcludedAccounts(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const includedAccounts = accounts.filter(a => !excludedAccounts.has(a.id))
 
   useEffect(() => {
     let cancelled = false
@@ -290,12 +323,12 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
   const r = monthlyRate(cfg.targetPct)
 
   const actualNetWorthUsd = useMemo(
-    () => accounts.reduce((s, a) => s + (a.netLiquidation ?? a.cashBalance ?? 0), 0),
-    [accounts],
+    () => includedAccounts.reduce((s, a) => s + (a.netLiquidation ?? a.cashBalance ?? 0), 0),
+    [includedAccounts],
   )
   const actualDisplay = toDisplayFromUsd(actualNetWorthUsd)
 
-  const accountActuals: AccountActual[] = accounts
+  const accountActuals: AccountActual[] = includedAccounts
     .filter(a => (a.netLiquidation ?? a.cashBalance ?? 0) !== 0)
     .map(a => ({ name: a.name, display: toDisplayFromUsd(a.netLiquidation ?? a.cashBalance ?? 0) }))
 
@@ -341,6 +374,20 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
               onChange={e => setCfg({ ...cfg, numYears: Math.max(1, Number(e.target.value) || 1) })} />
           </label>
         </div>
+        {accounts.length > 0 && (
+          <div className="ms-config-row" style={{ paddingTop: 0 }}>
+            <label>Include in Actual
+              <div className="ms-currency-toggle" style={{ marginTop: 3 }}>
+                {accounts.map(a => (
+                  <button key={a.id} className={`ms-chip${!excludedAccounts.has(a.id) ? ' active' : ''}`}
+                    onClick={() => toggleAccount(a.id)} title={a.name}>
+                    {a.name}
+                  </button>
+                ))}
+              </div>
+            </label>
+          </div>
+        )}
       </div>
 
       <div className="ms-summary-row">
