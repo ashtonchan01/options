@@ -243,6 +243,31 @@ function fmtCompact(n: number): string {
   return `${sign}$${abs.toFixed(0)}`
 }
 
+/** Catmull-Rom-through-cubic-Bezier smoothing — turns a polyline of many
+ * short straight segments (one per month, plus a sharp corner at every FY
+ * boundary where tax drags the curve down) into one continuously smooth
+ * curve. Segments with an identical x (the vertical tax-drop itself) are
+ * left as straight lines — smoothing a vertical drop just softens it into
+ * a diagonal, which reads as a mistake, not a curve. */
+function smoothPath(pts: { x: number; y: number }[]): string {
+  if (pts.length < 2) return ''
+  if (pts.length === 2) return `M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`
+  let d = `M${pts[0].x},${pts[0].y}`
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[i + 2] ?? p2
+    if (p1.x === p2.x) { d += ` L${p2.x},${p2.y}`; continue }
+    const c1x = p1.x + (p2.x - p0.x) / 6
+    const c1y = p1.y + (p2.y - p0.y) / 6
+    const c2x = p2.x - (p3.x - p1.x) / 6
+    const c2y = p2.y - (p3.y - p1.y) / 6
+    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`
+  }
+  return d
+}
+
 const ACCOUNT_COLORS = ['#38bdf8', '#f59e0b', '#a78bfa', '#f472b6', '#34d399', '#fb923c']
 
 interface AccountActual { name: string; display: number }
@@ -308,9 +333,9 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
   const x = (tYears: number) => padL + ((tYears - domainMinYears) / domainYears) * plotW
   const y = (v: number) => padT + plotH - ((Math.log10(Math.max(1, v)) - logMin) / (logMax - logMin)) * plotH
 
-  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.t / 12).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ')
+  const linePath = smoothPath(points.map(p => ({ x: x(p.t / 12), y: y(p.value) })))
   const historyPath = history.length > 1
-    ? history.map((h, i) => `${i === 0 ? 'M' : 'L'}${x(h.t).toFixed(1)},${y(h.value).toFixed(1)}`).join(' ')
+    ? smoothPath(history.map(h => ({ x: x(h.t), y: y(h.value) })))
     : null
 
   const milestoneLines = MILESTONES
