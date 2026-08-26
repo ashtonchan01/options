@@ -9,13 +9,12 @@
  * offset into it. Reporting periods still run 1 Jul–30 Jun (the Australian
  * financial year), not calendar years or a rolling 12 months from today —
  * only the very first row is partial (today → the next 30 June), every row
- * after that is a full FY. Tax is paid once a year, at each FY boundary —
+ * after that is a full FY. Tax is paid once a year at each FY boundary —
  * only the after-tax remainder (start + net P&L) compounds into the next
- * year, not the full pre-tax gain, so both the Yearly Breakdown table and
- * the chart itself show that as a real drag: the target curve rises
- * smoothly within a year then visibly steps down at each 30 June before
- * continuing, rather than compounding as one smooth pre-tax exponential
- * across the whole timeline. Every time the portfolio's Actual total changes
+ * year, not the full pre-tax gain — but the chart itself is drawn as one
+ * smooth pre-tax reference curve (a visible sawtooth read as broken, not
+ * informative); the real after-tax numbers live in the Yearly Breakdown
+ * table below it. Every time the portfolio's Actual total changes
  * (a fresh IBKR sync), that day's figure is recorded to localStorage so the
  * Actual side grows into a real history line over time rather than staying
  * a single live point. Highlights the year each of $1M/$5M/$10M is first
@@ -276,6 +275,29 @@ function smoothPath(pts: { x: number; y: number }[]): string {
   return d
 }
 
+/** Measures a DOM node's real pixel content-box size via ResizeObserver — used
+ * to size the chart's SVG viewBox to the container's actual rendered width
+ * rather than a fixed assumption, so 1 viewBox unit is always 1 real pixel
+ * on any screen (mobile included), not just whatever width the fixed
+ * viewBox happened to be tuned for. */
+function useElementSize<T extends HTMLElement>() {
+  const ref = useState<T | null>(null)
+  const [node, setNode] = ref
+  const [size, setSize] = useState({ width: 0, height: 0 })
+  useEffect(() => {
+    if (!node) return
+    const ro = new ResizeObserver(entries => {
+      const box = entries[0]?.contentBoxSize?.[0]
+      if (box) setSize({ width: box.inlineSize, height: box.blockSize })
+      else setSize({ width: node.clientWidth, height: node.clientHeight })
+    })
+    ro.observe(node)
+    setSize({ width: node.clientWidth, height: node.clientHeight })
+    return () => ro.disconnect()
+  }, [node])
+  return [setNode, size] as const
+}
+
 const ACCOUNT_COLORS = ['#38bdf8', '#f59e0b', '#a78bfa', '#f472b6', '#34d399', '#fb923c']
 
 interface AccountActual { name: string; display: number }
@@ -296,12 +318,8 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
   history: { t: number; value: number }[]
   years: YearRow[]
 }) {
-  // Smooth exponential rise WITHIN each FY (compounding at the target rate
-  // off that row's own post-tax start), then a vertical drop at the FY
-  // boundary down to the after-tax carried balance — tax is only actually
-  // paid/deducted once a year, so the real trajectory isn't one smooth
-  // curve across the whole timeline, it's this sawtooth: each year's gain
-  // gets taxed before the after-tax remainder compounds into the next one.
+  const [setNode, measured] = useElementSize<HTMLDivElement>()
+
   // Drawn as one continuous exponential from today at the target rate —
   // the annual tax drag (each row's real, lower after-tax start) is still
   // exactly what the Yearly Breakdown table and every dollar figure use,
@@ -317,14 +335,22 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
     return pts
   }, [totalMonths, r, cfg.startCapital, toDisplayFromAud])
 
-  // viewBox width is picked close to the chart's typical real rendered
-  // width (desktop, sidebar expanded) rather than an arbitrary round number
-  // — text/dot sizes are defined in user-space units that scale with
-  // whatever the browser stretches this viewBox to, so a too-narrow viewBox
-  // on a wide container scales everything up (this is what made "Actual
-  // $269K" render nearly 2x its authored 10px size before).
-  const W = CHART_W, H = 260, padL = CHART_PAD_L, padR = CHART_PAD_R, padT = 20, padB = 26
+  // viewBox width is the container's own measured pixel width (not a fixed
+  // assumption) — text/dot sizes are defined in user-space units that scale
+  // with whatever the browser stretches the viewBox to, so a viewBox tuned
+  // for one screen size renders wrong on any other (this is what made
+  // "Actual $269K" render nearly 2x its authored size on desktop before,
+  // and would make every label unreadably tiny on a phone-width container).
+  // Measuring the real box keeps 1 viewBox unit = 1 real pixel everywhere.
+  const W = measured.width, H = 260
+  const padL = W * (CHART_PAD_L_PCT / 100), padR = W * (CHART_PAD_R_PCT / 100)
+  const padT = 20, padB = 26
   const plotW = W - padL - padR, plotH = H - padT - padB
+
+  // Not measured yet (first render, before the ResizeObserver reports back)
+  // — render just the (ref-carrying) box so it can actually be measured,
+  // rather than dividing by a zero width below.
+  if (W <= 0) return <div ref={setNode} style={{ width: '100%', height: H }} />
 
   // The x-axis normally starts at t=0 (today) — a recorded history stretches
   // it a bit to the left so past readings have somewhere to sit instead of
@@ -386,6 +412,7 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
   })
 
   return (
+    <div ref={setNode} style={{ width: '100%' }}>
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
       {milestoneLines.map(m => (
         <g key={m.label}>
@@ -432,6 +459,7 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
         </text>
       ))}
     </svg>
+    </div>
   )
 }
 
