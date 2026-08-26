@@ -1755,26 +1755,6 @@ body {
    screen at once, or left tall with the column scrolling to reach the
    rest, instead of the previous column-wrapping masonry silently requiring
    horizontal scrolling to reach panels pushed into extra columns. */
-/* DashboardView's own Market/Milestone sub-nav sits above .dash-wrap, which
-   still needs to be the one bounded scrollable box inside <main> (see the
-   note on .dash-wrap itself) — so dash-shell fills <main>'s height and
-   hands all but the fixed-height tab row down to whichever section is
-   active, exactly like AccountView's own section-tabs + body split. */
-.dash-shell {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.dash-section-tabs {
-  flex: 0 0 auto;
-  padding: 6px 10px 0;
-}
-.dash-shell > .dash-wrap,
-.dash-shell > .ms-wrap {
-  flex: 1;
-  min-height: 0;
-}
 .dash-wrap {
   height: 100%;
   padding: 6px;

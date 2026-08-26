@@ -11,10 +11,8 @@
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
-import type { Account } from '../../store/accountsStore'
 import { EXCHANGES } from '../../data/exchanges'
 import { fetchMarketQuotes, type MarketQuote } from '../../services/markets'
-import MilestoneView from './MilestoneView'
 import WorldMapPanel from './panels/WorldMapPanel'
 import LiveChartsStrip from './panels/LiveChartsStrip'
 import LiveTVPanel from './panels/LiveTVPanel'
@@ -30,15 +28,7 @@ import { useWideMap } from '../../hooks/useResizablePanel'
 const REFRESH_MS = 60_000
 const CHART_ONLY_SYMBOLS = ['ES=F']
 
-type DashSection = 'market' | 'milestone'
-
-const DASH_TABS: { id: DashSection; label: string }[] = [
-  { id: 'market', label: 'Market' },
-  { id: 'milestone', label: 'Milestone' },
-]
-
-export default function DashboardView({ state, accounts }: { state: AppState; accounts: Account[] }) {
-  const [section, setSection] = useState<DashSection>('market')
+export default function DashboardView({ state }: { state: AppState }) {
   const [quotes, setQuotes] = useState<Record<string, MarketQuote>>({})
   const [now, setNow] = useState(() => new Date())
   const { wideIds, setWide } = useWideMap()
@@ -70,57 +60,42 @@ export default function DashboardView({ state, accounts }: { state: AppState; ac
   const wideOnes = [...colA, ...colB].filter(p => wideIds.has(p.id))
 
   return (
-    <div className="dash-shell">
-      <div className="ph-underline-tabs dash-section-tabs">
-        {DASH_TABS.map(t => (
-          <button key={t.id} className={`ph-underline-tab${section === t.id ? ' active' : ''}`}
-            onClick={() => setSection(t.id)}>
-            {t.label}
-          </button>
-        ))}
+    <div className="dash-wrap">
+      <div className="dash-left-col">
+        <div className="dash-cell dash-left-map">
+          <WorldMapPanel quotes={quotes} now={now} />
+        </div>
+        <div className="dash-cell dash-left-charts">
+          <LiveChartsStrip quotes={quotes} layout="row-single" />
+        </div>
       </div>
 
-      {section === 'milestone' ? (
-        <MilestoneView accounts={accounts} />
-      ) : (
-        <div className="dash-wrap">
-          <div className="dash-left-col">
-            <div className="dash-cell dash-left-map">
-              <WorldMapPanel quotes={quotes} now={now} />
-            </div>
-            <div className="dash-cell dash-left-charts">
-              <LiveChartsStrip quotes={quotes} layout="row-single" />
-            </div>
-          </div>
-
-          <div className="dash-right-cols-wrap">
-            {wideOnes.map(p => (
+      <div className="dash-right-cols-wrap">
+        {wideOnes.map(p => (
+          <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
+            wide onSetWide={(w) => setWide(p.id, w)}>
+            {p.node}
+          </ResizablePanel>
+        ))}
+        <div className="dash-right-cols">
+          <div className="dash-right-col">
+            {colA.filter(p => !wideIds.has(p.id)).map(p => (
               <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
-                wide onSetWide={(w) => setWide(p.id, w)}>
+                onSetWide={(w) => setWide(p.id, w)}>
                 {p.node}
               </ResizablePanel>
             ))}
-            <div className="dash-right-cols">
-              <div className="dash-right-col">
-                {colA.filter(p => !wideIds.has(p.id)).map(p => (
-                  <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
-                    onSetWide={(w) => setWide(p.id, w)}>
-                    {p.node}
-                  </ResizablePanel>
-                ))}
-              </div>
-              <div className="dash-right-col">
-                {colB.filter(p => !wideIds.has(p.id)).map(p => (
-                  <ResizablePanel key={p.id} id={p.id} defaultWidth={460} defaultHeight={p.h} axis="vertical"
-                    onSetWide={(w) => setWide(p.id, w)}>
-                    {p.node}
-                  </ResizablePanel>
-                ))}
-              </div>
-            </div>
+          </div>
+          <div className="dash-right-col">
+            {colB.filter(p => !wideIds.has(p.id)).map(p => (
+              <ResizablePanel key={p.id} id={p.id} defaultWidth={460} defaultHeight={p.h} axis="vertical"
+                onSetWide={(w) => setWide(p.id, w)}>
+                {p.node}
+              </ResizablePanel>
+            ))}
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }

@@ -10,7 +10,7 @@
 import { useState } from 'react'
 import {
   LayoutDashboard, Radar, ListChecks, Plus, X as XIcon,
-  Menu, X,
+  Menu, X, Flag,
   Sun, Moon, LogOut, ChevronLeft, ChevronRight, RefreshCw,
 } from 'lucide-react'
 import type { Account } from '../../store/accountsStore'
@@ -98,6 +98,14 @@ export default function Sidebar({
             onClick={() => selectTab('dashboard')}>
             <LayoutDashboard size={17} />
             <span>Dashboard</span>
+          </button>
+
+          <button
+            className={`ew-nav-item${activeTab === 'milestone' ? ' active' : ''}`}
+            title={collapsed ? 'Milestone' : undefined}
+            onClick={() => selectTab('milestone')}>
+            <Flag size={17} />
+            <span>Milestone</span>
           </button>
 
           <button
