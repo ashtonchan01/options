@@ -26,15 +26,31 @@ const MILESTONES = [
 
 interface Config {
   startCapital: number
+  /** Starting year of an Australian financial year (1 Jul–30 Jun) — the
+   * $500,000 start capital is banked from 1 Jul of this year, not 1 Jan,
+   * so every year below runs Jul→Jun and every "month 1" is July. */
   startYear: number
   targetPct: number
   taxRate: number
   numYears: number
 }
 
+/** The financial-year start year (1 Jul–30 Jun) that today falls in — July
+ * onward belongs to the FY starting this calendar year, Jan–Jun belongs to
+ * the FY that started the previous calendar year. Mirrors reportsShared's
+ * own fyOf() bucketing used elsewhere in the app (Reports/Calendar). */
+function currentFyStartYear(): number {
+  const now = new Date()
+  return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
+}
+
+function fyLabel(startYear: number): string {
+  return `FY ${startYear}/${String((startYear + 1) % 100).padStart(2, '0')}`
+}
+
 const DEFAULT_CONFIG: Config = {
   startCapital: 500_000,
-  startYear: new Date().getFullYear(),
+  startYear: currentFyStartYear(),
   targetPct: 30,
   taxRate: 25,
   numYears: 14,
@@ -99,7 +115,14 @@ function crossingMonth(start: number, end: number, target: number, r: number): n
   return Math.max(1, Math.min(12, Math.ceil(t)))
 }
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+// Month 1 of a financial-year row is July, not January.
+const FY_MONTH_NAMES = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+
+/** A 1-indexed FY month (1=Jul .. 12=Jun) falls in calendar year `fyStartYear`
+ * for Jul–Dec (indices 1–6) or `fyStartYear + 1` for Jan–Jun (indices 7–12). */
+function calendarYearForFyMonth(fyStartYear: number, month: number): number {
+  return month <= 6 ? fyStartYear : fyStartYear + 1
+}
 
 function fmt$(n: number): string {
   const sign = n < 0 ? '-' : ''
@@ -225,7 +248,7 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
         const t = yr - cfg.startYear
         return (
           <text key={yr} x={x(t)} y={H - 8} fontSize={9} fill="var(--text-4)" textAnchor="middle" fontFamily="Inter, sans-serif">
-            {yr}
+            FY{String(yr).slice(-2)}
           </text>
         )
       })}
@@ -235,7 +258,11 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
 
 export default function MilestoneView({ accounts }: { accounts: Account[] }) {
   const [cfg, setCfg] = useState<Config>(loadConfig)
-  const [currency, setCurrency] = useState<'AUD' | 'USD'>('AUD')
+  // Defaults to USD, not AUD — the IBKR accounts that feed "Actual" are
+  // USD-denominated, so USD is the currency their real numbers need no FX
+  // round-trip to display in; AUD is only the currency the target/start
+  // capital was configured in.
+  const [currency, setCurrency] = useState<'AUD' | 'USD'>('USD')
   const [expandedYear, setExpandedYear] = useState<number | null>(null)
   const [audUsd, setAudUsd] = useState<number | null>(null)
 
@@ -272,9 +299,11 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
     .filter(a => (a.netLiquidation ?? a.cashBalance ?? 0) !== 0)
     .map(a => ({ name: a.name, display: toDisplayFromUsd(a.netLiquidation ?? a.cashBalance ?? 0) }))
 
-  const currentYear = new Date().getFullYear()
+  const currentYear = currentFyStartYear()
   const currentRow = years.find(y => y.year === currentYear)
-  const monthsElapsed = new Date().getMonth() // 0-indexed = months fully elapsed
+  // Months fully elapsed since 1 Jul of the current FY, not since 1 Jan —
+  // e.g. August is 1 month into the FY that started the preceding July.
+  const monthsElapsed = (new Date().getMonth() - 6 + 12) % 12
   const expectedToday = currentRow ? currentRow.start * Math.pow(1 + r, monthsElapsed) : null
   const expectedTodayDisplay = expectedToday != null ? toDisplayFromAud(expectedToday) : null
   const variance = expectedTodayDisplay != null ? actualDisplay - expectedTodayDisplay : null
@@ -295,7 +324,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
             <input type="number" value={cfg.startCapital}
               onChange={e => setCfg({ ...cfg, startCapital: Number(e.target.value) || 0 })} />
           </label>
-          <label>Start year
+          <label>Start FY (1 Jul)
             <input type="number" value={cfg.startYear}
               onChange={e => setCfg({ ...cfg, startYear: Number(e.target.value) || DEFAULT_CONFIG.startYear })} />
           </label>
@@ -331,11 +360,12 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
             <div key={m.label} className={`dash-panel ms-summary-tile ms-milestone-tile${row ? ' hit' : ''}`}>
               <div className="dash-panel-sub">{m.label} Target</div>
               <div className="ms-summary-value">
-                {row ? `${row.year}` : '—'}
+                {row ? fyLabel(row.year) : '—'}
               </div>
               {row && (() => {
                 const month = crossingMonth(row.start, row.end, m.value, r)
-                return <div className="ms-summary-sub">{month ? MONTH_NAMES[month - 1] : ''} {row.year}</div>
+                if (!month) return null
+                return <div className="ms-summary-sub">{FY_MONTH_NAMES[month - 1]} {calendarYearForFyMonth(row.year, month)}</div>
               })()}
               {alreadyActual && <div className="ms-summary-sub" style={{ color: '#10b981' }}>Already reached (actual)</div>}
             </div>
@@ -350,7 +380,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
         <div className="ms-timeline-scroll">
           {years.map(y => (
             <div key={y.year} className={`ms-timeline-year${y.crossed.length ? ' hit' : ''}${y.year === currentYear ? ' current' : ''}`}>
-              <div className="ms-timeline-year-label">{y.year}</div>
+              <div className="ms-timeline-year-label">{fyLabel(y.year)}</div>
               <div className="ms-timeline-year-value">{fmt$(toDisplayFromAud(y.end))}</div>
               {y.crossed.map(c => <div key={c} className="ms-timeline-badge">{c}</div>)}
             </div>
@@ -381,7 +411,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
                   <Fragment key={y.year}>
                     <tr onClick={() => setExpandedYear(open ? null : y.year)} style={{ cursor: 'pointer' }}>
                       <td className="mono" style={{ color: 'var(--text-4)' }}>{open ? '▾' : '▸'}</td>
-                      <td className="mono" style={{ fontWeight: 700 }}>{y.year}</td>
+                      <td className="mono" style={{ fontWeight: 700 }}>{fyLabel(y.year)}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{fmt$(toDisplayFromAud(y.start))}</td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt$(toDisplayFromAud(y.end))}</td>
                       <td className="mono" style={{ textAlign: 'right', color: '#10b981' }}>{fmt$(toDisplayFromAud(y.grossPnl))}</td>
@@ -398,7 +428,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
                               const required = monthStart * r
                               return (
                                 <div key={i} className="ms-month-cell">
-                                  <div className="ms-month-label">{MONTH_NAMES[i]}</div>
+                                  <div className="ms-month-label">{FY_MONTH_NAMES[i]}</div>
                                   <div className="ms-month-value">{fmt$(toDisplayFromAud(required))}</div>
                                 </div>
                               )
