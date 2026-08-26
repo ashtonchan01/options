@@ -115,7 +115,7 @@ export default function App() {
               onRemoveTicker={sym => watchlists.activeId && watchlists.removeTicker(watchlists.activeId, sym)}
             />
           ) : (
-            <DashboardView state={EMPTY_STATE} />
+            <DashboardView state={EMPTY_STATE} accounts={accountsStore.accounts} />
           )}
         </main>
       </div>
