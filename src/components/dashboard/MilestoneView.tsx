@@ -582,7 +582,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
           {years.map(y => (
             <div key={y.idx} className={`ms-timeline-year${y.crossed.length ? ' hit' : ''}${y.idx === 0 ? ' current' : ''}`}>
               <div className="ms-timeline-year-label">{fmtMonthYear(y.startDate)}</div>
-              <div className="ms-timeline-year-value">{fmt$(toDisplayFromAud(y.end))}</div>
+              <div className="ms-timeline-year-value">{fmt$(toDisplayFromAud(y.grossEnd))}</div>
               {y.crossed.map(c => <div key={c} className="ms-timeline-badge">{c}</div>)}
             </div>
           ))}
@@ -616,7 +616,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
                         {fmtMonthYear(y.startDate)} – {fmtMonthYear(addMonths(y.endDate, -1))}
                       </td>
                       <td className="mono" style={{ textAlign: 'right' }}>{fmt$(toDisplayFromAud(y.start))}</td>
-                      <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt$(toDisplayFromAud(y.end))}</td>
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt$(toDisplayFromAud(y.grossEnd))}</td>
                       <td className="mono" style={{ textAlign: 'right', color: '#10b981' }}>{fmt$(toDisplayFromAud(y.grossPnl))}</td>
                       <td className="mono" style={{ textAlign: 'right', color: '#ef4444' }}>{fmt$(toDisplayFromAud(y.tax))}</td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt$(toDisplayFromAud(y.netPnl))}</td>
