@@ -124,7 +124,14 @@ function deriveEvents(strategies: Strategy[]): ExpiryEvent[] {
         putCall:      l.putCall,
         quantity:     l.quantity,
         dte:          l.dte,
-        unrealizedPnL: s.unrealizedPnL,
+        // The strategy-level unrealizedPnL (s.unrealizedPnL) folds in the
+        // underlying shares' own unrealized gain for a covered call/PMCC —
+        // fine for "how is this whole position doing" elsewhere, but wildly
+        // misleading on an expiry badge for one specific option leg (a
+        // long-held stock's price appreciation has nothing to do with the
+        // premium collected on this call). This leg's own unrealizedPnL is
+        // scoped to just the option contract expiring on this date.
+        unrealizedPnL: l.unrealizedPnL,
         netPremium:   s.netPremiumReceived,
       }))
   )
