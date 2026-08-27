@@ -803,11 +803,12 @@ body {
 .jr-strategy-cell table th:nth-child(7),  .jr-strategy-cell table td:nth-child(7)  { width: 110px; } /* Cost Basis */
 .jr-strategy-cell table th:nth-child(8),  .jr-strategy-cell table td:nth-child(8)  { width: 100px; } /* Breakeven */
 .jr-strategy-cell table th:nth-child(9),  .jr-strategy-cell table td:nth-child(9)  { width: 100px; } /* Market Price */
-.jr-strategy-cell table th:nth-child(10), .jr-strategy-cell table td:nth-child(10) { width: 110px; } /* Unrealised */
-.jr-strategy-cell table th:nth-child(11), .jr-strategy-cell table td:nth-child(11) { width: 90px; }  /* % */
-.jr-strategy-cell table th:nth-child(12), .jr-strategy-cell table td:nth-child(12) { width: 70px; }  /* DTE */
-.jr-strategy-cell table th:nth-child(13), .jr-strategy-cell table td:nth-child(13) { width: 80px; }  /* Fees */
-.jr-strategy-cell table th:nth-child(14), .jr-strategy-cell table td:nth-child(14) { width: 90px; }  /* P&L */
+.jr-strategy-cell table th:nth-child(10), .jr-strategy-cell table td:nth-child(10) { width: 100px; } /* Market Value */
+.jr-strategy-cell table th:nth-child(11), .jr-strategy-cell table td:nth-child(11) { width: 110px; } /* Unrealised */
+.jr-strategy-cell table th:nth-child(12), .jr-strategy-cell table td:nth-child(12) { width: 90px; }  /* % */
+.jr-strategy-cell table th:nth-child(13), .jr-strategy-cell table td:nth-child(13) { width: 70px; }  /* DTE */
+.jr-strategy-cell table th:nth-child(14), .jr-strategy-cell table td:nth-child(14) { width: 80px; }  /* Fees */
+.jr-strategy-cell table th:nth-child(15), .jr-strategy-cell table td:nth-child(15) { width: 90px; }  /* P&L */
 
 .cc-section-title {
   font-size: 10px;
@@ -2024,7 +2025,11 @@ body {
   height: 100%;
   box-sizing: border-box;
 }
-.ms-currency-toggle { display: flex; gap: 4px; }
+/* flex-wrap here matters on mobile — the account-chip row (Include in
+   Actual) can carry several account-name chips, and without wrapping this
+   row (and its unconstrained parent label, hence the whole config row)
+   would rather overflow the screen width than break onto a second line. */
+.ms-currency-toggle { display: flex; flex-wrap: wrap; gap: 4px; max-width: 100%; }
 .ms-chip {
   padding: 3px 10px;
   border-radius: 999px;
@@ -2050,6 +2055,8 @@ body {
   font-size: 11px;
   color: var(--text-3);
   font-family: Inter, sans-serif;
+  min-width: 0;
+  max-width: 100%;
 }
 .ms-config-row input {
   width: 110px;
