@@ -2024,7 +2024,11 @@ body {
   height: 100%;
   box-sizing: border-box;
 }
-.ms-currency-toggle { display: flex; gap: 4px; }
+/* flex-wrap here matters on mobile — the account-chip row (Include in
+   Actual) can carry several account-name chips, and without wrapping this
+   row (and its unconstrained parent label, hence the whole config row)
+   would rather overflow the screen width than break onto a second line. */
+.ms-currency-toggle { display: flex; flex-wrap: wrap; gap: 4px; max-width: 100%; }
 .ms-chip {
   padding: 3px 10px;
   border-radius: 999px;
@@ -2050,6 +2054,8 @@ body {
   font-size: 11px;
   color: var(--text-3);
   font-family: Inter, sans-serif;
+  min-width: 0;
+  max-width: 100%;
 }
 .ms-config-row input {
   width: 110px;
