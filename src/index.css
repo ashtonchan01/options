@@ -2016,15 +2016,23 @@ body {
 
 /* ─── Milestone (Dashboard sub-tab) ────────────────────────────────────── */
 
+/* display:block + height:auto/overflow:visible (not a flex column with
+   height:100%) — same fix already applied to the Calendar and Journal
+   pages: a flex column of auto-height children inside a parent with
+   overflow:hidden doesn't reliably scroll on real devices even with
+   overflow-y:auto set here, because the flex item's height:100% can end
+   up pinned to the (shorter) intrinsic content height instead of the
+   parent's actual box. Making this div's own scrollbar the one true
+   scroll container avoids that flex-basis/overflow interaction. */
 .ms-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: block;
   padding: 10px;
   overflow-y: auto;
+  overflow-x: hidden;
   height: 100%;
   box-sizing: border-box;
 }
+.ms-wrap > * + * { margin-top: 10px; }
 /* flex-wrap here matters on mobile — the account-chip row (Include in
    Actual) can carry several account-name chips, and without wrapping this
    row (and its unconstrained parent label, hence the whole config row)
