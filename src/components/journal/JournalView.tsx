@@ -431,7 +431,7 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
       .map(([key, groupRows]) => ({ label: stratGroupLabel(key), rows: groupRows }))
   }, [rows, groupByStrategy])
 
-  const COLS = 14
+  const COLS = 15
 
   return (
     <>
@@ -526,6 +526,7 @@ function TableHead() {
         <th style={{ textAlign: 'right' }}>Cost Basis</th>
         <th style={{ textAlign: 'right' }}>Breakeven</th>
         <th style={{ textAlign: 'right' }}>Market Price</th>
+        <th style={{ textAlign: 'right' }}>Market Value</th>
         <th style={{ textAlign: 'right' }}>Unrealised</th>
         <th style={{ textAlign: 'right' }}>%</th>
         <th className="jr-col-dte" style={{ textAlign: 'right' }}>DTE</th>
@@ -652,6 +653,9 @@ function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, open, cols, 
         </td>
         <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
           {marketPrice != null ? fmt$(marketPrice, 2) : '—'}
+        </td>
+        <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
+          {ownMarketValue != null ? fmt$(Math.abs(ownMarketValue), 2) : '—'}
         </td>
         <td className={`mono ${unrealized != null ? pnlCls(unrealized) : ''}`} style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
           {unrealized != null ? fmt$(unrealized, 2) : '—'}
