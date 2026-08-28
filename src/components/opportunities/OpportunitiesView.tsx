@@ -532,9 +532,6 @@ function SyntheticLongCombosSection({ combos }: { combos: SyntheticLongCombo[] }
           TOP {combos.length} · call strike below put strike only · ranked by least cash paid (NET)
         </span>
       </div>
-      <div style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif', marginBottom: 4, lineHeight: 1.5 }}>
-        NET is the cash you actually pay. MARGIN is buying power your broker reserves against the short put — not extra cash out of pocket.
-      </div>
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: 340 }}>
           <div style={{ display: 'grid', gridTemplateColumns: COMBO_GRID, gap: 3, padding: '3px 0 5px', borderBottom: '1px solid var(--border-light)', fontSize: 8, fontWeight: 600, color: 'var(--text-4)', letterSpacing: '0.5px' }}>
