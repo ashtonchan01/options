@@ -272,7 +272,15 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
   const cards: TickerCard[] = []
   for (const [symbol, { results: rs, price }] of map) {
     if (!rs.length) continue
-    const leapCalls = rs.filter(r => r.strategyType === 'leap')
+    const allLeapCalls = rs.filter(r => r.strategyType === 'leap')
+    // Only the ticker's OWN furthest available expiry counts as "the LEAP" —
+    // the point of a LEAP is maximum time, so a call expiring in 7 months is
+    // not a candidate just because it also clears the 180-day floor. Comparing
+    // by dte (not the raw expiry string) picks out every contract sharing
+    // that single furthest date, tolerant of the ±1 day rounding that can
+    // happen right at a DTE boundary.
+    const maxLeapDte = allLeapCalls.length > 0 ? Math.max(...allLeapCalls.map(r => r.dte)) : 0
+    const leapCalls = allLeapCalls.filter(r => r.dte >= maxLeapDte - 1)
     const puts = rs.filter(r => r.strategyType === 'csp')
     cards.push({
       symbol, price,
@@ -282,11 +290,11 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
       topCsp: puts.slice().sort((a, b) => b.score - a.score).slice(0, 5),
       topCc:  rs.filter(r => r.strategyType === 'covered_call').sort((a, b) => b.score - a.score).slice(0, 5),
       topLeap: leapCalls.slice().sort((a, b) => b.score - a.score).slice(0, 5),
-      // Ranks EVERY call×put pair sharing an expiry (not just the top-scored
-      // LEAP paired with the top-scored put) — the user's actual usage
-      // pattern (e.g. an at-the-money call paired with a put struck ABOVE
-      // the stock price for a bigger credit) doesn't necessarily involve
-      // either leg's individually-top-scored contract.
+      // Ranks EVERY call×put pair sharing the ticker's furthest expiry (not
+      // just the top-scored LEAP paired with the top-scored put) — the
+      // user's actual usage pattern (e.g. an at-the-money call paired with a
+      // put struck ABOVE the stock price for a bigger credit) doesn't
+      // necessarily involve either leg's individually-top-scored contract.
       topCombos: buildComboRankings(leapCalls, puts).slice(0, 6),
       nextEarnings: nextEarningsFor(symbol, earningsMap),
     })
