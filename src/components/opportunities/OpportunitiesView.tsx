@@ -177,6 +177,8 @@ interface SyntheticLongCombo {
   comboDelta: number        // call.delta + |put.delta| — combined position delta (more stock-like)
   assignmentRisk: number    // |put.delta| — rough probability the short put gets assigned
   putCollateral: number     // put.strike * 100 — cash a cash-secured put ties up per contract
+  totalCapital: number      // comboNetCost + putCollateral — cash needed for the debit AND cash
+                            // set aside for the put, held simultaneously (not offsetting)
   compositeScore: number    // 0-100, ranks this ticker's own combos against each other
 }
 
@@ -211,18 +213,22 @@ function comboBreakevenPrice(callStrike: number, putStrike: number, netCostPerSh
 }
 
 /** Every call×put pair sharing an expiry where the CALL strike sits BELOW
- * the PUT strike, ranked by certainty of actually ending up owning the
- * stock (call delta) and least cash upfront, then DTE/breakeven as
- * tiebreakers. The point of buying the LEAP is to own the stock — a call
- * struck ABOVE the put can simply expire worthless and leave you owning
- * nothing, which defeats that purpose, so those pairings are excluded
- * entirely rather than merely ranked lower. Within call.strike < put.strike,
- * a lower call strike (deeper ITM, higher delta) is safer but costs more
- * debit than a higher one — "least debit AND a lower call strike" are in
- * tension, so certainty (call delta) and cost are weighted roughly equally
- * rather than letting cost alone dominate and push toward a cheaper,
- * riskier-of-expiring-worthless call. Each metric is normalized (0-1)
- * against the OTHER candidates for this same ticker, not a fixed scale. */
+ * the PUT strike, ranked chiefly by TOTAL capital committed — not net cash
+ * outlay and put collateral scored as if they were independent wins.
+ *
+ * A cash-secured put's collateral doesn't offset the call's debit; a real
+ * account needs BOTH the cash to pay the net premium AND the cash set aside
+ * for the put, held at the same time. Scoring them separately (an earlier
+ * version of this weighted net cost 45% and collateral 25% independently)
+ * let the ranking surface combos like a $23K net debit + $14K put
+ * collateral on a $34.7K stock — ~$37K of total capital for a position
+ * economically similar to just buying the shares, which the user correctly
+ * pointed out defeats the entire purpose of using a LEAP. totalCapital =
+ * comboNetCost + putCollateral is now the dominant ranking factor, and any
+ * combo whose totalCapital doesn't meaningfully beat buying the stock
+ * outright (stockPrice × 100) is excluded outright rather than merely
+ * ranked low — a combo that ties up nearly as much cash as owning the
+ * shares isn't a reasonable recommendation regardless of its breakeven. */
 // A short put's real cost isn't the premium math alone — it's the cash a
 // cash-secured put ties up (strike × 100/contract) or the margin a
 // portfolio-margin account still has to post against near-certain
@@ -232,6 +238,10 @@ function comboBreakevenPrice(callStrike: number, putStrike: number, netCostPerSh
 // can margin sensibly) keeps recommendations to trades someone could
 // actually place.
 const MAX_PUT_STRIKE_OVER_SPOT = 1.15
+// A combo needing this much of the stock's outright purchase price (net
+// debit + put collateral combined) isn't meaningfully more capital-efficient
+// than just buying the shares — excluded rather than merely scored low.
+const MAX_TOTAL_CAPITAL_VS_STOCK = 0.65
 
 function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticLongCombo[] {
   const combos: Omit<SyntheticLongCombo, 'compositeScore'>[] = []
@@ -243,34 +253,25 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
       const straightCost = call.mid * 100
       const straightBreakeven = call.strike + call.mid
       const comboNetCost = (call.mid - put.mid) * 100
+      const putCollateral = put.strike * 100
+      const totalCapital = comboNetCost + putCollateral
+      if (totalCapital > call.stockPrice * 100 * MAX_TOTAL_CAPITAL_VS_STOCK) continue
       const comboBreakeven = comboBreakevenPrice(call.strike, put.strike, call.mid - put.mid)
       const costReduction = straightCost > 0 ? ((straightCost - comboNetCost) / straightCost) * 100 : 0
       combos.push({
         call, put, dte: call.dte, straightCost, straightBreakeven, comboNetCost, comboBreakeven, costReduction,
         comboDelta: call.delta + Math.abs(put.delta),
         assignmentRisk: Math.abs(put.delta),
-        putCollateral: put.strike * 100,
+        putCollateral, totalCapital,
       })
     }
   }
   if (combos.length === 0) return []
 
-  // Weighted toward actual capital efficiency (net cash outlay + the put's
-  // collateral/margin), not just "certainty of ownership" (call delta). A
-  // real comparison against the user's own manual pick (a near-ATM 330C
-  // paired with a 360P, ~$3.5K net debit) against this ranking's earlier
-  // deep-ITM picks (strikes 130-165, $11-13K net debit) showed the delta
-  // weighting was pushing toward far more expensive, far more margin-heavy
-  // trades in exchange for a breakeven only ~$5-10 better — not a trade
-  // most accounts want. Cost and collateral now dominate the score; delta
-  // and breakeven are tiebreakers among similarly-priced combos, not able
-  // to outweigh a large cost difference on their own.
-  const costs = combos.map(c => c.comboNetCost)
-  const collaterals = combos.map(c => c.putCollateral)
+  const capitals = combos.map(c => c.totalCapital)
   const beps = combos.map(c => c.comboBreakeven)
   const deltas = combos.map(c => c.call.delta)
-  const costRange = [Math.min(...costs), Math.max(...costs)] as const
-  const collateralRange = [Math.min(...collaterals), Math.max(...collaterals)] as const
+  const capitalRange = [Math.min(...capitals), Math.max(...capitals)] as const
   const bepRange = [Math.min(...beps), Math.max(...beps)] as const
   const deltaRange = [Math.min(...deltas), Math.max(...deltas)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
@@ -279,10 +280,9 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        (1 - norm(c.comboNetCost, costRange)) * 0.45 +     // less cash upfront → higher score
-        (1 - norm(c.putCollateral, collateralRange)) * 0.25 + // less put collateral/margin tied up → higher score
-        norm(c.call.delta, deltaRange) * 0.15 +               // higher call delta (more certain to own the stock) → higher score
-        (1 - norm(c.comboBreakeven, bepRange)) * 0.15         // lower breakeven → higher score
+        (1 - norm(c.totalCapital, capitalRange)) * 0.60 + // less TOTAL capital committed → higher score
+        norm(c.call.delta, deltaRange) * 0.20 +            // higher call delta (more certain to own the stock) → higher score
+        (1 - norm(c.comboBreakeven, bepRange)) * 0.20       // lower breakeven → higher score
       ) * 100),
     }))
     .sort((a, b) => b.compositeScore - a.compositeScore)
@@ -451,12 +451,11 @@ function fmtMoney(n: number): string {
   return n < 0 ? `-$${Math.abs(n).toFixed(0)}` : `$${n.toFixed(0)}`
 }
 
-// Combo columns: legs (call/put strikes), net cost (can be negative — a net
-// credit when the put brings in more than the call costs), put collateral/
-// margin, breakeven, and the composite rank score. DTE is dropped from the
-// visible columns (every combo for a ticker now shares the same expiry, so
-// it's the same number in every row) in favor of MARGIN, since capital tied
-// up is now the dominant ranking factor.
+// Combo columns: legs (call/put strikes), net premium (can be negative — a
+// net credit when the put brings in more than the call costs), TOTAL
+// capital committed (net premium + put collateral, held simultaneously —
+// the number that actually decides whether this beats buying the stock),
+// breakeven, and the composite rank score.
 const COMBO_GRID = '16px minmax(78px,1fr) 52px 56px 56px 32px'
 
 function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
@@ -466,11 +465,11 @@ function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
       borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
       background: rank === 1 ? '#10b98110' : 'transparent',
     }}
-      title={`${fmtExpMonthYear(c.call.expiry)}, ${c.dte}d · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · combined delta ${c.comboDelta.toFixed(2)} · ${c.costReduction >= 0 ? `${c.costReduction.toFixed(0)}% less cash` : `${Math.abs(c.costReduction).toFixed(0)}% more cash`} than the LEAP alone · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
+      title={`${fmtExpMonthYear(c.call.expiry)}, ${c.dte}d · net premium ${fmtMoney(c.comboNetCost)}, put collateral ${fmtMoney(c.putCollateral)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · combined delta ${c.comboDelta.toFixed(2)} · stock (100 shares) costs ${fmtMoney(c.call.stockPrice * 100)} · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600, whiteSpace: 'nowrap' }}>${c.call.strike}C/${c.put.strike}P</span>
-      <span style={{ color: c.comboNetCost < 0 ? '#10b981' : 'var(--text-1)', fontWeight: 600, textAlign: 'right' }}>{fmtMoney(c.comboNetCost)}</span>
-      <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{fmtMoney(c.putCollateral)}</span>
+      <span style={{ color: c.comboNetCost < 0 ? '#10b981' : 'var(--text-3)', textAlign: 'right' }}>{fmtMoney(c.comboNetCost)}</span>
+      <span style={{ color: 'var(--text-1)', fontWeight: 600, textAlign: 'right' }}>{fmtMoney(c.totalCapital)}</span>
       <span style={{ color: 'var(--text-2)', textAlign: 'right' }}>${c.comboBreakeven.toFixed(2)}</span>
       <span style={{ color: scoreColor(c.compositeScore), fontWeight: 700, fontFamily: "'Inter', sans-serif", textAlign: 'right' }}>{c.compositeScore}</span>
     </div>
@@ -478,9 +477,12 @@ function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
 }
 
 /** Ranked call×put combos (synthetic long / risk reversal) for this ticker —
- * every pair sharing an expiry, ordered by longest DTE + least cash upfront
- * + lowest breakeven, so the user can see where their usual strikes land
- * against the alternatives rather than getting one auto-picked "answer". */
+ * every pair sharing an expiry, ordered chiefly by TOTAL capital committed
+ * (net premium + put collateral, since a real account needs both held at
+ * once, not offsetting), excluding any combo that doesn't meaningfully beat
+ * just buying the stock outright, so the user can see where their usual
+ * strikes land against the alternatives rather than getting one auto-picked
+ * "answer". */
 function SyntheticLongCombosSection({ combos }: { combos: SyntheticLongCombo[] }) {
   if (!combos.length) return null
   return (
@@ -488,14 +490,14 @@ function SyntheticLongCombosSection({ combos }: { combos: SyntheticLongCombo[] }
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <span style={{ padding: '1px 6px', fontSize: 9, fontWeight: 700, background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', fontFamily: "'Inter', sans-serif", letterSpacing: '0.5px' }}>SYNTHETIC LONG</span>
         <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>
-          TOP {combos.length} · call strike below put strike only · ranked by least cash + margin
+          TOP {combos.length} · call strike below put strike only · ranked by least total capital
         </span>
       </div>
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: 340 }}>
           <div style={{ display: 'grid', gridTemplateColumns: COMBO_GRID, gap: 3, padding: '3px 0 5px', borderBottom: '1px solid var(--border-light)', fontSize: 8, fontWeight: 600, color: 'var(--text-4)', letterSpacing: '0.5px' }}>
             <span style={{ textAlign: 'center' }}>#</span><span>LEGS</span>
-            <span style={{ textAlign: 'right' }}>NET</span><span style={{ textAlign: 'right' }}>MARGIN</span>
+            <span style={{ textAlign: 'right' }}>NET</span><span style={{ textAlign: 'right' }}>CAPITAL</span>
             <span style={{ textAlign: 'right' }}>BEP</span>
             <span style={{ textAlign: 'right' }}>SCR</span>
           </div>
