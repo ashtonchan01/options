@@ -176,6 +176,7 @@ interface SyntheticLongCombo {
   costReduction: number     // % less cash outlay the combo needs vs the straight LEAP
   comboDelta: number        // call.delta + |put.delta| — combined position delta (more stock-like)
   assignmentRisk: number    // |put.delta| — rough probability the short put gets assigned
+  putCollateral: number     // put.strike * 100 — cash a cash-secured put ties up per contract
   compositeScore: number    // 0-100, ranks this ticker's own combos against each other
 }
 
@@ -222,12 +223,23 @@ function comboBreakevenPrice(callStrike: number, putStrike: number, netCostPerSh
  * rather than letting cost alone dominate and push toward a cheaper,
  * riskier-of-expiring-worthless call. Each metric is normalized (0-1)
  * against the OTHER candidates for this same ticker, not a fixed scale. */
+// A short put's real cost isn't the premium math alone — it's the cash a
+// cash-secured put ties up (strike × 100/contract) or the margin a
+// portfolio-margin account still has to post against near-certain
+// assignment. Capping the put strike to a reasonable band above the
+// current stock price (rather than letting the combo builder chase pure
+// premium/delta all the way to a strike at 2x spot, which no real account
+// can margin sensibly) keeps recommendations to trades someone could
+// actually place.
+const MAX_PUT_STRIKE_OVER_SPOT = 1.15
+
 function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticLongCombo[] {
   const combos: Omit<SyntheticLongCombo, 'compositeScore'>[] = []
   for (const call of calls) {
     for (const put of puts) {
       if (put.expiry !== call.expiry) continue
       if (call.strike >= put.strike) continue
+      if (put.strike > call.stockPrice * MAX_PUT_STRIKE_OVER_SPOT) continue
       const straightCost = call.mid * 100
       const straightBreakeven = call.strike + call.mid
       const comboNetCost = (call.mid - put.mid) * 100
@@ -237,6 +249,7 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
         call, put, dte: call.dte, straightCost, straightBreakeven, comboNetCost, comboBreakeven, costReduction,
         comboDelta: call.delta + Math.abs(put.delta),
         assignmentRisk: Math.abs(put.delta),
+        putCollateral: put.strike * 100,
       })
     }
   }
@@ -440,7 +453,7 @@ function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
       borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
       background: rank === 1 ? '#10b98110' : 'transparent',
     }}
-      title={`${fmtExpMonthYear(c.call.expiry)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · ${c.costReduction >= 0 ? `${c.costReduction.toFixed(0)}% less cash` : `${Math.abs(c.costReduction).toFixed(0)}% more cash`} than the LEAP alone · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
+      title={`${fmtExpMonthYear(c.call.expiry)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · cash-secured put collateral ${fmtMoney(c.putCollateral)} · ${c.costReduction >= 0 ? `${c.costReduction.toFixed(0)}% less cash` : `${Math.abs(c.costReduction).toFixed(0)}% more cash`} than the LEAP alone · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600, whiteSpace: 'nowrap' }}>${c.call.strike}C/${c.put.strike}P</span>
       <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{c.dte}d</span>
