@@ -31,6 +31,8 @@ export function accountToAppState(account: {
   positions?: RawPosition[]
   cashBalance?: number
   netLiquidation?: number
+  excessLiquidity?: number
+  cushion?: number
 }): AppState {
   const base = emptyAppState()
   const positions = account.positions ?? []
@@ -48,6 +50,8 @@ export function accountToAppState(account: {
       positions,
       cashBalance: account.cashBalance ?? 0,
       netLiquidation: account.netLiquidation,
+      excessLiquidity: account.excessLiquidity,
+      cushion: account.cushion,
     },
     strategies,
     actions,

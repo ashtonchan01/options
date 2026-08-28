@@ -36,6 +36,8 @@ export interface Account {
   positions?: RawPosition[]
   cashBalance?: number
   netLiquidation?: number
+  excessLiquidity?: number
+  cushion?: number
 }
 
 interface SyncResult {
@@ -43,6 +45,8 @@ interface SyncResult {
   positions?: RawPosition[]
   cashBalance?: number
   netLiquidation?: number
+  excessLiquidity?: number
+  cushion?: number
   /** The Flex report's own "YYYYMMDD" reporting window, when the source
    * provided one (XML/Flex sync only — CSV/XLSX/PDF imports don't). */
   fromDate?: string
@@ -217,7 +221,7 @@ export function useAccounts(sessionKey: string | null) {
   const clearTrades = useCallback((id: string) => {
     setAccounts(prev => {
       const next = prev.map(a => a.id === id
-        ? { ...a, trades: [], positions: undefined, cashBalance: undefined, netLiquidation: undefined, fileName: undefined, uploadedAt: undefined }
+        ? { ...a, trades: [], positions: undefined, cashBalance: undefined, netLiquidation: undefined, excessLiquidity: undefined, cushion: undefined, fileName: undefined, uploadedAt: undefined }
         : a)
       persist(next)
       return next
@@ -248,6 +252,8 @@ export function useAccounts(sessionKey: string | null) {
               positions: result.positions ?? a.positions,
               cashBalance: result.cashBalance ?? a.cashBalance,
               netLiquidation: result.netLiquidation ?? a.netLiquidation,
+              excessLiquidity: result.excessLiquidity ?? a.excessLiquidity,
+              cushion: result.cushion ?? a.cushion,
               fileName: file.name,
               uploadedAt: Date.now(),
             }
@@ -279,6 +285,8 @@ export function useAccounts(sessionKey: string | null) {
               positions: result.positions ?? a.positions,
               cashBalance: result.cashBalance ?? a.cashBalance,
               netLiquidation: result.netLiquidation ?? a.netLiquidation,
+              excessLiquidity: result.excessLiquidity ?? a.excessLiquidity,
+              cushion: result.cushion ?? a.cushion,
               flexToken: token, flexQueryId: queryId, fileName: 'IBKR Flex sync', uploadedAt: Date.now(),
             }
           : a)
