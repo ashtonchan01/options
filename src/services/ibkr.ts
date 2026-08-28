@@ -5,15 +5,15 @@ const FLEX_PROXY = 'https://options-jade.vercel.app'
 
 // ─── XML Upload ───────────────────────────────────────────────────────────────
 
-export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number; excessLiquidity?: number; cushion?: number; fromDate?: string; toDate?: string }> {
+export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number; fromDate?: string; toDate?: string }> {
   const text = await file.text()
   const doc = new DOMParser().parseFromString(text, 'application/xml')
-  return { positions: parsePositions(doc), trades: allTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc), ...parseMargin(doc), ...parseReportWindow(doc) }
+  return { positions: parsePositions(doc), trades: allTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
 }
 
 // ─── Flex API ─────────────────────────────────────────────────────────────────
 
-export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number; excessLiquidity?: number; cushion?: number; fromDate?: string; toDate?: string }> {
+export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number; fromDate?: string; toDate?: string }> {
   if (!token || !queryId) throw new Error('Token and Query ID are required')
 
   const url = `${FLEX_PROXY}/api/flex-sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
@@ -31,7 +31,7 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<{
 
   const xml = text
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
-  return { positions: parsePositions(doc), trades: allTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc), ...parseMargin(doc), ...parseReportWindow(doc) }
+  return { positions: parsePositions(doc), trades: allTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
 }
 
 // ─── Ping ─────────────────────────────────────────────────────────────────────
@@ -176,29 +176,6 @@ function parseNetLiq(doc: Document): number | undefined {
     if (nl) return Number(nl)
   }
   return undefined
-}
-
-/** Available margin, from the same EquitySummaryInBase row used for
- * netLiquidation. IBKR reports "cushion" pre-computed as excessLiquidity /
- * netLiquidation (a 0-1 fraction) — that ratio IS "available margin as a
- * percentage" (100% = fully unused margin, 0% = a margin call), so it's
- * read straight off the report rather than re-derived, with excessLiquidity
- * ÷ netLiquidation as a fallback for any report that omits the cushion
- * attribute. Only present when the Flex query's "Net Asset Value"/"Change
- * in NAV" section includes these columns — absent (undefined) otherwise. */
-function parseMargin(doc: Document): { excessLiquidity?: number; cushion?: number } {
-  const eqBase = latestByReportDate(Array.from(doc.querySelectorAll('EquitySummaryInBase')))
-    ?? latestByReportDate(Array.from(doc.querySelectorAll('EquitySummaryByReportDateInBase')))
-  if (!eqBase) return {}
-  const excessLiquidity = eqBase.getAttribute('excessLiquidity')
-  const cushion = eqBase.getAttribute('cushion')
-  const netLiquidation = eqBase.getAttribute('netLiquidation')
-  const excess = excessLiquidity ? Number(excessLiquidity) : undefined
-  let cushionPct = cushion ? Number(cushion) * 100 : undefined
-  if (cushionPct == null && excess != null && netLiquidation && Number(netLiquidation) !== 0) {
-    cushionPct = (excess / Number(netLiquidation)) * 100
-  }
-  return { excessLiquidity: excess, cushion: cushionPct }
 }
 
 function parseTrades(doc: Document): RawTrade[] {

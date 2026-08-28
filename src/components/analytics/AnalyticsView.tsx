@@ -511,7 +511,7 @@ function pnlColor(n: number) { return n >= 0 ? '#10b981' : '#ef4444' }
  * Dashboard analytics cards — kept in one place so every consumer agrees on the
  * same numbers (realized P&L rules, strategy ordering, allocation grouping, etc). */
 export function derivePortfolio(state: AppState) {
-  const { positions, trades, cashBalance, netLiquidation, cushion, excessLiquidity } = state.sync
+  const { positions, trades, cashBalance, netLiquidation } = state.sync
 
   const stocks  = positions.filter(p => p.assetClass === 'STK')
   const options = positions.filter(p => p.assetClass === 'OPT')
@@ -573,7 +573,7 @@ export function derivePortfolio(state: AppState) {
   return {
     stocks, options, sortedOptions, trades, cashBalance,
     stockMV, stockPnL, stockCost, optionMV, optionPnL, realizedPnL, netLiq, totalUnrealized,
-    symbolToStratType, donutSlices, cushion, excessLiquidity,
+    symbolToStratType, donutSlices,
   }
 }
 
@@ -642,36 +642,19 @@ function AllocationPieRightLegend({ slices, centerLabel, centerValue }: { slices
 
 // ─── Individual Dashboard analytics cards ─────────────────────────────────────
 
-function marginColor(pct: number): string {
-  if (pct <= 15) return '#ef4444'
-  if (pct <= 30) return '#f59e0b'
-  return '#10b981'
-}
-
 export function PortfolioSummaryCard({ state }: { state: AppState }) {
-  const { netLiq, totalUnrealized, realizedPnL, cashBalance, cushion, excessLiquidity } = derivePortfolio(state)
-  const tiles = [
-    { label: 'Net Liquidation', value: fmtDollar(netLiq), color: 'var(--text-1)' },
-    { label: 'Unrealised P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
-    { label: 'Realised P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
-    { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
-  ]
-  // Only shown when the Flex report's "Net Asset Value" section includes the
-  // excessLiquidity/cushion columns — plenty of Flex Query configs don't, so
-  // this tile silently doesn't appear rather than showing a fake 0%/—.
-  if (cushion != null) {
-    tiles.push({
-      label: 'Available Margin',
-      value: `${cushion.toFixed(1)}%${excessLiquidity != null ? ` (${fmtDollar(excessLiquidity)})` : ''}`,
-      color: marginColor(cushion),
-    })
-  }
+  const { netLiq, totalUnrealized, realizedPnL, cashBalance } = derivePortfolio(state)
   return (
     <div className="dash-panel" style={{ padding: 0, overflow: 'hidden' }}>
       <div className="db-keymetrics" style={{
         display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', height: '100%',
       }}>
-        {tiles.map(({ label, value, color }) => (
+        {[
+          { label: 'Net Liquidation', value: fmtDollar(netLiq), color: 'var(--text-1)' },
+          { label: 'Unrealised P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
+          { label: 'Realised P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
+          { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
+        ].map(({ label, value, color }) => (
           <div key={label} style={{ padding: '10px 16px', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
             <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
             <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
