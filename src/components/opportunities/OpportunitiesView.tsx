@@ -180,6 +180,8 @@ interface SyntheticLongCombo {
                             // collateral — see regTPutMargin)
   totalCapital: number      // comboNetCost + putCollateral — cash needed for the debit AND cash
                             // set aside for the put, held simultaneously (not offsetting)
+  moneyness: number         // |call.strike - spot| + |put.strike - spot| — how far both legs sit
+                            // from the current stock price, combined; lower = closer to the money
   compositeScore: number    // 0-100, ranks this ticker's own combos against each other
 }
 
@@ -257,11 +259,12 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
       const totalCapital = comboNetCost + putCollateral
       const comboBreakeven = comboBreakevenPrice(call.strike, put.strike, call.mid - put.mid)
       const costReduction = straightCost > 0 ? ((straightCost - comboNetCost) / straightCost) * 100 : 0
+      const moneyness = Math.abs(call.strike - call.stockPrice) + Math.abs(put.strike - call.stockPrice)
       combos.push({
         call, put, dte: call.dte, straightCost, straightBreakeven, comboNetCost, comboBreakeven, costReduction,
         comboDelta: call.delta + Math.abs(put.delta),
         assignmentRisk: Math.abs(put.delta),
-        putCollateral, totalCapital,
+        putCollateral, totalCapital, moneyness,
       })
     }
   }
@@ -279,10 +282,12 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   const beps = combos.map(c => c.comboBreakeven)
   const deltas = combos.map(c => c.call.delta)
   const risks = combos.map(c => c.assignmentRisk)
+  const moneyness = combos.map(c => c.moneyness)
   const costRange = [Math.min(...costs), Math.max(...costs)] as const
   const bepRange = [Math.min(...beps), Math.max(...beps)] as const
   const deltaRange = [Math.min(...deltas), Math.max(...deltas)] as const
   const riskRange = [Math.min(...risks), Math.max(...risks)] as const
+  const moneynessRange = [Math.min(...moneyness), Math.max(...moneyness)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
   // Cost dominates; the rest only break ties among similarly-priced combos.
@@ -290,17 +295,21 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   // a real ~$5k cost difference, which didn't match "I'll pay a bit more for
   // a strike I'm comfortable with, but cost comes first." Bucketing net cost
   // into $750 bands before applying the other factors makes cost the primary
-  // sort key while still letting risk/delta/breakeven decide among combos
-  // that cost roughly the same.
+  // sort key while still letting risk/delta/breakeven/moneyness decide among
+  // combos that cost roughly the same. Moneyness (how far both strikes sit
+  // from the current stock price, combined) is its own weighted factor now —
+  // a cheap combo built from strikes far out on either side of spot isn't
+  // useful if the point is to actually own the stock near where it trades.
   const COST_BAND = 750
   return combos
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        (1 - norm(c.comboNetCost, costRange)) * 0.40 +    // less cash paid out of pocket → higher score
-        (1 - norm(c.assignmentRisk, riskRange)) * 0.25 +   // lower put assignment risk (closer to spot) → higher score
-        norm(c.call.delta, deltaRange) * 0.15 +            // higher call delta (more certain to own the stock) → higher score
-        (1 - norm(c.comboBreakeven, bepRange)) * 0.20       // lower breakeven → higher score
+        (1 - norm(c.comboNetCost, costRange)) * 0.35 +      // less cash paid out of pocket → higher score
+        (1 - norm(c.moneyness, moneynessRange)) * 0.25 +    // strikes closer to current spot price → higher score
+        (1 - norm(c.assignmentRisk, riskRange)) * 0.20 +    // lower put assignment risk (closer to spot) → higher score
+        norm(c.call.delta, deltaRange) * 0.10 +             // higher call delta (more certain to own the stock) → higher score
+        (1 - norm(c.comboBreakeven, bepRange)) * 0.10       // lower breakeven → higher score
       ) * 100),
     }))
     .sort((a, b) => {
