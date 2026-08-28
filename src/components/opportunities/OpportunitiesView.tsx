@@ -290,33 +290,31 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   const moneynessRange = [Math.min(...moneyness), Math.max(...moneyness)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
-  // Cost dominates; the rest only break ties among similarly-priced combos.
-  // A straight weighted blend let a big assignment-risk improvement outscore
-  // a real ~$5k cost difference, which didn't match "I'll pay a bit more for
-  // a strike I'm comfortable with, but cost comes first." Bucketing net cost
-  // into $750 bands before applying the other factors makes cost the primary
-  // sort key while still letting risk/delta/breakeven/moneyness decide among
-  // combos that cost roughly the same. Moneyness (how far both strikes sit
-  // from the current stock price, combined) is its own weighted factor now —
-  // a cheap combo built from strikes far out on either side of spot isn't
-  // useful if the point is to actually own the stock near where it trades.
-  const COST_BAND = 750
+  // Moneyness dominates now: strikes close to the current stock price first,
+  // cost only decides among combos that are similarly close to the money.
+  // Cost-band-primary sorting (an earlier version of this) let a far-OTM
+  // combo that happened to be cheap (or a net credit) outrank a pricier one
+  // sitting right at the money — the two live in different cost bands, so
+  // moneyness never got a chance to matter. "I like the cost, but it's too
+  // far out of the money, I want it as close to the money as possible" only
+  // works if closeness to spot is what actually picks the winner.
+  const MONEYNESS_BAND = 15
   return combos
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        (1 - norm(c.comboNetCost, costRange)) * 0.35 +      // less cash paid out of pocket → higher score
-        (1 - norm(c.moneyness, moneynessRange)) * 0.25 +    // strikes closer to current spot price → higher score
+        (1 - norm(c.moneyness, moneynessRange)) * 0.35 +    // strikes closer to current spot price → higher score
+        (1 - norm(c.comboNetCost, costRange)) * 0.25 +      // less cash paid out of pocket → higher score
         (1 - norm(c.assignmentRisk, riskRange)) * 0.20 +    // lower put assignment risk (closer to spot) → higher score
         norm(c.call.delta, deltaRange) * 0.10 +             // higher call delta (more certain to own the stock) → higher score
         (1 - norm(c.comboBreakeven, bepRange)) * 0.10       // lower breakeven → higher score
       ) * 100),
     }))
     .sort((a, b) => {
-      const bandA = Math.round(a.comboNetCost / COST_BAND)
-      const bandB = Math.round(b.comboNetCost / COST_BAND)
+      const bandA = Math.round(a.moneyness / MONEYNESS_BAND)
+      const bandB = Math.round(b.moneyness / MONEYNESS_BAND)
       if (bandA !== bandB) return bandA - bandB
-      return b.compositeScore - a.compositeScore
+      return a.comboNetCost - b.comboNetCost
     })
 }
 
