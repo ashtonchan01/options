@@ -267,21 +267,32 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   }
   if (combos.length === 0) return []
 
+  // assignmentRisk (the short put's own delta) matters even when net cost and
+  // breakeven are close: a $390 put and a $360 put on the same stock can cost
+  // about the same and land a similar breakeven, but the $390 put is deeper
+  // ITM — higher delta, meaningfully more likely to actually get assigned,
+  // and a bigger obligation if it is. The user preferred their own $360 put
+  // over this ranking's $390 pick for exactly that reason once cost stopped
+  // being the deciding factor, so assignment risk is now a real weight, not
+  // just informational.
   const costs = combos.map(c => c.comboNetCost)
   const beps = combos.map(c => c.comboBreakeven)
   const deltas = combos.map(c => c.call.delta)
+  const risks = combos.map(c => c.assignmentRisk)
   const costRange = [Math.min(...costs), Math.max(...costs)] as const
   const bepRange = [Math.min(...beps), Math.max(...beps)] as const
   const deltaRange = [Math.min(...deltas), Math.max(...deltas)] as const
+  const riskRange = [Math.min(...risks), Math.max(...risks)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
   return combos
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        (1 - norm(c.comboNetCost, costRange)) * 0.60 +   // less cash paid out of pocket → higher score
-        norm(c.call.delta, deltaRange) * 0.20 +           // higher call delta (more certain to own the stock) → higher score
-        (1 - norm(c.comboBreakeven, bepRange)) * 0.20      // lower breakeven → higher score
+        (1 - norm(c.comboNetCost, costRange)) * 0.40 +    // less cash paid out of pocket → higher score
+        (1 - norm(c.assignmentRisk, riskRange)) * 0.25 +   // lower put assignment risk (closer to spot) → higher score
+        norm(c.call.delta, deltaRange) * 0.15 +            // higher call delta (more certain to own the stock) → higher score
+        (1 - norm(c.comboBreakeven, bepRange)) * 0.20       // lower breakeven → higher score
       ) * 100),
     }))
     .sort((a, b) => b.compositeScore - a.compositeScore)
@@ -394,7 +405,10 @@ function OptionRow({ r, rank, nextEarnings, fomcDates }: { r: ScanResult; rank: 
 // EXP/DTE are dropped from the row grid — every row in this table (and this
 // whole card, when the LEAP toggle is active) shares the ticker's one
 // furthest expiry, shown once in the card's own header instead.
-const LEAP_GRID = '16px minmax(56px,1fr) 40px 46px 46px 40px 40px 28px'
+// Fixed widths (not a flexible 1fr STRIKE column) so every column lines up
+// consistently instead of STRIKE stretching to swallow whatever space the
+// fixed columns don't use, which left a lopsided gap before DELTA.
+const LEAP_GRID = '16px 48px 40px 46px 46px 44px 36px 28px'
 
 function LeapRow({ r, rank }: { r: ScanResult; rank: number }) {
   const bep = r.strike + r.mid
@@ -455,7 +469,8 @@ function fmtMoney(n: number): string {
 // capital committed (net premium + put collateral, held simultaneously —
 // the number that actually decides whether this beats buying the stock),
 // breakeven, and the composite rank score.
-const COMBO_GRID = '16px minmax(78px,1fr) 52px 56px 56px 32px'
+// Fixed LEGS width (not a flexible 1fr) — same reasoning as LEAP_GRID above.
+const COMBO_GRID = '16px 88px 52px 56px 56px 40px 32px'
 
 function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
   return (
@@ -464,24 +479,27 @@ function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
       borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
       background: rank === 1 ? '#10b98110' : 'transparent',
     }}
-      title={`${fmtExpMonthYear(c.call.expiry)}, ${c.dte}d · net premium ${fmtMoney(c.comboNetCost)}, put margin (Reg-T est.) ${fmtMoney(c.putCollateral)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · combined delta ${c.comboDelta.toFixed(2)} · stock (100 shares) costs ${fmtMoney(c.call.stockPrice * 100)} · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
+      title={`${fmtExpMonthYear(c.call.expiry)}, ${c.dte}d · NET (${fmtMoney(c.comboNetCost)}) is the actual cash you pay to open the trade · MARGIN (${fmtMoney(c.putCollateral)}, Reg-T est.) is buying power your broker reserves against the short put — NOT additional cash out of pocket, it's supported by other equity in a margin account · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · combined delta ${c.comboDelta.toFixed(2)} · stock (100 shares) costs ${fmtMoney(c.call.stockPrice * 100)} · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600, whiteSpace: 'nowrap' }}>${c.call.strike}C/${c.put.strike}P</span>
-      <span style={{ color: c.comboNetCost < 0 ? '#10b981' : 'var(--text-3)', textAlign: 'right' }}>{fmtMoney(c.comboNetCost)}</span>
-      <span style={{ color: 'var(--text-1)', fontWeight: 600, textAlign: 'right' }}>{fmtMoney(c.totalCapital)}</span>
+      <span style={{ color: c.comboNetCost < 0 ? '#10b981' : 'var(--text-1)', fontWeight: 600, textAlign: 'right' }}>{fmtMoney(c.comboNetCost)}</span>
+      <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{fmtMoney(c.putCollateral)}</span>
       <span style={{ color: 'var(--text-2)', textAlign: 'right' }}>${c.comboBreakeven.toFixed(2)}</span>
+      <span style={{ color: c.assignmentRisk >= 0.7 ? '#ef4444' : c.assignmentRisk >= 0.5 ? '#f59e0b' : 'var(--text-3)', textAlign: 'right' }}>{(c.assignmentRisk * 100).toFixed(0)}%</span>
       <span style={{ color: scoreColor(c.compositeScore), fontWeight: 700, fontFamily: "'Inter', sans-serif", textAlign: 'right' }}>{c.compositeScore}</span>
     </div>
   )
 }
 
 /** Ranked call×put combos (synthetic long / risk reversal) for this ticker —
- * every pair sharing an expiry, ordered chiefly by TOTAL capital committed
- * (net premium + put collateral, since a real account needs both held at
- * once, not offsetting), excluding any combo that doesn't meaningfully beat
- * just buying the stock outright, so the user can see where their usual
- * strikes land against the alternatives rather than getting one auto-picked
- * "answer". */
+ * every pair sharing an expiry, ordered chiefly by NET cost — the actual
+ * cash paid to open the trade, which is what a personal cash budget refers
+ * to. MARGIN is shown alongside for context (a Reg-T estimate of the buying
+ * power a broker reserves against the short put) but is NOT additional cash
+ * out of pocket the way NET is — it's supported by other equity in a
+ * margin account, so folding it into the ranking/cap as if it were more
+ * cash to pay (an earlier version of this did) produced misleading results
+ * and confused NET with the combined figure. */
 function SyntheticLongCombosSection({ combos }: { combos: SyntheticLongCombo[] }) {
   if (!combos.length) return null
   return (
@@ -489,15 +507,18 @@ function SyntheticLongCombosSection({ combos }: { combos: SyntheticLongCombo[] }
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <span style={{ padding: '1px 6px', fontSize: 9, fontWeight: 700, background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', fontFamily: "'Inter', sans-serif", letterSpacing: '0.5px' }}>SYNTHETIC LONG</span>
         <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>
-          TOP {combos.length} · call strike below put strike only · ranked by least total capital
+          TOP {combos.length} · call strike below put strike only · ranked by least cash paid (NET)
         </span>
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif', marginBottom: 4, lineHeight: 1.5 }}>
+        NET is the cash you actually pay. MARGIN is buying power your broker reserves against the short put — not extra cash out of pocket.
       </div>
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: 340 }}>
           <div style={{ display: 'grid', gridTemplateColumns: COMBO_GRID, gap: 3, padding: '3px 0 5px', borderBottom: '1px solid var(--border-light)', fontSize: 8, fontWeight: 600, color: 'var(--text-4)', letterSpacing: '0.5px' }}>
             <span style={{ textAlign: 'center' }}>#</span><span>LEGS</span>
-            <span style={{ textAlign: 'right' }}>NET</span><span style={{ textAlign: 'right' }}>CAPITAL</span>
-            <span style={{ textAlign: 'right' }}>BEP</span>
+            <span style={{ textAlign: 'right' }}>NET</span><span style={{ textAlign: 'right' }}>MARGIN</span>
+            <span style={{ textAlign: 'right' }}>BEP</span><span style={{ textAlign: 'right' }}>RISK</span>
             <span style={{ textAlign: 'right' }}>SCR</span>
           </div>
           {combos.map((c, i) => <ComboRow key={i} c={c} rank={i + 1} />)}
