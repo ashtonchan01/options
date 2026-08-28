@@ -239,6 +239,12 @@ const MAX_PUT_STRIKE_OVER_SPOT = 1.15
 // debit + put margin combined) isn't meaningfully more capital-efficient
 // than just buying the shares — excluded rather than merely scored low.
 const MAX_TOTAL_CAPITAL_VS_STOCK = 0.65
+// A hard ceiling on top of the relative one above — the user was explicit
+// that $10K is their own personal budget for one of these combos regardless
+// of what % of the stock's price that happens to be (a $34.7K stock and a
+// 65%-of-that cutoff still allows a $22K combo, which is still real money
+// most retail accounts don't want to put on one leveraged options trade).
+const MAX_TOTAL_CAPITAL_ABSOLUTE = 10_000
 
 function regTPutMargin(stockPrice: number, putStrike: number, putMid: number): number {
   const otmAmount = Math.max(stockPrice - putStrike, 0)
@@ -260,6 +266,7 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
       const putCollateral = regTPutMargin(call.stockPrice, put.strike, put.mid)
       const totalCapital = comboNetCost + putCollateral
       if (totalCapital > call.stockPrice * 100 * MAX_TOTAL_CAPITAL_VS_STOCK) continue
+      if (totalCapital > MAX_TOTAL_CAPITAL_ABSOLUTE) continue
       const comboBreakeven = comboBreakevenPrice(call.strike, put.strike, call.mid - put.mid)
       const costReduction = straightCost > 0 ? ((straightCost - comboNetCost) / straightCost) * 100 : 0
       combos.push({
