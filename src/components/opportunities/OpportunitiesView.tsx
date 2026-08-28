@@ -541,12 +541,17 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
     setScanning(true); setError(null); setResults([]); setScanProgress('')
     try {
       setScanProgress('Fetching chains…')
-      // The service itself hard-filters by DTE before returning any data at
-      // all (its own default window is 7-60 days) — without passing the
-      // active term's actual bounds through, a Long Term scan would fetch
-      // chains and then have every 60+ DTE option already thrown away
-      // upstream, regardless of what the DTE min/max params below say.
-      const dteRange = { min: TERM_BOUNDS[scanTerm].dteFloor, max: TERM_BOUNDS[scanTerm].dteCeil }
+      // Always fetch/process the FULL union of both terms' DTE windows
+      // (1-365d), not just whichever term tab happens to be selected. LEAP
+      // candidates (180+ DTE) are a separate pass inside processChain that
+      // draws from this same fetched set — scoping the fetch to the active
+      // term's own narrower window (e.g. Short Term's 1-60d) would silently
+      // throw away every 180+ DTE call before LEAP ever saw them, making the
+      // LEAP tab show "no data" whenever Short Term was selected even though
+      // LEAP is independent of that toggle. The Short/Long Term buttons
+      // still narrow what CSP/CC/All display, via each term's own cfg in
+      // filterByMode — this only changes what gets fetched and considered.
+      const dteRange = { min: TERM_BOUNDS.short.dteFloor, max: TERM_BOUNDS.long.dteCeil }
       const all = await scanAllTickersCboe(tickers, (sym, i, total) => setScanProgress(`${sym} (${i}/${total})`), dteRange)
       if (!all.length && tickers.length) setError('No results — try again in 30s.')
       setResults(all); setScanned(true)
