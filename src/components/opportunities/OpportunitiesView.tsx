@@ -56,6 +56,16 @@ function filterByMode(results: ScanResult[], cfg: ModeConfig): ScanResult[] {
     // formula — none of the user-tunable PARAMS below (tuned for CSP/CC
     // credit-selling) apply to them, so a LEAP result is never excluded here.
     if (r.strategyType === 'leap') return true
+    // A long-dated put (dte >= LEAP_MIN_DTE) only ever exists in the scan to
+    // be a Synthetic Long combo's short leg — this app's cboe.ts already
+    // widened what candidates get fetched for exactly that reason. But this
+    // filter runs on the SAME shared `results` list the CSP tab reads from,
+    // and Long Term's own dteMax defaults to 365 — well short of a LEAP's
+    // 800+ DTE — so those puts were being silently clamped out here even
+    // after cboe.ts stopped excluding them, leaving the combo builder with
+    // no puts at all to pair against the furthest-dated LEAP calls. Exempt
+    // them from the CSP dte/delta/bid bounds the same way LEAP itself is.
+    if (r.strategyType === 'csp' && r.dte >= LEAP_MIN_DTE) return true
     const d = Math.abs(r.delta)
     return d >= cfg.deltaMin && d <= cfg.deltaMax && r.dte >= cfg.dteMin && r.dte <= cfg.dteMax && r.bid >= cfg.minBid
   })
@@ -119,12 +129,13 @@ function expiryInFomcWeek(expiry: string, fomcDates: string[]): boolean {
 }
 const MONTH_ABBR = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
 /** LEAP expiries are commonly 1-3 years out, where "6/17" (month/day) reads
- * ambiguously without knowing the year — "JUN 27" (month + year) is what
- * actually distinguishes a Jun-2027 LEAP from a Jun-2028 one. */
+ * ambiguously without knowing the year — a month + year is what actually
+ * distinguishes a Jun-2027 LEAP from a Jun-2028 one. Numeric "12/28" (not
+ * "DEC 28") to avoid reading as a day-of-month at a glance. */
 function fmtExpMonthYear(s: string): string {
   const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
   if (!m) return s
-  return `${MONTH_ABBR[parseInt(m[2]) - 1]} ${m[1].slice(2)}`
+  return `${parseInt(m[2])}/${m[1].slice(2)}`
 }
 function fmtEr(d: string): string {
   const [, m, day] = d.split('-')
