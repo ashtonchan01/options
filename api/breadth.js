@@ -7,7 +7,8 @@
  * doesn't have.
  *
  * GET /api/breadth?symbols=AAPL,MSFT,...
- * → { above20: 62.5, above50: 58.3, above200: 71.2, count: 24 }
+ * → { above20: 62.5, above50: 58.3, above200: 71.2, count: 24,
+ *     tickers: [{ symbol: 'AAPL', above20: true, above50: false, above200: true }, ...] }
  */
 
 export const config = { runtime: 'edge' }
@@ -51,6 +52,7 @@ async function fetchOne(symbol) {
     if (closes.length === 0) return null
     const price = closes[closes.length - 1]
     return {
+      symbol,
       above20: sma(closes, 20) != null ? price > sma(closes, 20) : null,
       above50: sma(closes, 50) != null ? price > sma(closes, 50) : null,
       above200: sma(closes, 200) != null ? price > sma(closes, 200) : null,
@@ -87,7 +89,13 @@ export default async function handler(req) {
     return Math.round((withData.filter(r => r[key]).length / withData.length) * 1000) / 10
   }
 
-  const body = { above20: pct('above20'), above50: pct('above50'), above200: pct('above200'), count: results.length }
+  const body = {
+    above20: pct('above20'),
+    above50: pct('above50'),
+    above200: pct('above200'),
+    count: results.length,
+    tickers: results,
+  }
   cache = { key: cacheKey, at: Date.now(), body }
   return jsonResponse(body)
 }
