@@ -5,11 +5,19 @@
 
 const PROXY = 'https://options-jade.vercel.app'
 
+export interface TickerBreadth {
+  symbol: string
+  above20: boolean | null
+  above50: boolean | null
+  above200: boolean | null
+}
+
 export interface Breadth {
   above20: number | null
   above50: number | null
   above200: number | null
   count: number
+  tickers: TickerBreadth[]
 }
 
 export async function fetchBreadth(symbols: string[]): Promise<Breadth | null> {

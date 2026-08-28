@@ -10,7 +10,7 @@ import { getFollowedTickers } from '../../../utils/followedTickers'
 
 const REFRESH_MS = 5 * 60_000
 
-const ROWS: { key: keyof Omit<Breadth, 'count'>; label: string }[] = [
+const ROWS: { key: 'above20' | 'above50' | 'above200'; label: string }[] = [
   { key: 'above20', label: '% Above 20-day SMA' },
   { key: 'above50', label: '% Above 50-day SMA' },
   { key: 'above200', label: '% Above 200-day SMA' },
@@ -24,6 +24,16 @@ function barColor(pct: number): string {
 
 export default function MarketBreadthPanel() {
   const [breadth, setBreadth] = useState<Breadth | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  function toggle(key: string) {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -50,19 +60,41 @@ export default function MarketBreadthPanel() {
           <div style={{ fontSize: 12, color: 'var(--text-4)' }}>Loading breadth…</div>
         ) : ROWS.map(({ key, label }) => {
           const pct = breadth[key]
+          const isOpen = expanded.has(key)
+          const withData = breadth.tickers.filter(t => t[key] != null)
+          const above = withData.filter(t => t[key]).sort((a, b) => a.symbol.localeCompare(b.symbol))
+          const below = withData.filter(t => !t[key]).sort((a, b) => a.symbol.localeCompare(b.symbol))
           return (
             <div key={key}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>
+              <div
+                onClick={() => toggle(key)}
+                style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-3)', marginBottom: 4, cursor: 'pointer' }}
+              >
                 <span>{label}</span>
                 <span style={{ fontWeight: 700, color: pct != null ? barColor(pct) : 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>
                   {pct != null ? `${pct.toFixed(1)}%` : '—'}
                 </span>
               </div>
-              <div style={{ height: 6, background: 'var(--bg-elevated)', borderRadius: 3, overflow: 'hidden' }}>
+              <div
+                onClick={() => toggle(key)}
+                style={{ height: 6, background: 'var(--bg-elevated)', borderRadius: 3, overflow: 'hidden', cursor: 'pointer' }}
+              >
                 {pct != null && (
                   <div style={{ width: `${pct}%`, height: '100%', background: barColor(pct), borderRadius: 3 }} />
                 )}
               </div>
+              {isOpen && (
+                <div style={{ marginTop: 6, paddingLeft: 2, fontSize: 11, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div>
+                    <span style={{ color: '#10b981', fontWeight: 700 }}>Above ({above.length})</span>{' '}
+                    <span style={{ color: 'var(--text-2)' }}>{above.length ? above.map(t => t.symbol).join(', ') : '—'}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#f43f5e', fontWeight: 700 }}>Below ({below.length})</span>{' '}
+                    <span style={{ color: 'var(--text-2)' }}>{below.length ? below.map(t => t.symbol).join(', ') : '—'}</span>
+                  </div>
+                </div>
+              )}
             </div>
           )
         })}
