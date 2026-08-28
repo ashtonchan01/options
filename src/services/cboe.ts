@@ -66,17 +66,26 @@ const MIN_DTE = 7
 const MAX_DTE = 60
 export interface DteRange { min: number; max: number }
 const MIN_DELTA = 0.05
-const MAX_DELTA = 0.55
+// Raised from 0.55 — a synthetic-long combo (LEAP call + short put, same
+// expiry) routinely wants a short put well past 0.55 delta (the user's own
+// TSLA example sells a put struck ABOVE the stock price, i.e. already ITM,
+// to collect enough credit to meaningfully cut the LEAP's net cost). Capping
+// the shared put/call fetch at 0.55 silently dropped every such put before
+// the combo builder ever saw it. Raising the ceiling only ADDS candidates to
+// the raw scan — the CSP/CC tabs' own displayed results are still trimmed by
+// each user's own deltaMax in the UI's ModeConfig (default ~0.25-0.30), so
+// this doesn't change what shows up there by default.
+const MAX_DELTA = 0.80
 const MIN_BID = 0.05
 
-// A LEAP buy candidate is a deep-ITM, long-dated call — the opposite delta
-// range from the covered-call scan above (which only looks at the shallow
-// end, delta ≤ 0.55, since those are calls you'd SELL against shares). High
-// delta (≥0.65) means the option already trades close to 1:1 with the stock
-// (a genuine stock replacement rather than a lottery-ticket OTM bet), and
-// LEAP_MIN_DTE (~6 months) filters out short-dated deep-ITM calls that
-// happen to fall in the same delta band but aren't really "LEAPs".
-const LEAP_MIN_DELTA = 0.65
+// A LEAP buy candidate is a deep-ITM-to-ATM, long-dated call. LEAP_MIN_DELTA
+// used to be 0.65 (deep-ITM only), but a synthetic-long combo commonly pairs
+// an at-the-money call (delta ~0.45-0.55) with a further-out short put — the
+// user's own TSLA example (330C when TSLA trades near there) is roughly ATM
+// — so the floor is lowered to include that band too. LEAP_MIN_DTE (~6
+// months) filters out short-dated deep-ITM calls that happen to fall in the
+// same delta band but aren't really "LEAPs".
+const LEAP_MIN_DELTA = 0.45
 const LEAP_MAX_DELTA = 0.97
 const LEAP_MIN_DTE = 180
 
@@ -122,7 +131,7 @@ function computeLeapScore(
   ask: number,
 ): number {
   const costScore = Math.max(0, 1 - extrinsicPctAnnual / 15) // 0%/yr → 1.0, 15%+/yr → 0
-  const deltaScore = Math.min(Math.max((Math.abs(delta) - 0.65) / 0.30, 0), 1) // 0.65→0, 0.95+→1
+  const deltaScore = Math.min(Math.max((Math.abs(delta) - 0.45) / 0.52, 0), 1) // 0.45→0, 0.97+→1
   const volScore = volume > 0 ? Math.min(Math.log10(volume) / 3, 1.0) : 0
   const spread = ask - bid
   const mid = (ask + bid) / 2
