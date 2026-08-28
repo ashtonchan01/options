@@ -190,17 +190,25 @@ function comboBreakevenPrice(callStrike: number, putStrike: number, netCostPerSh
   return hi // shouldn't happen — payoff is monotonic non-decreasing
 }
 
-/** Every call×put pair sharing an expiry, ranked by the three things asked
- * for: longest DTE, least cash upfront, lowest breakeven. Each metric is
- * normalized (0-1) against the OTHER candidates for this same ticker, not
- * against some fixed scale, since "least cash" only means anything relative
- * to what else is on offer for that underlying right now. Net cost gets the
- * heaviest weight since "least cash upfront" was the most concrete ask. */
+/** Every call×put pair sharing an expiry where the CALL strike sits BELOW
+ * the PUT strike, ranked by certainty of actually ending up owning the
+ * stock (call delta) and least cash upfront, then DTE/breakeven as
+ * tiebreakers. The point of buying the LEAP is to own the stock — a call
+ * struck ABOVE the put can simply expire worthless and leave you owning
+ * nothing, which defeats that purpose, so those pairings are excluded
+ * entirely rather than merely ranked lower. Within call.strike < put.strike,
+ * a lower call strike (deeper ITM, higher delta) is safer but costs more
+ * debit than a higher one — "least debit AND a lower call strike" are in
+ * tension, so certainty (call delta) and cost are weighted roughly equally
+ * rather than letting cost alone dominate and push toward a cheaper,
+ * riskier-of-expiring-worthless call. Each metric is normalized (0-1)
+ * against the OTHER candidates for this same ticker, not a fixed scale. */
 function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticLongCombo[] {
   const combos: Omit<SyntheticLongCombo, 'compositeScore'>[] = []
   for (const call of calls) {
     for (const put of puts) {
       if (put.expiry !== call.expiry) continue
+      if (call.strike >= put.strike) continue
       const straightCost = call.mid * 100
       const straightBreakeven = call.strike + call.mid
       const comboNetCost = (call.mid - put.mid) * 100
@@ -218,18 +226,21 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   const dtes = combos.map(c => c.dte)
   const costs = combos.map(c => c.comboNetCost)
   const beps = combos.map(c => c.comboBreakeven)
+  const deltas = combos.map(c => c.call.delta)
   const dteRange = [Math.min(...dtes), Math.max(...dtes)] as const
   const costRange = [Math.min(...costs), Math.max(...costs)] as const
   const bepRange = [Math.min(...beps), Math.max(...beps)] as const
+  const deltaRange = [Math.min(...deltas), Math.max(...deltas)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
   return combos
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        norm(c.dte, dteRange) * 0.25 +               // longer DTE → higher score
-        (1 - norm(c.comboNetCost, costRange)) * 0.45 + // less cash → higher score
-        (1 - norm(c.comboBreakeven, bepRange)) * 0.30  // lower breakeven → higher score
+        norm(c.call.delta, deltaRange) * 0.35 +        // higher call delta (lower strike, more certain to own the stock) → higher score
+        (1 - norm(c.comboNetCost, costRange)) * 0.35 +  // less cash → higher score
+        (1 - norm(c.comboBreakeven, bepRange)) * 0.15 + // lower breakeven → higher score
+        norm(c.dte, dteRange) * 0.15                    // longer DTE → higher score
       ) * 100),
     }))
     .sort((a, b) => b.compositeScore - a.compositeScore)
@@ -386,7 +397,7 @@ function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
       borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
       background: rank === 1 ? '#10b98110' : 'transparent',
     }}
-      title={`${fmtExp(c.call.expiry)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · ${c.costReduction >= 0 ? `${c.costReduction.toFixed(0)}% less cash` : `${Math.abs(c.costReduction).toFixed(0)}% more cash`} than the LEAP alone${c.put.strike > c.call.strike ? ` · put strike is ABOVE the call strike — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat` : ''}`}>
+      title={`${fmtExp(c.call.expiry)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · ${c.costReduction >= 0 ? `${c.costReduction.toFixed(0)}% less cash` : `${Math.abs(c.costReduction).toFixed(0)}% more cash`} than the LEAP alone · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600, whiteSpace: 'nowrap' }}>${c.call.strike}C/${c.put.strike}P</span>
       <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{c.dte}d</span>
@@ -408,7 +419,7 @@ function SyntheticLongCombosSection({ combos }: { combos: SyntheticLongCombo[] }
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <span style={{ padding: '1px 6px', fontSize: 9, fontWeight: 700, background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', fontFamily: "'Inter', sans-serif", letterSpacing: '0.5px' }}>SYNTHETIC LONG</span>
-        <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>TOP {combos.length} · ranked by DTE + cash + breakeven</span>
+        <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>TOP {combos.length} · call strike below put strike only · ranked by certainty of ownership + cash</span>
       </div>
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: 340 }}>
