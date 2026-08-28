@@ -216,8 +216,6 @@ export interface SyncState {
   trades: RawTrade[]
   cashBalance: number
   netLiquidation?: number  // direct from IBKR EquitySummary
-  excessLiquidity?: number
-  cushion?: number  // excessLiquidity / netLiquidation * 100 — "available margin" %
 }
 
 // ─── App State ────────────────────────────────────────────────────────────────
