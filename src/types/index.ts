@@ -173,7 +173,7 @@ export type ScanFlag = 'HIGH_VOL' | 'HIGH_V_OI' | 'IV_SPIKE' | 'NEAR_TERM'
 
 export interface ScanResult {
   underlying: string
-  strategyType: Extract<StrategyType, 'csp' | 'covered_call'>
+  strategyType: Extract<StrategyType, 'csp' | 'covered_call' | 'leap'>
   stockPrice: number
   strike: number
   expiry: string
@@ -189,9 +189,17 @@ export interface ScanResult {
   volume: number
   openInterest: number
   volumeOiRatio: number     // volume / openInterest
-  annualizedYield: number   // mid / strike * (365/dte)
+  annualizedYield: number   // mid / strike * (365/dte) — for 'leap', this is
+                            // the extrinsic cost annualized (a cost rate, not
+                            // a yield): (extrinsic / stockPrice) * (365/dte)
   score: number             // composite rank 0-100
   flags: ScanFlag[]
+  /** 'leap' only — mid minus intrinsic value, i.e. the time-value premium
+   * actually being paid for (the deep-ITM debit's "wasted" portion). */
+  extrinsic?: number
+  /** 'leap' only — stockPrice / mid: how many dollars of stock exposure one
+   * dollar spent on the call controls, vs buying shares outright. */
+  leverage?: number
 }
 
 // ─── IBKR Sync State ─────────────────────────────────────────────────────────

@@ -69,6 +69,17 @@ const MIN_DELTA = 0.05
 const MAX_DELTA = 0.55
 const MIN_BID = 0.05
 
+// A LEAP buy candidate is a deep-ITM, long-dated call — the opposite delta
+// range from the covered-call scan above (which only looks at the shallow
+// end, delta ≤ 0.55, since those are calls you'd SELL against shares). High
+// delta (≥0.65) means the option already trades close to 1:1 with the stock
+// (a genuine stock replacement rather than a lottery-ticket OTM bet), and
+// LEAP_MIN_DTE (~6 months) filters out short-dated deep-ITM calls that
+// happen to fall in the same delta band but aren't really "LEAPs".
+const LEAP_MIN_DELTA = 0.65
+const LEAP_MAX_DELTA = 0.97
+const LEAP_MIN_DTE = 180
+
 // ─── Scoring & flags (same logic as other services) ──────────────────────────
 
 function computeScore(
@@ -95,6 +106,30 @@ function computeScore(
     ivScore * 20 +
     spreadScore * 10
 
+  return Math.round(Math.max(0, Math.min(100, raw)))
+}
+
+// A LEAP call is a purchase (debit), not a credit sale, so the credit-selling
+// score above (rewards high yield/IV) is the wrong shape here: a buyer wants
+// LOW extrinsic cost, HIGH delta (closer to owning the stock outright), and
+// still wants liquidity/tight spreads. extrinsicPctAnnual is a cost rate —
+// lower is better, the reverse of annualizedYield's "higher is better".
+function computeLeapScore(
+  extrinsicPctAnnual: number,
+  delta: number,
+  volume: number,
+  bid: number,
+  ask: number,
+): number {
+  const costScore = Math.max(0, 1 - extrinsicPctAnnual / 15) // 0%/yr → 1.0, 15%+/yr → 0
+  const deltaScore = Math.min(Math.max((Math.abs(delta) - 0.65) / 0.30, 0), 1) // 0.65→0, 0.95+→1
+  const volScore = volume > 0 ? Math.min(Math.log10(volume) / 3, 1.0) : 0
+  const spread = ask - bid
+  const mid = (ask + bid) / 2
+  const spreadPct = mid > 0 ? spread / mid : 1
+  const spreadScore = Math.max(0, 1 - spreadPct * 2)
+
+  const raw = costScore * 40 + deltaScore * 30 + volScore * 15 + spreadScore * 15
   return Math.round(Math.max(0, Math.min(100, raw)))
 }
 
@@ -252,6 +287,54 @@ function processChain(
   // need to buy shares for first.
   if (puts.length > 0) processGroup(puts, true, 'csp')
   if (calls.length > 0) processGroup(calls, false, 'covered_call')
+
+  // LEAP buy candidates draw from the SAME `calls` list, just filtered to
+  // the opposite (deep-ITM, long-dated) end — independent of the
+  // covered-call pass above rather than a further filter on it, since a
+  // delta ≥0.65 call would never have passed MAX_DELTA=0.55 to begin with.
+  const leapCalls = calls.filter(({ raw: o, parsed: p }) => {
+    const dte = Math.round((expiryToMs(p.expiry) - now) / 86400000)
+    const absDelta = Math.abs(o.delta ?? 0)
+    return dte >= LEAP_MIN_DTE && absDelta >= LEAP_MIN_DELTA && absDelta <= LEAP_MAX_DELTA && o.ask > 0
+  })
+  for (const { raw: o, parsed: p } of leapCalls) {
+    const dte = Math.round((expiryToMs(p.expiry) - now) / 86400000)
+    const delta = o.delta ?? 0
+    const iv = (o.iv ?? 0) * 100
+    const mid = (o.bid + o.ask) / 2
+    if (mid < MIN_BID) continue
+    const volume = o.volume ?? 0
+    const openInterest = o.open_interest ?? 0
+    const intrinsic = Math.max(stockPrice - p.strike, 0)
+    const extrinsic = Math.max(mid - intrinsic, 0)
+    const extrinsicPctAnnual = (extrinsic / stockPrice) * (365 / dte) * 100
+    const score = computeLeapScore(extrinsicPctAnnual, delta, volume, o.bid, o.ask)
+
+    results.push({
+      underlying,
+      strategyType: 'leap',
+      stockPrice,
+      strike: p.strike,
+      expiry: p.expiry,
+      dte,
+      delta: parseFloat(delta.toFixed(3)),
+      gamma: parseFloat((o.gamma ?? 0).toFixed(5)),
+      theta: parseFloat((o.theta ?? 0).toFixed(3)),
+      iv: parseFloat(iv.toFixed(1)),
+      ivRank: 50,
+      bid: o.bid,
+      ask: o.ask,
+      mid: parseFloat(mid.toFixed(2)),
+      volume,
+      openInterest,
+      volumeOiRatio: openInterest > 0 ? parseFloat((volume / openInterest).toFixed(2)) : 0,
+      annualizedYield: parseFloat(extrinsicPctAnnual.toFixed(1)),
+      score,
+      flags: dte <= 14 ? ['NEAR_TERM'] : [],
+      extrinsic: parseFloat(extrinsic.toFixed(2)),
+      leverage: mid > 0 ? parseFloat((stockPrice / mid).toFixed(2)) : undefined,
+    })
+  }
 
   return results
 }
