@@ -176,7 +176,8 @@ interface SyntheticLongCombo {
   costReduction: number     // % less cash outlay the combo needs vs the straight LEAP
   comboDelta: number        // call.delta + |put.delta| — combined position delta (more stock-like)
   assignmentRisk: number    // |put.delta| — rough probability the short put gets assigned
-  putCollateral: number     // put.strike * 100 — cash a cash-secured put ties up per contract
+  putCollateral: number     // Reg-T margin for the short put per contract (not full cash-secured
+                            // collateral — see regTPutMargin)
   totalCapital: number      // comboNetCost + putCollateral — cash needed for the debit AND cash
                             // set aside for the put, held simultaneously (not offsetting)
   compositeScore: number    // 0-100, ranks this ticker's own combos against each other
@@ -216,32 +217,35 @@ function comboBreakevenPrice(callStrike: number, putStrike: number, netCostPerSh
  * the PUT strike, ranked chiefly by TOTAL capital committed — not net cash
  * outlay and put collateral scored as if they were independent wins.
  *
- * A cash-secured put's collateral doesn't offset the call's debit; a real
- * account needs BOTH the cash to pay the net premium AND the cash set aside
- * for the put, held at the same time. Scoring them separately (an earlier
- * version of this weighted net cost 45% and collateral 25% independently)
- * let the ranking surface combos like a $23K net debit + $14K put
- * collateral on a $34.7K stock — ~$37K of total capital for a position
- * economically similar to just buying the shares, which the user correctly
- * pointed out defeats the entire purpose of using a LEAP. totalCapital =
- * comboNetCost + putCollateral is now the dominant ranking factor, and any
- * combo whose totalCapital doesn't meaningfully beat buying the stock
- * outright (stockPrice × 100) is excluded outright rather than merely
- * ranked low — a combo that ties up nearly as much cash as owning the
- * shares isn't a reasonable recommendation regardless of its breakeven. */
-// A short put's real cost isn't the premium math alone — it's the cash a
-// cash-secured put ties up (strike × 100/contract) or the margin a
-// portfolio-margin account still has to post against near-certain
-// assignment. Capping the put strike to a reasonable band above the
-// current stock price (rather than letting the combo builder chase pure
-// premium/delta all the way to a strike at 2x spot, which no real account
-// can margin sensibly) keeps recommendations to trades someone could
-// actually place.
+ * A short put's margin doesn't offset the call's debit; a real account
+ * needs BOTH the cash to pay the net premium AND whatever margin is held
+ * against the put, at the same time. Scoring them separately (an earlier
+ * version weighted net cost 45% and collateral 25% independently) let the
+ * ranking surface combos like a $23K net debit + $14K put collateral on a
+ * $34.7K stock — ~$37K of total capital for a position economically
+ * similar to just buying the shares, which the user correctly called out.
+ *
+ * putMargin uses the standard Reg-T formula for an uncovered/naked equity
+ * put (greater of 20% of the stock's value minus how far OTM the put is,
+ * or 10% of the strike, either way plus the premium collected) — NOT full
+ * cash-secured collateral (put.strike × 100), which is what the first cut
+ * of this used and which is why nothing showed up at all afterward: that
+ * figure is comparable to the stock's entire price by construction, so
+ * every combo failed the "beats buying the stock" cutoff before this fix.
+ * Reg-T margin is what a standard margin account actually has to post,
+ * and is typically a fraction of the stock's price. */
 const MAX_PUT_STRIKE_OVER_SPOT = 1.15
 // A combo needing this much of the stock's outright purchase price (net
-// debit + put collateral combined) isn't meaningfully more capital-efficient
+// debit + put margin combined) isn't meaningfully more capital-efficient
 // than just buying the shares — excluded rather than merely scored low.
 const MAX_TOTAL_CAPITAL_VS_STOCK = 0.65
+
+function regTPutMargin(stockPrice: number, putStrike: number, putMid: number): number {
+  const otmAmount = Math.max(stockPrice - putStrike, 0)
+  const byStockValue = 0.20 * stockPrice * 100 - otmAmount * 100
+  const byStrike = 0.10 * putStrike * 100
+  return Math.max(byStockValue, byStrike) + putMid * 100
+}
 
 function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticLongCombo[] {
   const combos: Omit<SyntheticLongCombo, 'compositeScore'>[] = []
@@ -253,7 +257,7 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
       const straightCost = call.mid * 100
       const straightBreakeven = call.strike + call.mid
       const comboNetCost = (call.mid - put.mid) * 100
-      const putCollateral = put.strike * 100
+      const putCollateral = regTPutMargin(call.stockPrice, put.strike, put.mid)
       const totalCapital = comboNetCost + putCollateral
       if (totalCapital > call.stockPrice * 100 * MAX_TOTAL_CAPITAL_VS_STOCK) continue
       const comboBreakeven = comboBreakevenPrice(call.strike, put.strike, call.mid - put.mid)
@@ -465,7 +469,7 @@ function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
       borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
       background: rank === 1 ? '#10b98110' : 'transparent',
     }}
-      title={`${fmtExpMonthYear(c.call.expiry)}, ${c.dte}d · net premium ${fmtMoney(c.comboNetCost)}, put collateral ${fmtMoney(c.putCollateral)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · combined delta ${c.comboDelta.toFixed(2)} · stock (100 shares) costs ${fmtMoney(c.call.stockPrice * 100)} · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
+      title={`${fmtExpMonthYear(c.call.expiry)}, ${c.dte}d · net premium ${fmtMoney(c.comboNetCost)}, put margin (Reg-T est.) ${fmtMoney(c.putCollateral)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · combined delta ${c.comboDelta.toFixed(2)} · stock (100 shares) costs ${fmtMoney(c.call.stockPrice * 100)} · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600, whiteSpace: 'nowrap' }}>${c.call.strike}C/${c.put.strike}P</span>
       <span style={{ color: c.comboNetCost < 0 ? '#10b981' : 'var(--text-3)', textAlign: 'right' }}>{fmtMoney(c.comboNetCost)}</span>
