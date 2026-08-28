@@ -255,12 +255,22 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   }
   if (combos.length === 0) return []
 
-  const dtes = combos.map(c => c.dte)
+  // Weighted toward actual capital efficiency (net cash outlay + the put's
+  // collateral/margin), not just "certainty of ownership" (call delta). A
+  // real comparison against the user's own manual pick (a near-ATM 330C
+  // paired with a 360P, ~$3.5K net debit) against this ranking's earlier
+  // deep-ITM picks (strikes 130-165, $11-13K net debit) showed the delta
+  // weighting was pushing toward far more expensive, far more margin-heavy
+  // trades in exchange for a breakeven only ~$5-10 better — not a trade
+  // most accounts want. Cost and collateral now dominate the score; delta
+  // and breakeven are tiebreakers among similarly-priced combos, not able
+  // to outweigh a large cost difference on their own.
   const costs = combos.map(c => c.comboNetCost)
+  const collaterals = combos.map(c => c.putCollateral)
   const beps = combos.map(c => c.comboBreakeven)
   const deltas = combos.map(c => c.call.delta)
-  const dteRange = [Math.min(...dtes), Math.max(...dtes)] as const
   const costRange = [Math.min(...costs), Math.max(...costs)] as const
+  const collateralRange = [Math.min(...collaterals), Math.max(...collaterals)] as const
   const bepRange = [Math.min(...beps), Math.max(...beps)] as const
   const deltaRange = [Math.min(...deltas), Math.max(...deltas)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
@@ -269,10 +279,10 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        norm(c.call.delta, deltaRange) * 0.35 +        // higher call delta (lower strike, more certain to own the stock) → higher score
-        (1 - norm(c.comboNetCost, costRange)) * 0.35 +  // less cash → higher score
-        (1 - norm(c.comboBreakeven, bepRange)) * 0.15 + // lower breakeven → higher score
-        norm(c.dte, dteRange) * 0.15                    // longer DTE → higher score
+        (1 - norm(c.comboNetCost, costRange)) * 0.45 +     // less cash upfront → higher score
+        (1 - norm(c.putCollateral, collateralRange)) * 0.25 + // less put collateral/margin tied up → higher score
+        norm(c.call.delta, deltaRange) * 0.15 +               // higher call delta (more certain to own the stock) → higher score
+        (1 - norm(c.comboBreakeven, bepRange)) * 0.15         // lower breakeven → higher score
       ) * 100),
     }))
     .sort((a, b) => b.compositeScore - a.compositeScore)
@@ -382,7 +392,10 @@ function OptionRow({ r, rank, nextEarnings, fomcDates }: { r: ScanResult; rank: 
 // LEAP columns are a debit purchase, not a credit sale — COST (what you pay)
 // instead of CREDIT, EXTR/YR (annualized extrinsic cost — lower is better)
 // instead of YIELD/APY, plus LEV (leverage: $ of stock exposure per $ spent).
-const LEAP_GRID = '16px minmax(56px,1fr) 46px 28px 40px 46px 46px 40px 40px 28px'
+// EXP/DTE are dropped from the row grid — every row in this table (and this
+// whole card, when the LEAP toggle is active) shares the ticker's one
+// furthest expiry, shown once in the card's own header instead.
+const LEAP_GRID = '16px minmax(56px,1fr) 40px 46px 46px 40px 40px 28px'
 
 function LeapRow({ r, rank }: { r: ScanResult; rank: number }) {
   const bep = r.strike + r.mid
@@ -391,11 +404,9 @@ function LeapRow({ r, rank }: { r: ScanResult; rank: number }) {
       display: 'grid', gridTemplateColumns: LEAP_GRID, gap: 3, alignItems: 'center', padding: '5px 4px', margin: '0 -4px',
       borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
     }}
-      title={`Extrinsic: $${(r.extrinsic ?? 0).toFixed(2)} · OI: ${r.openInterest} · Leverage: ${r.leverage?.toFixed(1) ?? '—'}x`}>
+      title={`${fmtExpMonthYear(r.expiry)}, ${r.dte}d · Extrinsic: $${(r.extrinsic ?? 0).toFixed(2)} · OI: ${r.openInterest} · Leverage: ${r.leverage?.toFixed(1) ?? '—'}x`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>${r.strike}</span>
-      <span style={{ color: 'var(--text-3)', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtExpMonthYear(r.expiry)}</span>
-      <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{r.dte}d</span>
       <span style={{ color: deltaColor(r.delta), textAlign: 'right' }}>{r.delta.toFixed(2)}</span>
       <span style={{ color: '#f43f5e', textAlign: 'right' }}>${r.mid.toFixed(2)}</span>
       <span style={{ color: 'var(--text-2)', textAlign: 'right' }}>${bep.toFixed(2)}</span>
@@ -410,7 +421,6 @@ function LeapHeader() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: LEAP_GRID, gap: 3, padding: '3px 0 5px', borderBottom: '1px solid var(--border-light)', fontSize: 8, fontWeight: 600, color: 'var(--text-4)', letterSpacing: '0.5px' }}>
       <span style={{ textAlign: 'center' }}>#</span><span>STRIKE</span>
-      <span style={{ textAlign: 'right' }}>EXP</span><span style={{ textAlign: 'right' }}>DTE</span>
       <span style={{ textAlign: 'right' }}>DELTA</span><span style={{ textAlign: 'right' }}>COST</span>
       <span style={{ textAlign: 'right' }}>BEP</span>
       <span style={{ textAlign: 'right' }}>EXTR/YR</span><span style={{ textAlign: 'right' }}>LEV</span>
@@ -441,10 +451,13 @@ function fmtMoney(n: number): string {
   return n < 0 ? `-$${Math.abs(n).toFixed(0)}` : `$${n.toFixed(0)}`
 }
 
-// Combo columns: legs (call/put strikes), DTE, net cost (can be negative —
-// a net credit when the put brings in more than the call costs), breakeven,
-// combined delta, and the composite rank score.
-const COMBO_GRID = '16px minmax(78px,1fr) 40px 52px 56px 40px 32px'
+// Combo columns: legs (call/put strikes), net cost (can be negative — a net
+// credit when the put brings in more than the call costs), put collateral/
+// margin, breakeven, and the composite rank score. DTE is dropped from the
+// visible columns (every combo for a ticker now shares the same expiry, so
+// it's the same number in every row) in favor of MARGIN, since capital tied
+// up is now the dominant ranking factor.
+const COMBO_GRID = '16px minmax(78px,1fr) 52px 56px 56px 32px'
 
 function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
   return (
@@ -453,13 +466,12 @@ function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
       borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
       background: rank === 1 ? '#10b98110' : 'transparent',
     }}
-      title={`${fmtExpMonthYear(c.call.expiry)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · cash-secured put collateral ${fmtMoney(c.putCollateral)} · ${c.costReduction >= 0 ? `${c.costReduction.toFixed(0)}% less cash` : `${Math.abs(c.costReduction).toFixed(0)}% more cash`} than the LEAP alone · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
+      title={`${fmtExpMonthYear(c.call.expiry)}, ${c.dte}d · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · combined delta ${c.comboDelta.toFixed(2)} · ${c.costReduction >= 0 ? `${c.costReduction.toFixed(0)}% less cash` : `${Math.abs(c.costReduction).toFixed(0)}% more cash`} than the LEAP alone · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600, whiteSpace: 'nowrap' }}>${c.call.strike}C/${c.put.strike}P</span>
-      <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{c.dte}d</span>
       <span style={{ color: c.comboNetCost < 0 ? '#10b981' : 'var(--text-1)', fontWeight: 600, textAlign: 'right' }}>{fmtMoney(c.comboNetCost)}</span>
+      <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{fmtMoney(c.putCollateral)}</span>
       <span style={{ color: 'var(--text-2)', textAlign: 'right' }}>${c.comboBreakeven.toFixed(2)}</span>
-      <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{c.comboDelta.toFixed(2)}</span>
       <span style={{ color: scoreColor(c.compositeScore), fontWeight: 700, fontFamily: "'Inter', sans-serif", textAlign: 'right' }}>{c.compositeScore}</span>
     </div>
   )
@@ -476,15 +488,15 @@ function SyntheticLongCombosSection({ combos }: { combos: SyntheticLongCombo[] }
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <span style={{ padding: '1px 6px', fontSize: 9, fontWeight: 700, background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', fontFamily: "'Inter', sans-serif", letterSpacing: '0.5px' }}>SYNTHETIC LONG</span>
         <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>
-          {fmtExpMonthYear(combos[0].call.expiry)} · TOP {combos.length} · call strike below put strike only · ranked by certainty of ownership + cash
+          TOP {combos.length} · call strike below put strike only · ranked by least cash + margin
         </span>
       </div>
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: 340 }}>
           <div style={{ display: 'grid', gridTemplateColumns: COMBO_GRID, gap: 3, padding: '3px 0 5px', borderBottom: '1px solid var(--border-light)', fontSize: 8, fontWeight: 600, color: 'var(--text-4)', letterSpacing: '0.5px' }}>
             <span style={{ textAlign: 'center' }}>#</span><span>LEGS</span>
-            <span style={{ textAlign: 'right' }}>DTE</span><span style={{ textAlign: 'right' }}>NET</span>
-            <span style={{ textAlign: 'right' }}>BEP</span><span style={{ textAlign: 'right' }}>DELTA</span>
+            <span style={{ textAlign: 'right' }}>NET</span><span style={{ textAlign: 'right' }}>MARGIN</span>
+            <span style={{ textAlign: 'right' }}>BEP</span>
             <span style={{ textAlign: 'right' }}>SCR</span>
           </div>
           {combos.map((c, i) => <ComboRow key={i} c={c} rank={i + 1} />)}
@@ -853,6 +865,11 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
                   {card.nextEarnings && (
                     <span title={`Next earnings ${card.nextEarnings}`} style={{ padding: '1px 5px', fontSize: 9, fontWeight: 700, background: '#F0B42915', border: '1px solid #F0B42940', color: '#F0B429', fontFamily: "'Inter', sans-serif" }}>
                       ER {fmtEr(card.nextEarnings)}
+                    </span>
+                  )}
+                  {strategyFilter === 'leap' && card.topLeap.length > 0 && (
+                    <span title="LEAP expiry / days to expiry" style={{ padding: '1px 5px', fontSize: 9, fontWeight: 700, background: '#a855f715', border: '1px solid #a855f740', color: '#a855f7', fontFamily: "'Inter', sans-serif" }}>
+                      {fmtExpMonthYear(card.topLeap[0].expiry)} · {card.topLeap[0].dte}d
                     </span>
                   )}
                   <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
