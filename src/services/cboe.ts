@@ -88,6 +88,12 @@ const MIN_BID = 0.05
 const LEAP_MIN_DELTA = 0.45
 const LEAP_MAX_DELTA = 0.97
 const LEAP_MIN_DTE = 180
+// Real LEAPs regularly run 2-3 years out (e.g. a Dec-2028 TSLA chain from
+// today is ~850 DTE) — exported so the scanner's own fetch window (which
+// otherwise scopes to the much narrower Short/Long Term toggle bounds) can
+// be widened to actually include them instead of silently truncating the
+// chain before the LEAP pass ever sees the furthest-dated expiries.
+export const LEAP_MAX_DTE = 1100
 
 // ─── Scoring & flags (same logic as other services) ──────────────────────────
 
@@ -304,7 +310,7 @@ function processChain(
   const leapCalls = calls.filter(({ raw: o, parsed: p }) => {
     const dte = Math.round((expiryToMs(p.expiry) - now) / 86400000)
     const absDelta = Math.abs(o.delta ?? 0)
-    return dte >= LEAP_MIN_DTE && absDelta >= LEAP_MIN_DELTA && absDelta <= LEAP_MAX_DELTA && o.ask > 0
+    return dte >= LEAP_MIN_DTE && dte <= LEAP_MAX_DTE && absDelta >= LEAP_MIN_DELTA && absDelta <= LEAP_MAX_DELTA && o.ask > 0
   })
   for (const { raw: o, parsed: p } of leapCalls) {
     const dte = Math.round((expiryToMs(p.expiry) - now) / 86400000)

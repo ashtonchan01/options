@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Scan, AlertCircle, Activity, ChevronDown, ChevronUp } from 'lucide-react'
 import type { AppState, ScanResult, ScanFlag } from '../../types'
-import { scanAllTickersCboe } from '../../services/cboe'
+import { scanAllTickersCboe, LEAP_MAX_DTE } from '../../services/cboe'
 import { fetchEarningsDates } from '../../services/earnings'
 import { fetchFomcDates } from '../../services/fomc'
 
@@ -541,17 +541,18 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
     setScanning(true); setError(null); setResults([]); setScanProgress('')
     try {
       setScanProgress('Fetching chains…')
-      // Always fetch/process the FULL union of both terms' DTE windows
-      // (1-365d), not just whichever term tab happens to be selected. LEAP
-      // candidates (180+ DTE) are a separate pass inside processChain that
-      // draws from this same fetched set — scoping the fetch to the active
-      // term's own narrower window (e.g. Short Term's 1-60d) would silently
-      // throw away every 180+ DTE call before LEAP ever saw them, making the
-      // LEAP tab show "no data" whenever Short Term was selected even though
-      // LEAP is independent of that toggle. The Short/Long Term buttons
-      // still narrow what CSP/CC/All display, via each term's own cfg in
-      // filterByMode — this only changes what gets fetched and considered.
-      const dteRange = { min: TERM_BOUNDS.short.dteFloor, max: TERM_BOUNDS.long.dteCeil }
+      // Always fetch/process the FULL union of both terms' DTE windows PLUS
+      // LEAP's own much longer horizon (real LEAPs run 2-3 years out — a
+      // Dec-2028 TSLA chain is ~850 DTE from today), not just whichever
+      // term tab happens to be selected. LEAP candidates are a separate
+      // pass inside processChain that draws from this same fetched set —
+      // scoping the fetch to the active term's own narrower window (e.g.
+      // Short Term's 1-60d, or even Long Term's 365d ceiling) would silently
+      // throw away the furthest-dated LEAP expiries before that pass ever
+      // saw them. The Short/Long Term buttons still narrow what CSP/CC/All
+      // display, via each term's own cfg in filterByMode — this only
+      // changes what gets fetched and considered.
+      const dteRange = { min: TERM_BOUNDS.short.dteFloor, max: Math.max(TERM_BOUNDS.long.dteCeil, LEAP_MAX_DTE) }
       const all = await scanAllTickersCboe(tickers, (sym, i, total) => setScanProgress(`${sym} (${i}/${total})`), dteRange)
       if (!all.length && tickers.length) setError('No results — try again in 30s.')
       setResults(all); setScanned(true)
