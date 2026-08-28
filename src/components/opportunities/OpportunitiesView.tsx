@@ -51,11 +51,11 @@ function loadScanTerm(): ScanTerm {
 
 function filterByMode(results: ScanResult[], cfg: ModeConfig): ScanResult[] {
   return results.filter(r => {
-    // LEAP candidates live in their own delta band (0.65-0.97, well above
-    // the CSP/CC deltaMin/deltaMax the user tunes here) and are already
-    // filtered server-side in cboe.ts — applying the CSP/CC delta bounds to
-    // them too would filter every single one out.
-    if (r.strategyType === 'leap') return r.dte >= cfg.dteMin && r.dte <= cfg.dteMax
+    // LEAP candidates are selected entirely by cboe.ts's own delta/DTE/
+    // liquidity rules (deep-ITM-to-ATM, 180+ DTE) and the combo-ranking
+    // formula — none of the user-tunable PARAMS below (tuned for CSP/CC
+    // credit-selling) apply to them, so a LEAP result is never excluded here.
+    if (r.strategyType === 'leap') return true
     const d = Math.abs(r.delta)
     return d >= cfg.deltaMin && d <= cfg.deltaMax && r.dte >= cfg.dteMin && r.dte <= cfg.dteMax && r.bid >= cfg.minBid
   })
@@ -666,14 +666,27 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
         </div>
 
         {/* ── Scan params (manual) ────────────────────────────────────────────── */}
-        <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, flexShrink: 0, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--signature)', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>PARAMS</span>
-          <label style={labelStyle}>Δ min <input type="number" value={customCfg.deltaMin} step={0.01} min={0.01} max={0.49} onChange={e => updateCustom({ deltaMin: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
-          <label style={labelStyle}>Δ max <input type="number" value={customCfg.deltaMax} step={0.01} min={0.02} max={0.55} onChange={e => updateCustom({ deltaMax: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
-          <label style={labelStyle}>DTE min <input type="number" value={customCfg.dteMin} step={1} min={TERM_BOUNDS[scanTerm].dteFloor} max={TERM_BOUNDS[scanTerm].dteCeil} onChange={e => updateCustom({ dteMin: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
-          <label style={labelStyle}>DTE max <input type="number" value={customCfg.dteMax} step={1} min={TERM_BOUNDS[scanTerm].dteFloor} max={TERM_BOUNDS[scanTerm].dteCeil} onChange={e => updateCustom({ dteMax: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
-          <label style={labelStyle}>Min bid <input type="number" value={customCfg.minBid} step={0.01} min={0.01} max={5} onChange={e => updateCustom({ minBid: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
-        </div>
+        {/* Hidden in LEAP mode — those results aren't filtered by these at
+            all (see filterByMode), they're selected by cboe.ts's own delta/
+            DTE/liquidity rules and the combo-ranking formula, so showing
+            live-editable inputs that silently do nothing would be misleading. */}
+        {strategyFilter === 'leap' ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#a855f7', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>LEAP</span>
+            <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: 'Inter, sans-serif' }}>
+              Selected by delta/DTE/liquidity rules and the combo-ranking formula, not the params below — those don't apply here.
+            </span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--signature)', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>PARAMS</span>
+            <label style={labelStyle}>Δ min <input type="number" value={customCfg.deltaMin} step={0.01} min={0.01} max={0.49} onChange={e => updateCustom({ deltaMin: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
+            <label style={labelStyle}>Δ max <input type="number" value={customCfg.deltaMax} step={0.01} min={0.02} max={0.55} onChange={e => updateCustom({ deltaMax: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
+            <label style={labelStyle}>DTE min <input type="number" value={customCfg.dteMin} step={1} min={TERM_BOUNDS[scanTerm].dteFloor} max={TERM_BOUNDS[scanTerm].dteCeil} onChange={e => updateCustom({ dteMin: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
+            <label style={labelStyle}>DTE max <input type="number" value={customCfg.dteMax} step={1} min={TERM_BOUNDS[scanTerm].dteFloor} max={TERM_BOUNDS[scanTerm].dteCeil} onChange={e => updateCustom({ dteMax: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
+            <label style={labelStyle}>Min bid <input type="number" value={customCfg.minBid} step={0.01} min={0.01} max={5} onChange={e => updateCustom({ minBid: +e.target.value })} style={inputStyle} className={inputClassName} /></label>
+          </div>
+        )}
 
         {/* ── Tickers (add/remove) ────────────────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, minWidth: 0 }}>
