@@ -84,18 +84,24 @@ const MAX_DELTA = 0.95
 const MIN_BID = 0.05
 
 // A LEAP buy candidate is a deep-ITM-to-ATM, long-dated call. LEAP_MIN_DELTA
-// used to be 0.65 (deep-ITM only), but a synthetic-long combo commonly pairs
-// an at-the-money call (delta ~0.45-0.55) with a further-out short put — the
-// user's own TSLA example (330C when TSLA trades near there) is roughly ATM
-// — so the floor is lowered to include that band too. LEAP_MIN_DTE (~6
-// months) filters out short-dated deep-ITM calls that happen to fall in the
-// same delta band but aren't really "LEAPs". LEAP_MAX_DELTA is explicitly
-// capped at 0.80 per the user's own stated limit — anything deeper than
-// that is nearly all intrinsic value (i.e. nearly the full stock price),
-// which is exactly the "the cost of the LEAP recommended is too much"
-// complaint: a 0.95+ delta multi-year call costs close to buying the shares
-// outright, defeating the point of using an option for leverage at all.
-const LEAP_MIN_DELTA = 0.45
+// was 0.45 (roughly ATM), but with a hard $10K cap on Synthetic Long combos'
+// total capital, a $130-450+/share call (common on pricier names — TSLA,
+// AMD, MU, ASML) already eats the whole budget alone, leaving the combo
+// builder nothing cheap enough to pair with a put and land under $10K —
+// verified against a real scan where every ticker except one (the cheapest
+// stock in the list) came back with an empty Synthetic Long section.
+// Lowering the floor to 0.25 (a real, if further OTM, long-dated call —
+// still a genuine directional bet, not a lottery ticket) gives the combo
+// builder actual cheap candidates to work with on higher-priced names.
+// LEAP_MIN_DTE (~6 months) filters out short-dated deep-ITM calls that
+// happen to fall in the same delta band but aren't really "LEAPs".
+// LEAP_MAX_DELTA is explicitly capped at 0.80 per the user's own stated
+// limit — anything deeper than that is nearly all intrinsic value (i.e.
+// nearly the full stock price), which is exactly the "the cost of the LEAP
+// recommended is too much" complaint: a 0.95+ delta multi-year call costs
+// close to buying the shares outright, defeating the point of using an
+// option for leverage at all.
+const LEAP_MIN_DELTA = 0.25
 const LEAP_MAX_DELTA = 0.80
 export const LEAP_MIN_DTE = 180
 // Real LEAPs regularly run 2-3 years out (e.g. a Dec-2028 TSLA chain from
@@ -147,7 +153,7 @@ function computeLeapScore(
   ask: number,
 ): number {
   const costScore = Math.max(0, 1 - extrinsicPctAnnual / 15) // 0%/yr → 1.0, 15%+/yr → 0
-  const deltaScore = Math.min(Math.max((Math.abs(delta) - 0.45) / 0.35, 0), 1) // 0.45→0, 0.80+→1
+  const deltaScore = Math.min(Math.max((Math.abs(delta) - 0.25) / 0.55, 0), 1) // 0.25→0, 0.80+→1
   const volScore = volume > 0 ? Math.min(Math.log10(volume) / 3, 1.0) : 0
   const spread = ask - bid
   const mid = (ask + bid) / 2
