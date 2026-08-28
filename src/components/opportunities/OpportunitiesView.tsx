@@ -160,6 +160,36 @@ interface SyntheticLongCombo {
   compositeScore: number    // 0-100, ranks this ticker's own combos against each other
 }
 
+/** `call.strike + netCost` (the naive "long call" breakeven formula) is only
+ * correct when the short put shares the SAME strike as the call — a true
+ * synthetic long. Once the strikes differ (as they will for most of these
+ * combos — e.g. a put struck ABOVE the current stock price for extra
+ * credit), the position has a kink at each strike and that formula is
+ * wrong: it ignores the assignment loss on the put entirely below its own
+ * strike. The real payoff at expiry, per share, is
+ *   P(S) = max(S - callStrike, 0) - max(putStrike - S, 0) - netCostPerShare
+ * which is non-decreasing in S (long call delta + short put delta is always
+ * ≥ 0), so it crosses zero exactly once — found here by sampling the three
+ * linear segments the two strikes split the price axis into and
+ * interpolating within whichever segment brackets the sign change, rather
+ * than assuming a single-strike shape. */
+function comboBreakevenPrice(callStrike: number, putStrike: number, netCostPerShare: number): number {
+  const payoff = (S: number) => Math.max(S - callStrike, 0) - Math.max(putStrike - S, 0) - netCostPerShare
+  const lo = Math.min(callStrike, putStrike)
+  const hi = Math.max(callStrike, putStrike)
+  const span = Math.max(hi - lo, 1)
+  const points = [lo - span - 1, lo, hi, hi + span + 1]
+  for (let i = 0; i < points.length - 1; i++) {
+    const x1 = points[i], x2 = points[i + 1]
+    const y1 = payoff(x1), y2 = payoff(x2)
+    if ((y1 <= 0 && y2 >= 0) || (y1 >= 0 && y2 <= 0)) {
+      if (y1 === y2) return x1
+      return x1 + (-y1 / (y2 - y1)) * (x2 - x1)
+    }
+  }
+  return hi // shouldn't happen — payoff is monotonic non-decreasing
+}
+
 /** Every call×put pair sharing an expiry, ranked by the three things asked
  * for: longest DTE, least cash upfront, lowest breakeven. Each metric is
  * normalized (0-1) against the OTHER candidates for this same ticker, not
@@ -174,7 +204,7 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
       const straightCost = call.mid * 100
       const straightBreakeven = call.strike + call.mid
       const comboNetCost = (call.mid - put.mid) * 100
-      const comboBreakeven = call.strike + call.mid - put.mid
+      const comboBreakeven = comboBreakevenPrice(call.strike, put.strike, call.mid - put.mid)
       const costReduction = straightCost > 0 ? ((straightCost - comboNetCost) / straightCost) * 100 : 0
       combos.push({
         call, put, dte: call.dte, straightCost, straightBreakeven, comboNetCost, comboBreakeven, costReduction,
@@ -356,7 +386,7 @@ function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
       borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
       background: rank === 1 ? '#10b98110' : 'transparent',
     }}
-      title={`${fmtExp(c.call.expiry)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · ${c.costReduction >= 0 ? `${c.costReduction.toFixed(0)}% less cash` : `${Math.abs(c.costReduction).toFixed(0)}% more cash`} than the LEAP alone`}>
+      title={`${fmtExp(c.call.expiry)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · ${c.costReduction >= 0 ? `${c.costReduction.toFixed(0)}% less cash` : `${Math.abs(c.costReduction).toFixed(0)}% more cash`} than the LEAP alone${c.put.strike > c.call.strike ? ` · put strike is ABOVE the call strike — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat` : ''}`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600, whiteSpace: 'nowrap' }}>${c.call.strike}C/${c.put.strike}P</span>
       <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{c.dte}d</span>
@@ -606,9 +636,22 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
             ))}
           </div>
 
-          {/* Strategy toggle — show CSP, CC, LEAP, or all */}
+          {/* LEAP is its own function (a buy-scanner + Synthetic Long combo
+              finder, not just another credit-selling strategy filter) — kept
+              next to the Term toggle rather than lumped in with All/CSP/CC. */}
+          <button onClick={() => setStrategyFilter(f => f === 'leap' ? 'all' : 'leap')} style={{
+            padding: '5px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px', borderRadius: 4,
+            background: strategyFilter === 'leap' ? '#a855f722' : 'var(--bg-elevated)',
+            color: strategyFilter === 'leap' ? '#a855f7' : 'var(--text-3)',
+            border: `1px solid ${strategyFilter === 'leap' ? '#a855f760' : 'var(--border)'}`,
+            cursor: 'pointer', fontFamily: "'Inter', sans-serif", textTransform: 'uppercase',
+          }}>
+            LEAP
+          </button>
+
+          {/* Strategy toggle — show CSP, CC, or all */}
           <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-            {(['all', 'csp', 'cc', 'leap'] as const).map(f => (
+            {(['all', 'csp', 'cc'] as const).map(f => (
               <button key={f} onClick={() => setStrategyFilter(f)} style={{
                 padding: '5px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px',
                 background: strategyFilter === f ? 'var(--accent-dim)' : 'var(--bg-elevated)',
