@@ -66,16 +66,21 @@ const MIN_DTE = 7
 const MAX_DTE = 60
 export interface DteRange { min: number; max: number }
 const MIN_DELTA = 0.05
-// Raised from 0.55 — a synthetic-long combo (LEAP call + short put, same
-// expiry) routinely wants a short put well past 0.55 delta (the user's own
-// TSLA example sells a put struck ABOVE the stock price, i.e. already ITM,
-// to collect enough credit to meaningfully cut the LEAP's net cost). Capping
-// the shared put/call fetch at 0.55 silently dropped every such put before
-// the combo builder ever saw it. Raising the ceiling only ADDS candidates to
-// the raw scan — the CSP/CC tabs' own displayed results are still trimmed by
-// each user's own deltaMax in the UI's ModeConfig (default ~0.25-0.30), so
-// this doesn't change what shows up there by default.
-const MAX_DELTA = 0.80
+// Raised from 0.55, then again from 0.80 — a synthetic-long combo (LEAP call
+// + short put, same expiry) routinely wants a short put well past 0.55-0.80
+// delta (the user's own TSLA example sells a put struck ABOVE the stock
+// price, i.e. already ITM, to collect enough credit to meaningfully cut the
+// LEAP's net cost). Now that the LEAP/combo pass is restricted to only each
+// ticker's OWN furthest expiry, that put candidate also needs to clear
+// whatever ceiling is set here — a deep-ITM put on a multi-year LEAP expiry
+// can still land above 0.80 delta even though its long remaining time keeps
+// it well short of 1.0, so the earlier 0.80 ceiling silently zeroed out the
+// Synthetic Long section entirely for exactly the combos this feature exists
+// for. Raising the ceiling only ADDS candidates to the raw scan — the CSP/CC
+// tabs' own displayed results are still trimmed by each user's own deltaMax
+// in the UI's ModeConfig (default ~0.25-0.30), so this doesn't change what
+// shows up there by default.
+const MAX_DELTA = 0.95
 const MIN_BID = 0.05
 
 // A LEAP buy candidate is a deep-ITM-to-ATM, long-dated call. LEAP_MIN_DELTA
