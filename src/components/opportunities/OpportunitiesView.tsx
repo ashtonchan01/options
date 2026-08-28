@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Scan, AlertCircle, Activity, ChevronDown, ChevronUp } from 'lucide-react'
 import type { AppState, ScanResult, ScanFlag } from '../../types'
-import { scanAllTickersCboe, LEAP_MAX_DTE } from '../../services/cboe'
+import { scanAllTickersCboe, LEAP_MAX_DTE, LEAP_MIN_DTE } from '../../services/cboe'
 import { fetchEarningsDates } from '../../services/earnings'
 import { fetchFomcDates } from '../../services/fomc'
 
@@ -282,6 +282,22 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
     const maxLeapDte = allLeapCalls.length > 0 ? Math.max(...allLeapCalls.map(r => r.dte)) : 0
     const leapCalls = allLeapCalls.filter(r => r.dte >= maxLeapDte - 1)
     const puts = rs.filter(r => r.strategyType === 'csp')
+
+    // The LEAP table above shows the ticker's absolute furthest CALL expiry
+    // regardless of puts — but a combo needs a put at that SAME expiry, and
+    // some underlyings simply don't have one listed that far out (thin or
+    // no put interest at a multi-year date, even though calls exist). Rather
+    // than the combo builder silently coming back empty whenever that's the
+    // case, walk the call expiries from furthest to nearest and use the
+    // first one that actually has a matching long-dated put — the furthest
+    // expiry where BOTH legs of a combo are actually available.
+    const longDatedPutExpiries = new Set(puts.filter(p => p.dte >= LEAP_MIN_DTE).map(p => p.expiry))
+    const callExpiriesByDte = [...new Set(allLeapCalls.map(c => c.expiry))]
+      .map(expiry => ({ expiry, dte: allLeapCalls.find(c => c.expiry === expiry)!.dte }))
+      .sort((a, b) => b.dte - a.dte)
+    const comboExpiry = callExpiriesByDte.find(e => longDatedPutExpiries.has(e.expiry))?.expiry
+    const comboCalls = comboExpiry ? allLeapCalls.filter(c => c.expiry === comboExpiry) : []
+
     cards.push({
       symbol, price,
       bestScore: Math.max(...rs.map(r => r.score)),
@@ -290,12 +306,12 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
       topCsp: puts.slice().sort((a, b) => b.score - a.score).slice(0, 5),
       topCc:  rs.filter(r => r.strategyType === 'covered_call').sort((a, b) => b.score - a.score).slice(0, 5),
       topLeap: leapCalls.slice().sort((a, b) => b.score - a.score).slice(0, 5),
-      // Ranks EVERY call×put pair sharing the ticker's furthest expiry (not
-      // just the top-scored LEAP paired with the top-scored put) — the
-      // user's actual usage pattern (e.g. an at-the-money call paired with a
-      // put struck ABOVE the stock price for a bigger credit) doesn't
-      // necessarily involve either leg's individually-top-scored contract.
-      topCombos: buildComboRankings(leapCalls, puts).slice(0, 6),
+      // Ranks EVERY call×put pair sharing the combo expiry (not just the
+      // top-scored LEAP paired with the top-scored put) — the user's actual
+      // usage pattern (e.g. an at-the-money call paired with a put struck
+      // ABOVE the stock price for a bigger credit) doesn't necessarily
+      // involve either leg's individually-top-scored contract.
+      topCombos: buildComboRankings(comboCalls, puts).slice(0, 6),
       nextEarnings: nextEarningsFor(symbol, earningsMap),
     })
   }
@@ -435,7 +451,9 @@ function SyntheticLongCombosSection({ combos }: { combos: SyntheticLongCombo[] }
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <span style={{ padding: '1px 6px', fontSize: 9, fontWeight: 700, background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', fontFamily: "'Inter', sans-serif", letterSpacing: '0.5px' }}>SYNTHETIC LONG</span>
-        <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>TOP {combos.length} · call strike below put strike only · ranked by certainty of ownership + cash</span>
+        <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>
+          {fmtExpMonthYear(combos[0].call.expiry)} · TOP {combos.length} · call strike below put strike only · ranked by certainty of ownership + cash
+        </span>
       </div>
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: 340 }}>

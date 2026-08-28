@@ -92,7 +92,7 @@ const MIN_BID = 0.05
 // same delta band but aren't really "LEAPs".
 const LEAP_MIN_DELTA = 0.45
 const LEAP_MAX_DELTA = 0.97
-const LEAP_MIN_DTE = 180
+export const LEAP_MIN_DTE = 180
 // Real LEAPs regularly run 2-3 years out (e.g. a Dec-2028 TSLA chain from
 // today is ~850 DTE) — exported so the scanner's own fetch window (which
 // otherwise scopes to the much narrower Short/Long Term toggle bounds) can
@@ -255,12 +255,27 @@ function processChain(
     const ivRankMap = computeIvRank(allIvs)
 
     for (const { raw: o, parsed: p } of group) {
-      if (o.bid < MIN_BID) continue
-
       const dte = Math.round((expiryToMs(p.expiry) - now) / 86400000)
       const delta = o.delta ?? 0
       const absDelta = Math.abs(delta)
-      if (absDelta < MIN_DELTA || absDelta > MAX_DELTA) continue
+
+      // A long-dated (LEAP-eligible) put is only ever going into the scan to
+      // be a Synthetic Long combo's short leg, where the whole point is a
+      // strike ABOVE the current stock price — deep ITM, often past 0.80-0.90
+      // delta even with a year+ of remaining time. The standard MIN_BID/
+      // MAX_DELTA gates below exist to keep near-term CSP recommendations
+      // liquid and reasonably-OTM; applying them here would silently zero
+      // out exactly the combo candidates this exists for (verified: the
+      // Synthetic Long section came back empty even after raising MAX_DELTA
+      // to 0.95, because plenty of real deep-ITM multi-year puts still sit
+      // above that). Long-dated puts only need a real quote (bid > 0) to be
+      // usable at all, no delta ceiling.
+      if (isPut && dte >= LEAP_MIN_DTE) {
+        if (o.bid <= 0) continue
+      } else {
+        if (o.bid < MIN_BID) continue
+        if (absDelta < MIN_DELTA || absDelta > MAX_DELTA) continue
+      }
 
       const iv = (o.iv ?? 0) * 100
       const gamma = o.gamma ?? 0
