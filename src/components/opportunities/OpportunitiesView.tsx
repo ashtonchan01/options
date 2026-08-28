@@ -285,6 +285,14 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   const riskRange = [Math.min(...risks), Math.max(...risks)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
+  // Cost dominates; the rest only break ties among similarly-priced combos.
+  // A straight weighted blend let a big assignment-risk improvement outscore
+  // a real ~$5k cost difference, which didn't match "I'll pay a bit more for
+  // a strike I'm comfortable with, but cost comes first." Bucketing net cost
+  // into $750 bands before applying the other factors makes cost the primary
+  // sort key while still letting risk/delta/breakeven decide among combos
+  // that cost roughly the same.
+  const COST_BAND = 750
   return combos
     .map(c => ({
       ...c,
@@ -295,7 +303,12 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
         (1 - norm(c.comboBreakeven, bepRange)) * 0.20       // lower breakeven → higher score
       ) * 100),
     }))
-    .sort((a, b) => b.compositeScore - a.compositeScore)
+    .sort((a, b) => {
+      const bandA = Math.round(a.comboNetCost / COST_BAND)
+      const bandB = Math.round(b.comboNetCost / COST_BAND)
+      if (bandA !== bandB) return bandA - bandB
+      return b.compositeScore - a.compositeScore
+    })
 }
 
 interface TickerCard {
@@ -408,7 +421,12 @@ function OptionRow({ r, rank, nextEarnings, fomcDates }: { r: ScanResult; rank: 
 // Fixed widths (not a flexible 1fr STRIKE column) so every column lines up
 // consistently instead of STRIKE stretching to swallow whatever space the
 // fixed columns don't use, which left a lopsided gap before DELTA.
-const LEAP_GRID = '16px 48px 40px 46px 46px 44px 36px 28px'
+// All fr (not a mix of px + one greedy flexible column) so the columns
+// spread out proportionally across the card's full width instead of one
+// column swallowing the leftover space and leaving a lopsided gap. STRIKE
+// gets a smaller ratio than before — just enough for "$1,234" — so the
+// gap before DELTA stays tight.
+const LEAP_GRID = '16px 1.1fr 0.8fr 1.1fr 1.1fr 1.1fr 0.8fr 0.7fr'
 
 function LeapRow({ r, rank }: { r: ScanResult; rank: number }) {
   const bep = r.strike + r.mid
@@ -470,7 +488,11 @@ function fmtMoney(n: number): string {
 // the number that actually decides whether this beats buying the stock),
 // breakeven, and the composite rank score.
 // Fixed LEGS width (not a flexible 1fr) — same reasoning as LEAP_GRID above.
-const COMBO_GRID = '16px 88px 52px 56px 56px 40px 32px'
+// All fr (not fixed px) so columns spread proportionally across the card's
+// full width instead of leaving a lopsided gap — same treatment as LEAP_GRID.
+// LEGS gets a smaller ratio than before, just enough for "330C/360P", so the
+// gap before NET stays tight.
+const COMBO_GRID = '16px 1.3fr 0.9fr 1fr 1fr 0.8fr 0.7fr'
 
 function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
   return (
