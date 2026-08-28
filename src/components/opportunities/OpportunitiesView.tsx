@@ -793,7 +793,9 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
             const isCollapsed = collapsed.has(card.symbol)
             const showCsp  = (strategyFilter === 'all' || strategyFilter === 'csp')  && card.topCsp.length > 0
             const showCc   = (strategyFilter === 'all' || strategyFilter === 'cc')   && card.topCc.length > 0
-            const showLeap = (strategyFilter === 'all' || strategyFilter === 'leap') && card.topLeap.length > 0
+            // LEAP is its own function, not part of "All" — it only shows
+            // when its own toggle is explicitly selected.
+            const showLeap = strategyFilter === 'leap' && card.topLeap.length > 0
             const showCombo = showLeap && card.topCombos.length > 0
             const hasData = showCsp || showCc || showLeap
             const shares = stocksHeld[card.symbol] ?? 0
