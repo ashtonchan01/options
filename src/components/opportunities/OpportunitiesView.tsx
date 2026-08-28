@@ -214,37 +214,26 @@ function comboBreakevenPrice(callStrike: number, putStrike: number, netCostPerSh
 }
 
 /** Every call×put pair sharing an expiry where the CALL strike sits BELOW
- * the PUT strike, ranked chiefly by TOTAL capital committed — not net cash
- * outlay and put collateral scored as if they were independent wins.
+ * the PUT strike, ranked chiefly by net cash outlay — the actual premium
+ * paid out of pocket, which is what a $10K personal budget refers to.
  *
- * A short put's margin doesn't offset the call's debit; a real account
- * needs BOTH the cash to pay the net premium AND whatever margin is held
- * against the put, at the same time. Scoring them separately (an earlier
- * version weighted net cost 45% and collateral 25% independently) let the
- * ranking surface combos like a $23K net debit + $14K put collateral on a
- * $34.7K stock — ~$37K of total capital for a position economically
- * similar to just buying the shares, which the user correctly called out.
- *
- * putMargin uses the standard Reg-T formula for an uncovered/naked equity
- * put (greater of 20% of the stock's value minus how far OTM the put is,
- * or 10% of the strike, either way plus the premium collected) — NOT full
- * cash-secured collateral (put.strike × 100), which is what the first cut
- * of this used and which is why nothing showed up at all afterward: that
- * figure is comparable to the stock's entire price by construction, so
- * every combo failed the "beats buying the stock" cutoff before this fix.
- * Reg-T margin is what a standard margin account actually has to post,
- * and is typically a fraction of the stock's price. */
+ * Put margin (still shown, via regTPutMargin) is NOT folded into the hard
+ * cap or the ranking weight the way an earlier version of this did. That
+ * was a mistake: margin is collateral a broker holds against existing
+ * account equity, not cash spent the same way premium is, and Reg-T's own
+ * formula has a floor of 20% of the stock's notional value REGARDLESS of
+ * how close the strikes are — for a real, reasonable combo the user found
+ * by hand (TSLA 330C/360P, ~$3,535 net debit), that floor alone is ~$6,954,
+ * pushing a combined "total capital" over $10K and silently excluding a
+ * combo that was actually fine. Net cost is what actually needs to fit a
+ * cash budget; margin is real but a separate concern, shown for context
+ * (and still bounded by MAX_PUT_STRIKE_OVER_SPOT so it can't run wild) but
+ * no longer a hard gate on top of it. */
 const MAX_PUT_STRIKE_OVER_SPOT = 1.15
-// A combo needing this much of the stock's outright purchase price (net
-// debit + put margin combined) isn't meaningfully more capital-efficient
-// than just buying the shares — excluded rather than merely scored low.
-const MAX_TOTAL_CAPITAL_VS_STOCK = 0.65
-// A hard ceiling on top of the relative one above — the user was explicit
-// that $10K is their own personal budget for one of these combos regardless
-// of what % of the stock's price that happens to be (a $34.7K stock and a
-// 65%-of-that cutoff still allows a $22K combo, which is still real money
-// most retail accounts don't want to put on one leveraged options trade).
-const MAX_TOTAL_CAPITAL_ABSOLUTE = 10_000
+// The user's own stated personal budget for a combo's net cash outlay —
+// not total capital including margin (see note above on why those aren't
+// folded together).
+const MAX_NET_COST_ABSOLUTE = 10_000
 
 function regTPutMargin(stockPrice: number, putStrike: number, putMid: number): number {
   const otmAmount = Math.max(stockPrice - putStrike, 0)
@@ -263,10 +252,9 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
       const straightCost = call.mid * 100
       const straightBreakeven = call.strike + call.mid
       const comboNetCost = (call.mid - put.mid) * 100
+      if (comboNetCost > MAX_NET_COST_ABSOLUTE) continue
       const putCollateral = regTPutMargin(call.stockPrice, put.strike, put.mid)
       const totalCapital = comboNetCost + putCollateral
-      if (totalCapital > call.stockPrice * 100 * MAX_TOTAL_CAPITAL_VS_STOCK) continue
-      if (totalCapital > MAX_TOTAL_CAPITAL_ABSOLUTE) continue
       const comboBreakeven = comboBreakevenPrice(call.strike, put.strike, call.mid - put.mid)
       const costReduction = straightCost > 0 ? ((straightCost - comboNetCost) / straightCost) * 100 : 0
       combos.push({
@@ -279,10 +267,10 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   }
   if (combos.length === 0) return []
 
-  const capitals = combos.map(c => c.totalCapital)
+  const costs = combos.map(c => c.comboNetCost)
   const beps = combos.map(c => c.comboBreakeven)
   const deltas = combos.map(c => c.call.delta)
-  const capitalRange = [Math.min(...capitals), Math.max(...capitals)] as const
+  const costRange = [Math.min(...costs), Math.max(...costs)] as const
   const bepRange = [Math.min(...beps), Math.max(...beps)] as const
   const deltaRange = [Math.min(...deltas), Math.max(...deltas)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
@@ -291,9 +279,9 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        (1 - norm(c.totalCapital, capitalRange)) * 0.60 + // less TOTAL capital committed → higher score
-        norm(c.call.delta, deltaRange) * 0.20 +            // higher call delta (more certain to own the stock) → higher score
-        (1 - norm(c.comboBreakeven, bepRange)) * 0.20       // lower breakeven → higher score
+        (1 - norm(c.comboNetCost, costRange)) * 0.60 +   // less cash paid out of pocket → higher score
+        norm(c.call.delta, deltaRange) * 0.20 +           // higher call delta (more certain to own the stock) → higher score
+        (1 - norm(c.comboBreakeven, bepRange)) * 0.20      // lower breakeven → higher score
       ) * 100),
     }))
     .sort((a, b) => b.compositeScore - a.compositeScore)
