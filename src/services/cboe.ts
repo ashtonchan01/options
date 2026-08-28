@@ -89,9 +89,14 @@ const MIN_BID = 0.05
 // user's own TSLA example (330C when TSLA trades near there) is roughly ATM
 // — so the floor is lowered to include that band too. LEAP_MIN_DTE (~6
 // months) filters out short-dated deep-ITM calls that happen to fall in the
-// same delta band but aren't really "LEAPs".
+// same delta band but aren't really "LEAPs". LEAP_MAX_DELTA is explicitly
+// capped at 0.80 per the user's own stated limit — anything deeper than
+// that is nearly all intrinsic value (i.e. nearly the full stock price),
+// which is exactly the "the cost of the LEAP recommended is too much"
+// complaint: a 0.95+ delta multi-year call costs close to buying the shares
+// outright, defeating the point of using an option for leverage at all.
 const LEAP_MIN_DELTA = 0.45
-const LEAP_MAX_DELTA = 0.97
+const LEAP_MAX_DELTA = 0.80
 export const LEAP_MIN_DTE = 180
 // Real LEAPs regularly run 2-3 years out (e.g. a Dec-2028 TSLA chain from
 // today is ~850 DTE) — exported so the scanner's own fetch window (which
@@ -142,7 +147,7 @@ function computeLeapScore(
   ask: number,
 ): number {
   const costScore = Math.max(0, 1 - extrinsicPctAnnual / 15) // 0%/yr → 1.0, 15%+/yr → 0
-  const deltaScore = Math.min(Math.max((Math.abs(delta) - 0.45) / 0.52, 0), 1) // 0.45→0, 0.97+→1
+  const deltaScore = Math.min(Math.max((Math.abs(delta) - 0.45) / 0.35, 0), 1) // 0.45→0, 0.80+→1
   const volScore = volume > 0 ? Math.min(Math.log10(volume) / 3, 1.0) : 0
   const spread = ask - bid
   const mid = (ask + bid) / 2
