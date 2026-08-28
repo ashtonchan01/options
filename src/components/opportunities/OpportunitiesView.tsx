@@ -118,6 +118,14 @@ function expiryInFomcWeek(expiry: string, fomcDates: string[]): boolean {
   })
 }
 const MONTH_ABBR = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+/** LEAP expiries are commonly 1-3 years out, where "6/17" (month/day) reads
+ * ambiguously without knowing the year — "JUN 27" (month + year) is what
+ * actually distinguishes a Jun-2027 LEAP from a Jun-2028 one. */
+function fmtExpMonthYear(s: string): string {
+  const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
+  if (!m) return s
+  return `${MONTH_ABBR[parseInt(m[2]) - 1]} ${m[1].slice(2)}`
+}
 function fmtEr(d: string): string {
   const [, m, day] = d.split('-')
   return `${MONTH_ABBR[parseInt(m) - 1]} ${parseInt(day)}`
@@ -264,7 +272,15 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
   const cards: TickerCard[] = []
   for (const [symbol, { results: rs, price }] of map) {
     if (!rs.length) continue
-    const leapCalls = rs.filter(r => r.strategyType === 'leap')
+    const allLeapCalls = rs.filter(r => r.strategyType === 'leap')
+    // Only the ticker's OWN furthest available expiry counts as "the LEAP" —
+    // the point of a LEAP is maximum time, so a call expiring in 7 months is
+    // not a candidate just because it also clears the 180-day floor. Comparing
+    // by dte (not the raw expiry string) picks out every contract sharing
+    // that single furthest date, tolerant of the ±1 day rounding that can
+    // happen right at a DTE boundary.
+    const maxLeapDte = allLeapCalls.length > 0 ? Math.max(...allLeapCalls.map(r => r.dte)) : 0
+    const leapCalls = allLeapCalls.filter(r => r.dte >= maxLeapDte - 1)
     const puts = rs.filter(r => r.strategyType === 'csp')
     cards.push({
       symbol, price,
@@ -274,11 +290,11 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
       topCsp: puts.slice().sort((a, b) => b.score - a.score).slice(0, 5),
       topCc:  rs.filter(r => r.strategyType === 'covered_call').sort((a, b) => b.score - a.score).slice(0, 5),
       topLeap: leapCalls.slice().sort((a, b) => b.score - a.score).slice(0, 5),
-      // Ranks EVERY call×put pair sharing an expiry (not just the top-scored
-      // LEAP paired with the top-scored put) — the user's actual usage
-      // pattern (e.g. an at-the-money call paired with a put struck ABOVE
-      // the stock price for a bigger credit) doesn't necessarily involve
-      // either leg's individually-top-scored contract.
+      // Ranks EVERY call×put pair sharing the ticker's furthest expiry (not
+      // just the top-scored LEAP paired with the top-scored put) — the
+      // user's actual usage pattern (e.g. an at-the-money call paired with a
+      // put struck ABOVE the stock price for a bigger credit) doesn't
+      // necessarily involve either leg's individually-top-scored contract.
       topCombos: buildComboRankings(leapCalls, puts).slice(0, 6),
       nextEarnings: nextEarningsFor(symbol, earningsMap),
     })
@@ -338,7 +354,7 @@ function LeapRow({ r, rank }: { r: ScanResult; rank: number }) {
       title={`Extrinsic: $${(r.extrinsic ?? 0).toFixed(2)} · OI: ${r.openInterest} · Leverage: ${r.leverage?.toFixed(1) ?? '—'}x`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>${r.strike}</span>
-      <span style={{ color: 'var(--text-3)', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtExp(r.expiry)}</span>
+      <span style={{ color: 'var(--text-3)', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtExpMonthYear(r.expiry)}</span>
       <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{r.dte}d</span>
       <span style={{ color: deltaColor(r.delta), textAlign: 'right' }}>{r.delta.toFixed(2)}</span>
       <span style={{ color: '#f43f5e', textAlign: 'right' }}>${r.mid.toFixed(2)}</span>
@@ -397,7 +413,7 @@ function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
       borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
       background: rank === 1 ? '#10b98110' : 'transparent',
     }}
-      title={`${fmtExp(c.call.expiry)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · ${c.costReduction >= 0 ? `${c.costReduction.toFixed(0)}% less cash` : `${Math.abs(c.costReduction).toFixed(0)}% more cash`} than the LEAP alone · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
+      title={`${fmtExpMonthYear(c.call.expiry)} · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · ${c.costReduction >= 0 ? `${c.costReduction.toFixed(0)}% less cash` : `${Math.abs(c.costReduction).toFixed(0)}% more cash`} than the LEAP alone · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600, whiteSpace: 'nowrap' }}>${c.call.strike}C/${c.put.strike}P</span>
       <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{c.dte}d</span>
