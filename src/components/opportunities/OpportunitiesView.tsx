@@ -296,40 +296,30 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   const riskRange = [Math.min(...risks), Math.max(...risks)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
-  // Ranked lexicographically: net cost first, breakeven second, then
-  // assignment risk, then call delta — a strict priority order, not a
-  // weighted blend. A weighted composite always risks a lower-priority
-  // factor mathematically outvoting a higher-priority one somewhere in the
-  // data, no matter how the weights are tuned.
-  //
-  // Net cost leads now (not breakeven) — a low call strike can win a
-  // breakeven-first sort purely because breakeven = callStrike + netCost
-  // bakes the strike in directly, letting a deep-ITM call with a HIGHER net
-  // cost outrank a cheaper, closer-to-the-money combo (e.g. 290C/350P at
-  // $5,723 net outranking a $2,000-3,000-net combo) even though the cash
-  // actually at risk is what the user cares about first. Net cost is banded
-  // (nearest COST_BAND) rather than compared exactly, since two combos
-  // rarely cost the identical dollar amount but can be close enough that
-  // breakeven should be the one deciding between them.
-  const COST_BAND = 250
+  // Ranked by an even 50/50 blend of net cost and breakeven, each normalized
+  // 0-1 within this ticker's own candidates — neither one is allowed to
+  // dominate the other. Strict priority order (net-cost-first, then
+  // breakeven-first before that) kept producing a real trade-off in
+  // opposite directions: cost-first let a deep-ITM put's big-but-low-quality
+  // credit (e.g. selling a $400 put on a $348 stock — already far ITM,
+  // near-certain early assignment) outrank a combo with a genuinely better
+  // breakeven; breakeven-first let a deep-ITM call's low strike win purely
+  // because it's baked directly into the breakeven formula, even against a
+  // meaningfully cheaper combo. Neither dollar figure alone is "correct" —
+  // this is a real preference trade-off, not a math problem with one right
+  // answer, so an even split is the honest way to balance it. Assignment
+  // risk and call delta stay as light tiebreakers only.
   return combos
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        (1 - norm(c.comboNetCost, costRange)) * 0.45 +      // less cash tied up now (capital efficiency) → higher score (display only)
-        (1 - norm(c.comboBreakeven, bepRange)) * 0.30 +     // lower breakeven → higher score
-        (1 - norm(c.assignmentRisk, riskRange)) * 0.15 +    // lower put assignment/early-exercise risk
-        norm(c.call.delta, deltaRange) * 0.10               // higher call delta (more certain to own the stock)
+        (1 - norm(c.comboNetCost, costRange)) * 0.40 +      // less cash paid out of pocket → higher score
+        (1 - norm(c.comboBreakeven, bepRange)) * 0.40 +     // lower breakeven → higher score
+        (1 - norm(c.assignmentRisk, riskRange)) * 0.12 +    // lower put assignment/early-exercise risk
+        norm(c.call.delta, deltaRange) * 0.08               // higher call delta (more certain to own the stock)
       ) * 100),
     }))
-    .sort((a, b) => {
-      const bandA = Math.round(a.comboNetCost / COST_BAND)
-      const bandB = Math.round(b.comboNetCost / COST_BAND)
-      if (bandA !== bandB) return bandA - bandB
-      if (a.comboBreakeven !== b.comboBreakeven) return a.comboBreakeven - b.comboBreakeven
-      if (a.assignmentRisk !== b.assignmentRisk) return a.assignmentRisk - b.assignmentRisk
-      return b.call.delta - a.call.delta
-    })
+    .sort((a, b) => b.compositeScore - a.compositeScore)
 }
 
 interface TickerCard {
