@@ -26,6 +26,23 @@ function fmtDate(s: string) {
 function pnlCls(n: number) { return n > 0 ? 'pos' : n < 0 ? 'neg' : 'neu' }
 function pnlColor(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'var(--text-4)' }
 
+/** A LEAP/risk-reversal combo's breakeven, solved per payoff segment rather
+ * than assuming `callStrike + netCost` (only correct when the root falls
+ * above both strikes) — mirrors comboBreakevenPrice in OpportunitiesView.tsx.
+ * Unlike a generic multi-strike position, a leap combo's two legs are
+ * unambiguous BY DEFINITION (call bought, put sold), so which strike is
+ * "the short one" doesn't need to survive leg aggregation the way it would
+ * for an arbitrary vertical. */
+function comboBreakeven(callStrike: number, putStrike: number, netCostPerShare: number): number {
+  const lo = Math.min(callStrike, putStrike)
+  const hi = Math.max(callStrike, putStrike)
+  const belowRoot = putStrike + netCostPerShare
+  if (belowRoot <= lo) return belowRoot
+  const betweenRoot = (callStrike + putStrike + netCostPerShare) / 2
+  if (betweenRoot >= lo && betweenRoot <= hi) return betweenRoot
+  return callStrike + netCostPerShare
+}
+
 /** Underlying price at which this position neither gains nor loses, at
  * expiry. Long or short, the sign convention is the same either way — a
  * call's breakeven is always strike + premium/share, a put's is always
@@ -35,19 +52,29 @@ function pnlColor(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'v
  * position's own (already signed) net premium, not separate long/short
  * branches.
  *
- * Only resolved for positions with one unambiguous "the strike that
- * matters": single-strike legs (CSP, covered call, any naked leg), and
+ * Resolved for: single-strike legs (CSP, covered call, any naked leg);
  * put_spread (always a bull put spread on SPX/SPXW per this app's own
- * classifier, so the higher/short strike is always strikes[0]). Multi-
- * strike LEAP/risk-reversal verticals can have the short leg on either
- * side depending on the trade, and a JournalPosition doesn't retain which
- * strike was actually sold once its legs are aggregated — guessing wrong
- * there would be worse than not showing a number. */
+ * classifier, so the higher/short strike is always strikes[0]); and leap
+ * (a two-strike risk-reversal combo, where the call/put strikes are read
+ * straight off strikeDisplay's "330C/340P" labels rather than the
+ * order-ambiguous `strikes` array). Any other multi-strike vertical can
+ * have its short leg on either side with no way to tell from the
+ * aggregated position — guessing wrong there would be worse than not
+ * showing a number. */
 function breakeven(p: JournalPosition): number | null {
   if (p.strikeDisplay === 'SHARES') {
     return p.contracts > 0 ? Math.abs(p.netPremium) / p.contracts : null
   }
   if (p.strikes.length === 0 || p.contracts <= 0) return null
+  if (p.strategy === 'leap' && p.strikes.length === 2) {
+    const callMatch = p.strikeDisplay.match(/([\d.]+)C/)
+    const putMatch = p.strikeDisplay.match(/([\d.]+)P/)
+    if (!callMatch || !putMatch) return null
+    const callStrike = parseFloat(callMatch[1])
+    const putStrike = parseFloat(putMatch[1])
+    const netCostPerShare = -p.netPremium / (p.contracts * 100)
+    return comboBreakeven(callStrike, putStrike, netCostPerShare)
+  }
   if (p.strikes.length > 1 && p.strategy !== 'put_spread') return null
   const anchor = p.strikes[0]
   const premiumPerShare = Math.abs(p.netPremium) / (p.contracts * 100)
