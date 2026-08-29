@@ -296,36 +296,34 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   const riskRange = [Math.min(...risks), Math.max(...risks)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
-  // Ranked by a weighted blend of breakeven, assignment risk, call delta, and
-  // net cost — breakeven dominant, the rest real tiebreakers, not decorative.
-  //
-  // Breakeven alone (a prior version of this) is the correct number for ONE
-  // question — "which combo pays more at a given future stock price" — since
-  // profitA - profitB at any S above both strikes is exactly
-  // 100 * (bepB - bepA), with net cost already fully absorbed into breakeven
-  // (breakeven = callStrike + netCostPerShare). But that's not the only axis
-  // that matters: two combos with a near-identical breakeven can differ a lot
-  // in HOW they get there — a deeper-ITM put carries real extra assignment/
-  // early-exercise risk the terminal-payoff math doesn't capture, a lower
-  // call delta means a real chance the "own the stock" thesis doesn't even
-  // trigger (the call expires worthless), and tying up more cash today has a
-  // genuine opportunity-cost even when it doesn't change the terminal payoff.
-  // A prior version literally added `comboNetCost + comboBreakeven * 100` as
-  // one dollar figure, which double-counts the premium (once directly, once
-  // again inside breakeven) — normalizing each factor to 0-1 and weighting
-  // them, as below, avoids that: it's a genuine multi-criteria blend, not a
-  // dollar sum, so nothing gets counted twice.
+  // Ranked lexicographically: breakeven first, net cost (capital efficiency)
+  // second, then assignment risk, then call delta — a strict priority order,
+  // not a weighted blend. A weighted composite (a prior version of this)
+  // always risks a lower-priority factor mathematically outvoting a
+  // higher-priority one somewhere in the data, no matter how the weights are
+  // tuned — which is exactly what kept happening here. Breakeven is banded
+  // (rounded to the nearest BEP_BAND) rather than compared exactly, since
+  // real breakevens are almost never bit-for-bit equal but can be close
+  // enough that capital efficiency should be the one deciding between them.
+  const BEP_BAND = 3
   return combos
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        (1 - norm(c.comboBreakeven, bepRange)) * 0.45 +     // lower breakeven → higher score (dominant factor)
-        (1 - norm(c.assignmentRisk, riskRange)) * 0.25 +    // lower put assignment/early-exercise risk → higher score
-        norm(c.call.delta, deltaRange) * 0.15 +             // higher call delta (more certain to own the stock) → higher score
-        (1 - norm(c.comboNetCost, costRange)) * 0.15        // less cash tied up now (capital efficiency) → higher score
+        (1 - norm(c.comboBreakeven, bepRange)) * 0.45 +     // lower breakeven → higher score (display only)
+        (1 - norm(c.comboNetCost, costRange)) * 0.30 +      // less cash tied up now (capital efficiency)
+        (1 - norm(c.assignmentRisk, riskRange)) * 0.15 +    // lower put assignment/early-exercise risk
+        norm(c.call.delta, deltaRange) * 0.10               // higher call delta (more certain to own the stock)
       ) * 100),
     }))
-    .sort((a, b) => b.compositeScore - a.compositeScore)
+    .sort((a, b) => {
+      const bandA = Math.round(a.comboBreakeven / BEP_BAND)
+      const bandB = Math.round(b.comboBreakeven / BEP_BAND)
+      if (bandA !== bandB) return bandA - bandB
+      if (a.comboNetCost !== b.comboNetCost) return a.comboNetCost - b.comboNetCost
+      if (a.assignmentRisk !== b.assignmentRisk) return a.assignmentRisk - b.assignmentRisk
+      return b.call.delta - a.call.delta
+    })
 }
 
 interface TickerCard {
