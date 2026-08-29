@@ -298,26 +298,19 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   const moneynessRange = [Math.min(...moneyness), Math.max(...moneyness)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
-  // Ranked by total effective cost of ownership: comboNetCost + comboBreakeven*100.
+  // Ranked by breakeven price alone — lower is strictly better.
   //
-  // Above both strikes a combo's payoff per share is exactly (S - breakeven),
-  // so for any two combos the difference in eventual profit is a FIXED
-  // 100 * (bepB - bepA) regardless of how far the stock runs — it doesn't
-  // scale with your bullishness. That means comparing net cost and breakeven
-  // as two separate, arbitrarily-tiebroken numbers (an earlier version of
-  // this banded by breakeven, then broke ties on cost) can't tell whether
-  // paying more up front for a lower breakeven is actually worth it: e.g.
-  // 350C/380P ($1,452 net, $372.26 BEP) vs 350C/370P ($2,160 net, $371.60
-  // BEP) — the second costs $708 more for a breakeven only $0.66/share
-  // lower ($66 total), a bad trade, but a $2 breakeven band would have
-  // still ranked them as near-ties decided by cost alone rather than
-  // weighing the actual dollar tradeoff.
-  //
-  // net cost + breakeven*100 is the one number that resolves this cleanly:
-  // it's the total cash committed by the time the position breaks even (the
-  // premium paid now, plus what you'd still need to pay to own the stock at
-  // that price), so it directly answers "is the extra upfront cash worth
-  // the lower breakeven" — lower is unambiguously better.
+  // Breakeven is already `callStrike + netCostPerShare`, so the net cost
+  // paid is baked INTO the breakeven number. Above both strikes, a combo's
+  // profit at any future price S is exactly 100 * (S - breakeven); comparing
+  // two combos at the same S gives profitA - profitB = 100 * (bepB - bepA) —
+  // net cost doesn't appear in that difference at all, because it's already
+  // fully absorbed into breakeven. A prior version of this ranked by
+  // `comboNetCost + comboBreakeven * 100`, which double-counts the premium
+  // (once directly, once again inside breakeven) and gave the wrong answer:
+  // it ranked 350C/380P ($1,452 net, $372.26 BEP) above 350C/370P ($2,160
+  // net, $371.60 BEP) even though the second has the genuinely lower
+  // breakeven and is the better trade.
   return combos
     .map(c => ({
       ...c,
@@ -329,7 +322,7 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
         (1 - norm(c.moneyness, moneynessRange)) * 0.10      // strikes closer to current spot price → higher score
       ) * 100),
     }))
-    .sort((a, b) => (a.comboNetCost + a.comboBreakeven * 100) - (b.comboNetCost + b.comboBreakeven * 100))
+    .sort((a, b) => a.comboBreakeven - b.comboBreakeven)
 }
 
 interface TickerCard {
