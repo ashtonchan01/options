@@ -553,9 +553,6 @@ function SyntheticLongCombosSection({ combos }: { combos: SyntheticLongCombo[] }
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <span style={{ padding: '1px 6px', fontSize: 9, fontWeight: 700, background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', fontFamily: "'Inter', sans-serif", letterSpacing: '0.5px' }}>SYNTHETIC LONG</span>
-        <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>
-          TOP {combos.length} · call strike below put strike only · ranked by least cash paid (NET)
-        </span>
       </div>
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: 340 }}>
