@@ -290,39 +290,42 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   const beps = combos.map(c => c.comboBreakeven)
   const deltas = combos.map(c => c.call.delta)
   const risks = combos.map(c => c.assignmentRisk)
-  const moneyness = combos.map(c => c.moneyness)
   const costRange = [Math.min(...costs), Math.max(...costs)] as const
   const bepRange = [Math.min(...beps), Math.max(...beps)] as const
   const deltaRange = [Math.min(...deltas), Math.max(...deltas)] as const
   const riskRange = [Math.min(...risks), Math.max(...risks)] as const
-  const moneynessRange = [Math.min(...moneyness), Math.max(...moneyness)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
-  // Ranked by breakeven price alone — lower is strictly better.
+  // Ranked by a weighted blend of breakeven, assignment risk, call delta, and
+  // net cost — breakeven dominant, the rest real tiebreakers, not decorative.
   //
-  // Breakeven is already `callStrike + netCostPerShare`, so the net cost
-  // paid is baked INTO the breakeven number. Above both strikes, a combo's
-  // profit at any future price S is exactly 100 * (S - breakeven); comparing
-  // two combos at the same S gives profitA - profitB = 100 * (bepB - bepA) —
-  // net cost doesn't appear in that difference at all, because it's already
-  // fully absorbed into breakeven. A prior version of this ranked by
-  // `comboNetCost + comboBreakeven * 100`, which double-counts the premium
-  // (once directly, once again inside breakeven) and gave the wrong answer:
-  // it ranked 350C/380P ($1,452 net, $372.26 BEP) above 350C/370P ($2,160
-  // net, $371.60 BEP) even though the second has the genuinely lower
-  // breakeven and is the better trade.
+  // Breakeven alone (a prior version of this) is the correct number for ONE
+  // question — "which combo pays more at a given future stock price" — since
+  // profitA - profitB at any S above both strikes is exactly
+  // 100 * (bepB - bepA), with net cost already fully absorbed into breakeven
+  // (breakeven = callStrike + netCostPerShare). But that's not the only axis
+  // that matters: two combos with a near-identical breakeven can differ a lot
+  // in HOW they get there — a deeper-ITM put carries real extra assignment/
+  // early-exercise risk the terminal-payoff math doesn't capture, a lower
+  // call delta means a real chance the "own the stock" thesis doesn't even
+  // trigger (the call expires worthless), and tying up more cash today has a
+  // genuine opportunity-cost even when it doesn't change the terminal payoff.
+  // A prior version literally added `comboNetCost + comboBreakeven * 100` as
+  // one dollar figure, which double-counts the premium (once directly, once
+  // again inside breakeven) — normalizing each factor to 0-1 and weighting
+  // them, as below, avoids that: it's a genuine multi-criteria blend, not a
+  // dollar sum, so nothing gets counted twice.
   return combos
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        (1 - norm(c.comboBreakeven, bepRange)) * 0.35 +     // lower breakeven → higher score
-        (1 - norm(c.comboNetCost, costRange)) * 0.25 +      // less cash paid out of pocket → higher score
-        (1 - norm(c.assignmentRisk, riskRange)) * 0.20 +    // lower put assignment risk (closer to spot) → higher score
-        norm(c.call.delta, deltaRange) * 0.10 +             // higher call delta (more certain to own the stock) → higher score
-        (1 - norm(c.moneyness, moneynessRange)) * 0.10      // strikes closer to current spot price → higher score
+        (1 - norm(c.comboBreakeven, bepRange)) * 0.45 +     // lower breakeven → higher score (dominant factor)
+        (1 - norm(c.assignmentRisk, riskRange)) * 0.25 +    // lower put assignment/early-exercise risk → higher score
+        norm(c.call.delta, deltaRange) * 0.15 +             // higher call delta (more certain to own the stock) → higher score
+        (1 - norm(c.comboNetCost, costRange)) * 0.15        // less cash tied up now (capital efficiency) → higher score
       ) * 100),
     }))
-    .sort((a, b) => a.comboBreakeven - b.comboBreakeven)
+    .sort((a, b) => b.compositeScore - a.compositeScore)
 }
 
 interface TickerCard {
