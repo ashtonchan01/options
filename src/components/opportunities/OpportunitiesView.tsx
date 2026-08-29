@@ -296,31 +296,37 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   const riskRange = [Math.min(...risks), Math.max(...risks)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
-  // Ranked lexicographically: breakeven first, net cost (capital efficiency)
-  // second, then assignment risk, then call delta — a strict priority order,
-  // not a weighted blend. A weighted composite (a prior version of this)
-  // always risks a lower-priority factor mathematically outvoting a
-  // higher-priority one somewhere in the data, no matter how the weights are
-  // tuned — which is exactly what kept happening here. Breakeven is banded
-  // (rounded to the nearest BEP_BAND) rather than compared exactly, since
-  // real breakevens are almost never bit-for-bit equal but can be close
-  // enough that capital efficiency should be the one deciding between them.
-  const BEP_BAND = 3
+  // Ranked lexicographically: net cost first, breakeven second, then
+  // assignment risk, then call delta — a strict priority order, not a
+  // weighted blend. A weighted composite always risks a lower-priority
+  // factor mathematically outvoting a higher-priority one somewhere in the
+  // data, no matter how the weights are tuned.
+  //
+  // Net cost leads now (not breakeven) — a low call strike can win a
+  // breakeven-first sort purely because breakeven = callStrike + netCost
+  // bakes the strike in directly, letting a deep-ITM call with a HIGHER net
+  // cost outrank a cheaper, closer-to-the-money combo (e.g. 290C/350P at
+  // $5,723 net outranking a $2,000-3,000-net combo) even though the cash
+  // actually at risk is what the user cares about first. Net cost is banded
+  // (nearest COST_BAND) rather than compared exactly, since two combos
+  // rarely cost the identical dollar amount but can be close enough that
+  // breakeven should be the one deciding between them.
+  const COST_BAND = 250
   return combos
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        (1 - norm(c.comboBreakeven, bepRange)) * 0.45 +     // lower breakeven → higher score (display only)
-        (1 - norm(c.comboNetCost, costRange)) * 0.30 +      // less cash tied up now (capital efficiency)
+        (1 - norm(c.comboNetCost, costRange)) * 0.45 +      // less cash tied up now (capital efficiency) → higher score (display only)
+        (1 - norm(c.comboBreakeven, bepRange)) * 0.30 +     // lower breakeven → higher score
         (1 - norm(c.assignmentRisk, riskRange)) * 0.15 +    // lower put assignment/early-exercise risk
         norm(c.call.delta, deltaRange) * 0.10               // higher call delta (more certain to own the stock)
       ) * 100),
     }))
     .sort((a, b) => {
-      const bandA = Math.round(a.comboBreakeven / BEP_BAND)
-      const bandB = Math.round(b.comboBreakeven / BEP_BAND)
+      const bandA = Math.round(a.comboNetCost / COST_BAND)
+      const bandB = Math.round(b.comboNetCost / COST_BAND)
       if (bandA !== bandB) return bandA - bandB
-      if (a.comboNetCost !== b.comboNetCost) return a.comboNetCost - b.comboNetCost
+      if (a.comboBreakeven !== b.comboBreakeven) return a.comboBreakeven - b.comboBreakeven
       if (a.assignmentRisk !== b.assignmentRisk) return a.assignmentRisk - b.assignmentRisk
       return b.call.delta - a.call.delta
     })
