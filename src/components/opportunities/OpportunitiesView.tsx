@@ -296,13 +296,18 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   const riskRange = [Math.min(...risks), Math.max(...risks)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
-  // Ranked by the lowest combined strikes (call strike + put strike) FIRST —
-  // the user wants the cheapest, lowest-possible strike on both legs, not a
-  // cost/breakeven trade-off. A lower call strike means more of its cost is
-  // real intrinsic value (deep ITM, closer to just owning the stock) rather
-  // than pure time value; a lower put strike sits closer to spot, meaning
-  // less assignment obligation and a smaller margin requirement. Net
-  // cost/breakeven/risk/delta still decide among combos tied on strikes.
+  // Ranked by an even 50/50 blend of net cost and breakeven — a lower call
+  // strike is NOT the same thing as "cheaper": it means more of that call's
+  // price is real intrinsic value (deep ITM), which makes it MORE expensive,
+  // not less. A prior version of this ranked by lowest combined strikes,
+  // which picked exactly the wrong direction — e.g. a $8,343 combo over a
+  // $2,160 one with a comparable (even slightly better) breakeven, when the
+  // $2,160 combo lets the same capital buy ~4x the contracts at a BETTER
+  // breakeven, for meaningfully more total profit potential. Net cost and
+  // breakeven matter roughly equally: a cheaper combo compounds through
+  // quantity for the same money, but a materially worse breakeven can still
+  // lose even at a lower cost. Assignment risk and call delta stay as light
+  // tiebreakers only.
   return combos
     .map(c => ({
       ...c,
@@ -313,12 +318,7 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
         norm(c.call.delta, deltaRange) * 0.08               // higher call delta (more certain to own the stock)
       ) * 100),
     }))
-    .sort((a, b) => {
-      const strikesA = a.call.strike + a.put.strike
-      const strikesB = b.call.strike + b.put.strike
-      if (strikesA !== strikesB) return strikesA - strikesB
-      return b.compositeScore - a.compositeScore
-    })
+    .sort((a, b) => b.compositeScore - a.compositeScore)
 }
 
 interface TickerCard {
