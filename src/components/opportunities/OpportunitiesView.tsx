@@ -290,32 +290,34 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   const beps = combos.map(c => c.comboBreakeven)
   const deltas = combos.map(c => c.call.delta)
   const risks = combos.map(c => c.assignmentRisk)
+  const moneynessVals = combos.map(c => c.moneyness)
   const costRange = [Math.min(...costs), Math.max(...costs)] as const
   const bepRange = [Math.min(...beps), Math.max(...beps)] as const
   const deltaRange = [Math.min(...deltas), Math.max(...deltas)] as const
   const riskRange = [Math.min(...risks), Math.max(...risks)] as const
+  const moneynessRange = [Math.min(...moneynessVals), Math.max(...moneynessVals)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
-  // Ranked by an even 50/50 blend of net cost and breakeven — a lower call
-  // strike is NOT the same thing as "cheaper": it means more of that call's
-  // price is real intrinsic value (deep ITM), which makes it MORE expensive,
-  // not less. A prior version of this ranked by lowest combined strikes,
-  // which picked exactly the wrong direction — e.g. a $8,343 combo over a
-  // $2,160 one with a comparable (even slightly better) breakeven, when the
-  // $2,160 combo lets the same capital buy ~4x the contracts at a BETTER
-  // breakeven, for meaningfully more total profit potential. Net cost and
-  // breakeven matter roughly equally: a cheaper combo compounds through
-  // quantity for the same money, but a materially worse breakeven can still
-  // lose even at a lower cost. Assignment risk and call delta stay as light
-  // tiebreakers only.
+  // Ranked by a three-way balance: net cost, moneyness (both strikes close
+  // to the current stock price), and breakeven — none of them alone tells
+  // the whole story. Net cost and breakeven alone kept surfacing combos at
+  // opposite extremes of the strike range: a deep-ITM call (low strike, far
+  // below spot) wins on breakeven because the strike itself is baked into
+  // the formula; a deep-ITM put (high strike, far above spot) wins on cost
+  // because its huge credit offsets the call — but neither extreme is
+  // actually "close to the money," which is what makes a combo behave like
+  // a real, moderate stock-replacement rather than a structural quirk at
+  // one edge of the option chain. Assignment risk and call delta stay as
+  // light tiebreakers only.
   return combos
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        (1 - norm(c.comboNetCost, costRange)) * 0.40 +      // less cash paid out of pocket → higher score
-        (1 - norm(c.comboBreakeven, bepRange)) * 0.40 +     // lower breakeven → higher score
-        (1 - norm(c.assignmentRisk, riskRange)) * 0.12 +    // lower put assignment/early-exercise risk
-        norm(c.call.delta, deltaRange) * 0.08               // higher call delta (more certain to own the stock)
+        (1 - norm(c.comboNetCost, costRange)) * 0.30 +      // less cash paid out of pocket → higher score
+        (1 - norm(c.comboBreakeven, bepRange)) * 0.30 +     // lower breakeven → higher score
+        (1 - norm(c.moneyness, moneynessRange)) * 0.25 +    // strikes closer to current spot price → higher score
+        (1 - norm(c.assignmentRisk, riskRange)) * 0.09 +    // lower put assignment/early-exercise risk
+        norm(c.call.delta, deltaRange) * 0.06               // higher call delta (more certain to own the stock)
       ) * 100),
     }))
     .sort((a, b) => b.compositeScore - a.compositeScore)
