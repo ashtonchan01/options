@@ -199,20 +199,28 @@ interface SyntheticLongCombo {
  * interpolating within whichever segment brackets the sign change, rather
  * than assuming a single-strike shape. */
 function comboBreakevenPrice(callStrike: number, putStrike: number, netCostPerShare: number): number {
-  const payoff = (S: number) => Math.max(S - callStrike, 0) - Math.max(putStrike - S, 0) - netCostPerShare
   const lo = Math.min(callStrike, putStrike)
   const hi = Math.max(callStrike, putStrike)
-  const span = Math.max(hi - lo, 1)
-  const points = [lo - span - 1, lo, hi, hi + span + 1]
-  for (let i = 0; i < points.length - 1; i++) {
-    const x1 = points[i], x2 = points[i + 1]
-    const y1 = payoff(x1), y2 = payoff(x2)
-    if ((y1 <= 0 && y2 >= 0) || (y1 >= 0 && y2 <= 0)) {
-      if (y1 === y2) return x1
-      return x1 + (-y1 / (y2 - y1)) * (x2 - x1)
-    }
-  }
-  return hi // shouldn't happen — payoff is monotonic non-decreasing
+  // Solved directly per segment instead of sampling fixed points and
+  // interpolating — a prior version picked sample points only `hi - lo`
+  // past the strikes, which isn't far enough to reach the actual root
+  // whenever netCostPerShare is large relative to the strike spread (e.g.
+  // callStrike=350, putStrike=360, net=26.37/share — the true breakeven is
+  // 376.37, well past the old 371 sample ceiling), so the loop found no
+  // sign change and silently fell back to `hi` (the put strike) as a wrong
+  // answer instead of the real breakeven.
+  //
+  // Below both strikes: payoff = (putStrike - S) is owed, so
+  // payoff(S) = S - putStrike - netCostPerShare → root at putStrike + net.
+  const belowRoot = putStrike + netCostPerShare
+  if (belowRoot <= lo) return belowRoot
+  // Between the strikes: payoff(S) = 2S - callStrike - putStrike - net →
+  // root at (callStrike + putStrike + net) / 2.
+  const betweenRoot = (callStrike + putStrike + netCostPerShare) / 2
+  if (betweenRoot >= lo && betweenRoot <= hi) return betweenRoot
+  // Above both strikes: payoff(S) = S - callStrike - net → root at
+  // callStrike + net.
+  return callStrike + netCostPerShare
 }
 
 /** Every call×put pair sharing an expiry where the CALL strike sits BELOW
