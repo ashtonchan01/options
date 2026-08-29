@@ -363,7 +363,22 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
     // stock, so it needs its own, higher delta floor — the wider band stays
     // available to the combo builder via allLeapCalls/comboCalls below.
     const LEAP_TABLE_MIN_DELTA = 0.60
-    const leapCalls = allLeapCalls.filter(r => r.dte >= maxLeapDte - 1 && Math.abs(r.delta) >= LEAP_TABLE_MIN_DELTA)
+    const leapCallsRaw = allLeapCalls.filter(r => r.dte >= maxLeapDte - 1 && Math.abs(r.delta) >= LEAP_TABLE_MIN_DELTA)
+    // The table's row order is by lowest breakeven, but its own SCR column
+    // still showed computeLeapScore (cost-efficiency/delta/liquidity) —
+    // unrelated to that order, so the score didn't track the rank a row
+    // actually got. This SCR is now breakeven-based instead, normalized
+    // against this ticker's own LEAP candidates — display-only, scoped to
+    // this table: the shared `score` field (ticker SCORE badge, card
+    // ordering, CSP/CC scoring) is untouched.
+    const leapBeps = leapCallsRaw.map(r => r.strike + r.mid)
+    const leapBepRange = [Math.min(...leapBeps), Math.max(...leapBeps)] as const
+    const leapCalls = leapCallsRaw.map(r => {
+      const bep = r.strike + r.mid
+      const [lo, hi] = leapBepRange
+      const bepScore = Math.round((hi > lo ? (1 - (bep - lo) / (hi - lo)) : 0.5) * 100)
+      return { ...r, score: bepScore }
+    })
     const puts = rs.filter(r => r.strategyType === 'csp')
 
     // The LEAP table above shows the ticker's absolute furthest CALL expiry
