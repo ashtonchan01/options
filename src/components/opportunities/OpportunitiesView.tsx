@@ -354,7 +354,21 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
     // that single furthest date, tolerant of the ±1 day rounding that can
     // happen right at a DTE boundary.
     const maxLeapDte = allLeapCalls.length > 0 ? Math.max(...allLeapCalls.map(r => r.dte)) : 0
-    const leapCalls = allLeapCalls.filter(r => r.dte >= maxLeapDte - 1)
+    // The fetch-level delta floor (0.25, in cboe.ts) is deliberately wide so
+    // the Synthetic Long combo builder has cheap-enough calls to pair with a
+    // put under the user's cash cap. But that same wide band was leaking
+    // into the standalone "TOP 5 LEAP" table above it: a $800-900 strike
+    // call on a $348 stock (delta ~0.26-0.30, breakeven $835-929) scored
+    // nearly as well as a real stock-replacement pick because
+    // computeLeapScore weights cost-efficiency and liquidity (70% combined)
+    // far more than delta (30%) — a cheap, liquid, deep-OTM call can still
+    // score close to top even though the stock would need to more than
+    // double just to break even. The straight "buy the LEAP" table is only
+    // useful as a stock-replacement if the call actually behaves like the
+    // stock, so it needs its own, higher delta floor — the wider band stays
+    // available to the combo builder via allLeapCalls/comboCalls below.
+    const LEAP_TABLE_MIN_DELTA = 0.60
+    const leapCalls = allLeapCalls.filter(r => r.dte >= maxLeapDte - 1 && Math.abs(r.delta) >= LEAP_TABLE_MIN_DELTA)
     const puts = rs.filter(r => r.strategyType === 'csp')
 
     // The LEAP table above shows the ticker's absolute furthest CALL expiry
