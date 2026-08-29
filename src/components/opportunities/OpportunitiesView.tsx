@@ -388,7 +388,11 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
       totalContracts: rs.length,
       topCsp: puts.slice().sort((a, b) => b.score - a.score).slice(0, 5),
       topCc:  rs.filter(r => r.strategyType === 'covered_call').sort((a, b) => b.score - a.score).slice(0, 5),
-      topLeap: leapCalls.slice().sort((a, b) => b.score - a.score).slice(0, 5),
+      // Ranked by lowest breakeven (strike + mid) rather than the composite
+      // score — the score rewards cost-efficiency/delta/liquidity, but the
+      // user cares about the actual price the stock needs to reach to
+      // profit, which the score doesn't directly optimize for.
+      topLeap: leapCalls.slice().sort((a, b) => (a.strike + a.mid) - (b.strike + b.mid)).slice(0, 5),
       // Ranks EVERY call×put pair sharing the combo expiry (not just the
       // top-scored LEAP paired with the top-scored put) — the user's actual
       // usage pattern (e.g. an at-the-money call paired with a put struck
