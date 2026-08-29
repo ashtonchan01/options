@@ -270,11 +270,21 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
   // degenerate to the emergency floor (a barely-visible ring) whenever the
   // margin math and the container's actual W:H ratio didn't line up. Label
   // placement derives FROM the ring afterward, not the other way around.
-  const outerR = Math.max(28, Math.min(W, H) * 0.32)
   // Below ~340px wide there usually isn't room for a share-count suffix
   // alongside the ticker/percentage without running into the container's
   // own edge — drop it there rather than risk clipping.
   const tightLabels = W < 340
+  // Label text is right-anchored on the left side, so it extends LEFTWARD
+  // from its start x — with no guaranteed margin reserved for that, a
+  // narrow phone-width container could compute a start x too close to the
+  // ring for the actual label string (ticker + percentage) to fit before
+  // hitting x=0, so it got clipped by the page rather than the SVG (whose
+  // own overflow:visible doesn't help once the parent page has nothing
+  // left to give). LABEL_MARGIN is a width-only floor (not min(W,H), which
+  // caused the exact aspect-ratio degeneration this used to avoid) on how
+  // much of each side's margin the ring is allowed to eat into.
+  const LABEL_MARGIN = tightLabels ? 46 : 58
+  const outerR = Math.max(28, Math.min(Math.min(W, H) * 0.32, W / 2 - 22 - LABEL_MARGIN))
   // A thin ring with a big open hole — was a near-solid disc before, which
   // left almost no room for the center value once the disc grew to fill
   // its panel. 0.62 keeps the hole roomy at any size.
