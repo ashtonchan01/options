@@ -25,6 +25,7 @@ const COMMODITY_ALIASES: Record<string, string> = {
   NATGAS: 'NG=F',
   GOLD: 'GC=F', XAUUSD: 'GC=F', XAU: 'GC=F',
   SILVER: 'SI=F', XAGUSD: 'SI=F', XAG: 'SI=F',
+  COPPER: 'HG=F', HG1: 'HG=F',
 }
 
 // Index/CFD aliases -> Yahoo's "^"-prefixed index symbol. A bare "SPX" or
@@ -38,7 +39,10 @@ const INDEX_ALIASES: Record<string, string> = {
 }
 
 export function toYahooSymbol(symbol: string): string {
-  const sym = symbol.toUpperCase()
+  // TradingView-style continuous-contract tickers (e.g. "HG1!" for front-
+  // month COMEX copper) end in a bang the user might type verbatim — strip
+  // it so "HG1!" and "HG1" both resolve to the same alias.
+  const sym = symbol.toUpperCase().replace(/!$/, '')
   if (CRYPTO_TICKERS.has(sym)) return `${sym}-USD`
   if (COMMODITY_ALIASES[sym]) return COMMODITY_ALIASES[sym]
   if (INDEX_ALIASES[sym]) return INDEX_ALIASES[sym]
