@@ -1,20 +1,25 @@
 /**
- * Scrollable strip of wide sparkline cards for major exchanges/indices —
- * sits below WorldMapPanel on the Dashboard overview.
+ * Scrollable strip of wide sparkline cards for major indices/commodities —
+ * sits below WorldMapPanel on the Dashboard overview. Mirrors the top
+ * ticker bar on Yahoo Finance's markets pages (major US indices, crude,
+ * gold, bitcoin, the 10-yr yield, VIX) rather than the full global exchange
+ * list EXCHANGES holds for the world map — a separate, dedicated list here
+ * so changing one doesn't affect the other.
  */
-import { EXCHANGES } from '../../../data/exchanges'
 import type { MarketQuote } from '../../../services/markets'
 
-/** ES futures track the S&P 500 nearly tick-for-tick — shown as a chart card right
- * next to it, but deliberately left out of the shared EXCHANGES list so it doesn't
- * also get its own dot on the world map. */
-const ES_CARD = { symbol: 'ES=F', name: 'ES (S&P Fut)' }
-const CHART_CARDS = (() => {
-  const idx = EXCHANGES.findIndex(ex => ex.symbol === '^GSPC')
-  const cards = EXCHANGES.map(ex => ({ symbol: ex.symbol, name: ex.name }))
-  cards.splice(idx + 1, 0, ES_CARD)
-  return cards
-})()
+export const MARKET_BAR_SYMBOLS = [
+  { symbol: '^GSPC', name: 'S&P 500' },
+  { symbol: '^DJI', name: 'Dow Jones' },
+  { symbol: '^IXIC', name: 'Nasdaq' },
+  { symbol: '^RUT', name: 'Russell 2000' },
+  { symbol: 'CL=F', name: 'Crude Oil' },
+  { symbol: 'GC=F', name: 'Gold' },
+  { symbol: 'BTC-USD', name: 'Bitcoin USD' },
+  { symbol: '^TNX', name: '10-Yr Yield' },
+  { symbol: '^VIX', name: 'VIX' },
+]
+const CHART_CARDS = MARKET_BAR_SYMBOLS
 
 function fmtPrice(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
