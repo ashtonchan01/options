@@ -298,24 +298,24 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
   const moneynessRange = [Math.min(...moneynessVals), Math.max(...moneynessVals)] as const
   const norm = (v: number, [lo, hi]: readonly [number, number]) => hi > lo ? (v - lo) / (hi - lo) : 0.5
 
-  // Ranked by a three-way balance: net cost, moneyness (both strikes close
-  // to the current stock price), and breakeven — none of them alone tells
-  // the whole story. Net cost and breakeven alone kept surfacing combos at
-  // opposite extremes of the strike range: a deep-ITM call (low strike, far
-  // below spot) wins on breakeven because the strike itself is baked into
-  // the formula; a deep-ITM put (high strike, far above spot) wins on cost
-  // because its huge credit offsets the call — but neither extreme is
-  // actually "close to the money," which is what makes a combo behave like
-  // a real, moderate stock-replacement rather than a structural quirk at
-  // one edge of the option chain. Assignment risk and call delta stay as
-  // light tiebreakers only.
+  // Cost-led three-way balance: net cost, breakeven, and moneyness (both
+  // strikes close to the current stock price) — but net cost now leads.
+  // A real MRVL example exposed the previous even split as too timid on
+  // cost: the top-ranked pick was $175C/$210P at $2,387 net ($204.44 BEP),
+  // but the user's own $200C/$210P-area trade cost only $851 for a
+  // breakeven just $10 higher ($214) — 2.8x less capital for a trade
+  // they're happy to take, and it wasn't even in the top 6. Low capital is
+  // the actual goal here; breakeven/moneyness now matter mainly as guard
+  // rails against an extreme, low-quality-credit combo winning purely on
+  // cost, not as equal partners to cost. Assignment risk and call delta
+  // stay as light tiebreakers only.
   return combos
     .map(c => ({
       ...c,
       compositeScore: Math.round((
-        (1 - norm(c.comboNetCost, costRange)) * 0.30 +      // less cash paid out of pocket → higher score
-        (1 - norm(c.comboBreakeven, bepRange)) * 0.30 +     // lower breakeven → higher score
-        (1 - norm(c.moneyness, moneynessRange)) * 0.25 +    // strikes closer to current spot price → higher score
+        (1 - norm(c.comboNetCost, costRange)) * 0.45 +      // less cash paid out of pocket → higher score
+        (1 - norm(c.comboBreakeven, bepRange)) * 0.20 +     // lower breakeven → higher score
+        (1 - norm(c.moneyness, moneynessRange)) * 0.20 +    // strikes closer to current spot price → higher score
         (1 - norm(c.assignmentRisk, riskRange)) * 0.09 +    // lower put assignment/early-exercise risk
         norm(c.call.delta, deltaRange) * 0.06               // higher call delta (more certain to own the stock)
       ) * 100),
