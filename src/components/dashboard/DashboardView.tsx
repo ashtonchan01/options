@@ -53,7 +53,6 @@ export default function DashboardView({ state }: { state: AppState }) {
     { id: 'pairs', h: 340, node: <PairTradingPanel state={state} topN={5} /> },
   ]
   const colB = [
-    { id: 'market-movers', h: 300, node: <MarketMoversPanel /> },
     { id: 'sector-heatmap', h: 260, node: <SectorHeatmapPanel /> },
     { id: 'market-breadth', h: 220, node: <MarketBreadthPanel /> },
     { id: 'earnings-calendar', h: 260, node: <EarningsCalendarPanel /> },
@@ -73,6 +72,9 @@ export default function DashboardView({ state }: { state: AppState }) {
       </div>
 
       <div className="dash-right-cols-wrap">
+        <div className="dash-cell" style={{ height: 300, flexShrink: 0 }}>
+          <MarketMoversPanel />
+        </div>
         {wideOnes.map(p => (
           <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
             wide onSetWide={(w) => setWide(p.id, w)}>
