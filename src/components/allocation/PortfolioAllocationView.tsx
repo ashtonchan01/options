@@ -318,7 +318,11 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
     }
   })
 
-  const labeled = wedges.filter(w => w.frac >= 0.012)
+  // Every wedge gets a label — a earlier >=1.2% cutoff silently dropped small
+  // positions with no way to tell what that colored sliver even was. The
+  // anti-collision spacing below already compresses labels to fit, so
+  // there's no need to hide any of them.
+  const labeled = wedges
   for (const side of ['left', 'right'] as const) {
     const group = labeled.filter(w => w.side === side).sort((a, b) => a.idealY - b.idealY)
     for (let i = 1; i < group.length; i++) {
