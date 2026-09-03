@@ -1,21 +1,16 @@
 /**
- * Trending tickers / top gainers / top losers / most active stocks —
- * mirrors the sidebar on Yahoo Finance's markets pages. Tab-switched
- * rather than four stacked lists, since each is a top-10 table and
- * showing all four at once would dwarf every other Dashboard panel.
+ * Trending tickers / top gainers / top losers / most active stocks — four
+ * separate widgets (mirroring the sidebar on Yahoo Finance's markets pages),
+ * not one tab-switched panel, so each shows up as its own card on the
+ * Dashboard the way the rest of the panels do. useMovers() shares a single
+ * fetch/poll across all four instead of each panel hitting the API on its
+ * own timer.
  */
 import { useEffect, useState } from 'react'
-import { Flame } from 'lucide-react'
+import { Flame, TrendingUp, TrendingDown, Activity } from 'lucide-react'
 import { fetchMovers, type MoverQuote, type MoversData } from '../../../services/movers'
 
 const REFRESH_MS = 5 * 60_000
-
-const TABS: { key: keyof MoversData; label: string }[] = [
-  { key: 'trending', label: 'Trending' },
-  { key: 'gainers', label: 'Gainers' },
-  { key: 'losers', label: 'Losers' },
-  { key: 'actives', label: 'Most Active' },
-]
 
 function fmtPrice(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -47,10 +42,11 @@ function MoverRow({ q }: { q: MoverQuote }) {
   )
 }
 
-export default function MarketMoversPanel() {
+/** Shared fetch/poll for all four mover widgets — one interval, one API
+ * call, instead of each panel independently hitting /api/movers on its
+ * own timer. */
+export function useMovers(): MoversData | null {
   const [data, setData] = useState<MoversData | null>(null)
-  const [tab, setTab] = useState<keyof MoversData>('trending')
-
   useEffect(() => {
     let cancelled = false
     async function load() {
@@ -61,34 +57,36 @@ export default function MarketMoversPanel() {
     const id = setInterval(load, REFRESH_MS)
     return () => { cancelled = true; clearInterval(id) }
   }, [])
+  return data
+}
 
-  const rows = data?.[tab] ?? []
-
+function MoverListPanel({ title, icon, rows }: { title: string; icon: React.ReactNode; rows: MoverQuote[] | undefined }) {
   return (
     <div className="dash-panel">
       <div className="dash-panel-header" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Flame size={13} style={{ color: 'var(--accent)' }} />
-        <span>Market Movers</span>
-      </div>
-      <div style={{ display: 'flex', gap: 4, padding: '2px 2px 6px', flexShrink: 0 }}>
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            style={{
-              flex: 1, padding: '4px 0', fontSize: 10.5, fontWeight: 600, border: 'none', borderRadius: 4, cursor: 'pointer',
-              background: tab === t.key ? 'var(--accent-dim)' : 'transparent',
-              color: tab === t.key ? 'var(--accent)' : 'var(--text-4)',
-            }}>
-            {t.label}
-          </button>
-        ))}
+        {icon}
+        <span>{title}</span>
       </div>
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '0 2px' }}>
-        {!data ? (
-          <div style={{ fontSize: 12, color: 'var(--text-4)', padding: '8px 2px' }}>Loading movers…</div>
+        {rows == null ? (
+          <div style={{ fontSize: 12, color: 'var(--text-4)', padding: '8px 2px' }}>Loading…</div>
         ) : rows.length === 0 ? (
           <div style={{ fontSize: 12, color: 'var(--text-4)', padding: '8px 2px' }}>No data</div>
         ) : rows.map(q => <MoverRow key={q.symbol} q={q} />)}
       </div>
     </div>
   )
+}
+
+export function TrendingTickersPanel({ data }: { data: MoversData | null }) {
+  return <MoverListPanel title="Trending Tickers" icon={<Flame size={13} style={{ color: 'var(--accent)' }} />} rows={data?.trending} />
+}
+export function TopGainersPanel({ data }: { data: MoversData | null }) {
+  return <MoverListPanel title="Top Gainers" icon={<TrendingUp size={13} style={{ color: '#10b981' }} />} rows={data?.gainers} />
+}
+export function TopLosersPanel({ data }: { data: MoversData | null }) {
+  return <MoverListPanel title="Top Losers" icon={<TrendingDown size={13} style={{ color: '#f43f5e' }} />} rows={data?.losers} />
+}
+export function MostActivePanel({ data }: { data: MoversData | null }) {
+  return <MoverListPanel title="Most Active" icon={<Activity size={13} style={{ color: 'var(--accent)' }} />} rows={data?.actives} />
 }

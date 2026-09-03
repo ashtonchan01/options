@@ -20,7 +20,7 @@ import TickerHeadlinesPanel from './panels/TickerHeadlinesPanel'
 import PairTradingPanel from './panels/PairTradingPanel'
 import SectorHeatmapPanel from './panels/SectorHeatmapPanel'
 import MarketBreadthPanel from './panels/MarketBreadthPanel'
-import MarketMoversPanel from './panels/MarketMoversPanel'
+import { useMovers, TrendingTickersPanel, TopGainersPanel, TopLosersPanel, MostActivePanel } from './panels/MarketMoversPanel'
 import EarningsCalendarPanel from './panels/EarningsCalendarPanel'
 import FearGreedPanel from './panels/FearGreedPanel'
 import ResizablePanel from './ResizablePanel'
@@ -33,6 +33,7 @@ export default function DashboardView({ state }: { state: AppState }) {
   const [quotes, setQuotes] = useState<Record<string, MarketQuote>>({})
   const [now, setNow] = useState(() => new Date())
   const { wideIds, setWide } = useWideMap()
+  const movers = useMovers()
 
   useEffect(() => {
     let cancelled = false
@@ -50,6 +51,10 @@ export default function DashboardView({ state }: { state: AppState }) {
   const colA = [
     { id: 'headlines', h: 420, node: <TickerHeadlinesPanel /> },
     { id: 'livetv', h: 340, node: <LiveTVPanel /> },
+    { id: 'trending-tickers', h: 240, node: <TrendingTickersPanel data={movers} /> },
+    { id: 'top-gainers', h: 240, node: <TopGainersPanel data={movers} /> },
+    { id: 'top-losers', h: 240, node: <TopLosersPanel data={movers} /> },
+    { id: 'most-active', h: 240, node: <MostActivePanel data={movers} /> },
     { id: 'pairs', h: 340, node: <PairTradingPanel state={state} topN={5} /> },
   ]
   const colB = [
@@ -72,9 +77,6 @@ export default function DashboardView({ state }: { state: AppState }) {
       </div>
 
       <div className="dash-right-cols-wrap">
-        <div className="dash-cell" style={{ height: 300, flexShrink: 0 }}>
-          <MarketMoversPanel />
-        </div>
         {wideOnes.map(p => (
           <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
             wide onSetWide={(w) => setWide(p.id, w)}>
