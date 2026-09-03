@@ -14,12 +14,13 @@ import type { AppState } from '../../types'
 import { EXCHANGES } from '../../data/exchanges'
 import { fetchMarketQuotes, type MarketQuote } from '../../services/markets'
 import WorldMapPanel from './panels/WorldMapPanel'
-import LiveChartsStrip from './panels/LiveChartsStrip'
+import LiveChartsStrip, { MARKET_BAR_SYMBOLS } from './panels/LiveChartsStrip'
 import LiveTVPanel from './panels/LiveTVPanel'
 import TickerHeadlinesPanel from './panels/TickerHeadlinesPanel'
 import PairTradingPanel from './panels/PairTradingPanel'
 import SectorHeatmapPanel from './panels/SectorHeatmapPanel'
 import MarketBreadthPanel from './panels/MarketBreadthPanel'
+import MarketMoversPanel from './panels/MarketMoversPanel'
 import EarningsCalendarPanel from './panels/EarningsCalendarPanel'
 import FearGreedPanel from './panels/FearGreedPanel'
 import ResizablePanel from './ResizablePanel'
@@ -35,7 +36,7 @@ export default function DashboardView({ state }: { state: AppState }) {
 
   useEffect(() => {
     let cancelled = false
-    const symbols = [...EXCHANGES.map(e => e.symbol), ...CHART_ONLY_SYMBOLS]
+    const symbols = [...EXCHANGES.map(e => e.symbol), ...CHART_ONLY_SYMBOLS, ...MARKET_BAR_SYMBOLS.map(s => s.symbol)]
     async function load() {
       const data = await fetchMarketQuotes(symbols)
       if (!cancelled && Object.keys(data).length > 0) setQuotes(data)
@@ -52,6 +53,7 @@ export default function DashboardView({ state }: { state: AppState }) {
     { id: 'pairs', h: 340, node: <PairTradingPanel state={state} topN={5} /> },
   ]
   const colB = [
+    { id: 'market-movers', h: 300, node: <MarketMoversPanel /> },
     { id: 'sector-heatmap', h: 260, node: <SectorHeatmapPanel /> },
     { id: 'market-breadth', h: 220, node: <MarketBreadthPanel /> },
     { id: 'earnings-calendar', h: 260, node: <EarningsCalendarPanel /> },
