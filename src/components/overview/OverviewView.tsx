@@ -348,7 +348,6 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
         ))}
         <path d={area} fill="url(#ov-eq-fill)" />
         <path d={line} fill="none" stroke="#10b981" strokeWidth="1" vectorEffect="non-scaling-stroke" style={{ filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.45))' }} />
-        <circle cx={x(points.length - 1)} cy={y(last.equity)} r="1" fill="#10b981" vectorEffect="non-scaling-stroke" />
       </svg>
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: 'Inter, sans-serif' }}>
         {gridVals.map((v, i) => (
