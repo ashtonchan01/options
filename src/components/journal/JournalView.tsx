@@ -229,13 +229,80 @@ function SharesTradesTable({ pos, tradesByKey }: { pos: JournalPosition; tradesB
   )
 }
 
+/** Shown in place of the setup/mistakes/notes editor when a multi-leg spread
+ * row (synthetic long / leap, bull put spread) is expanded — the aggregated
+ * row only shows the combined strikes/premium, hiding which individual
+ * option leg trades (and, for a leap combo scaled into over multiple fills,
+ * which specific fills) built it up. Lists every leg trade that contributed,
+ * oldest first, same spirit as SharesTradesTable above. */
+function OptionLegsTable({ pos, tradesByKey }: { pos: JournalPosition; tradesByKey: Map<string, RawTrade> }) {
+  const rows = pos.tradeIds
+    .map(id => tradesByKey.get(id))
+    .filter((t): t is RawTrade => t != null && t.assetClass === 'OPT')
+    .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || (a.strike ?? 0) - (b.strike ?? 0))
+
+  if (rows.length === 0) {
+    return <div style={{ padding: '14px 16px', color: 'var(--text-4)', fontSize: 12 }}>No trade history found for this position.</div>
+  }
+
+  return (
+    <div style={{ padding: '10px 16px' }}>
+      <table className="mono" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ color: 'var(--text-4)', textAlign: 'left' }}>
+            <th style={{ fontWeight: 500, padding: '3px 8px 3px 0' }}>Date</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px' }}>Action</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px' }}>Leg</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Qty</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Price</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Fees</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((t, i) => {
+            const action = t.quantity > 0 ? 'Buy' : 'Sell'
+            const leg = `${t.strike ?? ''}${t.putCall ?? ''} ${fmtDate(t.expiry ?? '')}`.trim()
+            return (
+              <tr key={`${t.tradeDate}|${i}`} style={{ borderTop: '1px solid var(--border)' }}>
+                <td style={{ padding: '4px 8px 4px 0', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtDate(t.tradeDate)}</td>
+                <td style={{ padding: '4px 8px', color: t.quantity > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>{action}</td>
+                <td style={{ padding: '4px 8px', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{leg}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right' }}>{Math.abs(t.quantity)}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right' }}>{fmt$(t.tradePrice, 2)}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-4)' }}>{fmt$(Math.abs(t.commissions ?? 0), 2)}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-2)' }}>{fmt$(Math.abs(t.quantity) * t.tradePrice * 100, 2)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 /** Collapses every SHARES lot (buy/sell FIFO-matched pairs plus any still-open
  * remainder — buildStockPositions emits one JournalPosition per lot) down to a
  * single display row per ticker, so a stock traded in and out repeatedly doesn't
  * flood the table with one row per lot. Realized P&L sums across closed lots;
  * an aggregate row is "Active" if any lot still holds shares. This is a display-
- * only merge — it doesn't touch the underlying per-lot data other tabs rely on. */
-function aggregateShares(positions: JournalPosition[]): JournalPosition[] {
+ * only merge — it doesn't touch the underlying per-lot data other tabs rely on.
+ *
+ * `livePositions`, when given, is IBKR's own current-holding snapshot (the
+ * Flex report's <OpenPosition> rows) — the ground truth for how many shares
+ * are actually held right now. The active share count is reconstructed
+ * instead from the full trade history via FIFO/LIFO lot matching, which is
+ * fragile against any historical data-quality issue (a duplicate, a missing,
+ * or an out-of-window trade this account will never re-report) and can drift
+ * from reality in a way no amount of resyncing fixes, since a resync only
+ * ever replaces trades inside its own reporting window. Verified against a
+ * real account: MSTR/NVDA both showed 100 more shares than IBKR's own
+ * snapshot, persisting across multiple resyncs — the phantom trade predated
+ * every Flex window this account could still fetch. Overriding the displayed
+ * total with IBKR's live quantity (scaling cost basis by the same ratio,
+ * since the true composition of which lots are phantom is unknowable) keeps
+ * the Journal correct regardless of where in trade history the drift lives. */
+function aggregateShares(positions: JournalPosition[], livePositions: RawPosition[] = []): JournalPosition[] {
   const shareLots = positions.filter(p => p.strikeDisplay === 'SHARES')
   const others = positions.filter(p => p.strikeDisplay !== 'SHARES')
   if (shareLots.length === 0) return positions
@@ -251,7 +318,15 @@ function aggregateShares(positions: JournalPosition[]): JournalPosition[] {
     const activeLots = lots.filter(l => l.status === 'Active')
     const closedLots = lots.filter(l => l.status !== 'Active')
     const anyActive = activeLots.length > 0
-    const totalContracts = (anyActive ? activeLots : lots).reduce((s, l) => s + l.contracts, 0)
+    const computedContracts = (anyActive ? activeLots : lots).reduce((s, l) => s + l.contracts, 0)
+    const liveQty = livePositions.find(lp => lp.assetClass === 'STK' && lp.symbol === ticker)?.quantity
+    const totalContracts = anyActive && liveQty != null ? liveQty : computedContracts
+    // Cost basis scales by the same ratio the share count was corrected by,
+    // since which specific lots are phantom (vs. real but out-of-window) is
+    // unknowable from trade history alone — an exact ratio when nothing was
+    // wrong (computedContracts === liveQty) and a proportional best-effort
+    // otherwise.
+    const costScale = computedContracts > 0 ? totalContracts / computedContracts : 1
     const hasClosedPnl = closedLots.some(l => l.pnl != null)
     merged.push({
       id: `shares-agg|${ticker}`,
@@ -271,8 +346,8 @@ function aggregateShares(positions: JournalPosition[]): JournalPosition[] {
       // instead of IBKR's own $115,244 cost basis for the 500 shares actually
       // held). Once fully closed (nothing held), fall back to all lots so a
       // closed ticker still shows its real total cost.
-      openFees: (anyActive ? activeLots : lots).reduce((s, l) => s + l.openFees, 0),
-      netPremium: (anyActive ? activeLots : lots).reduce((s, l) => s + l.netPremium, 0),
+      openFees: (anyActive ? activeLots : lots).reduce((s, l) => s + l.openFees, 0) * costScale,
+      netPremium: (anyActive ? activeLots : lots).reduce((s, l) => s + l.netPremium, 0) * costScale,
       status: anyActive ? 'Active' : 'Closed',
       strategy: 'shares',
       tradeIds: lots.flatMap(l => l.tradeIds),
@@ -323,6 +398,17 @@ function aggregateActiveOptionLots(positions: JournalPosition[]): JournalPositio
   return [...others, ...merged]
 }
 
+/** SHARES rows get their buy/sell history; multi-leg spreads (leap/synthetic
+ * long, put_spread/bull put spread — anything with more than one strike)
+ * get their individual leg trades; everything else keeps the freeform
+ * setup/mistakes/notes editor. */
+function pickEditor(p: JournalPosition, e: JournalEntry, tradesByKey: Map<string, RawTrade>,
+  updateEntry: (id: string, patch: Partial<JournalEntry>) => void, setups: string[], addSetup: (s: string) => void) {
+  if (p.strikeDisplay === 'SHARES') return <SharesTradesTable pos={p} tradesByKey={tradesByKey} />
+  if (p.strikes.length > 1) return <OptionLegsTable pos={p} tradesByKey={tradesByKey} />
+  return <EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
+}
+
 const STRAT_GROUP_ORDER = [
   'shares', 'leap', 'put_spread', 'spx', 'csp', 'covered_calls',
   'rotation', 'ptos', 'dcas', 'profit_taking', 'lilo', 'arb_cloud', 'tabi', 'forex', 'assignment',
@@ -350,7 +436,7 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
   const [groupByStrategy, setGroupByStrategy] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  const displayPositions = useMemo(() => aggregateActiveOptionLots(aggregateShares(positions)), [positions])
+  const displayPositions = useMemo(() => aggregateActiveOptionLots(aggregateShares(positions, livePositions)), [positions, livePositions])
 
   // Underlying's live stock price, shown in its own column — fetched
   // regardless of whether shares of that ticker are actually held, since a
@@ -374,7 +460,7 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
 
   const tradesByKey = useMemo(() => {
     const m = new Map<string, RawTrade>()
-    for (const t of trades) if (t.assetClass === 'STK') m.set(tradeId(t), t)
+    for (const t of trades) m.set(tradeId(t), t)
     return m
   }, [trades])
 
@@ -499,9 +585,7 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
                       return (
                         <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} underlyingPrice={underlyingPrices[p.underlying] ?? null} entry={e} open={open} cols={COLS}
                           onToggle={() => setExpanded(open ? null : p.id)}
-                          editor={p.strikeDisplay === 'SHARES'
-                            ? <SharesTradesTable pos={p} tradesByKey={tradesByKey} />
-                            : <EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />} />
+                          editor={pickEditor(p, e, tradesByKey, updateEntry, setups, addSetup)} />
                       )
                     })}
                   </tbody>
@@ -523,9 +607,7 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
                   return (
                     <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} underlyingPrice={underlyingPrices[p.underlying] ?? null} entry={e} open={open} cols={COLS}
                       onToggle={() => setExpanded(open ? null : p.id)}
-                      editor={p.strikeDisplay === 'SHARES'
-                        ? <SharesTradesTable pos={p} tradesByKey={tradesByKey} />
-                        : <EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />} />
+                      editor={pickEditor(p, e, tradesByKey, updateEntry, setups, addSetup)} />
                   )
                 })}
                 {rows.length === 0 && (
