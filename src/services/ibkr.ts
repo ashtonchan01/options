@@ -280,10 +280,29 @@ function parseOptionEAE(doc: Document, usedTradeIds: Set<string>): RawTrade[] {
  * <Transfer> record with its own direction/quantity/positionAmount fields.
  * Verified against a real account: two <Transfer> records (TSLA +42, NVDA
  * +10, both "IN") fully explained share counts that otherwise looked
- * undercounted with no error anywhere else in the data. */
-function parseTransfers(doc: Document): RawTrade[] {
+ * undercounted with no error anywhere else in the data.
+ *
+ * BUT some accounts' Flex reports book an option assignment/exercise's share
+ * delivery BOTH as an <OptionEAE> STK leg AND as its own <Transfer> record —
+ * unlike the Trade/OptionEAE overlap above, these carry no shared tradeID to
+ * dedupe by. Verified against a real account: a 100-share MSTR assignment and
+ * a 100-share NVDA assignment each also produced a same-day, same-quantity
+ * <Transfer>, silently doubling both share counts (700 shown instead of 600,
+ * 110 instead of 10) even immediately after a fresh resync. Any Transfer
+ * whose date+symbol+quantity exactly matches an OptionEAE STK leg already
+ * counted is the account's own duplicate report of that assignment and is
+ * skipped. */
+function parseTransfers(doc: Document, optionEaeStockKeys: Set<string>): RawTrade[] {
   return Array.from(doc.querySelectorAll('Transfer'))
     .filter(el => (attr(el, 'assetCategory') ?? 'STK') === 'STK')
+    .filter(el => {
+      const date = el.getAttribute('date') ?? ''
+      const symbol = (el.getAttribute('symbol') ?? '').trim()
+      const direction = el.getAttribute('direction') ?? 'IN'
+      const rawQty = Number(el.getAttribute('quantity') ?? 0)
+      const quantity = direction === 'OUT' ? -Math.abs(rawQty) : Math.abs(rawQty)
+      return !optionEaeStockKeys.has(`${date}|${symbol}|${quantity}`)
+    })
     .map(el => {
       const direction = el.getAttribute('direction') ?? 'IN'
       const rawQty = Number(el.getAttribute('quantity') ?? 0)
@@ -314,5 +333,11 @@ function allTrades(doc: Document): RawTrade[] {
       .map(el => el.getAttribute('tradeID'))
       .filter((id): id is string => id !== null),
   )
-  return [...parseTrades(doc), ...parseOptionEAE(doc, usedTradeIds), ...parseTransfers(doc)]
+  const optionEae = parseOptionEAE(doc, usedTradeIds)
+  const optionEaeStockKeys = new Set(
+    optionEae
+      .filter(t => t.assetClass === 'STK')
+      .map(t => `${t.tradeDate}|${t.symbol}|${t.quantity}`),
+  )
+  return [...parseTrades(doc), ...optionEae, ...parseTransfers(doc, optionEaeStockKeys)]
 }
