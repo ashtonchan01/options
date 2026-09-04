@@ -4,6 +4,7 @@ import type { AppState, ScanResult, ScanFlag } from '../../types'
 import { scanAllTickersCboe, LEAP_MAX_DTE, LEAP_MIN_DTE } from '../../services/cboe'
 import { fetchEarningsDates } from '../../services/earnings'
 import { fetchFomcDates } from '../../services/fomc'
+import { fetchRSI, type RsiData } from '../../services/rsi'
 
 interface Props {
   state: AppState
@@ -687,8 +688,34 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
     fetchFomcDates().then(setFomcDates).catch(() => {})
   }, [])
 
+  // RSI(14) per ticker — same oversold/overbought convention as the
+  // Watchlist tab (<=30 oversold, >=70 overbought). A LEAP is a stock
+  // replacement held for months, so "which ticker is beaten down right now"
+  // is a more directly useful ranking there than the per-contract cost/
+  // delta/liquidity score, which says nothing about whether the underlying
+  // itself is actually cheap relative to its own recent range.
+  const [rsiMap, setRsiMap] = useState<Record<string, RsiData>>({})
+  useEffect(() => {
+    fetchRSI(tickers).then(setRsiMap).catch(() => {})
+  }, [tickers])
+
   const filtered = useMemo(() => filterByMode(results, customCfg), [results, customCfg])
   const cards    = useMemo(() => buildCards(filtered, tickers, earningsMap), [filtered, tickers, earningsMap])
+
+  // In LEAP view, most-oversold-first (lowest RSI) instead of bestScore —
+  // tickers with no RSI data yet (still loading, or an unsupported symbol)
+  // sort to the end rather than the top, so missing data never masquerades
+  // as "most oversold."
+  const displayCards = useMemo(() => {
+    if (strategyFilter !== 'leap') return cards
+    return cards.slice().sort((a, b) => {
+      const ra = rsiMap[a.symbol]?.rsi, rb = rsiMap[b.symbol]?.rsi
+      if (ra == null && rb == null) return 0
+      if (ra == null) return 1
+      if (rb == null) return -1
+      return ra - rb
+    })
+  }, [cards, strategyFilter, rsiMap])
 
   function toggleCollapse(sym: string) {
     setCollapsed(prev => { const n = new Set(prev); n.has(sym) ? n.delete(sym) : n.add(sym); return n })
@@ -924,10 +951,11 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
       )}
 
       {/* ── Card grid ───────────────────────────────────────────────────────── */}
-      {scanned && cards.length > 0 && (
+      {scanned && displayCards.length > 0 && (
         <div onScroll={handleResultsScroll} style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'start', justifyContent: 'center' }}>
-          {cards.map((card, idx) => {
+          {displayCards.map((card, idx) => {
             const isCollapsed = collapsed.has(card.symbol)
+            const rsi = rsiMap[card.symbol]?.rsi ?? null
             const showCsp  = (strategyFilter === 'all' || strategyFilter === 'csp')  && card.topCsp.length > 0
             const showCc   = (strategyFilter === 'all' || strategyFilter === 'cc')   && card.topCc.length > 0
             // LEAP is its own function, not part of "All" — it only shows
@@ -944,6 +972,16 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
                   {hasData && <span style={{ fontSize: 9, fontWeight: 700, color: idx < 3 ? 'var(--accent)' : 'var(--text-5)', fontFamily: "'Inter', sans-serif", minWidth: 16 }}>#{idx + 1}</span>}
                   <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 15, fontWeight: 700, color: idx === 0 && hasData ? 'var(--accent)' : hasData ? 'var(--text-1)' : 'var(--text-4)', letterSpacing: '1px' }}>{card.symbol}</span>
                   {card.price > 0 && <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'Inter, sans-serif' }}>${card.price.toFixed(2)}</span>}
+                  {strategyFilter === 'leap' && rsi != null && (
+                    <span title="RSI(14) — <=30 oversold, >=70 overbought" style={{
+                      padding: '1px 5px', fontSize: 9, fontWeight: 700, fontFamily: "'Inter', sans-serif",
+                      background: rsi <= 30 ? '#10b98115' : rsi >= 70 ? '#ef444415' : 'var(--bg-elevated)',
+                      border: `1px solid ${rsi <= 30 ? '#10b98140' : rsi >= 70 ? '#ef444440' : 'var(--border)'}`,
+                      color: rsi <= 30 ? '#10b981' : rsi >= 70 ? '#ef4444' : 'var(--text-3)',
+                    }}>
+                      RSI {rsi.toFixed(0)}{rsi <= 30 ? ' OVERSOLD' : ''}
+                    </span>
+                  )}
                   {shares > 0 && <span style={{ padding: '1px 5px', fontSize: 9, fontWeight: 700, background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', fontFamily: "'Inter', sans-serif" }}>{shares} SHR</span>}
                   {card.nextEarnings && (
                     <span title={`Next earnings ${card.nextEarnings}`} style={{ padding: '1px 5px', fontSize: 9, fontWeight: 700, background: '#F0B42915', border: '1px solid #F0B42940', color: '#F0B429', fontFamily: "'Inter', sans-serif" }}>
