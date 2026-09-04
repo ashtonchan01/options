@@ -930,7 +930,7 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
           the toggle (and, in month view, the nav/filter) stays visible and
           clickable regardless of which view is active. */}
       <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
-        <div className="calendar-nav" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <div className="calendar-nav" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
           {/* View toggle: single month grid vs. multi-year LEAP/expiry
               overview — same rp-subnav pill style as the Reports tab's
               Company P&L/Monthly Income toggle, for a consistent
@@ -956,6 +956,35 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
             <button onClick={nextMonth} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
               <ChevronRight size={14} />
             </button>
+
+            {availableStrategies.length > 0 && (
+              <div className="calendar-strategy-filter" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-4)', marginRight: 2 }}>Strategy:</span>
+                {availableStrategies.map(s => {
+                  const active = !strategyFilter || strategyFilter.has(s)
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => toggleStrategy(s)}
+                      className={`tl-filter-chip${active ? ' active' : ''}`}
+                      title={active ? `Click to exclude ${stratLabel(s)}` : `Click to include ${stratLabel(s)}`}
+                      style={{ width: 76, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
+                      {calendarChipLabel(s)}
+                    </button>
+                  )
+                })}
+                {strategyFilter && (
+                  <button
+                    onClick={() => setStrategyFilter(null)}
+                    style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '3px 8px', fontSize: 11, fontFamily: 'inherit', borderRadius: 4 }}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            )}
+
             <div style={{ flex: 1 }} />
             <div
               style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'help' }}
@@ -986,34 +1015,6 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
           </>
           )}
         </div>
-
-        {view === 'month' && availableStrategies.length > 0 && (
-          <div className="calendar-strategy-filter" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10, flexShrink: 0 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-4)', marginRight: 2 }}>Strategy:</span>
-            {availableStrategies.map(s => {
-              const active = !strategyFilter || strategyFilter.has(s)
-              return (
-                <button
-                  key={s}
-                  onClick={() => toggleStrategy(s)}
-                  className={`tl-filter-chip${active ? ' active' : ''}`}
-                  title={active ? `Click to exclude ${stratLabel(s)}` : `Click to include ${stratLabel(s)}`}
-                  style={{ width: 76, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                >
-                  {calendarChipLabel(s)}
-                </button>
-              )
-            })}
-            {strategyFilter && (
-              <button
-                onClick={() => setStrategyFilter(null)}
-                style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '3px 8px', fontSize: 11, fontFamily: 'inherit', borderRadius: 4 }}
-              >
-                Reset
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
       {view === 'multiyear' ? (
