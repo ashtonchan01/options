@@ -140,25 +140,38 @@ function deriveEvents(strategies: Strategy[]): ExpiryEvent[] {
 // ─── Multi-year overview ─────────────────────────────────────────────────────
 
 /** Every leg-expiry event still ahead of today, one row per underlying/date/
- * strategy combo — a LEAP's two legs (call+put) share both a date and an
- * underlying, so they'd otherwise print as two separate entries in the same
- * cell for what's really one combo.
+ * strategy combo group — collapsed in two passes.
  *
- * `quantity` is the contract count of the combo, NOT the sum of every leg's
- * own quantity — a risk-reversal/synthetic-long's call leg and put leg are
- * each already the full contract count (5 contracts = 5 calls + 5 puts, not
- * 10 of anything), so summing them double-counted every combo (verified: a
- * real 5-contract TSLA synthetic long showed "10x" on this calendar).
- * Taking the max across legs instead gives the actual contract count
- * regardless of how many legs the strategy has. */
+ * Pass 1 collapses each SINGLE combo's own legs (same `strategyId` — a
+ * synthetic long's call+put, a spread's two legs) into one entry, taking the
+ * max quantity across those legs rather than summing them: each leg is
+ * already the full contract count (5 contracts = 5 calls + 5 puts, not 10 of
+ * anything), so summing double-counted every combo.
+ *
+ * Pass 2 sums ACROSS distinct combos (different strategyIds) that happen to
+ * land on the same date/underlying/strategy type — a ticker scaled into at
+ * different strikes over time (e.g. a 1-lot TSLA synthetic long added to
+ * later with a 2-lot and another 2-lot at different strikes, all expiring
+ * the same date) is genuinely 5 contracts total, not 2 — taking the max
+ * across ALL legs regardless of which combo they belonged to (the one-pass
+ * version of this) silently undercounted to whichever single combo happened
+ * to be largest. */
 function groupFutureEvents(events: ExpiryEvent[], todayStr: string) {
   const future = events.filter(e => e.date >= todayStr)
-  const byKey = new Map<string, { date: string; underlying: string; strategyType: StrategyType; quantity: number; legs: ExpiryEvent[] }>()
+
+  const byStrategy = new Map<string, { date: string; underlying: string; strategyType: StrategyType; quantity: number; legs: ExpiryEvent[] }>()
   for (const e of future) {
-    const key = `${e.date}|${e.underlying}|${e.strategyType}`
-    const g = byKey.get(key)
+    const g = byStrategy.get(e.strategyId)
     if (g) { g.quantity = Math.max(g.quantity, Math.abs(e.quantity)); g.legs.push(e) }
-    else byKey.set(key, { date: e.date, underlying: e.underlying, strategyType: e.strategyType, quantity: Math.abs(e.quantity), legs: [e] })
+    else byStrategy.set(e.strategyId, { date: e.date, underlying: e.underlying, strategyType: e.strategyType, quantity: Math.abs(e.quantity), legs: [e] })
+  }
+
+  const byKey = new Map<string, { date: string; underlying: string; strategyType: StrategyType; quantity: number; legs: ExpiryEvent[] }>()
+  for (const combo of byStrategy.values()) {
+    const key = `${combo.date}|${combo.underlying}|${combo.strategyType}`
+    const g = byKey.get(key)
+    if (g) { g.quantity += combo.quantity; g.legs.push(...combo.legs) }
+    else byKey.set(key, { ...combo, legs: [...combo.legs] })
   }
   return [...byKey.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
@@ -334,14 +347,19 @@ function MonthBlock({ month, weeks, accent, children }: { month: string; weeks: 
           <td style={{ padding: '4px 6px', textAlign: 'right', color: w.total === 0 ? 'var(--text-4)' : pnlColorCal(w.total), whiteSpace: 'nowrap' }}>
             {w.total === 0 ? '—' : fmt$(w.total, 2)}
           </td>
-          {/* Single line, ellipsis-truncated with the full text in `title` —
-              letting notes stack into multiple lines per week (the first
-              pass) made row heights vary by how many expiries landed in a
-              given week, so no two year columns lined up vertically even
-              though they cover the same 52 weeks. A fixed one-line height
-              keeps every column the same total height regardless of note
-              content. */}
-          <td style={{ padding: '4px 6px', color: 'var(--text-2)', fontSize: 10, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
+          {/* Fixed 2-line-tall clamp (not a single nowrap line) — a single
+              line truncated too eagerly (a real NVDA CSP expiry sharing a
+              week with a GOOGL one went invisible, cut off by the ellipsis
+              with no visual sign there was more). Every row reserves the
+              same 2-line height whether or not it has notes, so columns
+              still all line up — unlike letting notes freely stack into
+              as many lines as they need, which was the original bug this
+              traded off against. Only a week busier than 2 lines' worth
+              still ellipsizes, with the full list in `title`. */}
+          <td style={{
+            padding: '4px 6px', color: 'var(--text-2)', fontSize: 10, overflow: 'hidden',
+            height: 24, lineHeight: '12px', display: '-webkit-box' as const, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+          }}
             title={w.notes.length > 0 ? w.notes.join(' · ') : undefined}>
             {w.notes.length > 0 && <span style={{ color: accent, fontWeight: 600 }}>{w.notes.join(' · ')}</span>}
           </td>
