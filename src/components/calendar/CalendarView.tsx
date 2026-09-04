@@ -8,7 +8,7 @@ import { fetchFomcDates } from '../../services/fomc'
 import { buildEconEventMap, type EconEvent } from '../../data/economicEvents'
 import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
 import { tradeId } from '../../store/tradeLabelsStore'
-import { STRAT_ORDER, stratLabel, fyOf } from '../companies/reportsShared'
+import { STRAT_ORDER, stratLabel } from '../companies/reportsShared'
 
 // Calendar's filter chips are a fixed 76px wide — "Synthetic Long" and
 // "Shares" (the full labels used elsewhere, e.g. Journal/Reports) don't fit
@@ -155,10 +155,15 @@ function groupFutureEvents(events: ExpiryEvent[], todayStr: string) {
   return [...byKey.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 
-const FY_MONTH_ORDER = [6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 5] // Jul..Jun (0-indexed months)
-const FY_MONTH_LABEL = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+const CAL_MONTH_LABEL = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
-interface FyWeekRow {
+// One distinct color per year column, cycled if there are more years than
+// colors — lets the eye separate columns at a glance instead of reading the
+// header text every time, especially once several years are open side by
+// side and equally sized.
+const YEAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#a78bfa', '#f43f5e', '#22d3ee', '#84cc16', '#fb923c']
+
+interface CalWeekRow {
   weekNum: number
   startDate: string // YYYY-MM-DD, the week's Monday
   endDate: string   // YYYY-MM-DD, the week's Sunday
@@ -166,26 +171,21 @@ interface FyWeekRow {
   notes: string[]
 }
 
-/** Every Monday-start week of one Jul–Jun financial year, in calendar order
- * (so "week 1" of the grid is the week containing 1 July), each carrying its
+/** Every Monday-start week of one calendar year (Jan–Dec), each carrying its
  * trade cash-flow total and a Notes list of key dates landing in it — LEAP/
  * risk-reversal combos are called out by name (mirroring a manual weekly P&L
  * ledger's own "4x TSLA Syn Long" / "TSLA Expiry" annotations), same as
  * every other strategy's expiry, so a long-dated LEAP doesn't just look like
  * an unexplained lump in the Total column a year from now. */
-function fyOfDate(dateYMD: string): number {
-  return fyOf(dateYMD.replace(/-/g, '')).startYear
-}
-
-function buildFyWeeks(startYear: number, dailyTrades: Record<string, DailyTradeData>, groupedEvents: ReturnType<typeof groupFutureEvents>): { month: string; weeks: FyWeekRow[] }[] {
-  const fyStart = new Date(startYear, 6, 1)
-  const fyEnd = new Date(startYear + 1, 6, 1)
-  let monday = new Date(fyStart)
+function buildCalYearWeeks(year: number, dailyTrades: Record<string, DailyTradeData>, groupedEvents: ReturnType<typeof groupFutureEvents>): { month: string; weeks: CalWeekRow[] }[] {
+  const yearStart = new Date(year, 0, 1)
+  const yearEnd = new Date(year + 1, 0, 1)
+  let monday = new Date(yearStart)
   const dow = monday.getDay() || 7
   monday.setDate(monday.getDate() - (dow - 1))
 
-  const byMonth = new Map<number, FyWeekRow[]>()
-  while (monday < fyEnd) {
+  const byMonth = new Map<number, CalWeekRow[]>()
+  while (monday < yearEnd) {
     const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6)
     const startDate = monday.toISOString().slice(0, 10)
     const endDate = sunday.toISOString().slice(0, 10)
@@ -203,57 +203,65 @@ function buildFyWeeks(startYear: number, dailyTrades: Record<string, DailyTradeD
     // Bucket by the month containing the Monday of this week — matches how
     // a manual weekly ledger groups week rows under one month header even
     // when the week itself spans a month boundary.
-    const bucketMonth = monday.getMonth()
+    const bucketMonth = monday.getFullYear() === year ? monday.getMonth() : 0
     if (!byMonth.has(bucketMonth)) byMonth.set(bucketMonth, [])
     byMonth.get(bucketMonth)!.push({ weekNum: isoWeek(monday), startDate, endDate, total, notes })
     monday = new Date(monday); monday.setDate(monday.getDate() + 7)
   }
 
-  return FY_MONTH_ORDER.map((m, i) => ({ month: FY_MONTH_LABEL[i], weeks: byMonth.get(m) ?? [] }))
+  return CAL_MONTH_LABEL.map((label, m) => ({ month: label, weeks: byMonth.get(m) ?? [] }))
 }
 
-/** Multi-year financial ledger — one column per Jul–Jun financial year
- * (matching the FY convention already used in Reports), each broken into
- * month blocks of weekly rows with a running Total and a Notes column,
- * mirroring a manual weekly P&L spreadsheet. Exists specifically so a
- * LEAP/synthetic-long combo's expiry — routinely a year or more out — shows
- * up as a named annotation on the week it lands in, long before the
- * month-at-a-time Calendar view would ever surface it. */
+/** Multi-year ledger — one equally-sized, distinctly-colored column per
+ * calendar year, each broken into month blocks of weekly rows (labeled by
+ * ISO week number) with a running Total and a Notes column, mirroring a
+ * manual weekly P&L spreadsheet. Exists specifically so a LEAP/synthetic-
+ * long combo's expiry — routinely a year or more out — shows up as a named
+ * annotation on the week it lands in, long before the month-at-a-time
+ * Calendar view would ever surface it. */
 function MultiYearCalendarView({ trades, events }: { trades: RawTrade[]; events: ExpiryEvent[] }) {
   const dailyTrades = useMemo(() => buildDailyTrades(trades), [trades])
 
-  const fyYears = useMemo(() => {
-    const tradeYears = trades.filter(t => t.tradeDate && !t.isTransfer).map(t => fyOfDate(normalizeDate(t.tradeDate)))
-    const eventYears = events.filter(e => e.date).map(e => fyOfDate(e.date))
+  const years = useMemo(() => {
+    const tradeYears = trades.filter(t => t.tradeDate && !t.isTransfer).map(t => Number(normalizeDate(t.tradeDate).slice(0, 4)))
+    const eventYears = events.filter(e => e.date).map(e => Number(e.date.slice(0, 4)))
     const all = [...tradeYears, ...eventYears]
-    const thisFy = fyOfDate(todayYMD())
-    if (all.length === 0) return [thisFy]
-    const min = Math.min(...all, thisFy)
-    const max = Math.max(...all, thisFy)
+    const thisYear = new Date().getFullYear()
+    if (all.length === 0) return [thisYear]
+    const min = Math.min(...all, thisYear)
+    const max = Math.max(...all, thisYear)
     return Array.from({ length: max - min + 1 }, (_, i) => min + i)
   }, [trades, events])
 
   const groupedEvents = useMemo(() => groupFutureEvents(events, '0000-00-00'), [events])
-  const columns = useMemo(() => fyYears.map(y => ({ startYear: y, months: buildFyWeeks(y, dailyTrades, groupedEvents) })), [fyYears, dailyTrades, groupedEvents])
+  const columns = useMemo(() => years.map(y => ({ year: y, months: buildCalYearWeeks(y, dailyTrades, groupedEvents) })), [years, dailyTrades, groupedEvents])
 
   return (
     <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        {columns.map(col => {
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns.length}, minmax(240px, 1fr))`, gap: 16, alignItems: 'start' }}>
+        {columns.map((col, ci) => {
           const grandTotal = col.months.reduce((s, m) => s + m.weeks.reduce((s2, w) => s2 + w.total, 0), 0)
+          const color = YEAR_COLORS[ci % YEAR_COLORS.length]
           return (
-            <div key={col.startYear} style={{ flex: '0 0 260px', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-              <div style={{ padding: '8px 10px', fontSize: 13, fontWeight: 700, color: 'var(--text-1)', background: 'var(--bg-2)', textAlign: 'center', borderBottom: '1px solid var(--border)' }}>
-                {col.startYear}/{(col.startYear + 1) % 100}
+            <div key={col.year} style={{ minWidth: 0, border: `1px solid ${color}40`, borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ padding: '8px 10px', fontSize: 13, fontWeight: 700, color, background: `${color}18`, textAlign: 'center', borderBottom: `1px solid ${color}40` }}>
+                {col.year}
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 11 }}>
+                <colgroup>
+                  <col style={{ width: 26 }} />
+                  <col style={{ width: 32 }} />
+                  <col style={{ width: 70 }} />
+                  <col />
+                </colgroup>
                 <tbody>
                   {col.months.map(mb => (
-                    <MonthBlock key={mb.month} month={mb.month} weeks={mb.weeks} />
+                    <MonthBlock key={mb.month} month={mb.month} weeks={mb.weeks} accent={color} />
                   ))}
                   <tr style={{ borderTop: '2px solid var(--border)' }}>
-                    <td style={{ padding: '8px 8px', fontWeight: 700, color: 'var(--text-1)' }}>Total</td>
-                    <td colSpan={2} style={{ padding: '8px 8px', fontWeight: 700, textAlign: 'right', color: pnlColorCal(grandTotal) }}>{fmt$(grandTotal)}</td>
+                    <td colSpan={2} />
+                    <td style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right', color: pnlColorCal(grandTotal), whiteSpace: 'nowrap' }}>{fmt$(grandTotal)}</td>
+                    <td />
                   </tr>
                 </tbody>
               </table>
@@ -267,7 +275,7 @@ function MultiYearCalendarView({ trades, events }: { trades: RawTrade[]; events:
 
 function pnlColorCal(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'var(--text-4)' }
 
-function MonthBlock({ month, weeks }: { month: string; weeks: FyWeekRow[] }) {
+function MonthBlock({ month, weeks, accent }: { month: string; weeks: CalWeekRow[]; accent: string }) {
   if (weeks.length === 0) return null
   const subtotal = weeks.reduce((s, w) => s + w.total, 0)
   return (
@@ -276,22 +284,26 @@ function MonthBlock({ month, weeks }: { month: string; weeks: FyWeekRow[] }) {
         <tr key={w.startDate} style={{ borderTop: '1px solid var(--border)' }}>
           {i === 0 && (
             <td rowSpan={weeks.length + 1} style={{
-              padding: '4px 4px', fontSize: 10, fontWeight: 700, color: 'var(--text-3)', writingMode: 'vertical-rl',
-              textAlign: 'center', borderRight: '1px solid var(--border)', verticalAlign: 'middle', textTransform: 'uppercase', letterSpacing: '0.05em',
+              padding: '4px 2px', fontSize: 9.5, fontWeight: 700, color: accent, writingMode: 'vertical-rl',
+              textAlign: 'center', borderRight: '1px solid var(--border)', verticalAlign: 'middle', letterSpacing: '0.05em',
             }}>
               {month}
             </td>
           )}
-          <td style={{ padding: '4px 8px', textAlign: 'right', color: w.total === 0 ? 'var(--text-5)' : pnlColorCal(w.total) }}>
+          <td style={{ padding: '4px 4px', textAlign: 'center', color: 'var(--text-5)', fontSize: 9.5 }}>
+            W{w.weekNum}
+          </td>
+          <td style={{ padding: '4px 6px', textAlign: 'right', color: w.total === 0 ? 'var(--text-5)' : pnlColorCal(w.total), whiteSpace: 'nowrap' }}>
             {w.total === 0 ? '—' : fmt$(w.total, 2)}
           </td>
-          <td style={{ padding: '4px 8px', color: 'var(--text-3)', fontSize: 10 }}>
-            {w.notes.map((n, ni) => <div key={ni} style={{ color: 'var(--accent)', fontWeight: 600 }}>{n}</div>)}
+          <td style={{ padding: '4px 6px', color: 'var(--text-3)', fontSize: 10, overflow: 'hidden' }}>
+            {w.notes.map((n, ni) => <div key={ni} style={{ color: accent, fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word' }}>{n}</div>)}
           </td>
         </tr>
       ))}
       <tr style={{ borderTop: '1px solid var(--border)' }}>
-        <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 700, color: 'var(--text-2)' }}>{fmt$(subtotal, 2)}</td>
+        <td colSpan={2} />
+        <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{fmt$(subtotal, 2)}</td>
         <td />
       </tr>
     </>
@@ -911,30 +923,30 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
   return (
     <div className="calendar-page-root" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-      {/* View toggle: single month grid vs. multi-year LEAP/expiry overview —
-          same rp-subnav pill style as the Reports tab's Company P&L/Monthly
-          Income toggle, for a consistent sub-page-switcher look app-wide. */}
-      <div className="rp-subnav" style={{ margin: '12px 20px 0' }}>
-        <button onClick={() => setView('month')} className={`rp-subnav-tab${view === 'month' ? ' active' : ''}`}>
-          Month
-        </button>
-        <button onClick={() => setView('multiyear')} className={`rp-subnav-tab${view === 'multiyear' ? ' active' : ''}`}>
-          Multi-Year
-        </button>
-      </div>
-
-      {view === 'multiyear' ? (
-        <MultiYearCalendarView trades={state.sync.trades} events={events} />
-      ) : (
-      <>
-      {/* ── Top: Calendar + Sidebar ──────────────────────────────────────── */}
-      <div className="calendar-layout" style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
-
-        {/* Calendar grid */}
-        <div ref={calMainRef} className="calendar-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto', padding: '16px 20px' }}>
-
-          {/* Month nav */}
-          <div className="calendar-nav" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexShrink: 0 }}>
+      {/* Month nav + view toggle + strategy filter — all on shared top rows
+          (rather than the toggle getting its own full-width row above them)
+          so the calendar grid below keeps as much vertical space as
+          possible. Kept outside the month/multi-year conditional below so
+          the toggle (and, in month view, the nav/filter) stays visible and
+          clickable regardless of which view is active. */}
+      <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
+        <div className="calendar-nav" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          {/* View toggle: single month grid vs. multi-year LEAP/expiry
+              overview — same rp-subnav pill style as the Reports tab's
+              Company P&L/Monthly Income toggle, for a consistent
+              sub-page-switcher look app-wide. inline-flex + flexShrink:0
+              keeps it sized to its two labels instead of stretching to the
+              flex row's full width. */}
+          <div className="rp-subnav" style={{ flexShrink: 0 }}>
+            <button onClick={() => setView('month')} className={`rp-subnav-tab${view === 'month' ? ' active' : ''}`}>
+              Month
+            </button>
+            <button onClick={() => setView('multiyear')} className={`rp-subnav-tab${view === 'multiyear' ? ' active' : ''}`}>
+              Multi-Year
+            </button>
+          </div>
+          {view === 'month' && (
+          <>
             <button onClick={prevMonth} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '4px 8px', display: 'flex', borderRadius: 4 }}>
               <ChevronLeft size={14} />
             </button>
@@ -971,35 +983,48 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
                 Clear
               </button>
             )}
-          </div>
-
-          {availableStrategies.length > 0 && (
-            <div className="calendar-strategy-filter" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10, flexShrink: 0 }}>
-              <span style={{ fontSize: 11, color: 'var(--text-4)', marginRight: 2 }}>Strategy:</span>
-              {availableStrategies.map(s => {
-                const active = !strategyFilter || strategyFilter.has(s)
-                return (
-                  <button
-                    key={s}
-                    onClick={() => toggleStrategy(s)}
-                    className={`tl-filter-chip${active ? ' active' : ''}`}
-                    title={active ? `Click to exclude ${stratLabel(s)}` : `Click to include ${stratLabel(s)}`}
-                    style={{ width: 76, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  >
-                    {calendarChipLabel(s)}
-                  </button>
-                )
-              })}
-              {strategyFilter && (
-                <button
-                  onClick={() => setStrategyFilter(null)}
-                  style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '3px 8px', fontSize: 11, fontFamily: 'inherit', borderRadius: 4 }}
-                >
-                  Reset
-                </button>
-              )}
-            </div>
+          </>
           )}
+        </div>
+
+        {view === 'month' && availableStrategies.length > 0 && (
+          <div className="calendar-strategy-filter" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10, flexShrink: 0 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-4)', marginRight: 2 }}>Strategy:</span>
+            {availableStrategies.map(s => {
+              const active = !strategyFilter || strategyFilter.has(s)
+              return (
+                <button
+                  key={s}
+                  onClick={() => toggleStrategy(s)}
+                  className={`tl-filter-chip${active ? ' active' : ''}`}
+                  title={active ? `Click to exclude ${stratLabel(s)}` : `Click to include ${stratLabel(s)}`}
+                  style={{ width: 76, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                >
+                  {calendarChipLabel(s)}
+                </button>
+              )
+            })}
+            {strategyFilter && (
+              <button
+                onClick={() => setStrategyFilter(null)}
+                style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '3px 8px', fontSize: 11, fontFamily: 'inherit', borderRadius: 4 }}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {view === 'multiyear' ? (
+        <MultiYearCalendarView trades={state.sync.trades} events={events} />
+      ) : (
+      <>
+      {/* ── Top: Calendar + Sidebar ──────────────────────────────────────── */}
+      <div className="calendar-layout" style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+
+        {/* Calendar grid */}
+        <div ref={calMainRef} className="calendar-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto', padding: '0 20px 16px' }}>
 
           {/* Fixed-ratio landscape calendar block — headers + grid together */}
           <div className="calendar-ratio-box" style={{ width: '100%', aspectRatio: '16 / 9', maxHeight: '100%', display: 'flex', flexDirection: 'column', margin: '0 auto' }}>
