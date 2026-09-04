@@ -222,14 +222,16 @@ function buildCalYearWeeks(year: number, dailyTrades: Record<string, DailyTradeD
 function MultiYearCalendarView({ trades, events }: { trades: RawTrade[]; events: ExpiryEvent[] }) {
   const dailyTrades = useMemo(() => buildDailyTrades(trades), [trades])
 
+  // 2025-2029 by default (a fixed 5-year window is easier to scan than one
+  // that reshuffles as trades/events come and go) — widened only if real
+  // data or a LEAP/spread expiry actually falls outside it, so nothing gets
+  // silently cut off.
   const years = useMemo(() => {
     const tradeYears = trades.filter(t => t.tradeDate && !t.isTransfer).map(t => Number(normalizeDate(t.tradeDate).slice(0, 4)))
     const eventYears = events.filter(e => e.date).map(e => Number(e.date.slice(0, 4)))
-    const all = [...tradeYears, ...eventYears]
-    const thisYear = new Date().getFullYear()
-    if (all.length === 0) return [thisYear]
-    const min = Math.min(...all, thisYear)
-    const max = Math.max(...all, thisYear)
+    const all = [...tradeYears, ...eventYears, 2025, 2029]
+    const min = Math.min(...all)
+    const max = Math.max(...all)
     return Array.from({ length: max - min + 1 }, (_, i) => min + i)
   }, [trades, events])
 
@@ -243,8 +245,8 @@ function MultiYearCalendarView({ trades, events }: { trades: RawTrade[]; events:
           const grandTotal = col.months.reduce((s, m) => s + m.weeks.reduce((s2, w) => s2 + w.total, 0), 0)
           const color = YEAR_COLORS[ci % YEAR_COLORS.length]
           return (
-            <div key={col.year} style={{ minWidth: 0, border: `1px solid ${color}40`, borderRadius: 6, overflow: 'hidden' }}>
-              <div style={{ padding: '8px 10px', fontSize: 13, fontWeight: 700, color, background: `${color}18`, textAlign: 'center', borderBottom: `1px solid ${color}40` }}>
+            <div key={col.year} style={{ minWidth: 0, border: `1px solid ${color}55`, borderRadius: 6, overflow: 'hidden', background: `${color}0a` }}>
+              <div style={{ padding: '8px 10px', fontSize: 13, fontWeight: 700, color, background: `${color}30`, textAlign: 'center', borderBottom: `1px solid ${color}55` }}>
                 {col.year}
               </div>
               <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 11 }}>
@@ -258,7 +260,7 @@ function MultiYearCalendarView({ trades, events }: { trades: RawTrade[]; events:
                   {col.months.map(mb => (
                     <MonthBlock key={mb.month} month={mb.month} weeks={mb.weeks} accent={color} />
                   ))}
-                  <tr style={{ borderTop: '2px solid var(--border)' }}>
+                  <tr style={{ borderTop: `2px solid ${color}55` }}>
                     <td colSpan={2} />
                     <td style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right', color: pnlColorCal(grandTotal), whiteSpace: 'nowrap' }}>{fmt$(grandTotal)}</td>
                     <td />
@@ -281,29 +283,29 @@ function MonthBlock({ month, weeks, accent }: { month: string; weeks: CalWeekRow
   return (
     <>
       {weeks.map((w, i) => (
-        <tr key={w.startDate} style={{ borderTop: '1px solid var(--border)' }}>
+        <tr key={w.startDate} style={{ borderTop: `1px solid ${accent}25` }}>
           {i === 0 && (
             <td rowSpan={weeks.length + 1} style={{
               padding: '4px 2px', fontSize: 9.5, fontWeight: 700, color: accent, writingMode: 'vertical-rl',
-              textAlign: 'center', borderRight: '1px solid var(--border)', verticalAlign: 'middle', letterSpacing: '0.05em',
+              textAlign: 'center', borderRight: `1px solid ${accent}25`, verticalAlign: 'middle', letterSpacing: '0.05em',
             }}>
               {month}
             </td>
           )}
-          <td style={{ padding: '4px 4px', textAlign: 'center', color: 'var(--text-5)', fontSize: 9.5 }}>
+          <td style={{ padding: '4px 4px', textAlign: 'center', color: 'var(--text-3)', fontSize: 9.5 }}>
             W{w.weekNum}
           </td>
-          <td style={{ padding: '4px 6px', textAlign: 'right', color: w.total === 0 ? 'var(--text-5)' : pnlColorCal(w.total), whiteSpace: 'nowrap' }}>
+          <td style={{ padding: '4px 6px', textAlign: 'right', color: w.total === 0 ? 'var(--text-4)' : pnlColorCal(w.total), whiteSpace: 'nowrap' }}>
             {w.total === 0 ? '—' : fmt$(w.total, 2)}
           </td>
-          <td style={{ padding: '4px 6px', color: 'var(--text-3)', fontSize: 10, overflow: 'hidden' }}>
+          <td style={{ padding: '4px 6px', color: 'var(--text-2)', fontSize: 10, overflow: 'hidden' }}>
             {w.notes.map((n, ni) => <div key={ni} style={{ color: accent, fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word' }}>{n}</div>)}
           </td>
         </tr>
       ))}
-      <tr style={{ borderTop: '1px solid var(--border)' }}>
+      <tr style={{ borderTop: `1px solid ${accent}25` }}>
         <td colSpan={2} />
-        <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{fmt$(subtotal, 2)}</td>
+        <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{fmt$(subtotal, 2)}</td>
         <td />
       </tr>
     </>
