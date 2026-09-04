@@ -137,6 +137,96 @@ function deriveEvents(strategies: Strategy[]): ExpiryEvent[] {
   )
 }
 
+// ─── Multi-year overview ─────────────────────────────────────────────────────
+
+/** Every leg-expiry event still ahead of today, one row per underlying/date/
+ * strategy combo — a LEAP's two legs (call+put) share both a date and an
+ * underlying, so they'd otherwise print as two separate entries in the same
+ * cell for what's really one combo. */
+function groupFutureEvents(events: ExpiryEvent[], todayStr: string) {
+  const future = events.filter(e => e.date >= todayStr)
+  const byKey = new Map<string, { date: string; underlying: string; strategyType: StrategyType; quantity: number; legs: ExpiryEvent[] }>()
+  for (const e of future) {
+    const key = `${e.date}|${e.underlying}|${e.strategyType}`
+    const g = byKey.get(key)
+    if (g) { g.quantity += Math.abs(e.quantity); g.legs.push(e) }
+    else byKey.set(key, { date: e.date, underlying: e.underlying, strategyType: e.strategyType, quantity: Math.abs(e.quantity), legs: [e] })
+  }
+  return [...byKey.values()].sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** Year-by-month grid spanning every year with at least one still-open
+ * expiry — built specifically to surface LEAP/risk-reversal combos, whose
+ * expiries can sit a year or more out and otherwise never show up on the
+ * month-at-a-time calendar view until they're almost due. Every other
+ * strategy's expiry is shown too (so a nearer-dated CSP/covered call isn't
+ * silently missing from the same overview), just visually secondary to the
+ * long-dated ones this view exists for. */
+function MultiYearCalendarView({ events }: { events: ExpiryEvent[] }) {
+  const todayStr = todayYMD()
+  const grouped = useMemo(() => groupFutureEvents(events, todayStr), [events, todayStr])
+
+  if (grouped.length === 0) {
+    return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-4)', fontSize: 13 }}>No upcoming expiries to show.</div>
+  }
+
+  const byYearMonth = new Map<string, typeof grouped>()
+  for (const g of grouped) {
+    const key = g.date.slice(0, 7) // YYYY-MM
+    if (!byYearMonth.has(key)) byYearMonth.set(key, [])
+    byYearMonth.get(key)!.push(g)
+  }
+  const years = [...new Set(grouped.map(g => Number(g.date.slice(0, 4))))]
+  const minYear = Math.min(...years), maxYear = Math.max(...years)
+  const yearRange = Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i)
+
+  return (
+    <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: 'left', padding: '6px 10px 6px 4px', fontSize: 11, color: 'var(--text-4)', letterSpacing: '0.06em' }}>YEAR</th>
+            {MONTHS.map(m => (
+              <th key={m} style={{ padding: '6px 4px', fontSize: 11, color: 'var(--text-4)', fontWeight: 600, letterSpacing: '0.06em', minWidth: 92 }}>
+                {m.slice(0, 3).toUpperCase()}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {yearRange.map(y => (
+            <tr key={y} style={{ borderTop: '1px solid var(--border)' }}>
+              <td style={{ padding: '10px 10px 10px 4px', fontWeight: 700, color: 'var(--text-1)', fontSize: 14, verticalAlign: 'top' }}>{y}</td>
+              {MONTHS.map((_, mi) => {
+                const key = `${y}-${String(mi + 1).padStart(2, '0')}`
+                const cellItems = byYearMonth.get(key) ?? []
+                return (
+                  <td key={mi} style={{ padding: '6px 4px', verticalAlign: 'top', borderLeft: '1px solid var(--border)' }}>
+                    {cellItems.map((g, i) => {
+                      const isLeap = g.strategyType === 'leap' || g.strategyType === 'risk_reversal'
+                      const day = g.date.slice(8, 10)
+                      return (
+                        <div key={i} title={g.legs.map(l => `${l.strike}${l.putCall}`).join(' / ')}
+                          style={{
+                            fontSize: 10.5, lineHeight: 1.5, marginBottom: 3, padding: '2px 5px', borderRadius: 3,
+                            background: `${STRAT_COLOR[g.strategyType]}18`, color: STRAT_COLOR[g.strategyType],
+                            fontWeight: isLeap ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          }}>
+                          {day} · {g.underlying} {g.quantity > 1 ? `${g.quantity}×` : ''} {STRAT_LABEL[g.strategyType]}
+                        </div>
+                      )
+                    })}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // ─── Build daily trade P&L ───────────────────────────────────────────────────
 
 function buildDailyTrades(trades: RawTrade[]): Record<string, DailyTradeData> {
@@ -601,6 +691,7 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
   const [year, setYear]     = useState(today.getFullYear())
   const [month, setMonth]   = useState(today.getMonth())
   const [selected, setSelected] = useState<string | null>(null)
+  const [view, setView] = useState<'month' | 'multiyear'>('month')
 
   // Reuses the same trade-labeling/auto-classification engine that drives
   // Journal/Reports (buildJournalPositions/buildStockPositions resolve each
@@ -749,6 +840,22 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
   return (
     <div className="calendar-page-root" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
+      {/* View toggle: single month grid vs. multi-year LEAP/expiry overview */}
+      <div style={{ display: 'flex', gap: 4, padding: '12px 20px 0', flexShrink: 0 }}>
+        <button onClick={() => setView('month')}
+          className={`tl-filter-chip${view === 'month' ? ' active' : ''}`} style={{ width: 'auto', padding: '5px 14px' }}>
+          Month
+        </button>
+        <button onClick={() => setView('multiyear')}
+          className={`tl-filter-chip${view === 'multiyear' ? ' active' : ''}`} style={{ width: 'auto', padding: '5px 14px' }}>
+          Multi-Year
+        </button>
+      </div>
+
+      {view === 'multiyear' ? (
+        <MultiYearCalendarView events={events} />
+      ) : (
+      <>
       {/* ── Top: Calendar + Sidebar ──────────────────────────────────────── */}
       <div className="calendar-layout" style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
 
@@ -873,6 +980,8 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
           <ActivitySidebar events={events} dailyTrades={dailyTrades} earningsByDateMap={earningsByDateMap} econEventMap={econEventMap} selectedDate={selected} year={year} month={month} />
         </div>
       </div>
+      </>
+      )}
 
     </div>
   )
