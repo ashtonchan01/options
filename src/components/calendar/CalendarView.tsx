@@ -142,14 +142,22 @@ function deriveEvents(strategies: Strategy[]): ExpiryEvent[] {
 /** Every leg-expiry event still ahead of today, one row per underlying/date/
  * strategy combo — a LEAP's two legs (call+put) share both a date and an
  * underlying, so they'd otherwise print as two separate entries in the same
- * cell for what's really one combo. */
+ * cell for what's really one combo.
+ *
+ * `quantity` is the contract count of the combo, NOT the sum of every leg's
+ * own quantity — a risk-reversal/synthetic-long's call leg and put leg are
+ * each already the full contract count (5 contracts = 5 calls + 5 puts, not
+ * 10 of anything), so summing them double-counted every combo (verified: a
+ * real 5-contract TSLA synthetic long showed "10x" on this calendar).
+ * Taking the max across legs instead gives the actual contract count
+ * regardless of how many legs the strategy has. */
 function groupFutureEvents(events: ExpiryEvent[], todayStr: string) {
   const future = events.filter(e => e.date >= todayStr)
   const byKey = new Map<string, { date: string; underlying: string; strategyType: StrategyType; quantity: number; legs: ExpiryEvent[] }>()
   for (const e of future) {
     const key = `${e.date}|${e.underlying}|${e.strategyType}`
     const g = byKey.get(key)
-    if (g) { g.quantity += Math.abs(e.quantity); g.legs.push(e) }
+    if (g) { g.quantity = Math.max(g.quantity, Math.abs(e.quantity)); g.legs.push(e) }
     else byKey.set(key, { date: e.date, underlying: e.underlying, strategyType: e.strategyType, quantity: Math.abs(e.quantity), legs: [e] })
   }
   return [...byKey.values()].sort((a, b) => a.date.localeCompare(b.date))
@@ -238,6 +246,22 @@ function MultiYearCalendarView({ trades, events }: { trades: RawTrade[]; events:
   const groupedEvents = useMemo(() => groupFutureEvents(events, '0000-00-00'), [events])
   const columns = useMemo(() => years.map(y => ({ year: y, months: buildCalYearWeeks(y, dailyTrades, groupedEvents) })), [years, dailyTrades, groupedEvents])
 
+  // Financial-year total (1 Jul of the previous calendar year – 30 Jun of
+  // this one) shown at the June boundary — the actual FY convention used
+  // elsewhere in the app (Reports' fyOf) ends in June, not December, so
+  // "the annual total" belongs there rather than only at the bottom of a
+  // Jan-Dec calendar-year column.
+  const fyTotalByYear = useMemo(() => {
+    const m = new Map<number, number>()
+    for (const y of years) {
+      const start = `${y - 1}-07-01`, end = `${y}-06-30`
+      let sum = 0
+      for (const [d, dt] of Object.entries(dailyTrades)) if (d >= start && d <= end) sum += dt.netCash
+      m.set(y, sum)
+    }
+    return m
+  }, [years, dailyTrades])
+
   return (
     <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns.length}, minmax(240px, 1fr))`, gap: 16, alignItems: 'start' }}>
@@ -258,10 +282,22 @@ function MultiYearCalendarView({ trades, events }: { trades: RawTrade[]; events:
                 </colgroup>
                 <tbody>
                   {col.months.map(mb => (
-                    <MonthBlock key={mb.month} month={mb.month} weeks={mb.weeks} accent={color} />
+                    <MonthBlock key={mb.month} month={mb.month} weeks={mb.weeks} accent={color}>
+                      {mb.month === 'JUN' && (
+                        <tr style={{ borderTop: `2px solid ${color}55` }}>
+                          <td colSpan={2} style={{ padding: '5px 6px', fontSize: 9.5, fontWeight: 700, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
+                            FY {col.year - 1}/{String(col.year).slice(-2)}
+                          </td>
+                          <td style={{ padding: '5px 6px', fontWeight: 700, textAlign: 'right', color: pnlColorCal(fyTotalByYear.get(col.year) ?? 0), whiteSpace: 'nowrap' }}>
+                            {fmt$(fyTotalByYear.get(col.year) ?? 0)}
+                          </td>
+                          <td />
+                        </tr>
+                      )}
+                    </MonthBlock>
                   ))}
                   <tr style={{ borderTop: `2px solid ${color}55` }}>
-                    <td colSpan={2} />
+                    <td colSpan={2} style={{ padding: '8px 6px', fontSize: 9.5, fontWeight: 700, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>Calendar {col.year}</td>
                     <td style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right', color: pnlColorCal(grandTotal), whiteSpace: 'nowrap' }}>{fmt$(grandTotal)}</td>
                     <td />
                   </tr>
@@ -277,7 +313,7 @@ function MultiYearCalendarView({ trades, events }: { trades: RawTrade[]; events:
 
 function pnlColorCal(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'var(--text-4)' }
 
-function MonthBlock({ month, weeks, accent }: { month: string; weeks: CalWeekRow[]; accent: string }) {
+function MonthBlock({ month, weeks, accent, children }: { month: string; weeks: CalWeekRow[]; accent: string; children?: React.ReactNode }) {
   if (weeks.length === 0) return null
   const subtotal = weeks.reduce((s, w) => s + w.total, 0)
   return (
@@ -298,8 +334,16 @@ function MonthBlock({ month, weeks, accent }: { month: string; weeks: CalWeekRow
           <td style={{ padding: '4px 6px', textAlign: 'right', color: w.total === 0 ? 'var(--text-4)' : pnlColorCal(w.total), whiteSpace: 'nowrap' }}>
             {w.total === 0 ? '—' : fmt$(w.total, 2)}
           </td>
-          <td style={{ padding: '4px 6px', color: 'var(--text-2)', fontSize: 10, overflow: 'hidden' }}>
-            {w.notes.map((n, ni) => <div key={ni} style={{ color: accent, fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word' }}>{n}</div>)}
+          {/* Single line, ellipsis-truncated with the full text in `title` —
+              letting notes stack into multiple lines per week (the first
+              pass) made row heights vary by how many expiries landed in a
+              given week, so no two year columns lined up vertically even
+              though they cover the same 52 weeks. A fixed one-line height
+              keeps every column the same total height regardless of note
+              content. */}
+          <td style={{ padding: '4px 6px', color: 'var(--text-2)', fontSize: 10, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
+            title={w.notes.length > 0 ? w.notes.join(' · ') : undefined}>
+            {w.notes.length > 0 && <span style={{ color: accent, fontWeight: 600 }}>{w.notes.join(' · ')}</span>}
           </td>
         </tr>
       ))}
@@ -308,6 +352,7 @@ function MonthBlock({ month, weeks, accent }: { month: string; weeks: CalWeekRow
         <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{fmt$(subtotal, 2)}</td>
         <td />
       </tr>
+      {children}
     </>
   )
 }
