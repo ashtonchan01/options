@@ -309,31 +309,18 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
               <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 11 }}>
                 <colgroup>
                   <col style={{ width: 16 }} />
-                  <col style={{ width: 20 }} />
-                  <col style={{ width: 56 }} />
+                  <col style={{ width: 76 }} />
                   <col />
                 </colgroup>
                 <tbody>
                   {col.months.map(mb => (
                     <MonthBlock key={mb.month} month={mb.month} weeks={mb.weeks} accent={color}>
                       {mb.month === 'JUN' && (
-                        <tr style={{ borderTop: `2px solid ${color}55` }}>
-                          <td colSpan={2} style={{ padding: '5px 4px', fontSize: 9, fontWeight: 700, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
-                            FY {col.year - 1}/{String(col.year).slice(-2)}
-                          </td>
-                          <td style={{ padding: '5px 4px', fontSize: 10, fontWeight: 700, textAlign: 'right', color: pnlColorCal(fyTotalByYear.get(col.year) ?? 0), whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                            {fmt$(fyTotalByYear.get(col.year) ?? 0)}
-                          </td>
-                          <td />
-                        </tr>
+                        <TotalRow label={`FY ${col.year - 1}/${String(col.year).slice(-2)}`} value={fyTotalByYear.get(col.year) ?? 0} accent={color} />
                       )}
                     </MonthBlock>
                   ))}
-                  <tr style={{ borderTop: `2px solid ${color}55` }}>
-                    <td colSpan={2} style={{ padding: '8px 4px', fontSize: 9, fontWeight: 700, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>Calendar {col.year}</td>
-                    <td style={{ padding: '8px 4px', fontSize: 10, fontWeight: 700, textAlign: 'right', color: pnlColorCal(grandTotal), whiteSpace: 'nowrap', overflow: 'hidden' }}>{fmt$(grandTotal)}</td>
-                    <td />
-                  </tr>
+                  <TotalRow label={`Calendar ${col.year}`} value={grandTotal} accent={color} bold />
                 </tbody>
               </table>
             </div>
@@ -346,65 +333,108 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
 
 function pnlColorCal(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'var(--text-4)' }
 
+/** A week-range row for the merged week+total column — a run of one active
+ * week (real P&L or a note) or several consecutive blank weeks folded into
+ * one line ("W41–44 —") instead of one row per week regardless of content. */
+interface WeekRun { weeks: CalWeekRow[]; active: boolean }
+
+function groupRuns(weeks: CalWeekRow[]): WeekRun[] {
+  const runs: WeekRun[] = []
+  for (const w of weeks) {
+    const active = w.total !== 0 || w.notes.length > 0
+    const last = runs[runs.length - 1]
+    if (!active && last && !last.active) last.weeks.push(w)
+    else runs.push({ weeks: [w], active })
+  }
+  return runs
+}
+
+/** One month's rows — every run of consecutive blank weeks (no realized P&L,
+ * no expiry landing in them) collapses into a single line instead of one row
+ * per week regardless of content, which used to burn most of a column's
+ * height on rows that never said anything. An active week keeps its own row
+ * so its note text still gets full room. */
 function MonthBlock({ month, weeks, accent, children }: { month: string; weeks: CalWeekRow[]; accent: string; children?: React.ReactNode }) {
   if (weeks.length === 0) return null
   const subtotal = weeks.reduce((s, w) => s + w.total, 0)
+  const runs = groupRuns(weeks)
   return (
     <>
-      {weeks.map((w, i) => (
-        <tr key={w.startDate} style={{ borderTop: `1px solid ${accent}25` }}>
-          {i === 0 && (
-            <td rowSpan={weeks.length + 1} style={{
-              padding: '4px 1px', fontSize: 9, fontWeight: 700, color: accent, writingMode: 'vertical-rl',
-              textAlign: 'center', borderRight: `1px solid ${accent}25`, verticalAlign: 'middle', letterSpacing: '0.02em',
-            }}>
-              {month}
+      {runs.map((run, i) => {
+        const w = run.weeks[0]
+        const weekLabel = run.weeks.length > 1 ? `W${w.weekNum}–${run.weeks[run.weeks.length - 1].weekNum}` : `W${w.weekNum}`
+        return (
+          <tr key={w.startDate} style={{ borderTop: `1px solid ${accent}25` }}>
+            {i === 0 && (
+              <td rowSpan={runs.length + 1} style={{
+                padding: '4px 1px', fontSize: 9, fontWeight: 700, color: accent, writingMode: 'vertical-rl',
+                textAlign: 'center', borderRight: `1px solid ${accent}25`, verticalAlign: 'middle', letterSpacing: '0.02em',
+              }}>
+                {month}
+              </td>
+            )}
+            {/* Week label + total merged into one column instead of two —
+                a blank run's "W41–44" label needs the room a standalone
+                narrow week-number column never had anyway. */}
+            <td style={{ padding: '4px 4px', fontSize: 9.5, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+              <span style={{ color: 'var(--text-4)' }}>{weekLabel}</span>
+              {run.active && (
+                <span style={{ float: 'right', fontSize: 10, color: pnlColorCal(w.total) }}>{fmt$(w.total)}</span>
+              )}
             </td>
-          )}
-          <td style={{ padding: '4px 2px', textAlign: 'center', color: 'var(--text-3)', fontSize: 9 }}>
-            W{w.weekNum}
-          </td>
-          {/* Whole-dollar (no cents) — the slimmer 56px column this frees
-              up for Notes wouldn't otherwise fit a wide negative figure
-              like "-$102,123.50" without clipping or overflowing into the
-              next cell. */}
-          <td style={{ padding: '4px 4px', textAlign: 'right', fontSize: 10, color: w.total === 0 ? 'var(--text-4)' : pnlColorCal(w.total), whiteSpace: 'nowrap', overflow: 'hidden' }}>
-            {w.total === 0 ? '—' : fmt$(w.total)}
-          </td>
-          {/* Fixed 2-line-tall clamp (not a single nowrap line) — a single
-              line truncated too eagerly (a real NVDA CSP expiry sharing a
-              week with a GOOGL one went invisible, cut off by the ellipsis
-              with no visual sign there was more). Every row reserves the
-              same 2-line height whether or not it has notes, so columns
-              still all line up — unlike letting notes freely stack into
-              as many lines as they need, which was the original bug this
-              traded off against. Only a week busier than 2 lines' worth
-              still ellipsizes, with the full list in `title`. */}
-          <td style={{ padding: '4px 6px', height: 24 }}
-            title={w.notes.length > 0 ? w.notes.join(' · ') : undefined}>
-            {/* The clamp lives on this inner div, not the <td> itself —
-                putting display:-webkit-box directly on a table cell breaks
-                its normal table-cell width behavior (it shrinks to its own
-                content's intrinsic width instead of stretching to fill the
-                cell), which is what left a blank strip of unused space to
-                the right of shorter note text even though the cell had
-                plenty of room. */}
-            <div style={{
-              width: '100%', color: 'var(--text-2)', fontSize: 10, overflow: 'hidden',
-              lineHeight: '12px', display: '-webkit-box' as const, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-            }}>
-              {w.notes.length > 0 && <span style={{ color: accent, fontWeight: 600 }}>{w.notes.join(' · ')}</span>}
-            </div>
-          </td>
-        </tr>
-      ))}
+            {/* Fixed 2-line-tall clamp (not a single nowrap line) — a single
+                line truncated too eagerly (a real NVDA CSP expiry sharing a
+                week with a GOOGL one went invisible, cut off by the ellipsis
+                with no visual sign there was more). Every row reserves the
+                same 2-line height whether or not it has notes, so columns
+                still all line up — unlike letting notes freely stack into
+                as many lines as they need, which was the original bug this
+                traded off against. Only a week busier than 2 lines' worth
+                still ellipsizes, with the full list in `title`. */}
+            <td style={{ padding: '4px 6px', height: 24 }}
+              title={w.notes.length > 0 ? w.notes.join(' · ') : undefined}>
+              {/* The clamp lives on this inner div, not the <td> itself —
+                  putting display:-webkit-box directly on a table cell breaks
+                  its normal table-cell width behavior (it shrinks to its own
+                  content's intrinsic width instead of stretching to fill the
+                  cell), which is what left a blank strip of unused space to
+                  the right of shorter note text even though the cell had
+                  plenty of room. */}
+              <div style={{
+                width: '100%', color: 'var(--text-2)', fontSize: 10, overflow: 'hidden',
+                lineHeight: '12px', display: '-webkit-box' as const, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+              }}>
+                {w.notes.length > 0 && <span style={{ color: accent, fontWeight: 600 }}>{w.notes.join(' · ')}</span>}
+              </div>
+            </td>
+          </tr>
+        )
+      })}
       <tr style={{ borderTop: `1px solid ${accent}25` }}>
-        <td colSpan={2} />
-        <td style={{ padding: '4px 4px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap', overflow: 'hidden' }}>{fmt$(subtotal)}</td>
+        <td style={{ padding: '4px 4px', fontSize: 9.5, textAlign: 'right', fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap', overflow: 'hidden' }}>{fmt$(subtotal)}</td>
         <td />
       </tr>
       {children}
     </>
+  )
+}
+
+/** A financial-year or calendar-year total, full row width — label and
+ * value in one flex row inside a single `colSpan`-ed cell (never the
+ * `display:-webkit-box`-on-a-`<td>` mistake from the Notes clamp: this uses
+ * an inner div, same reasoning) rather than confined to the narrow week/
+ * total column, which wasn't wide enough for "FY 2026/27" plus its value
+ * and made the two visibly overlap. */
+function TotalRow({ label, value, accent, bold }: { label: string; value: number; accent: string; bold?: boolean }) {
+  return (
+    <tr style={{ borderTop: `2px solid ${accent}55` }}>
+      <td colSpan={3} style={{ padding: bold ? '8px 6px' : '5px 6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{label}</span>
+          <span style={{ fontSize: bold ? 11 : 10, fontWeight: 700, color: pnlColorCal(value), whiteSpace: 'nowrap' }}>{fmt$(value)}</span>
+        </div>
+      </td>
+    </tr>
   )
 }
 
