@@ -6,7 +6,7 @@ import { HOLIDAY_MAP } from '../../data/marketHolidays'
 import { fetchEarningsDates, earningsByDate } from '../../services/earnings'
 import { fetchFomcDates } from '../../services/fomc'
 import { buildEconEventMap, type EconEvent } from '../../data/economicEvents'
-import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
+import { buildJournalPositions, buildStockPositions, type JournalPosition } from '../../engine/journal'
 import { tradeId } from '../../store/tradeLabelsStore'
 import { STRAT_ORDER, stratLabel } from '../companies/reportsShared'
 
@@ -192,13 +192,33 @@ interface CalWeekRow {
   notes: string[]
 }
 
+/** Realized P&L by close date, summed per day — the same figure Reports'
+ * Company P&L/Monthly Income pages show (buildJournalPositions/
+ * buildStockPositions' own `pnl`, closed positions only), NOT raw trade cash
+ * flow by trade date. Those two numbers can look wildly different for the
+ * same period: buying $100K of stock is a $100K cash outflow the day it
+ * happens, but zero P&L until the position is actually closed — verified
+ * against a real account where a single MSTR share purchase made a week
+ * look like a $101K loss on the old cash-flow total, when Reports' own
+ * realized figure for the same financial year was +$44K. Using the same
+ * source Reports uses keeps this calendar's numbers reconcilable with it. */
+function buildDailyRealizedPnl(positions: JournalPosition[]): Record<string, number> {
+  const map: Record<string, number> = {}
+  for (const p of positions) {
+    if (p.pnl == null || !p.dateClosed) continue
+    const d = normalizeDate(p.dateClosed)
+    map[d] = (map[d] ?? 0) + p.pnl
+  }
+  return map
+}
+
 /** Every Monday-start week of one calendar year (Jan–Dec), each carrying its
- * trade cash-flow total and a Notes list of key dates landing in it — LEAP/
+ * realized-P&L total and a Notes list of key dates landing in it — LEAP/
  * risk-reversal combos are called out by name (mirroring a manual weekly P&L
  * ledger's own "4x TSLA Syn Long" / "TSLA Expiry" annotations), same as
  * every other strategy's expiry, so a long-dated LEAP doesn't just look like
  * an unexplained lump in the Total column a year from now. */
-function buildCalYearWeeks(year: number, dailyTrades: Record<string, DailyTradeData>, groupedEvents: ReturnType<typeof groupFutureEvents>): { month: string; weeks: CalWeekRow[] }[] {
+function buildCalYearWeeks(year: number, dailyPnl: Record<string, number>, groupedEvents: ReturnType<typeof groupFutureEvents>): { month: string; weeks: CalWeekRow[] }[] {
   const yearStart = new Date(year, 0, 1)
   const yearEnd = new Date(year + 1, 0, 1)
   let monday = new Date(yearStart)
@@ -214,7 +234,7 @@ function buildCalYearWeeks(year: number, dailyTrades: Record<string, DailyTradeD
     const notes: string[] = []
     for (let d = new Date(monday); d <= sunday; d.setDate(d.getDate() + 1)) {
       const ds = d.toISOString().slice(0, 10)
-      total += dailyTrades[ds]?.netCash ?? 0
+      total += dailyPnl[ds] ?? 0
     }
     for (const g of groupedEvents) {
       if (g.date < startDate || g.date > endDate) continue
@@ -240,8 +260,8 @@ function buildCalYearWeeks(year: number, dailyTrades: Record<string, DailyTradeD
  * long combo's expiry — routinely a year or more out — shows up as a named
  * annotation on the week it lands in, long before the month-at-a-time
  * Calendar view would ever surface it. */
-function MultiYearCalendarView({ trades, events }: { trades: RawTrade[]; events: ExpiryEvent[] }) {
-  const dailyTrades = useMemo(() => buildDailyTrades(trades), [trades])
+function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade[]; events: ExpiryEvent[]; positions: JournalPosition[] }) {
+  const dailyPnl = useMemo(() => buildDailyRealizedPnl(positions), [positions])
 
   // 2025-2029 by default (a fixed 5-year window is easier to scan than one
   // that reshuffles as trades/events come and go) — widened only if real
@@ -257,7 +277,7 @@ function MultiYearCalendarView({ trades, events }: { trades: RawTrade[]; events:
   }, [trades, events])
 
   const groupedEvents = useMemo(() => groupFutureEvents(events, '0000-00-00'), [events])
-  const columns = useMemo(() => years.map(y => ({ year: y, months: buildCalYearWeeks(y, dailyTrades, groupedEvents) })), [years, dailyTrades, groupedEvents])
+  const columns = useMemo(() => years.map(y => ({ year: y, months: buildCalYearWeeks(y, dailyPnl, groupedEvents) })), [years, dailyPnl, groupedEvents])
 
   // Financial-year total (1 Jul of the previous calendar year – 30 Jun of
   // this one) shown at the June boundary — the actual FY convention used
@@ -269,11 +289,11 @@ function MultiYearCalendarView({ trades, events }: { trades: RawTrade[]; events:
     for (const y of years) {
       const start = `${y - 1}-07-01`, end = `${y}-06-30`
       let sum = 0
-      for (const [d, dt] of Object.entries(dailyTrades)) if (d >= start && d <= end) sum += dt.netCash
+      for (const [d, pnl] of Object.entries(dailyPnl)) if (d >= start && d <= end) sum += pnl
       m.set(y, sum)
     }
     return m
-  }, [years, dailyTrades])
+  }, [years, dailyPnl])
 
   return (
     <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
@@ -356,12 +376,21 @@ function MonthBlock({ month, weeks, accent, children }: { month: string; weeks: 
               as many lines as they need, which was the original bug this
               traded off against. Only a week busier than 2 lines' worth
               still ellipsizes, with the full list in `title`. */}
-          <td style={{
-            padding: '4px 6px', color: 'var(--text-2)', fontSize: 10, overflow: 'hidden',
-            height: 24, lineHeight: '12px', display: '-webkit-box' as const, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-          }}
+          <td style={{ padding: '4px 6px', height: 24 }}
             title={w.notes.length > 0 ? w.notes.join(' · ') : undefined}>
-            {w.notes.length > 0 && <span style={{ color: accent, fontWeight: 600 }}>{w.notes.join(' · ')}</span>}
+            {/* The clamp lives on this inner div, not the <td> itself —
+                putting display:-webkit-box directly on a table cell breaks
+                its normal table-cell width behavior (it shrinks to its own
+                content's intrinsic width instead of stretching to fill the
+                cell), which is what left a blank strip of unused space to
+                the right of shorter note text even though the cell had
+                plenty of room. */}
+            <div style={{
+              width: '100%', color: 'var(--text-2)', fontSize: 10, overflow: 'hidden',
+              lineHeight: '12px', display: '-webkit-box' as const, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+            }}>
+              {w.notes.length > 0 && <span style={{ color: accent, fontWeight: 600 }}>{w.notes.join(' · ')}</span>}
+            </div>
           </td>
         </tr>
       ))}
@@ -850,11 +879,11 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
   // position's tradeIds gets that position's strategy; a trade in no
   // position at all (shouldn't normally happen) falls back to 'unlabelled'.
   const labels = tradeLabels?.labels ?? {}
+  const positions = useMemo(() => [
+    ...buildJournalPositions(state.sync.trades, labels),
+    ...buildStockPositions(state.sync.trades, labels),
+  ], [state.sync.trades, labels])
   const tradeStrategy = useMemo(() => {
-    const positions = [
-      ...buildJournalPositions(state.sync.trades, labels),
-      ...buildStockPositions(state.sync.trades, labels),
-    ]
     const map = new Map<string, string>()
     for (const p of positions) for (const id of p.tradeIds) map.set(id, p.strategy ?? 'unlabelled')
     // FX conversions (assetClass CASH) aren't options or stock, so neither
@@ -869,7 +898,7 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
       map.set(id, labels[id] ?? 'forex')
     }
     return map
-  }, [state.sync.trades, labels])
+  }, [positions, state.sync.trades, labels])
 
   const availableStrategies = useMemo(() => {
     const present = new Set(tradeStrategy.values())
@@ -1083,7 +1112,7 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
       </div>
 
       {view === 'multiyear' ? (
-        <MultiYearCalendarView trades={state.sync.trades} events={events} />
+        <MultiYearCalendarView trades={state.sync.trades} events={events} positions={positions} />
       ) : (
       <>
       {/* ── Top: Calendar + Sidebar ──────────────────────────────────────── */}
