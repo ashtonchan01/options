@@ -284,6 +284,22 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
   const groupedEvents = useMemo(() => groupFutureEvents(events, '0000-00-00'), [events])
   const columns = useMemo(() => years.map(y => ({ year: y, months: buildCalYearWeeks(y, dailyPnl, groupedEvents) })), [years, dailyPnl, groupedEvents])
 
+  // Merging consecutive blank weeks into one row (see groupRuns) means a
+  // busier year's October and a quiet year's October don't produce the same
+  // number of rows — fixing each row's own height (ROW_HEIGHT) stopped a
+  // note-heavy row from being taller than a blank one, but columns still
+  // drifted apart month to month since one column's month block could
+  // simply have MORE rows than another's. Padding every column's month to
+  // the tallest column's row count for that month (with blank filler rows)
+  // keeps every month starting at the same running height across columns.
+  const maxRunsByMonth = useMemo(() => {
+    const max = new Array(12).fill(1)
+    for (const col of columns) {
+      col.months.forEach((mb, i) => { max[i] = Math.max(max[i], groupRuns(mb.weeks).length) })
+    }
+    return max
+  }, [columns])
+
   // Financial-year total (1 Jul of the previous calendar year – 30 Jun of
   // this one) shown at the June boundary — the actual FY convention used
   // elsewhere in the app (Reports' fyOf) ends in June, not December, so
@@ -318,8 +334,8 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
                   <col />
                 </colgroup>
                 <tbody>
-                  {col.months.map(mb => (
-                    <MonthBlock key={mb.month} month={mb.month} weeks={mb.weeks} accent={color}>
+                  {col.months.map((mb, mi) => (
+                    <MonthBlock key={mb.month} month={mb.month} weeks={mb.weeks} accent={color} padTo={maxRunsByMonth[mi]}>
                       {mb.month === 'JUN' && (
                         <TotalRow label={`FY ${col.year - 1}/${String(col.year).slice(-2)}`} value={fyTotalByYear.get(col.year) ?? 0} accent={color} />
                       )}
@@ -359,10 +375,15 @@ function groupRuns(weeks: CalWeekRow[]): WeekRun[] {
  * per week regardless of content, which used to burn most of a column's
  * height on rows that never said anything. An active week keeps its own row
  * so its note text still gets full room. */
-function MonthBlock({ month, weeks, accent, children }: { month: string; weeks: CalWeekRow[]; accent: string; children?: React.ReactNode }) {
+function MonthBlock({ month, weeks, accent, padTo, children }: { month: string; weeks: CalWeekRow[]; accent: string; padTo?: number; children?: React.ReactNode }) {
   if (weeks.length === 0) return null
   const subtotal = weeks.reduce((s, w) => s + w.total, 0)
   const runs = groupRuns(weeks)
+  // Blank filler rows up to `padTo` — see the maxRunsByMonth comment where
+  // this is computed: a busier year's same month has more rows than a
+  // quiet year's, so every column pads out to the tallest one for that
+  // month, keeping every month's starting height the same across columns.
+  const fillerCount = Math.max(0, (padTo ?? runs.length) - runs.length)
   return (
     <>
       {runs.map((run, i) => {
@@ -371,7 +392,7 @@ function MonthBlock({ month, weeks, accent, children }: { month: string; weeks: 
         return (
           <tr key={w.startDate} style={{ borderTop: `1px solid ${accent}25` }}>
             {i === 0 && (
-              <td rowSpan={runs.length + 1} style={{
+              <td rowSpan={runs.length + fillerCount + 1} style={{
                 padding: '4px 1px', fontSize: 9, fontWeight: 700, color: accent, writingMode: 'vertical-rl',
                 textAlign: 'center', borderRight: `1px solid ${accent}25`, verticalAlign: 'middle', letterSpacing: '0.02em',
               }}>
@@ -425,6 +446,12 @@ function MonthBlock({ month, weeks, accent, children }: { month: string; weeks: 
           </tr>
         )
       })}
+      {Array.from({ length: fillerCount }, (_, i) => (
+        <tr key={`filler-${i}`} style={{ borderTop: `1px solid ${accent}25` }}>
+          <td><div style={{ height: ROW_HEIGHT }} /></td>
+          <td><div style={{ height: ROW_HEIGHT }} /></td>
+        </tr>
+      ))}
       <tr style={{ borderTop: `1px solid ${accent}25` }}>
         <td style={{ padding: '4px 4px', fontSize: 9.5, textAlign: 'right', fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap', overflow: 'hidden' }}>{fmt$(subtotal)}</td>
         <td />
