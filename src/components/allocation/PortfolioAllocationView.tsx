@@ -288,9 +288,13 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
   // left to give). LABEL_MARGIN is a width-only floor (not min(W,H), which
   // caused the exact aspect-ratio degeneration this used to avoid) on how
   // much of each side's margin the ring is allowed to eat into. Widened
-  // (46->60, 58->70) — a real "GOOGL 12.3%"-length label still didn't
-  // reliably fit within the old margin on a cramped mobile panel.
-  const LABEL_MARGIN = tightLabels ? 60 : 70
+  // (46->60/74, 58->70) — a real "GOOGL 12.3%"-length label still didn't
+  // reliably fit within the old margin on a cramped mobile panel, and the
+  // Allocation page's own two-pie-per-row layout (each roughly half a
+  // phone's width even after stacking to one column, since each pie still
+  // sits in its own padded "panel" box) needed a third, narrower tier.
+  const veryTight = W < 380
+  const LABEL_MARGIN = veryTight ? 74 : tightLabels ? 60 : 70
   const outerR = Math.max(28, Math.min(Math.min(W, H) * 0.32, W / 2 - 22 - LABEL_MARGIN))
   // A thin ring with a big open hole — was a near-solid disc before, which
   // left almost no room for the center value once the disc grew to fill
@@ -361,7 +365,7 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
               fill="none" stroke="var(--text-5)" strokeWidth={0.75}
             />
             <text x={textX} y={w.idealY} dy={3} textAnchor={w.side === 'right' ? 'start' : 'end'}
-              fontSize={tightLabels ? '11' : '12.5'} fontFamily="Inter, sans-serif" fontWeight={600} fill="var(--text-2)">
+              fontSize={veryTight ? '9.5' : tightLabels ? '11' : '12.5'} fontFamily="Inter, sans-serif" fontWeight={600} fill="var(--text-2)">
               {w.label}
               <tspan fill="var(--text-4)" fontWeight={400}> {labelMode === 'pct' ? `${(w.frac * 100).toFixed(1)}%` : fmt$(w.value)}</tspan>
               {!tightLabels && w.shares != null && w.shares !== 0 && (
@@ -602,7 +606,12 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
               W:H ratio depending on the viewport, at worst floor-clamping
               to a barely-visible ring. Keeping height proportional to
               width keeps that math sane at any screen size. */}
-          <div style={{ width: '100%', aspectRatio: '4 / 3', overflow: 'hidden' }}>
+          {/* overflow left visible (not hidden) — the outer "panel" div has
+              no overflow of its own, so a label that runs a few px past
+              this box's edge (the margin math is a close estimate, not a
+              text-measuring guarantee) now just bleeds into the panel's
+              own padding instead of being hard-clipped mid-word. */}
+          <div style={{ width: '100%', aspectRatio: '4 / 3', overflow: 'visible' }}>
             <PortfolioPie slices={currentSlices} centerLabel="Current" centerValue={fmt$(currentTotal)} labelMode={labelMode} />
           </div>
         </div>
@@ -616,7 +625,12 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
               W:H ratio depending on the viewport, at worst floor-clamping
               to a barely-visible ring. Keeping height proportional to
               width keeps that math sane at any screen size. */}
-          <div style={{ width: '100%', aspectRatio: '4 / 3', overflow: 'hidden' }}>
+          {/* overflow left visible (not hidden) — the outer "panel" div has
+              no overflow of its own, so a label that runs a few px past
+              this box's edge (the margin math is a close estimate, not a
+              text-measuring guarantee) now just bleeds into the panel's
+              own padding instead of being hard-clipped mid-word. */}
+          <div style={{ width: '100%', aspectRatio: '4 / 3', overflow: 'visible' }}>
             <PortfolioPie slices={targetSlices} centerLabel="Target" centerValue={fmt$(targetAllocatedTotal)} labelMode={labelMode} />
           </div>
         </div>
