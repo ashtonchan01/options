@@ -246,10 +246,14 @@ function buildCalYearWeeks(year: number, dailyPnl: Record<string, number>, group
       const isLeap = g.strategyType === 'leap' || g.strategyType === 'risk_reversal'
       notes.push(`${g.quantity > 1 ? `${g.quantity}x ` : ''}${g.underlying} ${isLeap ? 'Syn Long Expiry' : `${STRAT_LABEL[g.strategyType]} Expiry`}`)
     }
-    // Bucket by the month containing the Monday of this week — matches how
-    // a manual weekly ledger groups week rows under one month header even
-    // when the week itself spans a month boundary.
-    const bucketMonth = monday.getFullYear() === year ? monday.getMonth() : 0
+    // Bucket by the month containing the Thursday of this week (the ISO
+    // 8601 convention — whichever month holds the majority, 4 of 7, of the
+    // week's days) rather than the Monday: a week starting near month-end
+    // has most of its days in the NEXT month, so bucketing by its Monday
+    // alone put it under the wrong month header (verified: a real week
+    // straddling Aug 31/Sep 1 was expected under September, not August).
+    const thursday = new Date(monday); thursday.setDate(thursday.getDate() + 3)
+    const bucketMonth = thursday.getFullYear() === year ? thursday.getMonth() : (thursday.getFullYear() < year ? 0 : 11)
     if (!byMonth.has(bucketMonth)) byMonth.set(bucketMonth, [])
     byMonth.get(bucketMonth)!.push({ weekNum: isoWeek(monday), startDate, endDate, total, notes })
     monday = new Date(monday); monday.setDate(monday.getDate() + 7)
