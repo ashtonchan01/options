@@ -308,9 +308,9 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
               </div>
               <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 11 }}>
                 <colgroup>
-                  <col style={{ width: 26 }} />
-                  <col style={{ width: 32 }} />
-                  <col style={{ width: 70 }} />
+                  <col style={{ width: 16 }} />
+                  <col style={{ width: 20 }} />
+                  <col style={{ width: 56 }} />
                   <col />
                 </colgroup>
                 <tbody>
@@ -318,10 +318,10 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
                     <MonthBlock key={mb.month} month={mb.month} weeks={mb.weeks} accent={color}>
                       {mb.month === 'JUN' && (
                         <tr style={{ borderTop: `2px solid ${color}55` }}>
-                          <td colSpan={2} style={{ padding: '5px 6px', fontSize: 9.5, fontWeight: 700, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
+                          <td colSpan={2} style={{ padding: '5px 4px', fontSize: 9, fontWeight: 700, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
                             FY {col.year - 1}/{String(col.year).slice(-2)}
                           </td>
-                          <td style={{ padding: '5px 6px', fontWeight: 700, textAlign: 'right', color: pnlColorCal(fyTotalByYear.get(col.year) ?? 0), whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '5px 4px', fontSize: 10, fontWeight: 700, textAlign: 'right', color: pnlColorCal(fyTotalByYear.get(col.year) ?? 0), whiteSpace: 'nowrap', overflow: 'hidden' }}>
                             {fmt$(fyTotalByYear.get(col.year) ?? 0)}
                           </td>
                           <td />
@@ -330,8 +330,8 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
                     </MonthBlock>
                   ))}
                   <tr style={{ borderTop: `2px solid ${color}55` }}>
-                    <td colSpan={2} style={{ padding: '8px 6px', fontSize: 9.5, fontWeight: 700, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>Calendar {col.year}</td>
-                    <td style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'right', color: pnlColorCal(grandTotal), whiteSpace: 'nowrap' }}>{fmt$(grandTotal)}</td>
+                    <td colSpan={2} style={{ padding: '8px 4px', fontSize: 9, fontWeight: 700, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>Calendar {col.year}</td>
+                    <td style={{ padding: '8px 4px', fontSize: 10, fontWeight: 700, textAlign: 'right', color: pnlColorCal(grandTotal), whiteSpace: 'nowrap', overflow: 'hidden' }}>{fmt$(grandTotal)}</td>
                     <td />
                   </tr>
                 </tbody>
@@ -355,17 +355,21 @@ function MonthBlock({ month, weeks, accent, children }: { month: string; weeks: 
         <tr key={w.startDate} style={{ borderTop: `1px solid ${accent}25` }}>
           {i === 0 && (
             <td rowSpan={weeks.length + 1} style={{
-              padding: '4px 2px', fontSize: 9.5, fontWeight: 700, color: accent, writingMode: 'vertical-rl',
-              textAlign: 'center', borderRight: `1px solid ${accent}25`, verticalAlign: 'middle', letterSpacing: '0.05em',
+              padding: '4px 1px', fontSize: 9, fontWeight: 700, color: accent, writingMode: 'vertical-rl',
+              textAlign: 'center', borderRight: `1px solid ${accent}25`, verticalAlign: 'middle', letterSpacing: '0.02em',
             }}>
               {month}
             </td>
           )}
-          <td style={{ padding: '4px 4px', textAlign: 'center', color: 'var(--text-3)', fontSize: 9.5 }}>
+          <td style={{ padding: '4px 2px', textAlign: 'center', color: 'var(--text-3)', fontSize: 9 }}>
             W{w.weekNum}
           </td>
-          <td style={{ padding: '4px 6px', textAlign: 'right', color: w.total === 0 ? 'var(--text-4)' : pnlColorCal(w.total), whiteSpace: 'nowrap' }}>
-            {w.total === 0 ? '—' : fmt$(w.total, 2)}
+          {/* Whole-dollar (no cents) — the slimmer 56px column this frees
+              up for Notes wouldn't otherwise fit a wide negative figure
+              like "-$102,123.50" without clipping or overflowing into the
+              next cell. */}
+          <td style={{ padding: '4px 4px', textAlign: 'right', fontSize: 10, color: w.total === 0 ? 'var(--text-4)' : pnlColorCal(w.total), whiteSpace: 'nowrap', overflow: 'hidden' }}>
+            {w.total === 0 ? '—' : fmt$(w.total)}
           </td>
           {/* Fixed 2-line-tall clamp (not a single nowrap line) — a single
               line truncated too eagerly (a real NVDA CSP expiry sharing a
@@ -396,7 +400,7 @@ function MonthBlock({ month, weeks, accent, children }: { month: string; weeks: 
       ))}
       <tr style={{ borderTop: `1px solid ${accent}25` }}>
         <td colSpan={2} />
-        <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{fmt$(subtotal, 2)}</td>
+        <td style={{ padding: '4px 4px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap', overflow: 'hidden' }}>{fmt$(subtotal)}</td>
         <td />
       </tr>
       {children}
