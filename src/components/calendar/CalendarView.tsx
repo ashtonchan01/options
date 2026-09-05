@@ -323,8 +323,19 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
           const grandTotal = col.months.reduce((s, m) => s + m.weeks.reduce((s2, w) => s2 + w.total, 0), 0)
           const color = YEAR_COLORS[ci % YEAR_COLORS.length]
           return (
-            <div key={col.year} style={{ minWidth: 0, border: `1px solid ${color}55`, borderRadius: 6, overflow: 'hidden', background: `${color}0a` }}>
-              <div style={{ padding: '8px 10px', fontSize: 13, fontWeight: 700, color, background: `${color}30`, textAlign: 'center', borderBottom: `1px solid ${color}55` }}>
+            <div key={col.year} style={{
+              minWidth: 0, border: `1px solid ${color}55`, borderRadius: 6, overflow: 'hidden',
+              // Layered over var(--bg-card) (the same lighter panel
+              // background the Journal tab's cards use) instead of the
+              // page's own near-black surface underneath, which is what
+              // made this view read noticeably darker/flatter than the
+              // rest of the app.
+              background: `linear-gradient(${color}16, ${color}16), var(--bg-card)`,
+            }}>
+              <div style={{
+                padding: '8px 10px', fontSize: 13, fontWeight: 700, color, textAlign: 'center', borderBottom: `1px solid ${color}55`,
+                background: `linear-gradient(${color}38, ${color}38), var(--bg-elevated)`,
+              }}>
                 {col.year}
               </div>
               <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 11 }}>
