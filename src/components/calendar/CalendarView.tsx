@@ -390,13 +390,23 @@ function MonthBlock({ month, weeks, accent, padTo, children }: { month: string; 
         const w = run.weeks[0]
         const weekLabel = run.weeks.length > 1 ? `W${w.weekNum}–${run.weeks[run.weeks.length - 1].weekNum}` : `W${w.weekNum}`
         return (
-          <tr key={w.startDate} style={{ borderTop: `1px solid ${accent}25` }}>
+          // A thicker top border marks the boundary between one month and
+          // the next (i===0), so months read as clearly separate blocks;
+          // the thin one still separates plain weeks within a month.
+          <tr key={w.startDate} style={{ borderTop: i === 0 ? `2px solid ${accent}70` : `1px solid ${accent}25` }}>
             {i === 0 && (
               <td rowSpan={runs.length + fillerCount + 1} style={{
-                padding: '4px 1px', fontSize: 9, fontWeight: 700, color: accent, writingMode: 'vertical-rl',
+                padding: '4px 1px', fontSize: 9, fontWeight: 700, color: accent,
                 textAlign: 'center', borderRight: `1px solid ${accent}25`, verticalAlign: 'middle', letterSpacing: '0.02em',
               }}>
-                {month}
+                {/* Rotated via transform (not writing-mode: vertical-rl) so
+                    it reads counter-clockwise, bottom-to-top, instead of
+                    clockwise/top-to-bottom — vertical-rl's default glyph
+                    orientation was reading the wrong way and colliding
+                    with the row borders above/below it. */}
+                <div style={{ writingMode: 'horizontal-tb', transform: 'rotate(-90deg)', whiteSpace: 'nowrap' }}>
+                  {month}
+                </div>
               </td>
             )}
             {/* Week label + total merged into one column instead of two —
