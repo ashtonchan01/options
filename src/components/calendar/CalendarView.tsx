@@ -184,6 +184,11 @@ const CAL_MONTH_LABEL = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG',
 // side and equally sized.
 const YEAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#a78bfa', '#f43f5e', '#22d3ee', '#84cc16', '#fb923c']
 
+// Every week row (blank-run or busy) renders at exactly this height — big
+// enough for the Notes cell's 2-line clamp — so the same week number lines
+// up at the same pixel row across every year column regardless of content.
+const ROW_HEIGHT = 26
+
 interface CalWeekRow {
   weekNum: number
   startDate: string // YYYY-MM-DD, the week's Monday
@@ -375,23 +380,29 @@ function MonthBlock({ month, weeks, accent, children }: { month: string; weeks: 
             )}
             {/* Week label + total merged into one column instead of two —
                 a blank run's "W41–44" label needs the room a standalone
-                narrow week-number column never had anyway. */}
-            <td style={{ padding: '4px 4px', fontSize: 9.5, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-              <span style={{ color: 'var(--text-4)' }}>{weekLabel}</span>
-              {run.active && (
-                <span style={{ float: 'right', fontSize: 10, color: pnlColorCal(w.total) }}>{fmt$(w.total)}</span>
-              )}
+                narrow week-number column never had anyway. The inner div's
+                fixed ROW_HEIGHT matches the Notes cell's, below — every
+                row (blank or busy) renders at the exact same height, since
+                a `height` on the <td> itself is only a minimum a browser
+                can still shrink below when the row's other cells need
+                less; a same-height div in EVERY cell instead forces it,
+                which is why a note-heavy row and a blank one used to be
+                visibly different heights and no two year columns'
+                same-numbered weeks lined up. */}
+            <td style={{ padding: '0 4px' }}>
+              <div style={{ height: ROW_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 9.5, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                <span style={{ color: 'var(--text-4)' }}>{weekLabel}</span>
+                {run.active && <span style={{ fontSize: 10, color: pnlColorCal(w.total) }}>{fmt$(w.total)}</span>}
+              </div>
             </td>
-            {/* Fixed 2-line-tall clamp (not a single nowrap line) — a single
+            {/* 2-line clamp within the same fixed ROW_HEIGHT — a single
                 line truncated too eagerly (a real NVDA CSP expiry sharing a
                 week with a GOOGL one went invisible, cut off by the ellipsis
-                with no visual sign there was more). Every row reserves the
-                same 2-line height whether or not it has notes, so columns
-                still all line up — unlike letting notes freely stack into
-                as many lines as they need, which was the original bug this
-                traded off against. Only a week busier than 2 lines' worth
-                still ellipsizes, with the full list in `title`. */}
-            <td style={{ padding: '4px 6px', height: 24 }}
+                with no visual sign there was more), so this reserves room
+                for 2 lines' worth of notes per row instead of 1. Only a
+                week busier than that still ellipsizes, with the full list
+                in `title`. */}
+            <td style={{ padding: '0 6px' }}
               title={w.notes.length > 0 ? w.notes.join(' · ') : undefined}>
               {/* The clamp lives on this inner div, not the <td> itself —
                   putting display:-webkit-box directly on a table cell breaks
@@ -401,10 +412,14 @@ function MonthBlock({ month, weeks, accent, children }: { month: string; weeks: 
                   the right of shorter note text even though the cell had
                   plenty of room. */}
               <div style={{
+                height: ROW_HEIGHT, display: 'flex', alignItems: 'center',
                 width: '100%', color: 'var(--text-2)', fontSize: 10, overflow: 'hidden',
-                lineHeight: '12px', display: '-webkit-box' as const, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
               }}>
-                {w.notes.length > 0 && <span style={{ color: accent, fontWeight: 600 }}>{w.notes.join(' · ')}</span>}
+                <div style={{
+                  width: '100%', lineHeight: '12px', display: '-webkit-box' as const, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden',
+                }}>
+                  {w.notes.length > 0 && <span style={{ color: accent, fontWeight: 600 }}>{w.notes.join(' · ')}</span>}
+                </div>
               </div>
             </td>
           </tr>
