@@ -30,6 +30,15 @@ export interface RawPosition {
 }
 
 export interface RawTrade {
+  /** IBKR Flex accountId this trade belongs to. A Flex Query token
+   * provisioned across multiple linked accounts (common for a family/
+   * advisor structure) reports every one of those accounts' activity in the
+   * same XML — used to filter down to just the single account this app
+   * "Account" entry is meant to represent, instead of silently merging in
+   * another account's trades (verified: a closed BPS/put_spread trade from
+   * an unrelated linked account showed up in the Journal even though it was
+   * never part of the account the user actually synced). */
+  accountId?: string
   tradeDate: string
   /** IBKR's own execution time ("HHMMSS"), when the report includes it. Two
    * unrelated spreads opened minutes apart on the same day share a tradeDate

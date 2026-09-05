@@ -8,7 +8,8 @@ const FLEX_PROXY = 'https://options-jade.vercel.app'
 export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number; fromDate?: string; toDate?: string }> {
   const text = await file.text()
   const doc = new DOMParser().parseFromString(text, 'application/xml')
-  return { positions: parsePositions(doc), trades: allTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
+  const { positions, trades } = filterToPrimaryAccount(parsePositions(doc), allTrades(doc))
+  return { positions, trades, cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
 }
 
 // ─── Flex API ─────────────────────────────────────────────────────────────────
@@ -31,7 +32,8 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<{
 
   const xml = text
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
-  return { positions: parsePositions(doc), trades: allTrades(doc), cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
+  const { positions, trades } = filterToPrimaryAccount(parsePositions(doc), allTrades(doc))
+  return { positions, trades, cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
 }
 
 // ─── Ping ─────────────────────────────────────────────────────────────────────
@@ -180,6 +182,7 @@ function parseNetLiq(doc: Document): number | undefined {
 
 function parseTrades(doc: Document): RawTrade[] {
   return Array.from(doc.querySelectorAll('Trade')).map(el => ({
+    accountId:        el.getAttribute('accountId') ?? undefined,
     execId:           el.getAttribute('tradeID') ?? undefined,
     orderId:          el.getAttribute('ibOrderID') || el.getAttribute('orderID') || undefined,
     tradeDate:        el.getAttribute('tradeDate') ?? '',
@@ -248,6 +251,7 @@ function parseOptionEAE(doc: Document, usedTradeIds: Set<string>): RawTrade[] {
       : Math.abs(rawQty)
 
     return {
+      accountId:        el.getAttribute('accountId') ?? undefined,
       execId:           el.getAttribute('tradeID') ?? undefined,
       tradeDate:        el.getAttribute('date') ?? '',
       symbol:           (el.getAttribute('symbol') ?? '').trim(),
@@ -313,6 +317,7 @@ function parseTransfers(doc: Document, optionEaeStockKeys: Set<string>): RawTrad
       // shares going OUT return value (like a sell, positive cash).
       const netCash = quantity > 0 ? -positionAmount : positionAmount
       return {
+        accountId:        el.getAttribute('accountId') ?? undefined,
         tradeDate:        el.getAttribute('date') ?? '',
         symbol:           (el.getAttribute('symbol') ?? '').trim(),
         underlyingSymbol: el.getAttribute('underlyingSymbol') || undefined,
@@ -325,6 +330,38 @@ function parseTransfers(doc: Document, optionEaeStockKeys: Set<string>): RawTrad
         isTransfer:       true,
       }
     })
+}
+
+// A Flex Query token can be provisioned across multiple linked accounts
+// (family/advisor structure) — every account's activity comes back in the
+// same XML. OpenPosition rows always carry accountId, but that alone isn't
+// enough: if the export mixes accounts, keep only the one this sync is
+// actually for (the account with the most positions/trades), so a closed
+// trade from an unrelated linked account doesn't leak into this journal.
+function filterToPrimaryAccount(
+  positions: RawPosition[],
+  trades: RawTrade[],
+): { positions: RawPosition[]; trades: RawTrade[] } {
+  const counts = new Map<string, number>()
+  for (const p of positions) {
+    if (p.accountId) counts.set(p.accountId, (counts.get(p.accountId) ?? 0) + 1)
+  }
+  if (counts.size === 0) {
+    for (const t of trades) {
+      if (t.accountId) counts.set(t.accountId, (counts.get(t.accountId) ?? 0) + 1)
+    }
+  }
+  if (counts.size < 2) return { positions, trades }
+
+  let primary = ''
+  let max = -1
+  for (const [id, n] of counts) {
+    if (n > max) { max = n; primary = id }
+  }
+  return {
+    positions: positions.filter(p => !p.accountId || p.accountId === primary),
+    trades: trades.filter(t => !t.accountId || t.accountId === primary),
+  }
 }
 
 function allTrades(doc: Document): RawTrade[] {
