@@ -324,17 +324,16 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
           const color = YEAR_COLORS[ci % YEAR_COLORS.length]
           return (
             <div key={col.year} style={{
-              minWidth: 0, border: `1px solid ${color}55`, borderRadius: 6, overflow: 'hidden',
-              // Layered over var(--bg-card) (the same lighter panel
-              // background the Journal tab's cards use) instead of the
-              // page's own near-black surface underneath, which is what
-              // made this view read noticeably darker/flatter than the
-              // rest of the app.
-              background: `linear-gradient(${color}16, ${color}16), var(--bg-card)`,
+              minWidth: 0, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden',
+              // Plain var(--bg-card) — the same panel gray the Journal
+              // tab's cards use — no color tint on the background at all;
+              // the year color lives only in the header text and borders,
+              // rather than washing the whole card.
+              background: 'var(--bg-card)',
             }}>
               <div style={{
-                padding: '8px 10px', fontSize: 13, fontWeight: 700, color, textAlign: 'center', borderBottom: `1px solid ${color}55`,
-                background: `linear-gradient(${color}38, ${color}38), var(--bg-elevated)`,
+                padding: '8px 10px', fontSize: 13, fontWeight: 700, color, textAlign: 'center', borderBottom: '1px solid var(--border)',
+                background: 'var(--bg-elevated)',
               }}>
                 {col.year}
               </div>
