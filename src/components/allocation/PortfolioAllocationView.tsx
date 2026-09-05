@@ -270,10 +270,15 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
   // degenerate to the emergency floor (a barely-visible ring) whenever the
   // margin math and the container's actual W:H ratio didn't line up. Label
   // placement derives FROM the ring afterward, not the other way around.
-  // Below ~340px wide there usually isn't room for a share-count suffix
+  // Below ~480px wide there usually isn't room for a share-count suffix
   // alongside the ticker/percentage without running into the container's
-  // own edge — drop it there rather than risk clipping.
-  const tightLabels = W < 340
+  // own edge — drop it there rather than risk clipping. (Raised from 340:
+  // the Overview tab's pie panel isn't the Allocation page's own 4:3 box —
+  // it's whatever's left of a phone-width panel after flex layout, often
+  // wide-but-short, and its wrapper has overflow:hidden, so a label that
+  // ran past the old, narrower threshold's margin was hard-clipped rather
+  // than just visually crowded.)
+  const tightLabels = W < 480
   // Label text is right-anchored on the left side, so it extends LEFTWARD
   // from its start x — with no guaranteed margin reserved for that, a
   // narrow phone-width container could compute a start x too close to the
@@ -282,8 +287,10 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
   // own overflow:visible doesn't help once the parent page has nothing
   // left to give). LABEL_MARGIN is a width-only floor (not min(W,H), which
   // caused the exact aspect-ratio degeneration this used to avoid) on how
-  // much of each side's margin the ring is allowed to eat into.
-  const LABEL_MARGIN = tightLabels ? 46 : 58
+  // much of each side's margin the ring is allowed to eat into. Widened
+  // (46->60, 58->70) — a real "GOOGL 12.3%"-length label still didn't
+  // reliably fit within the old margin on a cramped mobile panel.
+  const LABEL_MARGIN = tightLabels ? 60 : 70
   const outerR = Math.max(28, Math.min(Math.min(W, H) * 0.32, W / 2 - 22 - LABEL_MARGIN))
   // A thin ring with a big open hole — was a near-solid disc before, which
   // left almost no room for the center value once the disc grew to fill
@@ -354,7 +361,7 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
               fill="none" stroke="var(--text-5)" strokeWidth={0.75}
             />
             <text x={textX} y={w.idealY} dy={3} textAnchor={w.side === 'right' ? 'start' : 'end'}
-              fontSize="12.5" fontFamily="Inter, sans-serif" fontWeight={600} fill="var(--text-2)">
+              fontSize={tightLabels ? '11' : '12.5'} fontFamily="Inter, sans-serif" fontWeight={600} fill="var(--text-2)">
               {w.label}
               <tspan fill="var(--text-4)" fontWeight={400}> {labelMode === 'pct' ? `${(w.frac * 100).toFixed(1)}%` : fmt$(w.value)}</tspan>
               {!tightLabels && w.shares != null && w.shares !== 0 && (
