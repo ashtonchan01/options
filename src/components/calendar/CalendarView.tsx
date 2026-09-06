@@ -296,10 +296,16 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
   // simply have MORE rows than another's. Padding every column's month to
   // the tallest column's row count for that month (with blank filler rows)
   // keeps every month starting at the same running height across columns.
+  // A blank (merged) run renders at double height — see MonthBlock — so
+  // alignment has to add up in those same height units, not raw row count:
+  // a month with one blank run and no active weeks is 2 units tall, not 1.
   const maxRunsByMonth = useMemo(() => {
     const max = new Array(12).fill(1)
     for (const col of columns) {
-      col.months.forEach((mb, i) => { max[i] = Math.max(max[i], groupRuns(mb.weeks).length) })
+      col.months.forEach((mb, i) => {
+        const units = groupRuns(mb.weeks).reduce((s, r) => s + (r.active ? 1 : 2), 0)
+        max[i] = Math.max(max[i], units)
+      })
     }
     return max
   }, [columns])
@@ -393,16 +399,24 @@ function MonthBlock({ month, weeks, accent, padTo, children }: { month: string; 
   if (weeks.length === 0) return null
   const subtotal = weeks.reduce((s, w) => s + w.total, 0)
   const runs = groupRuns(weeks)
-  // Blank filler rows up to `padTo` — see the maxRunsByMonth comment where
-  // this is computed: a busier year's same month has more rows than a
-  // quiet year's, so every column pads out to the tallest one for that
-  // month, keeping every month's starting height the same across columns.
-  const fillerCount = Math.max(0, (padTo ?? runs.length) - runs.length)
+  // A blank (merged) run takes double height (see below) — so `padTo`,
+  // computed in the same units by maxRunsByMonth, is compared against this
+  // column's own unit total, not its raw run count, before the remainder
+  // is padded out with single-height filler rows.
+  const ownUnits = runs.reduce((s, r) => s + (r.active ? 1 : 2), 0)
+  const fillerCount = Math.max(0, (padTo ?? ownUnits) - ownUnits)
   return (
     <>
       {runs.map((run, i) => {
         const w = run.weeks[0]
         const weekLabel = run.weeks.length > 1 ? `W${w.weekNum}–${run.weeks[run.weeks.length - 1].weekNum}` : `W${w.weekNum}`
+        // A blank (merged) run always renders at double height, whether
+        // it's collapsing 2 weeks or 6 — a fixed multiple of ROW_HEIGHT
+        // reads as "here's a gap," instead of a single-height row that
+        // looked too thin for what it was summarizing, or (the old filler
+        // approach) an amount of blank space that varied with how much
+        // taller the busiest column's same month happened to be.
+        const rowH = run.active ? ROW_HEIGHT : ROW_HEIGHT * 2
         return (
           // A thicker top border marks the boundary between one month and
           // the next (i===0), so months read as clearly separate blocks;
@@ -435,7 +449,7 @@ function MonthBlock({ month, weeks, accent, padTo, children }: { month: string; 
                 visibly different heights and no two year columns'
                 same-numbered weeks lined up. */}
             <td style={{ padding: '0 4px' }}>
-              <div style={{ height: ROW_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 9.5, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+              <div style={{ height: rowH, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 9.5, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                 <span style={{ color: 'var(--text-4)' }}>{weekLabel}</span>
                 {run.active && <span style={{ fontSize: 10, color: pnlColorCal(w.total) }}>{fmt$(w.total)}</span>}
               </div>
@@ -457,11 +471,11 @@ function MonthBlock({ month, weeks, accent, padTo, children }: { month: string; 
                   the right of shorter note text even though the cell had
                   plenty of room. */}
               <div style={{
-                height: ROW_HEIGHT, display: 'flex', alignItems: 'center',
+                height: rowH, display: 'flex', alignItems: 'center',
                 width: '100%', color: 'var(--text-2)', fontSize: 10, overflow: 'hidden',
               }}>
                 <div style={{
-                  width: '100%', lineHeight: '12px', display: '-webkit-box' as const, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden',
+                  width: '100%', lineHeight: '12px', display: '-webkit-box' as const, WebkitLineClamp: run.active ? 2 : 4, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden',
                 }}>
                   {w.notes.length > 0 && <span style={{ color: accent, fontWeight: 600 }}>{w.notes.join(' · ')}</span>}
                 </div>
