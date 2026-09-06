@@ -5,16 +5,16 @@ const FLEX_PROXY = 'https://options-jade.vercel.app'
 
 // ─── XML Upload ───────────────────────────────────────────────────────────────
 
-export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; cashByCurrency: Record<string, number>; netLiquidation?: number; fromDate?: string; toDate?: string }> {
+export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number; fromDate?: string; toDate?: string }> {
   const text = await file.text()
   const doc = new DOMParser().parseFromString(text, 'application/xml')
   const { positions, trades } = filterToPrimaryAccount(parsePositions(doc), allTrades(doc))
-  return { positions, trades, cashBalance: parseCash(doc), cashByCurrency: parseCashByCurrency(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
+  return { positions, trades, cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
 }
 
 // ─── Flex API ─────────────────────────────────────────────────────────────────
 
-export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; cashByCurrency: Record<string, number>; netLiquidation?: number; fromDate?: string; toDate?: string }> {
+export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; netLiquidation?: number; fromDate?: string; toDate?: string }> {
   if (!token || !queryId) throw new Error('Token and Query ID are required')
 
   const url = `${FLEX_PROXY}/api/flex-sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
@@ -33,7 +33,7 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<{
   const xml = text
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
   const { positions, trades } = filterToPrimaryAccount(parsePositions(doc), allTrades(doc))
-  return { positions, trades, cashBalance: parseCash(doc), cashByCurrency: parseCashByCurrency(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
+  return { positions, trades, cashBalance: parseCash(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
 }
 
 // ─── Ping ─────────────────────────────────────────────────────────────────────
@@ -131,30 +131,6 @@ function parseCash(doc: Document): number {
   const base = latestByReportDate(baseRows)
   if (base) return Number(base.getAttribute('endingCash') ?? 0)
   return rows.reduce((sum, el) => sum + Number(el.getAttribute('endingCash') ?? 0), 0)
-}
-
-/** Per-currency cash balances (e.g. `{ USD: 1234.56, AUD: 78.90 }`), for a
- * account holding cash in more than one currency — BASE_SUMMARY (parsed by
- * parseCash above) is only the single converted total, it never breaks the
- * balance out by actual currency. Same latest-report-date pick as parseCash,
- * per currency, since a multi-date Flex query carries one row per date per
- * currency too. */
-function parseCashByCurrency(doc: Document): Record<string, number> {
-  const rows = Array.from(doc.querySelectorAll('CashReportCurrency'))
-    .filter(el => el.getAttribute('currency') && el.getAttribute('currency') !== 'BASE_SUMMARY')
-  const byCurrency = new Map<string, Element[]>()
-  for (const el of rows) {
-    const ccy = el.getAttribute('currency')!
-    const list = byCurrency.get(ccy) ?? []
-    list.push(el)
-    byCurrency.set(ccy, list)
-  }
-  const result: Record<string, number> = {}
-  for (const [ccy, elems] of byCurrency) {
-    const latest = latestByReportDate(elems)
-    if (latest) result[ccy] = Number(latest.getAttribute('endingCash') ?? 0)
-  }
-  return result
 }
 
 /** The Flex statement's own reporting window ("YYYYMMDD"), e.g.

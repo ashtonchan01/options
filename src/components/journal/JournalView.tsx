@@ -422,7 +422,7 @@ function stratGroupLabel(strategy?: string) {
   return LABEL_SHORT[key] ?? key.toUpperCase()
 }
 
-export function JournalTab({ positions, livePositions, trades, entries, updateEntry, setups, addSetup, cashBalance, cashByCurrency }: {
+export function JournalTab({ positions, livePositions, trades, entries, updateEntry, setups, addSetup }: {
   positions: JournalPosition[]
   livePositions: RawPosition[]
   trades: RawTrade[]
@@ -430,8 +430,6 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
   updateEntry: (id: string, patch: Partial<JournalEntry>) => void
   setups: string[]
   addSetup: (s: string) => void
-  cashBalance?: number
-  cashByCurrency?: Record<string, number>
 }) {
   const [filter, setFilter] = useState<JFilter>('all')
   const [hideClosed, setHideClosed] = useState(true)
@@ -460,29 +458,6 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
     return () => { cancelled = true }
   }, [underlyingsKey])
 
-  // Cash section, like IBKR's own Account Window — the raw Flex cash report
-  // breaks the balance out per actual currency (AUD/USD here), not just the
-  // single BASE_SUMMARY total; converting AUD to USD needs a live rate since
-  // the account itself never reports one (same AUDUSD=X quote MilestoneView
-  // uses to convert its own AUD-configured target into USD).
-  const [audUsd, setAudUsd] = useState<number | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    fetchQuotes(['AUDUSD=X']).then(quotes => {
-      if (!cancelled && quotes['AUDUSD=X']?.price) setAudUsd(quotes['AUDUSD=X'].price)
-    })
-    return () => { cancelled = true }
-  }, [])
-  const audUsdRate = audUsd ?? 0.65
-  const cashAud = cashByCurrency?.AUD ?? 0
-  const cashUsd = cashByCurrency?.USD ?? 0
-  // Any currency this account holds cash in besides AUD/USD — rare, and with
-  // no live rate fetched for it, folded into the USD total at face value
-  // rather than silently dropped.
-  const cashOther = Object.entries(cashByCurrency ?? {}).filter(([ccy]) => ccy !== 'AUD' && ccy !== 'USD')
-  const cashTotalUsd = cashByCurrency
-    ? cashUsd + cashAud * audUsdRate + cashOther.reduce((s, [, v]) => s + v, 0)
-    : (cashBalance ?? 0)
 
   const tradesByKey = useMemo(() => {
     const m = new Map<string, RawTrade>()
@@ -574,37 +549,6 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
 
   return (
     <>
-      {(cashByCurrency && Object.keys(cashByCurrency).length > 0) || (cashBalance ?? 0) > 0 ? (
-        <div style={{
-          display: 'flex', gap: 16, alignItems: 'center', padding: '8px 12px', marginBottom: 8,
-          background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, flexWrap: 'wrap',
-        }}>
-          <div className="cc-section-title" style={{ padding: 0, marginRight: 4 }}>Cash</div>
-          {cashByCurrency?.AUD != null && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 9.5, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>AUD</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)' }}>{fmt$(cashAud, 2)}</span>
-            </div>
-          )}
-          {cashByCurrency?.USD != null && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 9.5, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>USD</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)' }}>{fmt$(cashUsd, 2)}</span>
-            </div>
-          )}
-          {cashOther.map(([ccy, v]) => (
-            <div key={ccy} style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 9.5, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{ccy}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)' }}>{fmt$(v, 2)}</span>
-            </div>
-          ))}
-          <div style={{ display: 'flex', flexDirection: 'column', marginLeft: 4 }}>
-            <span style={{ fontSize: 9.5, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total (USD)</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>{fmt$(cashTotalUsd, 2)}</span>
-          </div>
-        </div>
-      ) : null}
-
       <div className="tl-filter-row" style={{ alignItems: 'center' }}>
         <div className="cc-section-title" style={{ padding: 0, marginRight: 4, flexShrink: 0 }}>Trade Journal</div>
         {FILTERS.map(f => (
