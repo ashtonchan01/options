@@ -224,6 +224,7 @@ export interface SyncState {
   positions: RawPosition[]
   trades: RawTrade[]
   cashBalance: number
+  cashByCurrency?: Record<string, number>
   netLiquidation?: number  // direct from IBKR EquitySummary
 }
 
