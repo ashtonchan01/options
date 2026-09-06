@@ -187,7 +187,7 @@ const YEAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#a78bfa', '#f43f5e', '#22
 // Every week row (blank-run or busy) renders at exactly this height — big
 // enough for the Notes cell's 2-line clamp — so the same week number lines
 // up at the same pixel row across every year column regardless of content.
-const ROW_HEIGHT = 52
+const ROW_HEIGHT = 26
 
 interface CalWeekRow {
   weekNum: number
