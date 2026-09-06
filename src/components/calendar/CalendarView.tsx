@@ -184,12 +184,10 @@ const CAL_MONTH_LABEL = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG',
 // side and equally sized.
 const YEAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#a78bfa', '#f43f5e', '#22d3ee', '#84cc16', '#fb923c']
 
-// An active week's row — big enough for the Notes cell's 2-line clamp.
-// A blank (merged) run renders at half this height instead (see MonthBlock)
-// since it has nothing to show but the week range, so it shouldn't burn the
-// same room as a row that's actually saying something.
-const ROW_HEIGHT = 52
-const BLANK_ROW_HEIGHT = ROW_HEIGHT / 2
+// Every week row (blank-run or busy) renders at exactly this height — big
+// enough for the Notes cell's 2-line clamp — so the same week number lines
+// up at the same pixel row across every year column regardless of content.
+const ROW_HEIGHT = 26
 
 interface CalWeekRow {
   weekNum: number
@@ -298,17 +296,10 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
   // simply have MORE rows than another's. Padding every column's month to
   // the tallest column's row count for that month (with blank filler rows)
   // keeps every month starting at the same running height across columns.
-  // An active row and a blank row are different heights (see ROW_HEIGHT/
-  // BLANK_ROW_HEIGHT above), so alignment has to add up in those actual
-  // height units, not raw row count — a month with one blank run and no
-  // active weeks is 1 unit tall, not 2.
   const maxRunsByMonth = useMemo(() => {
     const max = new Array(12).fill(1)
     for (const col of columns) {
-      col.months.forEach((mb, i) => {
-        const units = groupRuns(mb.weeks).reduce((s, r) => s + (r.active ? 2 : 1), 0)
-        max[i] = Math.max(max[i], units)
-      })
+      col.months.forEach((mb, i) => { max[i] = Math.max(max[i], groupRuns(mb.weeks).length) })
     }
     return max
   }, [columns])
@@ -402,18 +393,12 @@ function MonthBlock({ month, weeks, accent, padTo, children }: { month: string; 
   if (weeks.length === 0) return null
   const subtotal = weeks.reduce((s, w) => s + w.total, 0)
   const runs = groupRuns(weeks)
-  // Filler rows are in the same half-height units as maxRunsByMonth (an
-  // active row is 2 units, a blank one is 1), so a column short on ACTUAL
-  // rows still pads out to the busiest column's real pixel height, not just
-  // its row count.
-  const ownUnits = runs.reduce((s, r) => s + (r.active ? 2 : 1), 0)
-  const fillerCount = Math.max(0, (padTo ?? ownUnits) - ownUnits)
+  const fillerCount = Math.max(0, (padTo ?? runs.length) - runs.length)
   return (
     <>
       {runs.map((run, i) => {
         const w = run.weeks[0]
         const weekLabel = run.weeks.length > 1 ? `W${w.weekNum}–${run.weeks[run.weeks.length - 1].weekNum}` : `W${w.weekNum}`
-        const rowH = run.active ? ROW_HEIGHT : BLANK_ROW_HEIGHT
         return (
           // A thicker top border marks the boundary between one month and
           // the next (i===0), so months read as clearly separate blocks;
@@ -446,7 +431,7 @@ function MonthBlock({ month, weeks, accent, padTo, children }: { month: string; 
                 visibly different heights and no two year columns'
                 same-numbered weeks lined up. */}
             <td style={{ padding: '0 4px' }}>
-              <div style={{ height: rowH, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 9.5, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+              <div style={{ height: ROW_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 9.5, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                 <span style={{ color: 'var(--text-4)' }}>{weekLabel}</span>
                 {run.active && <span style={{ fontSize: 10, color: pnlColorCal(w.total) }}>{fmt$(w.total)}</span>}
               </div>
@@ -468,11 +453,11 @@ function MonthBlock({ month, weeks, accent, padTo, children }: { month: string; 
                   the right of shorter note text even though the cell had
                   plenty of room. */}
               <div style={{
-                height: rowH, display: 'flex', alignItems: 'center',
+                height: ROW_HEIGHT, display: 'flex', alignItems: 'center',
                 width: '100%', color: 'var(--text-2)', fontSize: 10, overflow: 'hidden',
               }}>
                 <div style={{
-                  width: '100%', lineHeight: '12px', display: '-webkit-box' as const, WebkitLineClamp: run.active ? 2 : 1, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden',
+                  width: '100%', lineHeight: '12px', display: '-webkit-box' as const, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden',
                 }}>
                   {w.notes.length > 0 && <span style={{ color: accent, fontWeight: 600 }}>{w.notes.join(' · ')}</span>}
                 </div>
@@ -483,8 +468,8 @@ function MonthBlock({ month, weeks, accent, padTo, children }: { month: string; 
       })}
       {Array.from({ length: fillerCount }, (_, i) => (
         <tr key={`filler-${i}`} style={{ borderTop: `1px solid ${accent}25` }}>
-          <td><div style={{ height: BLANK_ROW_HEIGHT }} /></td>
-          <td><div style={{ height: BLANK_ROW_HEIGHT }} /></td>
+          <td><div style={{ height: ROW_HEIGHT }} /></td>
+          <td><div style={{ height: ROW_HEIGHT }} /></td>
         </tr>
       ))}
       <tr style={{ borderTop: `1px solid ${accent}25` }}>
