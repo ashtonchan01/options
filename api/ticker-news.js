@@ -9,6 +9,13 @@ export const config = { runtime: 'edge' }
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
 const RESPONSE_TTL = 3 * 60 * 1000 // 3 min in-isolate cache
 const MAX_TICKERS = 20
+// Google's search RSS ranks by relevance, not strictly by recency — a ticker
+// with little recent coverage can still surface a months-old story if it
+// scores well on the "<ticker> stock" query, since nothing else caps how
+// stale a "top" result is allowed to be. Dropping anything older than this
+// means a quiet ticker shows fewer (or zero) headlines instead of a stale
+// one standing in for "nothing new."
+const MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000 // 14 days
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -54,7 +61,10 @@ function parseFeed(xml, ticker) {
       time: Number.isFinite(ts) ? ts : Date.now(),
     })
   }
-  return items.slice(0, 5)
+  // Wider than the 5 the panel actually shows per ticker — the age filter
+  // below drops some of these, so a quiet ticker needs more raw candidates
+  // to still surface as many genuinely-recent ones as it has.
+  return items.slice(0, 15)
 }
 
 async function fetchTicker(ticker) {
@@ -103,7 +113,8 @@ export default async function handler(req) {
   }
 
   const results = await Promise.all(tickers.map(fetchTicker))
-  const topItems = results.flat().sort((a, b) => b.time - a.time).slice(0, 60)
+  const cutoff = Date.now() - MAX_AGE_MS
+  const topItems = results.flat().filter(it => it.time >= cutoff).sort((a, b) => b.time - a.time).slice(0, 60)
   const merged = await Promise.all(topItems.map(resolveLink))
 
   cache = { key: cacheKey, at: Date.now(), body: merged }
