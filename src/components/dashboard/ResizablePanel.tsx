@@ -10,16 +10,17 @@ import { useResizablePanel, useColDragHandle, useRowDragHandle } from '../../hoo
  * expand, drag back left to shrink, double-click resets. The Dashboard
  * decides where a "wide" panel actually renders (see useWideMap); this
  * component just draws the handles and the wider box. */
-export default function ResizablePanel({ id, defaultWidth, defaultHeight, axis = 'both', wide, onSetWide, children }: {
+export default function ResizablePanel({ id, defaultWidth, defaultHeight, axis = 'both', autoFit = true, wide, onSetWide, children }: {
   id: string
   defaultWidth: number
   defaultHeight: number
   axis?: 'both' | 'vertical'
+  autoFit?: boolean
   wide?: boolean
   onSetWide?: (wide: boolean) => void
   children: ReactNode
 }) {
-  const { ref, style } = useResizablePanel(id, defaultWidth, defaultHeight, axis)
+  const { ref, style } = useResizablePanel(id, defaultWidth, defaultHeight, axis, autoFit)
   const row = useRowDragHandle(ref)
   const col = useColDragHandle(!!wide, onSetWide ?? (() => {}))
   return (

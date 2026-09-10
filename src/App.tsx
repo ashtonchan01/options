@@ -118,7 +118,7 @@ export default function App() {
           ) : activeTab === 'milestone' ? (
             <MilestoneView accounts={accountsStore.accounts} />
           ) : (
-            <DashboardView state={EMPTY_STATE} />
+            <DashboardView state={EMPTY_STATE} watchlistTickers={watchlists.activeTickers} />
           )}
         </main>
       </div>
