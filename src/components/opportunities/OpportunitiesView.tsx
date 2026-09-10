@@ -324,11 +324,41 @@ function buildComboRankings(calls: ScanResult[], puts: ScanResult[]): SyntheticL
     .sort((a, b) => b.compositeScore - a.compositeScore)
 }
 
+interface LeapExpiryGroup {
+  expiry: string
+  dte: number
+  items: ScanResult[]
+}
+
 interface TickerCard {
   symbol: string; price: number; bestScore: number; avgIv: number
-  totalContracts: number; topCsp: ScanResult[]; topCc: ScanResult[]; topLeap: ScanResult[]
+  totalContracts: number; topCsp: ScanResult[]; topCc: ScanResult[]
+  // Up to the 3 furthest-out LEAP expiries this ticker actually has
+  // (furthest first), each with its own top-5 by breakeven — instead of
+  // only ever showing the single furthest expiry, letting the user pick
+  // which of the last 3 to look at (or a combined top-5 across all 3).
+  leapExpiries: LeapExpiryGroup[]
+  topLeapAll: ScanResult[]
   topCombos: SyntheticLongCombo[]
   nextEarnings: string | null
+}
+
+/** Ranks a pool of same-purpose LEAP candidates by breakeven (lowest first)
+ * and attaches a display-only 0-100 "SCR" normalized against just this pool
+ * — see the comment at LEAP_TABLE_MIN_DELTA below for why breakeven (not the
+ * shared `score` field) is what actually orders these rows. */
+function rankLeapPool(raw: ScanResult[]): ScanResult[] {
+  if (!raw.length) return []
+  const beps = raw.map(r => r.strike + r.mid)
+  const lo = Math.min(...beps), hi = Math.max(...beps)
+  return raw
+    .map(r => {
+      const bep = r.strike + r.mid
+      const bepScore = Math.round((hi > lo ? (1 - (bep - lo) / (hi - lo)) : 0.5) * 100)
+      return { ...r, score: bepScore }
+    })
+    .sort((a, b) => (a.strike + a.mid) - (b.strike + b.mid))
+    .slice(0, 5)
 }
 
 function buildCards(results: ScanResult[], tickers: string[], earningsMap: Record<string, string[]>): TickerCard[] {
@@ -343,13 +373,6 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
   for (const [symbol, { results: rs, price }] of map) {
     if (!rs.length) continue
     const allLeapCalls = rs.filter(r => r.strategyType === 'leap')
-    // Only the ticker's OWN furthest available expiry counts as "the LEAP" —
-    // the point of a LEAP is maximum time, so a call expiring in 7 months is
-    // not a candidate just because it also clears the 180-day floor. Comparing
-    // by dte (not the raw expiry string) picks out every contract sharing
-    // that single furthest date, tolerant of the ±1 day rounding that can
-    // happen right at a DTE boundary.
-    const maxLeapDte = allLeapCalls.length > 0 ? Math.max(...allLeapCalls.map(r => r.dte)) : 0
     // The fetch-level delta floor (0.25, in cboe.ts) is deliberately wide so
     // the Synthetic Long combo builder has cheap-enough calls to pair with a
     // put under the user's cash cap. But that same wide band was leaking
@@ -364,22 +387,29 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
     // stock, so it needs its own, higher delta floor — the wider band stays
     // available to the combo builder via allLeapCalls/comboCalls below.
     const LEAP_TABLE_MIN_DELTA = 0.60
-    const leapCallsRaw = allLeapCalls.filter(r => r.dte >= maxLeapDte - 1 && Math.abs(r.delta) >= LEAP_TABLE_MIN_DELTA)
-    // The table's row order is by lowest breakeven, but its own SCR column
-    // still showed computeLeapScore (cost-efficiency/delta/liquidity) —
-    // unrelated to that order, so the score didn't track the rank a row
-    // actually got. This SCR is now breakeven-based instead, normalized
-    // against this ticker's own LEAP candidates — display-only, scoped to
-    // this table: the shared `score` field (ticker SCORE badge, card
-    // ordering, CSP/CC scoring) is untouched.
-    const leapBeps = leapCallsRaw.map(r => r.strike + r.mid)
-    const leapBepRange = [Math.min(...leapBeps), Math.max(...leapBeps)] as const
-    const leapCalls = leapCallsRaw.map(r => {
-      const bep = r.strike + r.mid
-      const [lo, hi] = leapBepRange
-      const bepScore = Math.round((hi > lo ? (1 - (bep - lo) / (hi - lo)) : 0.5) * 100)
-      return { ...r, score: bepScore }
-    })
+    // Only the ticker's OWN furthest available expiries count as "the LEAP" —
+    // the point of a LEAP is maximum time. Previously only the single
+    // furthest expiry was ever shown; now the last 3 distinct expiries this
+    // ticker actually has (furthest first) each get their own top-5-by-
+    // breakeven, so the user can pick which of the 3 to look at instead of
+    // only ever seeing the furthest one.
+    const top3LeapExpiries = [...new Set(allLeapCalls.map(c => c.expiry))]
+      .map(expiry => ({ expiry, dte: allLeapCalls.find(c => c.expiry === expiry)!.dte }))
+      .sort((a, b) => b.dte - a.dte)
+      .slice(0, 3)
+    const leapExpiries: LeapExpiryGroup[] = top3LeapExpiries
+      .map(({ expiry, dte }) => ({
+        expiry, dte,
+        items: rankLeapPool(allLeapCalls.filter(r => r.expiry === expiry && Math.abs(r.delta) >= LEAP_TABLE_MIN_DELTA)),
+      }))
+      .filter(g => g.items.length > 0)
+    // Combined top-5 across all 3 expiries pooled together, re-ranked by
+    // breakeven over that whole pool (not just each expiry's own top 5) —
+    // a 2nd-furthest expiry's #6 pick can still beat the furthest expiry's
+    // #1 on breakeven alone.
+    const topLeapAll = rankLeapPool(
+      top3LeapExpiries.flatMap(({ expiry }) => allLeapCalls.filter(r => r.expiry === expiry && Math.abs(r.delta) >= LEAP_TABLE_MIN_DELTA)),
+    )
     const puts = rs.filter(r => r.strategyType === 'csp')
 
     // The LEAP table above shows the ticker's absolute furthest CALL expiry
@@ -404,11 +434,8 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
       totalContracts: rs.length,
       topCsp: puts.slice().sort((a, b) => b.score - a.score).slice(0, 5),
       topCc:  rs.filter(r => r.strategyType === 'covered_call').sort((a, b) => b.score - a.score).slice(0, 5),
-      // Ranked by lowest breakeven (strike + mid) rather than the composite
-      // score — the score rewards cost-efficiency/delta/liquidity, but the
-      // user cares about the actual price the stock needs to reach to
-      // profit, which the score doesn't directly optimize for.
-      topLeap: leapCalls.slice().sort((a, b) => (a.strike + a.mid) - (b.strike + b.mid)).slice(0, 5),
+      leapExpiries,
+      topLeapAll,
       // Ranks EVERY call×put pair sharing the combo expiry (not just the
       // top-scored LEAP paired with the top-scored put) — the user's actual
       // usage pattern (e.g. an at-the-money call paired with a put struck
@@ -461,9 +488,10 @@ function OptionRow({ r, rank, nextEarnings, fomcDates }: { r: ScanResult; rank: 
 // LEAP columns are a debit purchase, not a credit sale — COST (what you pay)
 // instead of CREDIT, EXTR/YR (annualized extrinsic cost — lower is better)
 // instead of YIELD/APY, plus LEV (leverage: $ of stock exposure per $ spent).
-// EXP/DTE are dropped from the row grid — every row in this table (and this
-// whole card, when the LEAP toggle is active) shares the ticker's one
-// furthest expiry, shown once in the card's own header instead.
+// EXP/DTE is back in the row grid (it used to be dropped, shown once in the
+// card header instead, back when this table only ever showed one expiry) —
+// now that a card can show a single expiry OR a combined top-5 spanning all
+// 3, a row needs its own expiry/DTE to stay legible in the combined view.
 // Fixed widths (not a flexible 1fr STRIKE column) so every column lines up
 // consistently instead of STRIKE stretching to swallow whatever space the
 // fixed columns don't use, which left a lopsided gap before DELTA.
@@ -472,7 +500,7 @@ function OptionRow({ r, rank, nextEarnings, fomcDates }: { r: ScanResult; rank: 
 // column swallowing the leftover space and leaving a lopsided gap. STRIKE
 // gets a smaller ratio than before — just enough for "$1,234" — so the
 // gap before DELTA stays tight.
-const LEAP_GRID = '16px 1.1fr 0.8fr 1.1fr 1.1fr 1.1fr 0.8fr 0.7fr'
+const LEAP_GRID = '16px 1.0fr 0.9fr 0.8fr 1.0fr 1.0fr 1.0fr 0.8fr 0.7fr'
 
 function LeapRow({ r, rank }: { r: ScanResult; rank: number }) {
   const bep = r.strike + r.mid
@@ -484,6 +512,7 @@ function LeapRow({ r, rank }: { r: ScanResult; rank: number }) {
       title={`${fmtExpMonthYear(r.expiry)}, ${r.dte}d · Extrinsic: $${(r.extrinsic ?? 0).toFixed(2)} · OI: ${r.openInterest} · Leverage: ${r.leverage?.toFixed(1) ?? '—'}x`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600 }}>${r.strike}</span>
+      <span style={{ color: 'var(--text-3)', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtExpMonthYear(r.expiry)}</span>
       <span style={{ color: deltaColor(r.delta), textAlign: 'right' }}>{r.delta.toFixed(2)}</span>
       <span style={{ color: '#f43f5e', textAlign: 'right' }}>${r.mid.toFixed(2)}</span>
       <span style={{ color: 'var(--text-2)', textAlign: 'right' }}>${bep.toFixed(2)}</span>
@@ -498,6 +527,7 @@ function LeapHeader() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: LEAP_GRID, gap: 3, padding: '3px 0 5px', borderBottom: '1px solid var(--border-light)', fontSize: 8, fontWeight: 600, color: 'var(--text-4)', letterSpacing: '0.5px' }}>
       <span style={{ textAlign: 'center' }}>#</span><span>STRIKE</span>
+      <span style={{ textAlign: 'right' }}>EXP</span>
       <span style={{ textAlign: 'right' }}>DELTA</span><span style={{ textAlign: 'right' }}>COST</span>
       <span style={{ textAlign: 'right' }}>BEP</span>
       <span style={{ textAlign: 'right' }}>EXTR/YR</span><span style={{ textAlign: 'right' }}>LEV</span>
@@ -506,16 +536,16 @@ function LeapHeader() {
   )
 }
 
-function LeapSection({ items }: { items: ScanResult[] }) {
+function LeapSection({ items, label }: { items: ScanResult[]; label: string }) {
   if (!items.length) return null
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <span style={{ padding: '1px 6px', fontSize: 9, fontWeight: 700, background: '#a855f715', border: '1px solid #a855f740', color: '#a855f7', fontFamily: "'Inter', sans-serif", letterSpacing: '0.5px' }}>LEAP</span>
-        <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>TOP {items.length}</span>
+        <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>{label}</span>
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <div style={{ minWidth: 410 }}>
+        <div style={{ minWidth: 460 }}>
           <LeapHeader />
           {items.map((r, i) => <LeapRow key={i} r={r} rank={i + 1} />)}
         </div>
@@ -654,6 +684,12 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
   const customCfg = scanTerm === 'short' ? shortCfg : longCfg
   const [topCollapsed,  setTopCollapsed] = useState(false)
   const [strategyFilter, setStrategyFilter] = useState<'all' | 'csp' | 'cc' | 'leap'>('all')
+  // Which of a ticker's last 3 LEAP expiries to show (0 = furthest, matching
+  // the old default; 2 = 3rd-furthest), or 'all' for a combined top-5 spanning
+  // all 3 — applied the same way across every card, since "furthest / 2nd /
+  // 3rd" is a consistent position even though the actual calendar dates
+  // differ ticker to ticker.
+  const [leapExpirySel, setLeapExpirySel] = useState<0 | 1 | 2 | 'all'>(0)
 
   function selectTerm(term: ScanTerm) {
     setScanTerm(term)
@@ -873,6 +909,19 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
             <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: 'Inter, sans-serif' }}>
               Selected by delta/DTE/liquidity rules and the combo-ranking formula, not the params below — those don't apply here.
             </span>
+            <div style={{ display: 'flex', marginLeft: 'auto', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+              {([[0, '1ST'], [1, '2ND'], [2, '3RD'], ['all', 'ALL 3']] as const).map(([key, label]) => (
+                <button key={String(key)} onClick={() => setLeapExpirySel(key)} style={{
+                  padding: '3px 8px', fontSize: 9.5, fontWeight: 700, letterSpacing: '0.5px',
+                  background: leapExpirySel === key ? '#a855f722' : 'transparent',
+                  color: leapExpirySel === key ? '#a855f7' : 'var(--text-3)',
+                  border: 'none', borderLeft: key !== 0 ? '1px solid var(--border)' : 'none',
+                  cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+                }}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, flexShrink: 0, flexWrap: 'wrap' }}>
@@ -958,9 +1007,17 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
             const rsi = rsiMap[card.symbol]?.rsi ?? null
             const showCsp  = (strategyFilter === 'all' || strategyFilter === 'csp')  && card.topCsp.length > 0
             const showCc   = (strategyFilter === 'all' || strategyFilter === 'cc')   && card.topCc.length > 0
+            // This ticker's selected expiry group (or the combined pool across
+            // all 3) — a ticker with fewer than 3 available LEAP expiries just
+            // has no group at index 1/2, so that selection shows nothing for it.
+            const leapGroup = leapExpirySel === 'all' ? undefined : card.leapExpiries[leapExpirySel]
+            const leapItems = leapExpirySel === 'all' ? card.topLeapAll : (leapGroup?.items ?? [])
+            const leapLabel = leapExpirySel === 'all'
+              ? `TOP ${leapItems.length} · ALL 3 EXPIRIES`
+              : leapGroup ? `TOP ${leapItems.length} · ${fmtExpMonthYear(leapGroup.expiry)} (${leapGroup.dte}d)` : ''
             // LEAP is its own function, not part of "All" — it only shows
             // when its own toggle is explicitly selected.
-            const showLeap = strategyFilter === 'leap' && card.topLeap.length > 0
+            const showLeap = strategyFilter === 'leap' && leapItems.length > 0
             const showCombo = showLeap && card.topCombos.length > 0
             const hasData = showCsp || showCc || showLeap
             const shares = stocksHeld[card.symbol] ?? 0
@@ -988,9 +1045,9 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
                       ER {fmtEr(card.nextEarnings)}
                     </span>
                   )}
-                  {strategyFilter === 'leap' && card.topLeap.length > 0 && (
+                  {strategyFilter === 'leap' && leapItems.length > 0 && (
                     <span title="LEAP expiry / days to expiry" style={{ padding: '1px 5px', fontSize: 9, fontWeight: 700, background: '#a855f715', border: '1px solid #a855f740', color: '#a855f7', fontFamily: "'Inter', sans-serif" }}>
-                      {fmtExpMonthYear(card.topLeap[0].expiry)} · {card.topLeap[0].dte}d
+                      {fmtExpMonthYear(leapItems[0].expiry)} · {leapItems[0].dte}d
                     </span>
                   )}
                   <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1020,7 +1077,7 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
                   <div style={{ padding: '8px 12px 10px' }}>
                     {showCsp && <StrategySection label="CSP" color="#f43f5e" items={card.topCsp} nextEarnings={card.nextEarnings} fomcDates={fomcDates} />}
                     {showCc  && <StrategySection label="CC"  color="#3b82f6" items={card.topCc} nextEarnings={card.nextEarnings} fomcDates={fomcDates} />}
-                    {showLeap && <LeapSection items={card.topLeap} />}
+                    {showLeap && <LeapSection items={leapItems} label={leapLabel} />}
                     {showCombo && <SyntheticLongCombosSection combos={card.topCombos} />}
                   </div>
                 )}
