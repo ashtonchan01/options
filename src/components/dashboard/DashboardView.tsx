@@ -57,12 +57,19 @@ export default function DashboardView({ state, watchlistTickers = [] }: { state:
   }, [])
 
   const colA = [
-    // LiveTVPanel's video box now uses CSS aspect-ratio (height derived
-    // from width, no JS measurement) instead of a JS-computed size — so
-    // autoFit can stay on: the panel settles to exactly that box's natural
-    // height (undistorted 16:9, no gap below it) instead of needing a
-    // hand-picked defaultHeight that was always wrong for some column width.
-    { id: 'livetv', h: 300, autoFit: true, node: <LiveTVPanel /> },
+    // LiveTVPanel's video box now uses the padding-percentage aspect-ratio
+    // technique (height derived from width, no JS measurement) instead of a
+    // JS-computed size — so autoFit can stay on: the panel settles to
+    // exactly that box's natural height (undistorted 16:9, no gap below it)
+    // instead of needing a hand-picked defaultHeight that was always wrong
+    // for some column width. The id is bumped ('livetv' -> 'livetv-2')
+    // because ResizablePanel persists a manually/auto-saved pixel height per
+    // id in localStorage, and autoFit refuses to override an existing stored
+    // size (see useResizablePanel's fit()) — a size saved under the OLD
+    // sizing model (before this fix) would otherwise permanently block the
+    // new one from ever taking effect for anyone who'd already loaded this
+    // panel before.
+    { id: 'livetv-2', h: 300, autoFit: true, node: <LiveTVPanel /> },
     { id: 'fear-greed', h: 180, autoFit: true, node: <FearGreedPanel /> },
     { id: 'pairs', h: 340, autoFit: true, node: <PairTradingPanel state={state} topN={5} /> },
   ]
