@@ -31,7 +31,7 @@ const AUTO_FIT_MAX = 900
  * column, only height should be user-resizable; width tracking the
  * column's own width (not stored) is what keeps the column a fixed,
  * predictable size instead of individual panels drifting wider than it. */
-export function useResizablePanel(id: string, defaultWidth: number, defaultHeight: number, axis: 'both' | 'vertical' = 'both') {
+export function useResizablePanel(id: string, defaultWidth: number, defaultHeight: number, axis: 'both' | 'vertical' = 'both', autoFit = true) {
   const ref = useRef<HTMLDivElement>(null)
   const stored = loadSize(id)
   // Consumed once by the ResizeObserver below: set right before the auto-fit
@@ -68,7 +68,12 @@ export function useResizablePanel(id: string, defaultWidth: number, defaultHeigh
   // until the user manually drags a handle, at which point a stored size
   // exists and this stops touching it permanently.
   useEffect(() => {
-    if (axis !== 'vertical') return
+    // Some panels (Live TV chief among them) shouldn't auto-fit at all — its
+    // video box derives ITS OWN size from the container's height (a
+    // chicken-and-egg loop with this effect's own "measure at height:auto"
+    // step), so auto-fit kept shrinking it back down to a small natural
+    // size no matter how tall its defaultHeight was set.
+    if (axis !== 'vertical' || !autoFit) return
     const el = ref.current
     if (!el) return
 
@@ -89,7 +94,7 @@ export function useResizablePanel(id: string, defaultWidth: number, defaultHeigh
     const mo = new MutationObserver(fit)
     mo.observe(el, { childList: true, subtree: true, characterData: true })
     return () => mo.disconnect()
-  }, [id, axis])
+  }, [id, axis, autoFit])
 
   return {
     ref,

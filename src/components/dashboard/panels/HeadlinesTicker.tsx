@@ -38,7 +38,6 @@ export default function HeadlinesTicker() {
 
   return (
     <div className="dash-ticker">
-      <span className="dash-ticker-label">HEADLINES</span>
       <div className="dash-ticker-track">
         {items.map((h, i) => (
           <a key={i} href={h.link} target="_blank" rel="noreferrer" className="dash-ticker-item">

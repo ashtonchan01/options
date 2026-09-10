@@ -1791,19 +1791,11 @@ body {
   overflow: hidden;
   white-space: nowrap;
 }
-.dash-ticker-label {
-  flex-shrink: 0;
-  font-size: 9px;
-  font-weight: 700;
-  color: var(--accent);
-  letter-spacing: 1.5px;
-  font-family: 'Inter', sans-serif;
-}
 .dash-ticker-track {
   display: flex;
   align-items: center;
   gap: 28px;
-  animation: dashTickerScroll 50s linear infinite;
+  animation: dashTickerScroll 140s linear infinite;
   will-change: transform;
 }
 .dash-ticker:hover .dash-ticker-track { animation-play-state: paused; }
@@ -1835,6 +1827,7 @@ body {
 }
 .dash-left-map      { flex: 1; min-height: 0; }
 .dash-left-charts   { flex: 0 0 128px; }
+.dash-left-heatmap  { flex: 0 0 220px; }
 /* Single shared scrollbar for the whole right side — World-Monitor-style —
    covering both the two columns AND any "wide" panel (see useWideMap)
    stacked above them, rather than scrolling just the two-column area. A

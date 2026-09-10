@@ -10,7 +10,9 @@
  * the two columns. A thin scrolling headlines ticker (top 10 latest across
  * followed tickers) runs above everything else, full width — replacing the
  * old boxed "Ticker Headlines" panel and the Market Movers panels (Trending
- * Tickers/Top Gainers/Top Losers/Most Active), both removed.
+ * Tickers/Top Gainers/Top Losers/Most Active), both removed. Sector Heatmap
+ * sits in the left column, below the Live Charts strip, rather than in the
+ * right-side columns.
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
@@ -21,6 +23,7 @@ import LiveChartsStrip, { MARKET_BAR_SYMBOLS } from './panels/LiveChartsStrip'
 import LiveTVPanel from './panels/LiveTVPanel'
 import HeadlinesTicker from './panels/HeadlinesTicker'
 import PairTradingPanel from './panels/PairTradingPanel'
+import WatchlistPanel from './panels/WatchlistPanel'
 import SectorHeatmapPanel from './panels/SectorHeatmapPanel'
 import MarketBreadthPanel from './panels/MarketBreadthPanel'
 import EarningsCalendarPanel from './panels/EarningsCalendarPanel'
@@ -31,7 +34,7 @@ import { useWideMap } from '../../hooks/useResizablePanel'
 const REFRESH_MS = 60_000
 const CHART_ONLY_SYMBOLS = ['ES=F']
 
-export default function DashboardView({ state }: { state: AppState }) {
+export default function DashboardView({ state, watchlistTickers = [] }: { state: AppState; watchlistTickers?: string[] }) {
   const [quotes, setQuotes] = useState<Record<string, MarketQuote>>({})
   const [now, setNow] = useState(() => new Date())
   const { wideIds, setWide } = useWideMap()
@@ -50,14 +53,22 @@ export default function DashboardView({ state }: { state: AppState }) {
   }, [])
 
   const colA = [
-    { id: 'livetv', h: 340, node: <LiveTVPanel /> },
-    { id: 'pairs', h: 340, node: <PairTradingPanel state={state} topN={5} /> },
+    // Taller now that its column is wider (60/40 map split, up from 70/30) —
+    // LiveTVPanel keeps a strict 16:9 video box sized by whichever of
+    // width/height is the binding constraint; at the old height a wider
+    // column just left empty space beside a video that couldn't grow past
+    // the unchanged height ceiling. autoFit is off for it specifically —
+    // the video derives its own size FROM the container's height, which
+    // fights the auto-fit effect's own "measure at height:auto" step and
+    // kept shrinking it back down regardless of defaultHeight.
+    { id: 'livetv', h: 520, autoFit: false, node: <LiveTVPanel /> },
+    { id: 'watchlist', h: 340, autoFit: true, node: <WatchlistPanel tickers={watchlistTickers} /> },
+    { id: 'pairs', h: 340, autoFit: true, node: <PairTradingPanel state={state} topN={5} /> },
   ]
   const colB = [
-    { id: 'sector-heatmap', h: 260, node: <SectorHeatmapPanel /> },
-    { id: 'market-breadth', h: 220, node: <MarketBreadthPanel /> },
-    { id: 'earnings-calendar', h: 260, node: <EarningsCalendarPanel /> },
-    { id: 'fear-greed', h: 180, node: <FearGreedPanel /> },
+    { id: 'market-breadth', h: 220, autoFit: true, node: <MarketBreadthPanel /> },
+    { id: 'earnings-calendar', h: 260, autoFit: true, node: <EarningsCalendarPanel /> },
+    { id: 'fear-greed', h: 180, autoFit: true, node: <FearGreedPanel /> },
   ]
   const wideOnes = [...colA, ...colB].filter(p => wideIds.has(p.id))
 
@@ -72,12 +83,15 @@ export default function DashboardView({ state }: { state: AppState }) {
           <div className="dash-cell dash-left-charts">
             <LiveChartsStrip quotes={quotes} layout="row-single" />
           </div>
+          <div className="dash-cell dash-left-heatmap">
+            <SectorHeatmapPanel />
+          </div>
         </div>
 
         <div className="dash-right-cols-wrap">
           {wideOnes.map(p => (
             <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
-              wide onSetWide={(w) => setWide(p.id, w)}>
+              autoFit={p.autoFit ?? true} wide onSetWide={(w) => setWide(p.id, w)}>
               {p.node}
             </ResizablePanel>
           ))}
@@ -85,7 +99,7 @@ export default function DashboardView({ state }: { state: AppState }) {
             <div className="dash-right-col">
               {colA.filter(p => !wideIds.has(p.id)).map(p => (
                 <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
-                  onSetWide={(w) => setWide(p.id, w)}>
+                  autoFit={p.autoFit ?? true} onSetWide={(w) => setWide(p.id, w)}>
                   {p.node}
                 </ResizablePanel>
               ))}
@@ -93,7 +107,7 @@ export default function DashboardView({ state }: { state: AppState }) {
             <div className="dash-right-col">
               {colB.filter(p => !wideIds.has(p.id)).map(p => (
                 <ResizablePanel key={p.id} id={p.id} defaultWidth={460} defaultHeight={p.h} axis="vertical"
-                  onSetWide={(w) => setWide(p.id, w)}>
+                  autoFit={p.autoFit ?? true} onSetWide={(w) => setWide(p.id, w)}>
                   {p.node}
                 </ResizablePanel>
               ))}
