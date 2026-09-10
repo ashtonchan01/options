@@ -223,7 +223,7 @@ export default function PairTradingPanel({ state, topN = 10 }: { state: AppState
               {' '}{displaySymbol(top.buy.symbol)} the most oversold. Both have room to mean-revert toward RSI 50.
             </div>
 
-            <div style={{ display: 'flex', gap: 16, borderTop: '1px solid var(--border-light)', paddingTop: 8, flex: 1, minHeight: 0 }}>
+            <div className="dash-pairs-columns" style={{ display: 'flex', gap: 16, borderTop: '1px solid var(--border-light)', paddingTop: 8, flex: 1, minHeight: 0 }}>
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 6, flexShrink: 0 }}>
                   TOP {topN} OVERBOUGHT
