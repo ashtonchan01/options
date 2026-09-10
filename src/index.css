@@ -1981,7 +1981,12 @@ body {
      to scroll instead of just being that tall. Scoping height rules to only
      these three cells (by class, not the shared blanket) fixes both. */
   .dash-left-map { min-height: 320px; }
-  .dash-left-charts { flex: 0 0 190px; min-height: 190px; height: auto; }
+  /* 130px, not the earlier 190px: the card row itself is a fixed 100px tall
+     (LiveChartsStrip's row-single gridStyle sets `height: 100` inline,
+     unaffected by anything here) plus the panel's own 16px padding and the
+     row's own 14px top/bottom padding — 190px left a ~60px dead gap below
+     the cards before the heatmap started, exactly the reported bug. */
+  .dash-left-charts { flex: 0 0 130px; min-height: 130px; height: auto; }
   .dash-left-heatmap { flex: 0 0 auto; height: auto; min-height: 170px; max-height: none; }
 
   /* Live Charts strip: at mobile widths splitting 9 cards into equal flex
@@ -1990,6 +1995,18 @@ body {
      wide-card `row`/`column` layouts already do elsewhere. */
   .dash-left-charts .dash-panel > div { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
   .dash-left-charts .dash-panel > div > div { flex: 0 0 128px !important; min-width: 128px !important; }
+
+  /* Pair Trading's Top-5 Overbought/Oversold lists: each RsiCard was sized
+     `flex: 1` within a `flex: 1` list inside a now vertically-stacked (see
+     .dash-pairs-columns below) container with no defined height of its own
+     — nested flex:1s with nothing to actually size against collapse to a
+     sliver, squashing every card's sparkline + text into an overlapping
+     tangle ("like noodles"). Give each card a real minimum height instead so
+     it renders at a legible size; .dash-pairs-scroll (already overflow:auto)
+     scrolls the list if the panel isn't tall enough to show every card at
+     that height without scrolling. */
+  .dash-pairs-list { flex: none !important; }
+  .dash-rsi-card { flex: none !important; min-height: 62px !important; }
 
   /* Sector Heatmap: 11 equal columns (fine on desktop) squeeze into slivers
      at mobile width. Wrap into several rows of wider tiles instead — no

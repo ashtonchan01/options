@@ -84,7 +84,7 @@ function RsiCard({ row }: { row: RsiRow }) {
   const streak = row.rsi >= OVERBOUGHT ? streakDays(row.series, OVERBOUGHT, 'above')
     : row.rsi <= OVERSOLD ? streakDays(row.series, OVERSOLD, 'below') : 0
   return (
-    <div style={{
+    <div className="dash-rsi-card" style={{
       flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'Inter, sans-serif',
       padding: '7px 9px', borderLeft: `3px solid ${color}`, borderRadius: 6, background: `${color}14`,
     }}
@@ -228,7 +228,7 @@ export default function PairTradingPanel({ state, topN = 10 }: { state: AppState
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.06em', marginBottom: 6, flexShrink: 0 }}>
                   TOP {topN} OVERBOUGHT
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0 }}>
+                <div className="dash-pairs-list" style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0 }}>
                   {topOverbought.map(r => <RsiCard key={r.symbol} row={r} />)}
                 </div>
               </div>
@@ -237,7 +237,7 @@ export default function PairTradingPanel({ state, topN = 10 }: { state: AppState
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.06em', marginBottom: 6, flexShrink: 0 }}>
                   TOP {topN} OVERSOLD
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0 }}>
+                <div className="dash-pairs-list" style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0 }}>
                   {topOversold.map(r => <RsiCard key={r.symbol} row={r} />)}
                 </div>
               </div>
