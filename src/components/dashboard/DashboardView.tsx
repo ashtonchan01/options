@@ -66,11 +66,17 @@ export default function DashboardView({ state, watchlistTickers = [] }: { state:
     // new one from ever taking effect for anyone who'd already loaded this
     // panel before.
     { id: 'livetv-2', h: 300, autoFit: true, node: <LiveTVPanel /> },
-    { id: 'fear-greed', h: 180, autoFit: true, node: <FearGreedPanel /> },
-    { id: 'pairs', h: 340, autoFit: true, node: <PairTradingPanel state={state} topN={5} /> },
+    // ids bumped ('fear-greed'/'pairs'/'watchlist' -> '-2') for the same
+    // reason as livetv-2 above: a browser that had ever loaded this panel
+    // before the mobile layout fix has a stored pixel height under the old
+    // id, which permanently blocks autoFit from ever re-measuring — so the
+    // fix (scoping the mobile CSS height override away from these panels)
+    // never actually took effect for a returning user, only a fresh one.
+    { id: 'fear-greed-2', h: 180, autoFit: true, node: <FearGreedPanel /> },
+    { id: 'pairs-2', h: 340, autoFit: true, node: <PairTradingPanel state={state} topN={5} /> },
   ]
   const colB = [
-    { id: 'watchlist', h: 340, autoFit: true, node: <WatchlistPanel tickers={watchlistTickers} /> },
+    { id: 'watchlist-2', h: 340, autoFit: true, node: <WatchlistPanel tickers={watchlistTickers} /> },
   ]
   const wideOnes = [...colA, ...colB].filter(p => wideIds.has(p.id))
 
