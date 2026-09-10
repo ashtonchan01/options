@@ -1961,22 +1961,49 @@ body {
      silently clipped with no scrollbar anywhere to reach it. */
   .dash-wrap { flex-direction: column; overflow-y: auto; overflow-x: hidden; }
   .dash-left-col, .dash-right-cols-wrap, .dash-right-cols, .dash-right-col { flex: none; overflow: visible; }
-  .dash-left-map { min-height: 320px; }
-  .dash-left-charts { flex: 0 0 128px; }
   .dash-right-cols { flex-direction: column; }
   /* No "wide" concept on a single mobile column — every panel is already
      full width, so the drag handle would do nothing useful; hide it. */
   .dash-col-resize-handle, .dash-row-resize-handle { display: none; }
-  .dash-cell { width: 100% !important; height: auto !important; min-height: 260px; max-height: 400px; resize: none !important; }
-  /* .dash-cell's blanket min-height:260px above (meant for the right-side
-     resizable panels) also lands on the fixed-height left map/charts strip
-     since both carry the .dash-cell class too, and — same specificity,
-     later in the cascade — wins over their own min-height rules just above,
-     stretching a 128px chart strip into a 260px box with dead space below
-     it, and shrinking the map from its intended 320px. Restated here, after
-     .dash-cell, to actually take effect. */
+  /* Width-only override for every cell, including the JS-height-managed
+     ResizablePanel ones (.dash-resizable — Live TV/Fear&Greed/Pair
+     Trading/Watchlist) — their own inline height (autoFit-measured or
+     user-stored) is left alone below, not clobbered here. */
+  .dash-cell { width: 100% !important; resize: none !important; }
+  /* The plain left-column cells (map/charts/heatmap) aren't JS-height-managed
+     the way .dash-resizable panels are, so they still need an explicit mobile
+     height here. This used to be a single blanket `.dash-cell` rule (auto
+     height, 260-400px clamp) that ALSO landed on every `.dash-resizable`
+     panel sharing the `.dash-cell` class, clobbering their own real content
+     height: min-height:260px left a dead gap under Fear & Greed's genuinely
+     shorter content, and max-height:400px force-capped Watchlist below its
+     actual (autoFit-measured, sometimes 500px+) row-table height, so it had
+     to scroll instead of just being that tall. Scoping height rules to only
+     these three cells (by class, not the shared blanket) fixes both. */
   .dash-left-map { min-height: 320px; }
-  .dash-left-charts { min-height: 128px; }
+  .dash-left-charts { flex: 0 0 190px; min-height: 190px; height: auto; }
+  .dash-left-heatmap { flex: 0 0 auto; height: auto; min-height: 170px; max-height: none; }
+
+  /* Live Charts strip: at mobile widths splitting 9 cards into equal flex
+     shares squeezes each into ~40px — unreadably "crumbled". Give cards a
+     real fixed width instead and let the row scroll horizontally, like the
+     wide-card `row`/`column` layouts already do elsewhere. */
+  .dash-left-charts .dash-panel > div { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  .dash-left-charts .dash-panel > div > div { flex: 0 0 128px !important; min-width: 128px !important; }
+
+  /* Sector Heatmap: 11 equal columns (fine on desktop) squeeze into slivers
+     at mobile width. Wrap into several rows of wider tiles instead — no
+     horizontal scroll, the row just grows to fit them all (dash-left-heatmap
+     above is height:auto/no max-height so the extra rows have room). */
+  .dash-left-heatmap .dash-panel > div:last-child {
+    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)) !important;
+    grid-auto-rows: minmax(56px, auto) !important;
+  }
+
+  /* Pair Trading's side-by-side Overbought/Oversold columns don't have room
+     at mobile width — each card's price/streak/sparkline row wraps and
+     overlaps the next one. Stack the two columns instead. */
+  .dash-pairs-columns { flex-direction: column !important; gap: 12px !important; }
 }
 .dash-panel {
   background: var(--bg-card);
