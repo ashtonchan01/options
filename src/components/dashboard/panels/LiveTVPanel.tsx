@@ -115,24 +115,18 @@ export default function LiveTVPanel() {
           </button>
         ))}
       </div>
-      {/* CSS aspect-ratio (not flex:1 filling whatever height the panel
-          happens to have) — height is DERIVED from width, so this is
-          always a correct, undistorted 16:9 box with no measurement code
-          needed. Two earlier approaches both failed: a JS-computed
-          min(width, height*16/9) box left a dead gap on whichever side
-          wasn't the binding constraint once the column got wider than
-          the box needed; simply filling the remaining flex space stretched
-          the video into whatever (non-16:9) shape the panel's own fixed
-          height happened to leave, which looked visibly squashed/stretched.
-          Paired with ResizablePanel's autoFit (re-enabled for this panel
-          now that sizing is pure CSS, no JS scrollHeight race), the panel
-          itself settles to exactly this box's natural height — no gap
-          below it either. */}
-      <div style={{ width: '100%', aspectRatio: '16 / 9', flexShrink: 0, overflow: 'hidden' }}>
-        <div style={{
-          width: '100%', height: '100%',
-          borderRadius: 6, overflow: 'hidden', background: '#000',
-        }}>
+      {/* The classic padding-percentage aspect-ratio box (position:relative +
+          paddingTop:56.25% + an absolutely-positioned iframe filling it) —
+          NOT the CSS `aspect-ratio` property. An earlier version of this
+          used `aspect-ratio` directly on a flex column item, which doesn't
+          reliably resolve against a flex-item's cross-axis size across
+          browsers (Safari chief among them) and rendered as a squashed,
+          cropped box instead of a correct 16:9 one. The padding-percentage
+          technique has no such dependency — percentage padding always
+          resolves against the box's own width regardless of its layout
+          context, so it's the one approach guaranteed to size correctly
+          everywhere. */}
+      <div style={{ width: '100%', position: 'relative', paddingTop: '56.25%', flexShrink: 0, borderRadius: 6, overflow: 'hidden', background: '#000' }}>
           {/* sandbox omits BOTH allow-top-navigation(-by-user-activation) AND
               allow-popups(-to-escape-sandbox) — embedded ads on live news
               streams are a known malvertising vector, and blocking only
@@ -152,9 +146,8 @@ export default function LiveTVPanel() {
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
             allowFullScreen
             sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
-            style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', display: 'block' }}
           />
-        </div>
       </div>
     </div>
   )
