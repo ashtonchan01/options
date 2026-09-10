@@ -48,17 +48,25 @@ export default function SectorHeatmapPanel() {
           <RefreshCw size={11} style={{ animation: loading ? 'spin 1.5s linear infinite' : 'none' }} />
         </button>
       </div>
+      {/* Exactly SECTOR_ETFS.length equal columns (not auto-fill/minmax) —
+          auto-fill wrapped to however many ~90px columns fit and left
+          whatever didn't divide evenly as a dead gap on the last row's
+          right edge, instead of every sector's tile actually sharing the
+          panel's full width. A single explicit row also stretches to fill
+          the panel's full height by default, instead of gridAutoRows'
+          minmax(0,1fr) leaving row height to whatever the tallest tile's
+          own content needed. */}
       <div style={{
         flex: 1, minHeight: 0, display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))',
-        gridAutoRows: 'minmax(0, 1fr)', gap: 4, overflow: 'auto', padding: '2px 2px 4px',
+        gridTemplateColumns: `repeat(${SECTOR_ETFS.length}, 1fr)`,
+        gap: 4, padding: '2px 2px 4px',
       }}>
         {SECTOR_ETFS.map(s => {
           const q = quotes[s.symbol]
           return (
             <div key={s.symbol} style={{
               background: heatColor(q?.changePercent), border: '1px solid var(--border-light)', borderRadius: 6,
-              padding: '6px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 54,
+              padding: '6px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 0,
             }}>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-2)' }}>{s.symbol}</div>
               <div style={{ fontSize: 9, color: 'var(--text-4)', lineHeight: 1.3, marginBottom: 2 }}>{s.name}</div>
