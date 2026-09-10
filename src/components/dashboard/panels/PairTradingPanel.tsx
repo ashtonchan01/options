@@ -9,6 +9,7 @@ import { RefreshCw, ArrowRightLeft } from 'lucide-react'
 import type { AppState } from '../../../types'
 import { WATCHLIST } from '../../../data/watchlist'
 import { fetchRSI, type RsiData } from '../../../services/rsi'
+import { fetchQuotes, type Quote } from '../../../services/quotes'
 
 const OVERBOUGHT = 70
 const OVERSOLD = 30
@@ -26,10 +27,24 @@ function rsiColor(rsi: number): string {
   return 'var(--text-3)'
 }
 
-interface RsiRow { symbol: string; rsi: number; series: number[] }
+interface RsiRow { symbol: string; rsi: number; series: number[]; quote?: Quote }
 
-const SPARK_W = 100
-const SPARK_H = 28
+const SPARK_W = 140
+const SPARK_H = 40
+
+/** How many consecutive most-recent days the series has stayed past the
+ * given threshold — a reading of "72" reads very differently after 1 day
+ * past overbought vs. 8 days past it, and the plain RSI number alone can't
+ * tell you which. */
+function streakDays(series: number[], threshold: number, direction: 'above' | 'below'): number {
+  let n = 0
+  for (let i = series.length - 1; i >= 0; i--) {
+    const past = direction === 'above' ? series[i] >= threshold : series[i] <= threshold
+    if (!past) break
+    n++
+  }
+  return n
+}
 
 /** Small line chart of the ticker's own recent rolling RSI (not price) — the
  * 70/30 overbought/oversold reference lines give it context a plain price
@@ -43,11 +58,16 @@ function RsiSparkline({ series, color }: { series: number[]; color: string }) {
   })
   const linePath = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
   const yFor = (v: number) => SPARK_H - (v / 100) * SPARK_H
+  const [lastX, lastY] = points[points.length - 1]
   return (
-    <svg viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
+    <svg viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}>
       <line x1={0} x2={SPARK_W} y1={yFor(OVERBOUGHT)} y2={yFor(OVERBOUGHT)} stroke="var(--border-light)" strokeWidth={1} strokeDasharray="2,2" />
       <line x1={0} x2={SPARK_W} y1={yFor(OVERSOLD)} y2={yFor(OVERSOLD)} stroke="var(--border-light)" strokeWidth={1} strokeDasharray="2,2" />
       <path d={linePath} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      {/* Marks today's reading against its own recent trend — without this
+          the line alone doesn't say whether "now" is the peak, the trough,
+          or partway through a move. */}
+      <circle cx={lastX} cy={lastY} r={2.4} fill={color} vectorEffect="non-scaling-stroke" />
     </svg>
   )
 }
@@ -60,14 +80,31 @@ function RsiSparkline({ series, color }: { series: number[]; color: string }) {
  * stopping at a fixed size with dead space below the last row. */
 function RsiCard({ row }: { row: RsiRow }) {
   const color = rsiColor(row.rsi)
+  const changePct = row.quote?.prevClose ? ((row.quote.price - row.quote.prevClose) / row.quote.prevClose) * 100 : null
+  const streak = row.rsi >= OVERBOUGHT ? streakDays(row.series, OVERBOUGHT, 'above')
+    : row.rsi <= OVERSOLD ? streakDays(row.series, OVERSOLD, 'below') : 0
   return (
     <div style={{
       flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'Inter, sans-serif',
       padding: '7px 9px', borderLeft: `3px solid ${color}`, borderRadius: 6, background: `${color}14`,
-    }}>
+    }}
+      title={`${displaySymbol(row.symbol)} — RSI(14) ${row.rsi.toFixed(1)}${streak > 0 ? `, ${streak}d past ${row.rsi >= OVERBOUGHT ? 'overbought' : 'oversold'}` : ''}${row.quote ? ` · $${row.quote.price.toFixed(2)}` : ''}`}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
         <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 700 }}>{displaySymbol(row.symbol)}</span>
         <span style={{ fontSize: 12.5, color, fontWeight: 800 }}>{row.rsi.toFixed(0)}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 9.5 }}>
+        <span style={{ color: 'var(--text-4)' }}>
+          {row.quote ? `$${row.quote.price.toFixed(2)}` : '—'}
+          {changePct != null && (
+            <span style={{ color: changePct >= 0 ? '#10b981' : '#ef4444', marginLeft: 4, fontWeight: 600 }}>
+              {changePct >= 0 ? '+' : ''}{changePct.toFixed(1)}%
+            </span>
+          )}
+        </span>
+        {streak > 0 && (
+          <span style={{ color, fontWeight: 700 }}>{streak}d</span>
+        )}
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         <RsiSparkline series={row.series} color={color} />
@@ -78,6 +115,7 @@ function RsiCard({ row }: { row: RsiRow }) {
 
 export default function PairTradingPanel({ state, topN = 10 }: { state: AppState; topN?: number }) {
   const [rsiMap, setRsiMap] = useState<Record<string, RsiData>>({})
+  const [quoteMap, setQuoteMap] = useState<Record<string, Quote>>({})
   const [loading, setLoading] = useState(false)
 
   const tickers = useMemo(() => {
@@ -94,16 +132,17 @@ export default function PairTradingPanel({ state, topN = 10 }: { state: AppState
 
   async function load() {
     setLoading(true)
-    const data = await fetchRSI(allSymbols)
-    setRsiMap(data)
+    const [rsi, quotes] = await Promise.all([fetchRSI(allSymbols), fetchQuotes(allSymbols)])
+    setRsiMap(rsi)
+    setQuoteMap(quotes)
     setLoading(false)
   }
 
   useEffect(() => { load() }, [allSymbols.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows: RsiRow[] = useMemo(
-    () => allSymbols.filter(s => rsiMap[s] != null).map(s => ({ symbol: s, rsi: rsiMap[s].rsi, series: rsiMap[s].series })),
-    [allSymbols, rsiMap],
+    () => allSymbols.filter(s => rsiMap[s] != null).map(s => ({ symbol: s, rsi: rsiMap[s].rsi, series: rsiMap[s].series, quote: quoteMap[s] })),
+    [allSymbols, rsiMap, quoteMap],
   )
 
   const overboughtStrict = rows.filter(r => r.rsi >= OVERBOUGHT).sort((a, b) => b.rsi - a.rsi)
@@ -155,16 +194,33 @@ export default function PairTradingPanel({ state, topN = 10 }: { state: AppState
               <div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{displaySymbol(top.sell.symbol)}</div>
                 <div style={{ fontSize: 10.5, color: '#ef4444', fontWeight: 700 }}>SELL · {top.sell.rsi.toFixed(1)}</div>
+                <div style={{ fontSize: 9.5, color: 'var(--text-4)' }}>
+                  {top.sell.quote ? `$${top.sell.quote.price.toFixed(2)}` : '—'}
+                  {streakDays(top.sell.series, OVERBOUGHT, 'above') > 0 && ` · ${streakDays(top.sell.series, OVERBOUGHT, 'above')}d overbought`}
+                </div>
               </div>
               <ArrowRightLeft size={13} style={{ color: 'var(--text-5)', flexShrink: 0 }} />
               <div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'Inter, sans-serif' }}>{displaySymbol(top.buy.symbol)}</div>
                 <div style={{ fontSize: 10.5, color: '#10b981', fontWeight: 700 }}>BUY · {top.buy.rsi.toFixed(1)}</div>
+                <div style={{ fontSize: 9.5, color: 'var(--text-4)' }}>
+                  {top.buy.quote ? `$${top.buy.quote.price.toFixed(2)}` : '—'}
+                  {streakDays(top.buy.series, OVERSOLD, 'below') > 0 && ` · ${streakDays(top.buy.series, OVERSOLD, 'below')}d oversold`}
+                </div>
               </div>
               <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
                 <div style={{ fontSize: 9, color: 'var(--text-4)' }}>SPREAD</div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--accent)', fontFamily: 'Inter, sans-serif' }}>{top.spread.toFixed(1)}</div>
               </div>
+            </div>
+            {/* Plain-language rationale — the numbers above say WHAT the
+                reading is, this says WHY it's the top pick: the widest
+                overbought/oversold gap on the board is the pair with the
+                most room to converge back toward neutral (RSI 50) on both
+                legs at once. */}
+            <div style={{ fontSize: 10, color: 'var(--text-3)', lineHeight: 1.5 }}>
+              Widest RSI gap on the board — {displaySymbol(top.sell.symbol)} is the most overbought watchlist name,
+              {' '}{displaySymbol(top.buy.symbol)} the most oversold. Both have room to mean-revert toward RSI 50.
             </div>
 
             <div style={{ display: 'flex', gap: 16, borderTop: '1px solid var(--border-light)', paddingTop: 8, flex: 1, minHeight: 0 }}>
