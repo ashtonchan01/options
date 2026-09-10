@@ -2000,13 +2000,13 @@ body {
      `flex: 1` within a `flex: 1` list inside a now vertically-stacked (see
      .dash-pairs-columns below) container with no defined height of its own
      — nested flex:1s with nothing to actually size against collapse to a
-     sliver, squashing every card's sparkline + text into an overlapping
-     tangle ("like noodles"). Give each card a real minimum height instead so
-     it renders at a legible size; .dash-pairs-scroll (already overflow:auto)
-     scrolls the list if the panel isn't tall enough to show every card at
-     that height without scrolling. */
+     sliver, squashing every card's text into an overlapping tangle. Give
+     each card a real minimum height instead so it renders at a legible
+     size; .dash-pairs-scroll (already overflow:auto) scrolls the list if
+     the panel isn't tall enough to show every card at that height without
+     scrolling. */
   .dash-pairs-list { flex: none !important; }
-  .dash-rsi-card { flex: none !important; min-height: 62px !important; }
+  .dash-rsi-card { flex: none !important; min-height: 42px !important; }
 
   /* Sector Heatmap: 11 equal columns (fine on desktop) squeeze into slivers
      at mobile width. Wrap into several rows of wider tiles instead — no

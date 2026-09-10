@@ -29,9 +29,6 @@ function rsiColor(rsi: number): string {
 
 interface RsiRow { symbol: string; rsi: number; series: number[]; quote?: Quote }
 
-const SPARK_W = 140
-const SPARK_H = 40
-
 /** How many consecutive most-recent days the series has stayed past the
  * given threshold — a reading of "72" reads very differently after 1 day
  * past overbought vs. 8 days past it, and the plain RSI number alone can't
@@ -46,38 +43,10 @@ function streakDays(series: number[], threshold: number, direction: 'above' | 'b
   return n
 }
 
-/** Small line chart of the ticker's own recent rolling RSI (not price) — the
- * 70/30 overbought/oversold reference lines give it context a plain price
- * sparkline wouldn't have. */
-function RsiSparkline({ series, color }: { series: number[]; color: string }) {
-  if (series.length < 2) return <svg style={{ width: '100%', height: '100%' }} />
-  const points = series.map((v, i) => {
-    const x = (i / (series.length - 1)) * SPARK_W
-    const y = SPARK_H - (Math.min(Math.max(v, 0), 100) / 100) * SPARK_H
-    return [x, y] as const
-  })
-  const linePath = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
-  const yFor = (v: number) => SPARK_H - (v / 100) * SPARK_H
-  const [lastX, lastY] = points[points.length - 1]
-  return (
-    <svg viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}>
-      <line x1={0} x2={SPARK_W} y1={yFor(OVERBOUGHT)} y2={yFor(OVERBOUGHT)} stroke="var(--border-light)" strokeWidth={1} strokeDasharray="2,2" />
-      <line x1={0} x2={SPARK_W} y1={yFor(OVERSOLD)} y2={yFor(OVERSOLD)} stroke="var(--border-light)" strokeWidth={1} strokeDasharray="2,2" />
-      <path d={linePath} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-      {/* Marks today's reading against its own recent trend — without this
-          the line alone doesn't say whether "now" is the peak, the trough,
-          or partway through a move. */}
-      <circle cx={lastX} cy={lastY} r={2.4} fill={color} vectorEffect="non-scaling-stroke" />
-    </svg>
-  )
-}
-
-/** Rectangular box per ticker: symbol + current RSI, with its recent rolling
- * RSI plotted as a live chart instead of the old single-bar gauge. Tinted
- * background + left accent bar in the same red/green as the RSI reading
- * give the grid some colour instead of a flat monochrome list, and flex:1
- * lets each card stretch to fill the column's full height instead of
- * stopping at a fixed size with dead space below the last row. */
+/** Rectangular box per ticker: symbol + current RSI, price/change and streak —
+ * plain text, no chart. Tinted background + left accent bar in the same
+ * red/green as the RSI reading give the grid some colour instead of a flat
+ * monochrome list. */
 function RsiCard({ row }: { row: RsiRow }) {
   const color = rsiColor(row.rsi)
   const changePct = row.quote?.prevClose ? ((row.quote.price - row.quote.prevClose) / row.quote.prevClose) * 100 : null
@@ -105,9 +74,6 @@ function RsiCard({ row }: { row: RsiRow }) {
         {streak > 0 && (
           <span style={{ color, fontWeight: 700 }}>{streak}d</span>
         )}
-      </div>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <RsiSparkline series={row.series} color={color} />
       </div>
     </div>
   )
