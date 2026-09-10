@@ -13,11 +13,8 @@
  * Tickers/Top Gainers/Top Losers/Most Active), both removed. Sector Heatmap
  * sits in the left column, below the Live Charts strip, rather than in the
  * right-side columns. Watchlist Breadth and Earnings Calendar are removed;
- * the second right-side column now holds Watchlist and a Bloomberg
- * headlines widget (Bloomberg's own public RSS feeds — bloomberg.com itself
- * can't be embedded, it refuses framing like virtually every major news
- * site), with Fear & Greed and Pair Trading stacked under Live TV in the
- * first.
+ * the second right-side column holds Watchlist, with Fear & Greed and Pair
+ * Trading stacked under Live TV in the first.
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
@@ -29,7 +26,6 @@ import LiveTVPanel from './panels/LiveTVPanel'
 import HeadlinesTicker from './panels/HeadlinesTicker'
 import PairTradingPanel from './panels/PairTradingPanel'
 import WatchlistPanel from './panels/WatchlistPanel'
-import BloombergNewsPanel from './panels/BloombergNewsPanel'
 import SectorHeatmapPanel from './panels/SectorHeatmapPanel'
 import FearGreedPanel from './panels/FearGreedPanel'
 import ResizablePanel from './ResizablePanel'
@@ -75,7 +71,6 @@ export default function DashboardView({ state, watchlistTickers = [] }: { state:
   ]
   const colB = [
     { id: 'watchlist', h: 340, autoFit: true, node: <WatchlistPanel tickers={watchlistTickers} /> },
-    { id: 'bloomberg-news', h: 400, autoFit: true, node: <BloombergNewsPanel /> },
   ]
   const wideOnes = [...colA, ...colB].filter(p => wideIds.has(p.id))
 
