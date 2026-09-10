@@ -12,6 +12,7 @@ export interface BloombergHeadline {
   link: string
   source: string
   time: number
+  image?: string
 }
 
 export async function fetchBloombergNews(): Promise<BloombergHeadline[]> {

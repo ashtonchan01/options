@@ -57,15 +57,12 @@ export default function DashboardView({ state, watchlistTickers = [] }: { state:
   }, [])
 
   const colA = [
-    // Taller now that its column is wider (60/40 map split, up from 70/30) —
-    // LiveTVPanel keeps a strict 16:9 video box sized by whichever of
-    // width/height is the binding constraint; at the old height a wider
-    // column just left empty space beside a video that couldn't grow past
-    // the unchanged height ceiling. autoFit is off for it specifically —
-    // the video derives its own size FROM the container's height, which
-    // fights the auto-fit effect's own "measure at height:auto" step and
-    // kept shrinking it back down regardless of defaultHeight.
-    { id: 'livetv', h: 520, autoFit: false, node: <LiveTVPanel /> },
+    // LiveTVPanel's video box now uses CSS aspect-ratio (height derived
+    // from width, no JS measurement) instead of a JS-computed size — so
+    // autoFit can stay on: the panel settles to exactly that box's natural
+    // height (undistorted 16:9, no gap below it) instead of needing a
+    // hand-picked defaultHeight that was always wrong for some column width.
+    { id: 'livetv', h: 300, autoFit: true, node: <LiveTVPanel /> },
     { id: 'fear-greed', h: 180, autoFit: true, node: <FearGreedPanel /> },
     { id: 'pairs', h: 340, autoFit: true, node: <PairTradingPanel state={state} topN={5} /> },
   ]

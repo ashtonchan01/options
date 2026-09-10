@@ -40,6 +40,21 @@ function decodeEntities(s) {
     .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'")
 }
 
+// Bloomberg's items carry an image a few different ways depending on feed —
+// <media:content>/<media:thumbnail> (MRSS, the common case), a plain
+// <enclosure> some readers use instead, or (rarely) an <img> buried in the
+// HTML <description>. Tried in that order; the first match wins.
+const MEDIA_CONTENT_RE = /<media:content\b[^>]*\burl="([^"]+)"/i
+const MEDIA_THUMBNAIL_RE = /<media:thumbnail\b[^>]*\burl="([^"]+)"/i
+const ENCLOSURE_RE = /<enclosure\b[^>]*\burl="([^"]+)"[^>]*\btype="image\//i
+const DESC_IMG_RE = /<description>[\s\S]*?<img[^>]+src="([^"]+)"[\s\S]*?<\/description>/i
+
+function extractImage(itemXml) {
+  const m = itemXml.match(MEDIA_CONTENT_RE) ?? itemXml.match(MEDIA_THUMBNAIL_RE)
+    ?? itemXml.match(ENCLOSURE_RE) ?? itemXml.match(DESC_IMG_RE)
+  return m?.[1]?.trim()
+}
+
 function parseFeed(xml, section) {
   const items = []
   const itemRe = /<item\b[\s\S]*?<\/item>/gi
@@ -59,6 +74,7 @@ function parseFeed(xml, section) {
       link,
       source: 'Bloomberg',
       time: Number.isFinite(ts) ? ts : Date.now(),
+      image: extractImage(match),
     })
   }
   return items.slice(0, 20)
