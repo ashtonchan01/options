@@ -330,6 +330,12 @@ interface LeapExpiryGroup {
   items: ScanResult[]
 }
 
+interface ComboExpiryGroup {
+  expiry: string
+  dte: number
+  items: SyntheticLongCombo[]
+}
+
 interface TickerCard {
   symbol: string; price: number; bestScore: number; avgIv: number
   totalContracts: number; topCsp: ScanResult[]; topCc: ScanResult[]
@@ -339,7 +345,12 @@ interface TickerCard {
   // which of the last 3 to look at (or a combined top-5 across all 3).
   leapExpiries: LeapExpiryGroup[]
   topLeapAll: ScanResult[]
-  topCombos: SyntheticLongCombo[]
+  // Combo groups line up 1:1 with leapExpiries by index/expiry (same
+  // selector picks both), so a given expiry's calls and its synthetic-long
+  // combos always move together instead of the combos staying pinned to
+  // whichever single expiry used to be "the" combo expiry.
+  comboExpiries: ComboExpiryGroup[]
+  topCombosAll: SyntheticLongCombo[]
   nextEarnings: string | null
 }
 
@@ -385,7 +396,7 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
     // double just to break even. The straight "buy the LEAP" table is only
     // useful as a stock-replacement if the call actually behaves like the
     // stock, so it needs its own, higher delta floor — the wider band stays
-    // available to the combo builder via allLeapCalls/comboCalls below.
+    // available to the combo builder via allLeapCalls/comboExpiries below.
     const LEAP_TABLE_MIN_DELTA = 0.60
     // Only the ticker's OWN furthest available expiries count as "the LEAP" —
     // the point of a LEAP is maximum time. Previously only the single
@@ -412,20 +423,22 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
     )
     const puts = rs.filter(r => r.strategyType === 'csp')
 
-    // The LEAP table above shows the ticker's absolute furthest CALL expiry
-    // regardless of puts — but a combo needs a put at that SAME expiry, and
-    // some underlyings simply don't have one listed that far out (thin or
-    // no put interest at a multi-year date, even though calls exist). Rather
-    // than the combo builder silently coming back empty whenever that's the
-    // case, walk the call expiries from furthest to nearest and use the
-    // first one that actually has a matching long-dated put — the furthest
-    // expiry where BOTH legs of a combo are actually available.
-    const longDatedPutExpiries = new Set(puts.filter(p => p.dte >= LEAP_MIN_DTE).map(p => p.expiry))
-    const callExpiriesByDte = [...new Set(allLeapCalls.map(c => c.expiry))]
-      .map(expiry => ({ expiry, dte: allLeapCalls.find(c => c.expiry === expiry)!.dte }))
-      .sort((a, b) => b.dte - a.dte)
-    const comboExpiry = callExpiriesByDte.find(e => longDatedPutExpiries.has(e.expiry))?.expiry
-    const comboCalls = comboExpiry ? allLeapCalls.filter(c => c.expiry === comboExpiry) : []
+    // Combo groups mirror leapExpiries exactly (same expiries, same order,
+    // same index) — buildComboRankings self-filters to same-expiry pairs
+    // internally, so passing it this expiry's calls plus every put is safe;
+    // an expiry with no matching long-dated put just comes back empty for
+    // that one entry instead of silently falling back to a different expiry
+    // like the old single "comboExpiry" walk-back did.
+    const comboExpiries: ComboExpiryGroup[] = leapExpiries.map(({ expiry, dte }) => ({
+      expiry, dte,
+      items: buildComboRankings(allLeapCalls.filter(c => c.expiry === expiry), puts).slice(0, 6),
+    }))
+    // Combined top combos across all 3 expiries' calls, pooled and re-ranked
+    // together — same idea as topLeapAll.
+    const topCombosAll = buildComboRankings(
+      leapExpiries.flatMap(({ expiry }) => allLeapCalls.filter(c => c.expiry === expiry)),
+      puts,
+    ).slice(0, 6)
 
     cards.push({
       symbol, price,
@@ -436,12 +449,8 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
       topCc:  rs.filter(r => r.strategyType === 'covered_call').sort((a, b) => b.score - a.score).slice(0, 5),
       leapExpiries,
       topLeapAll,
-      // Ranks EVERY call×put pair sharing the combo expiry (not just the
-      // top-scored LEAP paired with the top-scored put) — the user's actual
-      // usage pattern (e.g. an at-the-money call paired with a put struck
-      // ABOVE the stock price for a bigger credit) doesn't necessarily
-      // involve either leg's individually-top-scored contract.
-      topCombos: buildComboRankings(comboCalls, puts).slice(0, 6),
+      comboExpiries,
+      topCombosAll,
       nextEarnings: nextEarningsFor(symbol, earningsMap),
     })
   }
@@ -567,8 +576,9 @@ function fmtMoney(n: number): string {
 // All fr (not fixed px) so columns spread proportionally across the card's
 // full width instead of leaving a lopsided gap — same treatment as LEAP_GRID.
 // LEGS gets a smaller ratio than before, just enough for "330C/360P", so the
-// gap before NET stays tight.
-const COMBO_GRID = '16px 1.3fr 0.9fr 1fr 1fr 0.8fr 0.7fr'
+// gap before NET stays tight. EXP added (same reasoning as LEAP_GRID) so a
+// row stays legible once combos can span more than one expiry (ALL 3 view).
+const COMBO_GRID = '16px 1.2fr 0.8fr 1fr 1fr 1fr 0.8fr 0.7fr'
 
 function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
   return (
@@ -580,6 +590,7 @@ function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
       title={`${fmtExpMonthYear(c.call.expiry)}, ${c.dte}d · NET (${fmtMoney(c.comboNetCost)}) is the actual cash you pay to open the trade · MARGIN (${fmtMoney(c.putCollateral)}, Reg-T est.) is buying power your broker reserves against the short put — NOT additional cash out of pocket, it's supported by other equity in a margin account · straight LEAP cost ${fmtMoney(c.straightCost)}, breakeven $${c.straightBreakeven.toFixed(2)} · assignment risk ${(c.assignmentRisk * 100).toFixed(0)}% · combined delta ${c.comboDelta.toFixed(2)} · stock (100 shares) costs ${fmtMoney(c.call.stockPrice * 100)} · put strike is above the call strike (by design) — between $${c.call.strike} and $${c.put.strike} you're losing on the put faster than the call gains, not flat`}>
       <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
       <span style={{ color: 'var(--text-1)', fontWeight: 600, whiteSpace: 'nowrap' }}>${c.call.strike}C/${c.put.strike}P</span>
+      <span style={{ color: 'var(--text-3)', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtExpMonthYear(c.call.expiry)}</span>
       <span style={{ color: c.comboNetCost < 0 ? '#10b981' : 'var(--text-1)', fontWeight: 600, textAlign: 'right' }}>{fmtMoney(c.comboNetCost)}</span>
       <span style={{ color: 'var(--text-3)', textAlign: 'right' }}>{fmtMoney(c.putCollateral)}</span>
       <span style={{ color: 'var(--text-2)', textAlign: 'right' }}>${c.comboBreakeven.toFixed(2)}</span>
@@ -598,17 +609,19 @@ function ComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
  * margin account, so folding it into the ranking/cap as if it were more
  * cash to pay (an earlier version of this did) produced misleading results
  * and confused NET with the combined figure. */
-function SyntheticLongCombosSection({ combos }: { combos: SyntheticLongCombo[] }) {
+function SyntheticLongCombosSection({ combos, label }: { combos: SyntheticLongCombo[]; label: string }) {
   if (!combos.length) return null
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <span style={{ padding: '1px 6px', fontSize: 9, fontWeight: 700, background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6', fontFamily: "'Inter', sans-serif", letterSpacing: '0.5px' }}>SYNTHETIC LONG</span>
+        <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>{label}</span>
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <div style={{ minWidth: 340 }}>
+        <div style={{ minWidth: 390 }}>
           <div style={{ display: 'grid', gridTemplateColumns: COMBO_GRID, gap: 3, padding: '3px 0 5px', borderBottom: '1px solid var(--border-light)', fontSize: 8, fontWeight: 600, color: 'var(--text-4)', letterSpacing: '0.5px' }}>
             <span style={{ textAlign: 'center' }}>#</span><span>LEGS</span>
+            <span style={{ textAlign: 'right' }}>EXP</span>
             <span style={{ textAlign: 'right' }}>NET</span><span style={{ textAlign: 'right' }}>MARGIN</span>
             <span style={{ textAlign: 'right' }}>BEP</span><span style={{ textAlign: 'right' }}>RISK</span>
             <span style={{ textAlign: 'right' }}>SCR</span>
@@ -1018,7 +1031,14 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
             // LEAP is its own function, not part of "All" — it only shows
             // when its own toggle is explicitly selected.
             const showLeap = strategyFilter === 'leap' && leapItems.length > 0
-            const showCombo = showLeap && card.topCombos.length > 0
+            // comboExpiries lines up with leapExpiries by index/expiry (see
+            // buildCards), so the same leapExpirySel selects both.
+            const comboGroup = leapExpirySel === 'all' ? undefined : card.comboExpiries[leapExpirySel]
+            const comboItems = leapExpirySel === 'all' ? card.topCombosAll : (comboGroup?.items ?? [])
+            const comboLabel = leapExpirySel === 'all'
+              ? `TOP ${comboItems.length} · ALL 3 EXPIRIES`
+              : comboGroup ? `TOP ${comboItems.length} · ${fmtExpMonthYear(comboGroup.expiry)} (${comboGroup.dte}d)` : ''
+            const showCombo = showLeap && comboItems.length > 0
             const hasData = showCsp || showCc || showLeap
             const shares = stocksHeld[card.symbol] ?? 0
             return (
@@ -1078,7 +1098,7 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
                     {showCsp && <StrategySection label="CSP" color="#f43f5e" items={card.topCsp} nextEarnings={card.nextEarnings} fomcDates={fomcDates} />}
                     {showCc  && <StrategySection label="CC"  color="#3b82f6" items={card.topCc} nextEarnings={card.nextEarnings} fomcDates={fomcDates} />}
                     {showLeap && <LeapSection items={leapItems} label={leapLabel} />}
-                    {showCombo && <SyntheticLongCombosSection combos={card.topCombos} />}
+                    {showCombo && <SyntheticLongCombosSection combos={comboItems} label={comboLabel} />}
                   </div>
                 )}
               </div>
