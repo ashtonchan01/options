@@ -65,19 +65,29 @@ export default function BloombergNewsPanel() {
         )}
         {headlines.map((h, i) => (
           <a key={h.link + i} href={h.link} target="_blank" rel="noreferrer" style={{
-            display: 'block', padding: '7px 4px', textDecoration: 'none',
+            display: 'flex', gap: 8, alignItems: 'flex-start', padding: '7px 4px', textDecoration: 'none',
             borderTop: i === 0 ? 'none' : '1px solid var(--border-light)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-              <span style={{
-                fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
-                color: SECTION_COLOR[h.section] ?? 'var(--text-4)',
-              }}>
-                {h.section}
-              </span>
-              <span style={{ fontSize: 9.5, color: 'var(--text-4)' }}>{relativeTime(h.time)}</span>
+            {/* Not every item has one (some Bloomberg feed entries carry no
+                media tag at all) — the row just drops the thumbnail column
+                for those rather than showing a broken-image placeholder. */}
+            {h.image && (
+              <img src={h.image} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }}
+                style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 4, flexShrink: 0, background: 'var(--bg-elevated)' }}
+              />
+            )}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <span style={{
+                  fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                  color: SECTION_COLOR[h.section] ?? 'var(--text-4)',
+                }}>
+                  {h.section}
+                </span>
+                <span style={{ fontSize: 9.5, color: 'var(--text-4)' }}>{relativeTime(h.time)}</span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-1)', lineHeight: 1.4 }}>{h.title}</div>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-1)', lineHeight: 1.4 }}>{h.title}</div>
           </a>
         ))}
       </div>

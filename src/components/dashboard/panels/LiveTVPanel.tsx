@@ -115,13 +115,20 @@ export default function LiveTVPanel() {
           </button>
         ))}
       </div>
-      {/* Fills the panel's actual remaining box exactly — a strict 16:9
-          box (an earlier version of this) left a dead gap on whichever
-          side wasn't the binding constraint once the column got wider
-          than a 16:9 video needs for the available height. YouTube's own
-          player fills whatever box it's given without introducing blank
-          space of its own, so there's no visible cost to just filling it. */}
-      <div style={{ flex: '1 1 auto', minHeight: 0, width: '100%', overflow: 'hidden' }}>
+      {/* CSS aspect-ratio (not flex:1 filling whatever height the panel
+          happens to have) — height is DERIVED from width, so this is
+          always a correct, undistorted 16:9 box with no measurement code
+          needed. Two earlier approaches both failed: a JS-computed
+          min(width, height*16/9) box left a dead gap on whichever side
+          wasn't the binding constraint once the column got wider than
+          the box needed; simply filling the remaining flex space stretched
+          the video into whatever (non-16:9) shape the panel's own fixed
+          height happened to leave, which looked visibly squashed/stretched.
+          Paired with ResizablePanel's autoFit (re-enabled for this panel
+          now that sizing is pure CSS, no JS scrollHeight race), the panel
+          itself settles to exactly this box's natural height — no gap
+          below it either. */}
+      <div style={{ width: '100%', aspectRatio: '16 / 9', flexShrink: 0, overflow: 'hidden' }}>
         <div style={{
           width: '100%', height: '100%',
           borderRadius: 6, overflow: 'hidden', background: '#000',
