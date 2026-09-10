@@ -18,9 +18,14 @@ export interface MarketQuote {
 export async function fetchMarketQuotes(symbols: string[]): Promise<Record<string, MarketQuote>> {
   if (symbols.length === 0) return {}
   try {
+    // A cold request (no server-side cache hit yet) covering 30+ symbols —
+    // the dashboard's own combined exchanges + market-bar list — can still
+    // take a while even with the API's own batched-parallel fetch; 15s cut
+    // it close enough to occasionally abort before a genuinely slow (not
+    // stuck) response landed.
     const res = await fetch(
       `${PROXY}/api/markets?symbols=${encodeURIComponent(symbols.join(','))}`,
-      { signal: AbortSignal.timeout(15000) },
+      { signal: AbortSignal.timeout(25000) },
     )
     if (!res.ok) return {}
     return await res.json() as Record<string, MarketQuote>
