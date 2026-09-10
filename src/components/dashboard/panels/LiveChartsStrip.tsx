@@ -61,8 +61,11 @@ export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Re
       // deliberately shorter than its dashboard grid track, and if this stretched to
       // fill the track instead, the panel's own border would still end early, leaving
       // a blank gap of bare page background before the next grid row starts.
+      // No horizontal scroll — every card gets an equal flex share of the
+      // full width instead of a fixed 150px, so the strip fills edge to
+      // edge with no leftover gap (or scrollbar) after the last card.
       height: 100, flexShrink: 0, display: 'flex' as const, flexDirection: 'row' as const,
-      gap: 10, overflowX: 'auto' as const, padding: '2px 2px 6px',
+      gap: 10, padding: '2px 2px 6px',
     }
     : {
       flex: 1, minWidth: 0, minHeight: 0, display: 'grid' as const, gridTemplateRows: 'repeat(3, 1fr)', gridAutoFlow: 'column' as const,
@@ -79,9 +82,9 @@ export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Re
             <div key={ex.symbol} style={{
               background: 'var(--bg-page)', border: '1px solid var(--border-light)',
               borderRadius: 6, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4,
-              minWidth: layout === 'row-single' ? 150 : 0, minHeight: layout === 'column' ? 90 : 0,
-              flexShrink: layout === 'column' ? 0 : layout === 'row-single' ? 0 : undefined,
-              width: layout === 'row-single' ? 150 : undefined,
+              minWidth: 0, minHeight: layout === 'column' ? 90 : 0,
+              flexShrink: layout === 'column' ? 0 : undefined,
+              flex: layout === 'row-single' ? '1 1 0' : undefined,
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, flexShrink: 0 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

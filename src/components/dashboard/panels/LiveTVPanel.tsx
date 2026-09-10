@@ -4,7 +4,7 @@
  * open-source default channel list (github.com/koala73/worldmonitor,
  * src/components/LiveNewsPanel.ts) rather than guessed IDs.
  */
-import { useState, useRef, useLayoutEffect } from 'react'
+import { useState } from 'react'
 
 type Region = 'na' | 'eu' | 'latam' | 'asia' | 'me' | 'africa' | 'oceania'
 
@@ -84,29 +84,6 @@ export default function LiveTVPanel() {
   const [active, setActive] = useState(DEFAULT_CHANNEL)
   const shown = CHANNELS.filter(c => c.region === region)
 
-  const videoWrapRef = useRef<HTMLDivElement>(null)
-  const [videoSize, setVideoSize] = useState<{ w: number; h: number } | null>(null)
-
-  useLayoutEffect(() => {
-    const el = videoWrapRef.current
-    if (!el) return
-    const measure = () => {
-      const { width, height } = el.getBoundingClientRect()
-      if (width <= 0 || height <= 0) return
-      // width:100% + aspect-ratio computes height from width alone, then
-      // maxHeight clips that box without shrinking width to match — so the
-      // video (rendered by YouTube at true 16:9) gets cut off instead of the
-      // whole box scaling down. Measuring the real container box and picking
-      // whichever dimension is the binding constraint keeps both in sync.
-      const w = Math.min(width, height * 16 / 9)
-      setVideoSize({ w, h: w * 9 / 16 })
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
   return (
     <div className="dash-panel">
       <div className="dash-panel-header">
@@ -138,16 +115,15 @@ export default function LiveTVPanel() {
           </button>
         ))}
       </div>
-      {/* aspect-ratio (not flex:1 filling whatever height the cell happens to
-          have) keeps this a normal 16:9 video — letting it stretch to fill a
-          much-taller-than-video cell (as mobile's row-span gave it) left a
-          lot of dead vertical space that YouTube's own embed fills with
-          extra native chrome (title/description above, related-video strip
-          below) instead of just the stream. */}
-      <div ref={videoWrapRef} style={{ flex: '1 1 auto', minHeight: 0, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      {/* Fills the panel's actual remaining box exactly — a strict 16:9
+          box (an earlier version of this) left a dead gap on whichever
+          side wasn't the binding constraint once the column got wider
+          than a 16:9 video needs for the available height. YouTube's own
+          player fills whatever box it's given without introducing blank
+          space of its own, so there's no visible cost to just filling it. */}
+      <div style={{ flex: '1 1 auto', minHeight: 0, width: '100%', overflow: 'hidden' }}>
         <div style={{
-          width: videoSize ? videoSize.w : '100%',
-          height: videoSize ? videoSize.h : '100%',
+          width: '100%', height: '100%',
           borderRadius: 6, overflow: 'hidden', background: '#000',
         }}>
           {/* sandbox omits BOTH allow-top-navigation(-by-user-activation) AND
