@@ -7,7 +7,10 @@
  * (remembered per panel — see ResizablePanel/useResizablePanel) and a
  * corner button to expand across both columns instead of just its own
  * (see useWideMap) — wide panels render in their own full-width row above
- * the two columns.
+ * the two columns. A thin scrolling headlines ticker (top 10 latest across
+ * followed tickers) runs above everything else, full width — replacing the
+ * old boxed "Ticker Headlines" panel and the Market Movers panels (Trending
+ * Tickers/Top Gainers/Top Losers/Most Active), both removed.
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
@@ -16,11 +19,10 @@ import { fetchMarketQuotes, type MarketQuote } from '../../services/markets'
 import WorldMapPanel from './panels/WorldMapPanel'
 import LiveChartsStrip, { MARKET_BAR_SYMBOLS } from './panels/LiveChartsStrip'
 import LiveTVPanel from './panels/LiveTVPanel'
-import TickerHeadlinesPanel from './panels/TickerHeadlinesPanel'
+import HeadlinesTicker from './panels/HeadlinesTicker'
 import PairTradingPanel from './panels/PairTradingPanel'
 import SectorHeatmapPanel from './panels/SectorHeatmapPanel'
 import MarketBreadthPanel from './panels/MarketBreadthPanel'
-import { useMovers, TrendingTickersPanel, TopGainersPanel, TopLosersPanel, MostActivePanel } from './panels/MarketMoversPanel'
 import EarningsCalendarPanel from './panels/EarningsCalendarPanel'
 import FearGreedPanel from './panels/FearGreedPanel'
 import ResizablePanel from './ResizablePanel'
@@ -33,7 +35,6 @@ export default function DashboardView({ state }: { state: AppState }) {
   const [quotes, setQuotes] = useState<Record<string, MarketQuote>>({})
   const [now, setNow] = useState(() => new Date())
   const { wideIds, setWide } = useWideMap()
-  const movers = useMovers()
 
   useEffect(() => {
     let cancelled = false
@@ -49,12 +50,7 @@ export default function DashboardView({ state }: { state: AppState }) {
   }, [])
 
   const colA = [
-    { id: 'headlines', h: 420, node: <TickerHeadlinesPanel /> },
     { id: 'livetv', h: 340, node: <LiveTVPanel /> },
-    { id: 'trending-tickers', h: 240, node: <TrendingTickersPanel data={movers} /> },
-    { id: 'top-gainers', h: 240, node: <TopGainersPanel data={movers} /> },
-    { id: 'top-losers', h: 240, node: <TopLosersPanel data={movers} /> },
-    { id: 'most-active', h: 240, node: <MostActivePanel data={movers} /> },
     { id: 'pairs', h: 340, node: <PairTradingPanel state={state} topN={5} /> },
   ]
   const colB = [
@@ -66,39 +62,42 @@ export default function DashboardView({ state }: { state: AppState }) {
   const wideOnes = [...colA, ...colB].filter(p => wideIds.has(p.id))
 
   return (
-    <div className="dash-wrap">
-      <div className="dash-left-col">
-        <div className="dash-cell dash-left-map">
-          <WorldMapPanel quotes={quotes} now={now} />
-        </div>
-        <div className="dash-cell dash-left-charts">
-          <LiveChartsStrip quotes={quotes} layout="row-single" />
-        </div>
-      </div>
-
-      <div className="dash-right-cols-wrap">
-        {wideOnes.map(p => (
-          <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
-            wide onSetWide={(w) => setWide(p.id, w)}>
-            {p.node}
-          </ResizablePanel>
-        ))}
-        <div className="dash-right-cols">
-          <div className="dash-right-col">
-            {colA.filter(p => !wideIds.has(p.id)).map(p => (
-              <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
-                onSetWide={(w) => setWide(p.id, w)}>
-                {p.node}
-              </ResizablePanel>
-            ))}
+    <div className="dash-page">
+      <HeadlinesTicker />
+      <div className="dash-wrap">
+        <div className="dash-left-col">
+          <div className="dash-cell dash-left-map">
+            <WorldMapPanel quotes={quotes} now={now} />
           </div>
-          <div className="dash-right-col">
-            {colB.filter(p => !wideIds.has(p.id)).map(p => (
-              <ResizablePanel key={p.id} id={p.id} defaultWidth={460} defaultHeight={p.h} axis="vertical"
-                onSetWide={(w) => setWide(p.id, w)}>
-                {p.node}
-              </ResizablePanel>
-            ))}
+          <div className="dash-cell dash-left-charts">
+            <LiveChartsStrip quotes={quotes} layout="row-single" />
+          </div>
+        </div>
+
+        <div className="dash-right-cols-wrap">
+          {wideOnes.map(p => (
+            <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
+              wide onSetWide={(w) => setWide(p.id, w)}>
+              {p.node}
+            </ResizablePanel>
+          ))}
+          <div className="dash-right-cols">
+            <div className="dash-right-col">
+              {colA.filter(p => !wideIds.has(p.id)).map(p => (
+                <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
+                  onSetWide={(w) => setWide(p.id, w)}>
+                  {p.node}
+                </ResizablePanel>
+              ))}
+            </div>
+            <div className="dash-right-col">
+              {colB.filter(p => !wideIds.has(p.id)).map(p => (
+                <ResizablePanel key={p.id} id={p.id} defaultWidth={460} defaultHeight={p.h} axis="vertical"
+                  onSetWide={(w) => setWide(p.id, w)}>
+                  {p.node}
+                </ResizablePanel>
+              ))}
+            </div>
           </div>
         </div>
       </div>
