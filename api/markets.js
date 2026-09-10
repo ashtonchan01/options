@@ -95,11 +95,21 @@ export default async function handler(req) {
     return jsonResponse(cached.data, 200, { 'X-Cache': 'HIT', 'Cache-Control': 's-maxage=45, stale-while-revalidate=120' })
   }
 
+  // Fetched in small parallel batches, not one symbol at a time — the
+  // dashboard's own combined request (world exchanges + market bar tickers)
+  // runs to 30+ symbols, and a fully serial loop (even with only 150ms
+  // between each) took long enough on a cold request to blow past both the
+  // client's own 15s abort timeout and this function's execution limit,
+  // coming back empty. A handful of symbols in flight together keeps the
+  // wall-clock time roughly proportional to CONCURRENCY, not to the total
+  // count, while still bounded (not one single Promise.all across all of
+  // them) so a burst that size doesn't trip Yahoo's own rate limiting.
+  const CONCURRENCY = 6
   const data = {}
-  for (let i = 0; i < symbols.length; i++) {
-    const quote = await fetchOne(symbols[i])
-    if (quote) data[symbols[i]] = quote
-    if (i < symbols.length - 1) await sleep(150)
+  for (let i = 0; i < symbols.length; i += CONCURRENCY) {
+    const batch = symbols.slice(i, i + CONCURRENCY)
+    const results = await Promise.all(batch.map(fetchOne))
+    batch.forEach((sym, j) => { if (results[j]) data[sym] = results[j] })
   }
 
   responseCache.set(cacheKey, { data, time: Date.now() })
