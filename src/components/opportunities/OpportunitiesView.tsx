@@ -923,7 +923,7 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
               Selected by delta/DTE/liquidity rules and the combo-ranking formula, not the params below — those don't apply here.
             </span>
             <div style={{ display: 'flex', marginLeft: 'auto', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-              {([[0, '1ST'], [1, '2ND'], [2, '3RD'], ['all', 'ALL 3']] as const).map(([key, label]) => (
+              {([[0, 'LAST'], [1, '2ND LAST'], [2, '3RD LAST'], ['all', 'ALL 3']] as const).map(([key, label]) => (
                 <button key={String(key)} onClick={() => setLeapExpirySel(key)} style={{
                   padding: '3px 8px', fontSize: 9.5, fontWeight: 700, letterSpacing: '0.5px',
                   background: leapExpirySel === key ? '#a855f722' : 'transparent',
