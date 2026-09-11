@@ -13,7 +13,7 @@
 
 export interface EconEvent {
   label: string
-  kind: 'fomc' | 'jackson_hole'
+  kind: 'fomc' | 'jackson_hole' | 'cpi'
 }
 
 /** Offline fallback only — used if the live federalreserve.gov fetch fails. */
@@ -39,9 +39,27 @@ export const JACKSON_HOLE_DATES: string[] = [
   '2026-08-27', '2026-08-28', '2026-08-29',
 ]
 
-export function buildEconEventMap(fomcDates: string[], jacksonHoleDates: string[] = JACKSON_HOLE_DATES): Record<string, EconEvent[]> {
+/** BLS Consumer Price Index release dates — the monthly headline/core
+ * inflation print, released 8:30am ET on the second-Friday-ish schedule the
+ * BLS sets a year ahead. No live feed exists for this the way FOMC has one
+ * (see fomc.ts), so — same as Jackson Hole — these are hardcoded from the
+ * BLS's published 2026 schedule and need updating once the 2027 schedule is
+ * out. Each date is the release day itself (covering the PRIOR month's
+ * data — e.g. the Sep 11, 2026 release is August 2026 CPI). */
+export const CPI_RELEASE_DATES: string[] = [
+  '2026-01-13', '2026-02-11', '2026-03-11', '2026-04-10',
+  '2026-05-12', '2026-06-10', '2026-07-14', '2026-08-12',
+  '2026-09-11', '2026-10-14', '2026-11-10', '2026-12-10',
+]
+
+export function buildEconEventMap(
+  fomcDates: string[],
+  jacksonHoleDates: string[] = JACKSON_HOLE_DATES,
+  cpiDates: string[] = CPI_RELEASE_DATES,
+): Record<string, EconEvent[]> {
   const map: Record<string, EconEvent[]> = {}
   for (const d of fomcDates) map[d] = [...(map[d] ?? []), { label: 'FOMC', kind: 'fomc' }]
   for (const d of jacksonHoleDates) map[d] = [...(map[d] ?? []), { label: 'Jackson Hole', kind: 'jackson_hole' }]
+  for (const d of cpiDates) map[d] = [...(map[d] ?? []), { label: 'CPI', kind: 'cpi' }]
   return map
 }

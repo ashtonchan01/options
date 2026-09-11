@@ -653,7 +653,7 @@ function DayCell({
             apart. */}
         {econEvents.map((e, i) => {
           return (
-            <div key={`econ-${i}`} data-cal-item title={e.kind === 'jackson_hole' ? 'Jackson Hole Economic Symposium' : 'FOMC rate decision'} style={{
+            <div key={`econ-${i}`} data-cal-item title={e.kind === 'jackson_hole' ? 'Jackson Hole Economic Symposium' : e.kind === 'cpi' ? 'CPI (Consumer Price Index) release' : 'FOMC rate decision'} style={{
               fontSize: 9, fontWeight: 700, letterSpacing: '0.03em',
               color: '#a78bfa', background: '#a78bfa14',
               padding: '1px 4px', marginBottom: 1, borderRadius: 3,
