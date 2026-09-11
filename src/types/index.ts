@@ -224,6 +224,9 @@ export interface SyncState {
   positions: RawPosition[]
   trades: RawTrade[]
   cashBalance: number
+  /** Per-currency breakdown of cashBalance (USD, AUD, etc.) — only an XML/
+   * Flex sync provides this; undefined for a generic .csv/.xlsx/.pdf import. */
+  cashBalances?: Record<string, number>
   netLiquidation?: number  // direct from IBKR EquitySummary
 }
 
