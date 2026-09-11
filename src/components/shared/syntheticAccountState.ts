@@ -30,6 +30,7 @@ export function accountToAppState(account: {
   trades: RawTrade[]
   positions?: RawPosition[]
   cashBalance?: number
+  cashBalances?: Record<string, number>
   netLiquidation?: number
 }): AppState {
   const base = emptyAppState()
@@ -47,6 +48,7 @@ export function accountToAppState(account: {
       trades: account.trades,
       positions,
       cashBalance: account.cashBalance ?? 0,
+      cashBalances: account.cashBalances,
       netLiquidation: account.netLiquidation,
     },
     strategies,

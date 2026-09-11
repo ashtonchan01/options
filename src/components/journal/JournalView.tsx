@@ -422,10 +422,41 @@ function stratGroupLabel(strategy?: string) {
   return LABEL_SHORT[key] ?? key.toUpperCase()
 }
 
-export function JournalTab({ positions, livePositions, trades, entries, updateEntry, setups, addSetup }: {
+/** Per-currency cash holdings card, styled to match the strategy-group cells
+ * (jr-strategy-cell) it sits alongside — a "CC · 1"-style header naming the
+ * count of currencies held, then one row per currency. Only an XML/Flex sync
+ * provides the per-currency breakdown (see SyncState.cashBalances); a
+ * generic .csv/.xlsx/.pdf import only ever has the single combined total, so
+ * this renders nothing at all rather than a misleading single-currency
+ * guess when that breakdown isn't available. */
+function CashBalancesCell({ cashBalances }: { cashBalances?: Record<string, number> }) {
+  const entries = Object.entries(cashBalances ?? {}).filter(([, v]) => Math.abs(v) > 0.005)
+  if (entries.length === 0) return null
+  entries.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+  // Plain rows, not a <table> — .jr-strategy-cell's own CSS forces every
+  // <table> inside it to a 1250px min-width (sized for the 15-column trade
+  // table these cells normally hold), which would blow this 2-column card
+  // out to that same width for no reason.
+  return (
+    <div className="jr-strategy-cell" style={{ maxHeight: 'none' }}>
+      <div className="jr-strategy-cell-header">CASH · {entries.length}</div>
+      <div style={{ padding: '4px 14px 10px' }}>
+        {entries.map(([ccy, amount]) => (
+          <div key={ccy} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '6px 0', borderBottom: '1px solid var(--border-light)', fontSize: 12.5 }}>
+            <span className="mono" style={{ fontWeight: 700, color: 'var(--text-2)' }}>{ccy}</span>
+            <span className={`mono ${pnlCls(amount)}`}>{fmt$(amount, 2)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function JournalTab({ positions, livePositions, trades, cashBalances, entries, updateEntry, setups, addSetup }: {
   positions: JournalPosition[]
   livePositions: RawPosition[]
   trades: RawTrade[]
+  cashBalances?: Record<string, number>
   entries: Record<string, JournalEntry>
   updateEntry: (id: string, patch: Partial<JournalEntry>) => void
   setups: string[]
@@ -573,6 +604,7 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
         // Each cell caps its own height so every strategy stays reachable at
         // a glance instead of one long shared scroll.
         <div className="jr-strategy-grid">
+          <CashBalancesCell cashBalances={cashBalances} />
           {groups.map(g => (
             <div key={g.label} className="jr-strategy-cell">
               <div className="jr-strategy-cell-header">{g.label} · {g.rows.length}</div>
@@ -598,6 +630,11 @@ export function JournalTab({ positions, livePositions, trades, entries, updateEn
         </div>
       ) : (
         <div className="cc-section cc-table-section" style={{ flexShrink: 1 }}>
+          {cashBalances && Object.keys(cashBalances).length > 0 && (
+            <div className="jr-strategy-grid" style={{ flex: '0 0 auto', marginBottom: 10 }}>
+              <CashBalancesCell cashBalances={cashBalances} />
+            </div>
+          )}
           <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
             <table className="trade-table" style={{ fontSize: 12 }}>
               <TableHead />
