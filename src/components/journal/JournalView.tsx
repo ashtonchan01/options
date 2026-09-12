@@ -5,7 +5,7 @@
  * JournalPageView.tsx).
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Pencil, Check, X } from 'lucide-react'
 import { type JournalPosition } from '../../engine/journal'
 import { MISTAKES, type JournalEntry } from '../../store/journalStore'
 import { tradeId } from '../../store/tradeLabelsStore'
@@ -469,10 +469,19 @@ function useCashRows(cashBalances: Record<string, number> | undefined) {
  * Ticker column — every other column is blank rather than this needing its
  * own separate table (which, in the ungrouped view, has no fixed per-column
  * widths and so wouldn't actually line up). */
-function CashRow({ label, value, total }: { label: string; value: number; total?: boolean }) {
+function CashRow({ label, value, total, onToggleAdd, addOpen }: { label: string; value: number; total?: boolean; onToggleAdd?: () => void; addOpen?: boolean }) {
   return (
     <tr style={total ? { borderTop: '2px solid var(--border)' } : undefined}>
-      <td className="jr-col-open"></td>{/* 1 Open */}
+      <td className="jr-col-open">{/* 1 Open — "+" toggle for the add-row form, TOTAL row only */}
+        {onToggleAdd && (
+          <button onClick={onToggleAdd} title={addOpen ? 'Hide add cash form' : 'Add a cash line'} style={{
+            background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer',
+            padding: '2px 5px', borderRadius: 4, display: 'inline-flex', lineHeight: 0,
+          }}>
+            <Plus size={11} style={{ transform: addOpen ? 'rotate(45deg)' : undefined, transition: 'transform 0.15s' }} />
+          </button>
+        )}
+      </td>
       <td className="jr-col-closed"></td>{/* 2 Closed */}
       <td className="mono" style={{ fontWeight: total ? 800 : 700, color: total ? 'var(--text-1)' : undefined }}>{label}</td>{/* 3 Ticker */}
       <td></td>{/* 4 Stock Price */}
@@ -497,34 +506,82 @@ function CashRow({ label, value, total }: { label: string; value: number; total?
  * to the already-converted currency total as-is. */
 function useCashSection(cashBalances: Record<string, number> | undefined, accountId: string, sessionKey?: string | null) {
   const { entries, totalUsd: currencyTotalUsd, fullyConverted } = useCashRows(cashBalances)
-  const { rows: manualRows, addRow, removeRow } = useManualCashRows(accountId, sessionKey)
+  const { rows: manualRows, addRow, removeRow, updateRow } = useManualCashRows(accountId, sessionKey)
   const manualTotal = manualRows.reduce((s, r) => s + r.value, 0)
-  return { entries, manualRows, addRow, removeRow, totalUsd: currencyTotalUsd + manualTotal, fullyConverted }
+  return { entries, manualRows, addRow, removeRow, updateRow, totalUsd: currencyTotalUsd + manualTotal, fullyConverted }
 }
 
-/** A user-added cash line — same column layout as CashRow, plus a delete
- * button in the P&L column. */
-function ManualCashRow({ row, onRemove }: { row: ManualCashRow; onRemove: () => void }) {
+/** A user-added cash line — same column layout as CashRow, plus Edit/Delete
+ * buttons in the P&L column. Edit swaps the Ticker/Market Value cells for
+ * the same inputs AddCashRowForm uses, Save/Cancel replacing Edit/Delete —
+ * same inline-edit pattern as the Allocation page's target rows. */
+function ManualCashRow({ row, onUpdate, onRemove }: { row: ManualCashRow; onUpdate: (ticker: string, value: number) => void; onRemove: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [ticker, setTicker] = useState(row.ticker)
+  const [value, setValue] = useState(String(row.value))
+
+  function startEdit() {
+    setTicker(row.ticker)
+    setValue(String(row.value))
+    setEditing(true)
+  }
+  function save() {
+    const t = ticker.trim().toUpperCase()
+    const v = parseFloat(value)
+    if (!t || !Number.isFinite(v)) return
+    onUpdate(t, v)
+    setEditing(false)
+  }
+  function cancel() { setEditing(false) }
+
+  const inputStyle = { padding: '3px 6px', fontSize: 12, borderRadius: 4, border: '1px solid var(--accent-border)', background: 'var(--bg-elevated)', color: 'var(--text-1)', fontFamily: 'inherit' }
+
   return (
     <tr>
       <td className="jr-col-open"></td>{/* 1 Open */}
       <td className="jr-col-closed"></td>{/* 2 Closed */}
-      <td className="mono" style={{ fontWeight: 700 }}>{row.ticker}</td>{/* 3 Ticker */}
+      <td className="mono" style={{ fontWeight: 700 }}>{/* 3 Ticker */}
+        {editing
+          ? <input value={ticker} onChange={e => setTicker(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }} autoFocus style={{ ...inputStyle, width: '100%' }} />
+          : row.ticker}
+      </td>
       <td></td>{/* 4 Stock Price */}
       <td></td>{/* 5 Position */}
       <td></td>{/* 6 Avg Price */}
       <td></td>{/* 7 Cost Basis */}
       <td></td>{/* 8 Breakeven */}
       <td></td>{/* 9 Market Price */}
-      <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>{fmt$(row.value, 2)}</td>{/* 10 Market Value */}
+      <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>{/* 10 Market Value */}
+        {editing
+          ? <input type="number" value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }} style={{ ...inputStyle, width: 100, textAlign: 'right' }} />
+          : fmt$(row.value, 2)}
+      </td>
       <td></td>{/* 11 Unrealised */}
       <td></td>{/* 12 % */}
       <td className="jr-col-dte"></td>{/* 13 DTE */}
       <td></td>{/* 14 Fees */}
-      <td style={{ textAlign: 'right' }}>{/* 15 P&L — delete */}
-        <button onClick={onRemove} title="Remove" style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', display: 'inline-flex' }}>
-          <Trash2 size={11} />
-        </button>
+      <td style={{ textAlign: 'right' }}>{/* 15 P&L — edit/delete or save/cancel */}
+        <div style={{ display: 'inline-flex', gap: 4 }}>
+          {editing ? (
+            <>
+              <button onClick={save} title="Save" style={{ background: 'none', border: '1px solid var(--accent-border)', color: 'var(--accent)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4, display: 'inline-flex' }}>
+                <Check size={11} />
+              </button>
+              <button onClick={cancel} title="Cancel" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4, display: 'inline-flex' }}>
+                <X size={11} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={startEdit} title="Edit" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4, display: 'inline-flex' }}>
+                <Pencil size={11} />
+              </button>
+              <button onClick={onRemove} title="Remove" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4, display: 'inline-flex' }}>
+                <Trash2 size={11} />
+              </button>
+            </>
+          )}
+        </div>
       </td>
     </tr>
   )
@@ -584,7 +641,8 @@ function AddCashRowForm({ onAdd }: { onAdd: (ticker: string, value: number) => v
  * is useful on its own — a generic .csv/.xlsx/.pdf import has no IBKR cash
  * snapshot at all, but the user can still track cash manually here. */
 function CashBalancesCell({ cashBalances, accountId, sessionKey }: { cashBalances?: Record<string, number>; accountId: string; sessionKey?: string | null }) {
-  const { entries, manualRows, addRow, removeRow, totalUsd, fullyConverted } = useCashSection(cashBalances, accountId, sessionKey)
+  const { entries, manualRows, addRow, removeRow, updateRow, totalUsd, fullyConverted } = useCashSection(cashBalances, accountId, sessionKey)
+  const [showAdd, setShowAdd] = useState(false)
   return (
     <div className="jr-strategy-cell">
       <div className="jr-strategy-cell-header">CASH · {entries.length + manualRows.length}</div>
@@ -593,9 +651,9 @@ function CashBalancesCell({ cashBalances, accountId, sessionKey }: { cashBalance
           <TableHead />
           <tbody>
             {entries.map(([ccy, amount]) => <CashRow key={ccy} label={ccy} value={amount} />)}
-            {manualRows.map(row => <ManualCashRow key={row.id} row={row} onRemove={() => removeRow(row.id)} />)}
-            <AddCashRowForm onAdd={addRow} />
-            <CashRow label={`TOTAL (USD)${fullyConverted ? '' : ' *'}`} value={totalUsd} total />
+            {manualRows.map(row => <ManualCashRow key={row.id} row={row} onUpdate={(t, v) => updateRow(row.id, t, v)} onRemove={() => removeRow(row.id)} />)}
+            {showAdd && <AddCashRowForm onAdd={addRow} />}
+            <CashRow label={`TOTAL (USD)${fullyConverted ? '' : ' *'}`} value={totalUsd} total onToggleAdd={() => setShowAdd(v => !v)} addOpen={showAdd} />
           </tbody>
         </table>
       </div>
@@ -731,6 +789,7 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, acc
 
   const COLS = 15
   const cashRows = useCashSection(cashBalances, accountId, sessionKey)
+  const [showAddCash, setShowAddCash] = useState(false)
 
   return (
     <>
@@ -809,9 +868,9 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, acc
                     widths the way the grouped strategy cells do, so a
                     separate table here wouldn't actually line up). */}
                 {cashRows.entries.map(([ccy, amount]) => <CashRow key={ccy} label={ccy} value={amount} />)}
-                {cashRows.manualRows.map(row => <ManualCashRow key={row.id} row={row} onRemove={() => cashRows.removeRow(row.id)} />)}
-                <AddCashRowForm onAdd={cashRows.addRow} />
-                <CashRow label={`TOTAL (USD)${cashRows.fullyConverted ? '' : ' *'}`} value={cashRows.totalUsd} total />
+                {cashRows.manualRows.map(row => <ManualCashRow key={row.id} row={row} onUpdate={(t, v) => cashRows.updateRow(row.id, t, v)} onRemove={() => cashRows.removeRow(row.id)} />)}
+                {showAddCash && <AddCashRowForm onAdd={cashRows.addRow} />}
+                <CashRow label={`TOTAL (USD)${cashRows.fullyConverted ? '' : ' *'}`} value={cashRows.totalUsd} total onToggleAdd={() => setShowAddCash(v => !v)} addOpen={showAddCash} />
               </tbody>
             </table>
           </div>
