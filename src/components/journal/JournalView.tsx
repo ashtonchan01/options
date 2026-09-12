@@ -470,20 +470,21 @@ function useCashRows(cashBalances: Record<string, number> | undefined) {
 function CashRow({ label, value, total }: { label: string; value: number; total?: boolean }) {
   return (
     <tr style={total ? { borderTop: '2px solid var(--border)' } : undefined}>
-      <td className="jr-col-open"></td>
-      <td className="jr-col-closed"></td>
-      <td className="mono" style={{ fontWeight: total ? 800 : 700, color: total ? 'var(--text-1)' : undefined }}>{label}</td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td className={`mono ${pnlCls(value)}`} style={{ textAlign: 'right', fontWeight: total ? 800 : undefined }}>{fmt$(value, 2)}</td>
-      <td></td>
-      <td></td>
-      <td className="jr-col-dte"></td>
-      <td></td>
-      <td></td>
+      <td className="jr-col-open"></td>{/* 1 Open */}
+      <td className="jr-col-closed"></td>{/* 2 Closed */}
+      <td className="mono" style={{ fontWeight: total ? 800 : 700, color: total ? 'var(--text-1)' : undefined }}>{label}</td>{/* 3 Ticker */}
+      <td></td>{/* 4 Stock Price */}
+      <td></td>{/* 5 Position */}
+      <td></td>{/* 6 Avg Price */}
+      <td></td>{/* 7 Cost Basis */}
+      <td></td>{/* 8 Breakeven */}
+      <td></td>{/* 9 Market Price */}
+      <td className={`mono ${pnlCls(value)}`} style={{ textAlign: 'right', fontWeight: total ? 800 : undefined }}>{fmt$(value, 2)}</td>{/* 10 Market Value */}
+      <td></td>{/* 11 Unrealised */}
+      <td></td>{/* 12 % */}
+      <td className="jr-col-dte"></td>{/* 13 DTE */}
+      <td></td>{/* 14 Fees */}
+      <td></td>{/* 15 P&L */}
     </tr>
   )
 }
