@@ -1472,10 +1472,11 @@ body {
      chips above, so drop it first; tighten padding on what's left. */
   .trade-table th, .trade-table td { padding: 8px 4px; }
   .jr-col-status { display: none; }
-  /* Open date is the least essential of the two date columns on a phone-width
-     table — Closed/DTE already tell you whether a position is live. */
-  .jr-col-open { display: none; }
-  .jr-col-closed { max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Open used to be hidden entirely on mobile (Closed/DTE were judged
+     enough to tell a position is live) — restored since the actual open
+     date is still useful at a glance, same truncate-not-hide treatment
+     Closed already got rather than reserving a wide date column. */
+  .jr-col-open, .jr-col-closed { max-width: 46px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 /* ─── Edgewonk shell — sidebar + main ─────────────────────────────────────── */
