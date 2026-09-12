@@ -81,7 +81,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
             />
           )}
           {section === 'calendar' && <CalendarView state={accountState} watchlistTickers={watchlistTickers} tradeLabels={tradeLabels} />}
-          {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} sessionKey={sessionKey} />}
+          {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} sessionKey={sessionKey} accountId={account.id} />}
           {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} sessionKey={sessionKey} />}
           {section === 'reports' && (
             <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>
