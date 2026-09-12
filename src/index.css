@@ -1304,6 +1304,20 @@ body {
 @media (max-width: 768px) {
   .jr-root { padding: 12px; }
   .jr-2col { grid-template-columns: 1fr; }
+  /* Allocation page's Current/Target pies — stacked to one full-width column
+     by the rule above, but each pie box still used the same 4:3 aspect
+     ratio built for a half-width desktop panel. At full mobile width that's
+     plenty wide but not tall enough for a wedge-heavy pie (e.g. Target's
+     15+ small-share tickers) to lay out its labels/leader lines without
+     running past the box's own top/bottom edge. Taller (~1:1.15) gives that
+     vertical room back; less panel padding gives the ring itself a little
+     more width to grow into ("bigger" per the report) without shrinking the
+     margin PortfolioPie reserves for label text (risking the same
+     clipping this is meant to fix). Both are scoped to this one class, not
+     .panel/.aspectRatio generally, so desktop (where the 4:3 default and
+     normal panel padding already look right) is untouched. */
+  .alloc-pie-box { aspect-ratio: 1 / 1.15 !important; }
+  .alloc-pie-panel { padding: 10px !important; }
   /* Overview tab: the sync/upload + key-metrics row, and the Monthly P&L +
      Allocation row, are both a 2-column grid built for desktop — on a phone
      width that squeezed the second column down to an unreadable, clipped

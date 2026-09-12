@@ -295,7 +295,14 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
   // sits in its own padded "panel" box) needed a third, narrower tier.
   const veryTight = W < 380
   const LABEL_MARGIN = veryTight ? 74 : tightLabels ? 60 : 70
-  const outerR = Math.max(28, Math.min(Math.min(W, H) * 0.32, W / 2 - 22 - LABEL_MARGIN))
+  // A taller mobile container (see .alloc-pie-box's mobile override) gives
+  // Math.min(W, H) more headroom to grow into — bump the fraction of it the
+  // ring claims only at the same narrow-width tiers LABEL_MARGIN already
+  // keys off, so desktop's 0.32 is untouched. Still bounded by the
+  // width-based margin term right after, so this can't make the ring big
+  // enough to crowd the label text it's already budgeted space for.
+  const ringFraction = veryTight ? 0.4 : tightLabels ? 0.36 : 0.32
+  const outerR = Math.max(28, Math.min(Math.min(W, H) * ringFraction, W / 2 - 22 - LABEL_MARGIN))
   // A thin ring with a big open hole — was a near-solid disc before, which
   // left almost no room for the center value once the disc grew to fill
   // its panel. 0.62 keeps the hole roomy at any size.
@@ -628,7 +635,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
 
       {/* ── Current vs Target pies ────────────────────────────────────────── */}
       <div className="jr-2col">
-        <div className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column' }}>
+        <div className="panel alloc-pie-panel" style={{ padding: 16, display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 10 }}>
             CURRENT ALLOCATION
           </div>
@@ -643,11 +650,11 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
               this box's edge (the margin math is a close estimate, not a
               text-measuring guarantee) now just bleeds into the panel's
               own padding instead of being hard-clipped mid-word. */}
-          <div style={{ width: '100%', aspectRatio: '4 / 3', overflow: 'visible' }}>
+          <div className="alloc-pie-box" style={{ width: '100%', aspectRatio: '4 / 3', overflow: 'visible' }}>
             <PortfolioPie slices={currentSlices} centerLabel="Current" centerValue={fmt$(currentTotal)} labelMode={labelMode} />
           </div>
         </div>
-        <div className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column' }}>
+        <div className="panel alloc-pie-panel" style={{ padding: 16, display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', letterSpacing: '0.08em', marginBottom: 10 }}>
             TARGET ALLOCATION
           </div>
@@ -662,7 +669,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
               this box's edge (the margin math is a close estimate, not a
               text-measuring guarantee) now just bleeds into the panel's
               own padding instead of being hard-clipped mid-word. */}
-          <div style={{ width: '100%', aspectRatio: '4 / 3', overflow: 'visible' }}>
+          <div className="alloc-pie-box" style={{ width: '100%', aspectRatio: '4 / 3', overflow: 'visible' }}>
             <PortfolioPie slices={targetSlices} centerLabel="Target" centerValue={fmt$(targetAllocatedTotal)} labelMode={labelMode} />
           </div>
         </div>
