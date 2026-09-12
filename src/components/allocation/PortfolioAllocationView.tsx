@@ -308,7 +308,7 @@ export function PortfolioPie({ slices, centerLabel, centerValue, labelMode }: { 
   }
 
   let angle = -90
-  const wedgeRank = (label: string) => label === 'CASH' ? 2 : label === 'NAKED OPTIONS' ? 1 : 0
+  const wedgeRank = (label: string) => label === 'OTHER' ? 2 : label === 'CASH' ? 1 : 0
   const wedges = [...slices].filter(s => s.value > 0).sort((a, b) => {
     const ra = wedgeRank(a.label), rb = wedgeRank(b.label)
     if (ra !== rb) return ra - rb
@@ -401,7 +401,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   // plus-or-minus however those naked positions happen to be marked right
   // now. Kept as one combined figure here (`cashBalance`) since the total/
   // reconciliation math below still needs it, but displayed as two separate
-  // rows further down: NAKED OPTIONS (nakedOptionsValue alone) and CASH
+  // rows further down: OTHER (nakedOptionsValue alone) and CASH
   // (the real state.sync.cashBalance, no options mixed in).
   const actualCash = state.sync.cashBalance ?? 0
   const cashBalance = actualCash + nakedOptionsValue
@@ -520,38 +520,38 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   })
   const targetAllocatedTotal = targetRowsResolved.reduce((s, r) => s + (r.dollarValue ?? 0), 0)
 
-  // Synthetic "holdings" so NAKED OPTIONS and CASH can each flow through the
+  // Synthetic "holdings" so OTHER and CASH can each flow through the
   // same merged-row rendering as every stock ticker instead of needing their
-  // own hardcoded rows. optionsValue: 0 on both — the NAKED OPTIONS row's
+  // own hardcoded rows. optionsValue: 0 on both — the OTHER row's
   // entire value already IS options mark value, so the per-row "(+/- opt)"
   // annotation (meant to break out an options component from an otherwise
   // stock-value row) would just redundantly repeat the same number.
   const nakedOptsHolding: Holding | null = nakedOptionsValue !== 0
-    ? { symbol: 'NAKED OPTIONS', shares: 0, avgCost: 0, value: nakedOptionsValue, optionsValue: 0 }
+    ? { symbol: 'OTHER', shares: 0, avgCost: 0, value: nakedOptionsValue, optionsValue: 0 }
     : null
   const cashHolding: Holding | null = actualCash > 0
     ? { symbol: 'CASH', shares: 0, avgCost: 0, value: actualCash, optionsValue: 0 }
     : null
   function holdingFor(ticker: string): Holding | null {
     if (ticker === 'CASH') return cashHolding
-    if (ticker === 'NAKED OPTIONS') return nakedOptsHolding
+    if (ticker === 'OTHER') return nakedOptsHolding
     return holdings.find(h => h.symbol === ticker) ?? null
   }
 
   // One row per ticker held and/or targeted — union of both, so a ticker
   // that's only held (no target set) or only targeted (not held yet) still
   // gets a row, with the other side's columns blank instead of needing two
-  // separate tables the eye has to cross-reference by ticker. CASH sorts
-  // last, NAKED OPTIONS just above it — both are "leftover bucket" rows,
-  // not real tickers, so they belong at the bottom rather than interleaved
+  // separate tables the eye has to cross-reference by ticker. OTHER sorts
+  // last, CASH just above it — both are "leftover bucket" rows, not real
+  // tickers, so they belong at the bottom rather than interleaved
   // alphabetically with actual holdings.
   const mergedTickers = [...new Set([
     ...holdings.map(h => h.symbol),
     ...targetRowsResolved.map(r => r.ticker),
-    ...(nakedOptsHolding ? ['NAKED OPTIONS'] : []),
+    ...(nakedOptsHolding ? ['OTHER'] : []),
     ...(cashHolding ? ['CASH'] : []),
   ])].sort((a, b) => {
-    const rank = (t: string) => t === 'CASH' ? 2 : t === 'NAKED OPTIONS' ? 1 : 0
+    const rank = (t: string) => t === 'OTHER' ? 2 : t === 'CASH' ? 1 : 0
     const ra = rank(a), rb = rank(b)
     return ra !== rb ? ra - rb : a.localeCompare(b)
   })
@@ -564,7 +564,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   // Live quote per ticker — every held-or-targeted ticker now, not just
   // target rows, so a plain holding with no target set still gets a real
   // Market Price instead of only ever showing its avg cost.
-  const quoteTickersKey = useMemo(() => mergedTickers.filter(t => t !== 'CASH' && t !== 'NAKED OPTIONS').sort().join(','), [mergedTickers.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  const quoteTickersKey = useMemo(() => mergedTickers.filter(t => t !== 'CASH' && t !== 'OTHER').sort().join(','), [mergedTickers.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const tickers = quoteTickersKey ? quoteTickersKey.split(',') : []
     if (tickers.length === 0) { setQuotes({}); return }
@@ -574,9 +574,9 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   }, [quoteTickersKey])
 
   // RSI(14) per ticker for the same mean-reversion Buy/Sell/Hold Signal the
-  // Watchlist shows — CASH/NAKED OPTIONS have no RSI, so both are excluded
+  // Watchlist shows — CASH/OTHER have no RSI, so both are excluded
   // from the fetch.
-  const rsiTickersKey = useMemo(() => mergedTickers.filter(t => t !== 'CASH' && t !== 'NAKED OPTIONS').sort().join(','), [mergedTickers.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  const rsiTickersKey = useMemo(() => mergedTickers.filter(t => t !== 'CASH' && t !== 'OTHER').sort().join(','), [mergedTickers.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const rsiTickers = rsiTickersKey ? rsiTickersKey.split(',') : []
     if (rsiTickers.length === 0) { setRsi({}); return }
@@ -585,16 +585,18 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
     return () => { cancelled = true }
   }, [rsiTickersKey])
 
+  // OTHER combines naked options' mark value with the reconciliation gap
+  // (whatever's left over once holdings/cash are accounted for against the
+  // real net-liq total) into one wedge — both are genuinely "not a real
+  // holding" money, and a pie can't render a negative wedge, so a negative
+  // nakedOptionsValue still folds in here (it just can't pull the combined
+  // total below zero on its own the way otherValue's own max(0, ...) guard
+  // already prevents).
+  const combinedOther = nakedOptionsValue + otherValue
   const currentSlices: Slice[] = [
     ...holdings.map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i), shares: h.shares })),
-    // A pie can't render a negative wedge — same guard the old blended CASH
-    // slice used (cashBalance > 0), just applied to each piece separately
-    // now. A negative nakedOptionsValue still counts toward otherValue's
-    // reconciliation below (via cashBalance), it just doesn't get its own
-    // wedge.
-    ...(nakedOptionsValue > 0 ? [{ label: 'NAKED OPTIONS', value: nakedOptionsValue, color: '#f59e0b' }] : []),
     ...(actualCash > 0 ? [{ label: 'CASH', value: actualCash, color: '#10b981' }] : []),
-    ...(otherValue > 0 ? [{ label: 'OTHER', value: otherValue, color: 'var(--text-5)' }] : []),
+    ...(combinedOther > 0 ? [{ label: 'OTHER', value: combinedOther, color: 'var(--text-5)' }] : []),
   ]
   const targetSlices: Slice[] = targetRowsResolved
     .filter(r => (r.dollarValue ?? 0) > 0)
@@ -714,7 +716,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                 const currentValue = h?.value ?? 0
                 const gap = r?.dollarValue != null ? r.dollarValue - currentValue : null
                 const isEditing = r != null && editingId === r.id
-                const isBucketRow = ticker === 'CASH' || ticker === 'NAKED OPTIONS'
+                const isBucketRow = ticker === 'CASH' || ticker === 'OTHER'
                 const signal = isBucketRow ? null : meanReversionSignal(rsi[ticker]?.rsi ?? null)
                 const marketPrice = isBucketRow ? null : quotes[ticker]?.price ?? null
                 const avgCostColor = h && h.shares !== 0 && marketPrice != null && h.avgCost > marketPrice
@@ -766,7 +768,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                 return (
                   <tr key={ticker}>
                     <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: ticker === 'CASH' ? '#10b981' : ticker === 'NAKED OPTIONS' ? '#f59e0b' : (r?.color ?? tickerColor(i)), marginRight: 6 }} />
+                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: ticker === 'CASH' ? '#10b981' : ticker === 'OTHER' ? '#f59e0b' : (r?.color ?? tickerColor(i)), marginRight: 6 }} />
                       {ticker}
                     </td>
                     <td style={{ textAlign: 'center' }}>
