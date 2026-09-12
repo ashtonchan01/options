@@ -472,7 +472,11 @@ function useCashRows(cashBalances: Record<string, number> | undefined) {
 function CashRow({ label, value, total, onToggleAdd, addOpen }: { label: string; value: number; total?: boolean; onToggleAdd?: () => void; addOpen?: boolean }) {
   return (
     <tr style={total ? { borderTop: '2px solid var(--border)' } : undefined}>
-      <td className="jr-col-open">{/* 1 Open — "+" toggle for the add-row form, TOTAL row only */}
+      <td className={onToggleAdd ? undefined : 'jr-col-open'}>{/* 1 Open — "+" toggle for the add-row form, TOTAL row only.
+          Not `jr-col-open` when the toggle is present: that class is
+          display:none on mobile (the real Open-date column is skippable
+          there), which would make the toggle button — the only way to
+          reveal the add-cash form on mobile — completely unreachable. */}
         {onToggleAdd && (
           <button onClick={onToggleAdd} title={addOpen ? 'Hide add cash form' : 'Add a cash line'} style={{
             background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer',
