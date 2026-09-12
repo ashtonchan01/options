@@ -644,14 +644,14 @@ function AddCashRowForm({ onAdd }: { onAdd: (ticker: string, value: number) => v
  * Always renders (even with no synced currency data) since the add-row form
  * is useful on its own — a generic .csv/.xlsx/.pdf import has no IBKR cash
  * snapshot at all, but the user can still track cash manually here. */
-function CashBalancesCell({ cashBalances, accountId, sessionKey }: { cashBalances?: Record<string, number>; accountId: string; sessionKey?: string | null }) {
+function CashBalancesCell({ cashBalances, accountId, sessionKey, hideClosed }: { cashBalances?: Record<string, number>; accountId: string; sessionKey?: string | null; hideClosed: boolean }) {
   const { entries, manualRows, addRow, removeRow, updateRow, totalUsd, fullyConverted } = useCashSection(cashBalances, accountId, sessionKey)
   const [showAdd, setShowAdd] = useState(false)
   return (
     <div className="jr-strategy-cell">
       <div className="jr-strategy-cell-header">CASH · {entries.length + manualRows.length}</div>
       <div className="jr-strategy-cell-scroll">
-        <table className="trade-table" style={{ fontSize: 12 }}>
+        <table className={`trade-table${hideClosed ? ' jr-hide-closed-col' : ''}`} style={{ fontSize: 12 }}>
           <TableHead />
           <tbody>
             {entries.map(([ccy, amount]) => <CashRow key={ccy} label={ccy} value={amount} />)}
@@ -825,7 +825,7 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, acc
             <div key={g.label} className="jr-strategy-cell">
               <div className="jr-strategy-cell-header">{g.label} · {g.rows.length}</div>
               <div className="jr-strategy-cell-scroll">
-                <table className="trade-table" style={{ fontSize: 12 }}>
+                <table className={`trade-table${hideClosed ? ' jr-hide-closed-col' : ''}`} style={{ fontSize: 12 }}>
                   <TableHead />
                   <tbody>
                     {g.rows.map(p => {
@@ -845,13 +845,13 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, acc
           {/* Cash last, same as the ungrouped table below — it's a wrap-up
               figure, not a strategy, so it belongs after every real
               position group rather than interleaved among them. */}
-          <CashBalancesCell cashBalances={cashBalances} accountId={accountId} sessionKey={sessionKey} />
+          <CashBalancesCell cashBalances={cashBalances} accountId={accountId} sessionKey={sessionKey} hideClosed={hideClosed} />
           {rows.length === 0 && <div style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>Nothing here</div>}
         </div>
       ) : (
         <div className="cc-section cc-table-section" style={{ flexShrink: 1 }}>
           <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
-            <table className="trade-table" style={{ fontSize: 12 }}>
+            <table className={`trade-table${hideClosed ? ' jr-hide-closed-col' : ''}`} style={{ fontSize: 12 }}>
               <TableHead />
               <tbody>
                 {rows.map(p => {
