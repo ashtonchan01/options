@@ -65,5 +65,9 @@ export function useManualCashRows(accountId: string, sessionKey?: string | null)
     persist({ ...allRows, [accountId]: (allRows[accountId] ?? []).filter(r => r.id !== id) })
   }, [allRows, accountId, persist])
 
-  return { rows, addRow, removeRow }
+  const updateRow = useCallback((id: string, ticker: string, value: number) => {
+    persist({ ...allRows, [accountId]: (allRows[accountId] ?? []).map(r => r.id === id ? { ...r, ticker, value } : r) })
+  }, [allRows, accountId, persist])
+
+  return { rows, addRow, removeRow, updateRow }
 }
