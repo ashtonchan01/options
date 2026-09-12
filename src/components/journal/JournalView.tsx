@@ -9,6 +9,7 @@ import { type JournalPosition } from '../../engine/journal'
 import { MISTAKES, type JournalEntry } from '../../store/journalStore'
 import { tradeId } from '../../store/tradeLabelsStore'
 import { fetchQuotes } from '../../services/quotes'
+import { fetchMarketQuotes } from '../../services/markets'
 import type { RawPosition, RawTrade } from '../../types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -422,31 +423,94 @@ function stratGroupLabel(strategy?: string) {
   return LABEL_SHORT[key] ?? key.toUpperCase()
 }
 
-/** Per-currency cash holdings card, styled to match the strategy-group cells
- * (jr-strategy-cell) it sits alongside — a "CC · 1"-style header naming the
- * count of currencies held, then one row per currency. Only an XML/Flex sync
- * provides the per-currency breakdown (see SyncState.cashBalances); a
- * generic .csv/.xlsx/.pdf import only ever has the single combined total, so
- * this renders nothing at all rather than a misleading single-currency
- * guess when that breakdown isn't available. */
-function CashBalancesCell({ cashBalances }: { cashBalances?: Record<string, number> }) {
-  const entries = Object.entries(cashBalances ?? {}).filter(([, v]) => Math.abs(v) > 0.005)
-  if (entries.length === 0) return null
-  entries.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-  // Plain rows, not a <table> — .jr-strategy-cell's own CSS forces every
-  // <table> inside it to a 1250px min-width (sized for the 15-column trade
-  // table these cells normally hold), which would blow this 2-column card
-  // out to that same width for no reason.
+/** Per-currency cash balances, live-converted to a combined USD total.
+ * Fetches each non-USD currency's spot rate (Yahoo's "CCYUSD=X" FX ticker,
+ * same /api/markets proxy the rest of the app already uses) rather than
+ * assuming parity — AUD and USD aren't close enough to 1:1 for that to be a
+ * safe shortcut. */
+function useCashRows(cashBalances: Record<string, number> | undefined) {
+  const entries = useMemo(
+    () => Object.entries(cashBalances ?? {}).filter(([, v]) => Math.abs(v) > 0.005).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])),
+    [cashBalances],
+  )
+  const [fxRates, setFxRates] = useState<Record<string, number>>({})
+  const nonUsdKey = useMemo(() => [...new Set(entries.filter(([ccy]) => ccy !== 'USD').map(([ccy]) => ccy))].sort().join(','), [entries])
+  useEffect(() => {
+    if (!nonUsdKey) { setFxRates({}); return }
+    const currencies = nonUsdKey.split(',')
+    let cancelled = false
+    fetchMarketQuotes(currencies.map(c => `${c}USD=X`)).then(quotes => {
+      if (cancelled) return
+      const rates: Record<string, number> = {}
+      for (const c of currencies) {
+        const q = quotes[`${c}USD=X`]
+        if (q && q.price > 0) rates[c] = q.price
+      }
+      setFxRates(rates)
+    })
+    return () => { cancelled = true }
+  }, [nonUsdKey])
+
+  let totalUsd = 0
+  let fullyConverted = true
+  for (const [ccy, amount] of entries) {
+    if (ccy === 'USD') { totalUsd += amount; continue }
+    const rate = fxRates[ccy]
+    if (rate == null) { fullyConverted = false; continue }
+    totalUsd += amount * rate
+  }
+  return { entries, totalUsd, fullyConverted }
+}
+
+/** One row, laid out across the exact same 15 columns as TableHead/Row so a
+ * currency's balance lands in the Market Value column and its code in the
+ * Ticker column — every other column is blank rather than this needing its
+ * own separate table (which, in the ungrouped view, has no fixed per-column
+ * widths and so wouldn't actually line up). */
+function CashRow({ label, value, total }: { label: string; value: number; total?: boolean }) {
   return (
-    <div className="jr-strategy-cell" style={{ maxHeight: 'none' }}>
+    <tr style={total ? { borderTop: '2px solid var(--border)' } : undefined}>
+      <td className="jr-col-open"></td>
+      <td className="jr-col-closed"></td>
+      <td className="mono" style={{ fontWeight: total ? 800 : 700, color: total ? 'var(--text-1)' : undefined }}>{label}</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td className={`mono ${pnlCls(value)}`} style={{ textAlign: 'right', fontWeight: total ? 800 : undefined }}>{fmt$(value, 2)}</td>
+      <td></td>
+      <td></td>
+      <td className="jr-col-dte"></td>
+      <td></td>
+      <td></td>
+    </tr>
+  )
+}
+
+/** Cash balances card for the grouped (per-strategy) layout — a "CC · 1"
+ * style header naming the currency count, then one CashRow per currency plus
+ * a TOTAL CASH (USD) row. Reuses TableHead/trade-table (not a plain div) so
+ * its Ticker/Market Value columns land at the exact same x-position as every
+ * other strategy cell's, via the shared .jr-strategy-cell fixed-width CSS.
+ * Only an XML/Flex sync provides the per-currency breakdown (see
+ * SyncState.cashBalances); a generic .csv/.xlsx/.pdf import only ever has
+ * the single combined total, so this renders nothing at all rather than a
+ * misleading single-currency guess when that breakdown isn't available. */
+function CashBalancesCell({ cashBalances }: { cashBalances?: Record<string, number> }) {
+  const { entries, totalUsd, fullyConverted } = useCashRows(cashBalances)
+  if (entries.length === 0) return null
+  return (
+    <div className="jr-strategy-cell">
       <div className="jr-strategy-cell-header">CASH · {entries.length}</div>
-      <div style={{ padding: '4px 14px 10px' }}>
-        {entries.map(([ccy, amount]) => (
-          <div key={ccy} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '6px 0', borderBottom: '1px solid var(--border-light)', fontSize: 12.5 }}>
-            <span className="mono" style={{ fontWeight: 700, color: 'var(--text-2)' }}>{ccy}</span>
-            <span className={`mono ${pnlCls(amount)}`}>{fmt$(amount, 2)}</span>
-          </div>
-        ))}
+      <div className="jr-strategy-cell-scroll">
+        <table className="trade-table" style={{ fontSize: 12 }}>
+          <TableHead />
+          <tbody>
+            {entries.map(([ccy, amount]) => <CashRow key={ccy} label={ccy} value={amount} />)}
+            <CashRow label={`TOTAL CASH (USD)${fullyConverted ? '' : ' *'}`} value={totalUsd} total />
+          </tbody>
+        </table>
       </div>
     </div>
   )
@@ -577,6 +641,7 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, ent
   }, [rows, groupByStrategy])
 
   const COLS = 15
+  const cashRows = useCashRows(cashBalances)
 
   return (
     <>
@@ -604,7 +669,6 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, ent
         // Each cell caps its own height so every strategy stays reachable at
         // a glance instead of one long shared scroll.
         <div className="jr-strategy-grid">
-          <CashBalancesCell cashBalances={cashBalances} />
           {groups.map(g => (
             <div key={g.label} className="jr-strategy-cell">
               <div className="jr-strategy-cell-header">{g.label} · {g.rows.length}</div>
@@ -626,15 +690,14 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, ent
               </div>
             </div>
           ))}
+          {/* Cash last, same as the ungrouped table below — it's a wrap-up
+              figure, not a strategy, so it belongs after every real
+              position group rather than interleaved among them. */}
+          <CashBalancesCell cashBalances={cashBalances} />
           {rows.length === 0 && <div style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>Nothing here</div>}
         </div>
       ) : (
         <div className="cc-section cc-table-section" style={{ flexShrink: 1 }}>
-          {cashBalances && Object.keys(cashBalances).length > 0 && (
-            <div className="jr-strategy-grid" style={{ flex: '0 0 auto', marginBottom: 10 }}>
-              <CashBalancesCell cashBalances={cashBalances} />
-            </div>
-          )}
           <div className="jr-trade-table-scroll" style={{ overflow: 'auto' }}>
             <table className="trade-table" style={{ fontSize: 12 }}>
               <TableHead />
@@ -650,6 +713,15 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, ent
                 })}
                 {rows.length === 0 && (
                   <tr><td colSpan={COLS} style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>Nothing here</td></tr>
+                )}
+                {/* Cash last — same shared table as every position row above,
+                    so its Ticker/Market Value columns land in exactly the
+                    same x-position (this view has no per-column fixed
+                    widths the way the grouped strategy cells do, so a
+                    separate table here wouldn't actually line up). */}
+                {cashRows.entries.length > 0 && cashRows.entries.map(([ccy, amount]) => <CashRow key={ccy} label={ccy} value={amount} />)}
+                {cashRows.entries.length > 0 && (
+                  <CashRow label={`TOTAL CASH (USD)${cashRows.fullyConverted ? '' : ' *'}`} value={cashRows.totalUsd} total />
                 )}
               </tbody>
             </table>
