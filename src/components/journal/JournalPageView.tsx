@@ -20,7 +20,7 @@ function NoTradeData() {
   )
 }
 
-export default function JournalPageView({ state, tradeLabels, sessionKey }: { state: AppState; tradeLabels?: TradeLabels; sessionKey: string | null }) {
+export default function JournalPageView({ state, tradeLabels, sessionKey, accountId }: { state: AppState; tradeLabels?: TradeLabels; sessionKey: string | null; accountId: string }) {
   const { entries, updateEntry, setups, addSetup } = useJournalStore(sessionKey)
 
   const positions = useMemo(() => {
@@ -37,7 +37,7 @@ export default function JournalPageView({ state, tradeLabels, sessionKey }: { st
       <div className="jr-stacked">
         <div className="jr-stacked-bottom jr-root">
           {hasTrades ? (
-            <JournalTab positions={positions} livePositions={state.sync.positions} trades={state.sync.trades} cashBalances={state.sync.cashBalances} entries={entries} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
+            <JournalTab positions={positions} livePositions={state.sync.positions} trades={state.sync.trades} cashBalances={state.sync.cashBalances} accountId={accountId} sessionKey={sessionKey} entries={entries} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
           ) : (
             <>
               <div className="cc-section-title" style={{ padding: 0 }}>Trade Journal</div>

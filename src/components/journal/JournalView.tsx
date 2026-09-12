@@ -5,11 +5,13 @@
  * JournalPageView.tsx).
  */
 import { useEffect, useMemo, useState } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
 import { type JournalPosition } from '../../engine/journal'
 import { MISTAKES, type JournalEntry } from '../../store/journalStore'
 import { tradeId } from '../../store/tradeLabelsStore'
 import { fetchQuotes } from '../../services/quotes'
 import { fetchMarketQuotes } from '../../services/markets'
+import { useManualCashRows, type ManualCashRow } from '../../store/manualCashStore'
 import type { RawPosition, RawTrade } from '../../types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -489,26 +491,110 @@ function CashRow({ label, value, total }: { label: string; value: number; total?
   )
 }
 
+/** Combines the IBKR-synced per-currency balances (useCashRows) with the
+ * user's own manually-added lines (useManualCashRows) into one total — a
+ * manual row is entered directly in USD (no currency picker), so it's added
+ * to the already-converted currency total as-is. */
+function useCashSection(cashBalances: Record<string, number> | undefined, accountId: string, sessionKey?: string | null) {
+  const { entries, totalUsd: currencyTotalUsd, fullyConverted } = useCashRows(cashBalances)
+  const { rows: manualRows, addRow, removeRow } = useManualCashRows(accountId, sessionKey)
+  const manualTotal = manualRows.reduce((s, r) => s + r.value, 0)
+  return { entries, manualRows, addRow, removeRow, totalUsd: currencyTotalUsd + manualTotal, fullyConverted }
+}
+
+/** A user-added cash line — same column layout as CashRow, plus a delete
+ * button in the P&L column. */
+function ManualCashRow({ row, onRemove }: { row: ManualCashRow; onRemove: () => void }) {
+  return (
+    <tr>
+      <td className="jr-col-open"></td>{/* 1 Open */}
+      <td className="jr-col-closed"></td>{/* 2 Closed */}
+      <td className="mono" style={{ fontWeight: 700 }}>{row.ticker}</td>{/* 3 Ticker */}
+      <td></td>{/* 4 Stock Price */}
+      <td></td>{/* 5 Position */}
+      <td></td>{/* 6 Avg Price */}
+      <td></td>{/* 7 Cost Basis */}
+      <td></td>{/* 8 Breakeven */}
+      <td></td>{/* 9 Market Price */}
+      <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>{fmt$(row.value, 2)}</td>{/* 10 Market Value */}
+      <td></td>{/* 11 Unrealised */}
+      <td></td>{/* 12 % */}
+      <td className="jr-col-dte"></td>{/* 13 DTE */}
+      <td></td>{/* 14 Fees */}
+      <td style={{ textAlign: 'right' }}>{/* 15 P&L — delete */}
+        <button onClick={onRemove} title="Remove" style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', padding: '3px 6px', display: 'inline-flex' }}>
+          <Trash2 size={11} />
+        </button>
+      </td>
+    </tr>
+  )
+}
+
+/** Blank row with a Ticker input + Market Value input (same two columns
+ * every other cash row uses) and an Add button in the P&L column — lets the
+ * user add cash held somewhere the IBKR sync doesn't cover (another broker,
+ * a bank account) directly into the CASH card's total. */
+function AddCashRowForm({ onAdd }: { onAdd: (ticker: string, value: number) => void }) {
+  const [ticker, setTicker] = useState('')
+  const [value, setValue] = useState('')
+  function submit() {
+    const t = ticker.trim().toUpperCase()
+    const v = parseFloat(value)
+    if (!t || !Number.isFinite(v)) return
+    onAdd(t, v)
+    setTicker(''); setValue('')
+  }
+  const inputStyle = { padding: '3px 6px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-1)', fontFamily: 'inherit' }
+  return (
+    <tr>
+      <td className="jr-col-open"></td>{/* 1 Open */}
+      <td className="jr-col-closed"></td>{/* 2 Closed */}
+      <td>{/* 3 Ticker */}
+        <input value={ticker} onChange={e => setTicker(e.target.value)} placeholder="Ticker" onKeyDown={e => { if (e.key === 'Enter') submit() }} style={{ ...inputStyle, width: '100%' }} />
+      </td>
+      <td></td>{/* 4 Stock Price */}
+      <td></td>{/* 5 Position */}
+      <td></td>{/* 6 Avg Price */}
+      <td></td>{/* 7 Cost Basis */}
+      <td></td>{/* 8 Breakeven */}
+      <td></td>{/* 9 Market Price */}
+      <td style={{ textAlign: 'right' }}>{/* 10 Market Value */}
+        <input type="number" value={value} onChange={e => setValue(e.target.value)} placeholder="0.00" onKeyDown={e => { if (e.key === 'Enter') submit() }} style={{ ...inputStyle, width: 100, textAlign: 'right' }} />
+      </td>
+      <td></td>{/* 11 Unrealised */}
+      <td></td>{/* 12 % */}
+      <td className="jr-col-dte"></td>{/* 13 DTE */}
+      <td></td>{/* 14 Fees */}
+      <td style={{ textAlign: 'right' }}>{/* 15 P&L — add */}
+        <button onClick={submit} title="Add" style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--accent)', cursor: 'pointer', padding: '3px 6px', borderRadius: 4, display: 'inline-flex' }}>
+          <Plus size={11} />
+        </button>
+      </td>
+    </tr>
+  )
+}
+
 /** Cash balances card for the grouped (per-strategy) layout — a "CC · 1"
- * style header naming the currency count, then one CashRow per currency plus
- * a TOTAL (USD) row. Reuses TableHead/trade-table (not a plain div) so
+ * style header naming the total line count, then one CashRow per synced
+ * currency, any user-added manual lines, an always-available add-row form,
+ * and a TOTAL (USD) row. Reuses TableHead/trade-table (not a plain div) so
  * its Ticker/Market Value columns land at the exact same x-position as every
  * other strategy cell's, via the shared .jr-strategy-cell fixed-width CSS.
- * Only an XML/Flex sync provides the per-currency breakdown (see
- * SyncState.cashBalances); a generic .csv/.xlsx/.pdf import only ever has
- * the single combined total, so this renders nothing at all rather than a
- * misleading single-currency guess when that breakdown isn't available. */
-function CashBalancesCell({ cashBalances }: { cashBalances?: Record<string, number> }) {
-  const { entries, totalUsd, fullyConverted } = useCashRows(cashBalances)
-  if (entries.length === 0) return null
+ * Always renders (even with no synced currency data) since the add-row form
+ * is useful on its own — a generic .csv/.xlsx/.pdf import has no IBKR cash
+ * snapshot at all, but the user can still track cash manually here. */
+function CashBalancesCell({ cashBalances, accountId, sessionKey }: { cashBalances?: Record<string, number>; accountId: string; sessionKey?: string | null }) {
+  const { entries, manualRows, addRow, removeRow, totalUsd, fullyConverted } = useCashSection(cashBalances, accountId, sessionKey)
   return (
     <div className="jr-strategy-cell">
-      <div className="jr-strategy-cell-header">CASH · {entries.length}</div>
+      <div className="jr-strategy-cell-header">CASH · {entries.length + manualRows.length}</div>
       <div className="jr-strategy-cell-scroll">
         <table className="trade-table" style={{ fontSize: 12 }}>
           <TableHead />
           <tbody>
             {entries.map(([ccy, amount]) => <CashRow key={ccy} label={ccy} value={amount} />)}
+            {manualRows.map(row => <ManualCashRow key={row.id} row={row} onRemove={() => removeRow(row.id)} />)}
+            <AddCashRowForm onAdd={addRow} />
             <CashRow label={`TOTAL (USD)${fullyConverted ? '' : ' *'}`} value={totalUsd} total />
           </tbody>
         </table>
@@ -517,11 +603,13 @@ function CashBalancesCell({ cashBalances }: { cashBalances?: Record<string, numb
   )
 }
 
-export function JournalTab({ positions, livePositions, trades, cashBalances, entries, updateEntry, setups, addSetup }: {
+export function JournalTab({ positions, livePositions, trades, cashBalances, accountId, sessionKey, entries, updateEntry, setups, addSetup }: {
   positions: JournalPosition[]
   livePositions: RawPosition[]
   trades: RawTrade[]
   cashBalances?: Record<string, number>
+  accountId: string
+  sessionKey?: string | null
   entries: Record<string, JournalEntry>
   updateEntry: (id: string, patch: Partial<JournalEntry>) => void
   setups: string[]
@@ -642,7 +730,7 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, ent
   }, [rows, groupByStrategy])
 
   const COLS = 15
-  const cashRows = useCashRows(cashBalances)
+  const cashRows = useCashSection(cashBalances, accountId, sessionKey)
 
   return (
     <>
@@ -694,7 +782,7 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, ent
           {/* Cash last, same as the ungrouped table below — it's a wrap-up
               figure, not a strategy, so it belongs after every real
               position group rather than interleaved among them. */}
-          <CashBalancesCell cashBalances={cashBalances} />
+          <CashBalancesCell cashBalances={cashBalances} accountId={accountId} sessionKey={sessionKey} />
           {rows.length === 0 && <div style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>Nothing here</div>}
         </div>
       ) : (
@@ -720,10 +808,10 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, ent
                     same x-position (this view has no per-column fixed
                     widths the way the grouped strategy cells do, so a
                     separate table here wouldn't actually line up). */}
-                {cashRows.entries.length > 0 && cashRows.entries.map(([ccy, amount]) => <CashRow key={ccy} label={ccy} value={amount} />)}
-                {cashRows.entries.length > 0 && (
-                  <CashRow label={`TOTAL (USD)${cashRows.fullyConverted ? '' : ' *'}`} value={cashRows.totalUsd} total />
-                )}
+                {cashRows.entries.map(([ccy, amount]) => <CashRow key={ccy} label={ccy} value={amount} />)}
+                {cashRows.manualRows.map(row => <ManualCashRow key={row.id} row={row} onRemove={() => cashRows.removeRow(row.id)} />)}
+                <AddCashRowForm onAdd={cashRows.addRow} />
+                <CashRow label={`TOTAL (USD)${cashRows.fullyConverted ? '' : ' *'}`} value={cashRows.totalUsd} total />
               </tbody>
             </table>
           </div>
