@@ -470,27 +470,28 @@ function useCashRows(cashBalances: Record<string, number> | undefined) {
 function CashRow({ label, value, total }: { label: string; value: number; total?: boolean }) {
   return (
     <tr style={total ? { borderTop: '2px solid var(--border)' } : undefined}>
-      <td className="jr-col-open"></td>
-      <td className="jr-col-closed"></td>
-      <td className="mono" style={{ fontWeight: total ? 800 : 700, color: total ? 'var(--text-1)' : undefined }}>{label}</td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td className={`mono ${pnlCls(value)}`} style={{ textAlign: 'right', fontWeight: total ? 800 : undefined }}>{fmt$(value, 2)}</td>
-      <td></td>
-      <td></td>
-      <td className="jr-col-dte"></td>
-      <td></td>
-      <td></td>
+      <td className="jr-col-open"></td>{/* 1 Open */}
+      <td className="jr-col-closed"></td>{/* 2 Closed */}
+      <td className="mono" style={{ fontWeight: total ? 800 : 700, color: total ? 'var(--text-1)' : undefined }}>{label}</td>{/* 3 Ticker */}
+      <td></td>{/* 4 Stock Price */}
+      <td></td>{/* 5 Position */}
+      <td></td>{/* 6 Avg Price */}
+      <td></td>{/* 7 Cost Basis */}
+      <td></td>{/* 8 Breakeven */}
+      <td></td>{/* 9 Market Price */}
+      <td className="mono" style={{ textAlign: 'right', color: total ? 'var(--text-1)' : 'var(--text-2)', fontWeight: total ? 800 : undefined }}>{fmt$(value, 2)}</td>{/* 10 Market Value */}
+      <td></td>{/* 11 Unrealised */}
+      <td></td>{/* 12 % */}
+      <td className="jr-col-dte"></td>{/* 13 DTE */}
+      <td></td>{/* 14 Fees */}
+      <td></td>{/* 15 P&L */}
     </tr>
   )
 }
 
 /** Cash balances card for the grouped (per-strategy) layout — a "CC · 1"
  * style header naming the currency count, then one CashRow per currency plus
- * a TOTAL CASH (USD) row. Reuses TableHead/trade-table (not a plain div) so
+ * a TOTAL (USD) row. Reuses TableHead/trade-table (not a plain div) so
  * its Ticker/Market Value columns land at the exact same x-position as every
  * other strategy cell's, via the shared .jr-strategy-cell fixed-width CSS.
  * Only an XML/Flex sync provides the per-currency breakdown (see
@@ -508,7 +509,7 @@ function CashBalancesCell({ cashBalances }: { cashBalances?: Record<string, numb
           <TableHead />
           <tbody>
             {entries.map(([ccy, amount]) => <CashRow key={ccy} label={ccy} value={amount} />)}
-            <CashRow label={`TOTAL CASH (USD)${fullyConverted ? '' : ' *'}`} value={totalUsd} total />
+            <CashRow label={`TOTAL (USD)${fullyConverted ? '' : ' *'}`} value={totalUsd} total />
           </tbody>
         </table>
       </div>
@@ -721,7 +722,7 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, ent
                     separate table here wouldn't actually line up). */}
                 {cashRows.entries.length > 0 && cashRows.entries.map(([ccy, amount]) => <CashRow key={ccy} label={ccy} value={amount} />)}
                 {cashRows.entries.length > 0 && (
-                  <CashRow label={`TOTAL CASH (USD)${cashRows.fullyConverted ? '' : ' *'}`} value={cashRows.totalUsd} total />
+                  <CashRow label={`TOTAL (USD)${cashRows.fullyConverted ? '' : ' *'}`} value={cashRows.totalUsd} total />
                 )}
               </tbody>
             </table>
