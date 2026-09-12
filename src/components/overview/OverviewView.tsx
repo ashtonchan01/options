@@ -48,9 +48,19 @@ function niceAxisTicks(rawMin: number, rawMax: number, count = 5): { min: number
   const niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10
   const step = niceNorm * mag
   const min = Math.floor(rawMin / step) * step
+  // Round UP to the next step, not just "however many ticks the loop below
+  // happens to reach" — the old approach (stop once a tick exceeds
+  // rawMax + step/2) could stop one tick short of covering rawMax when the
+  // actual max split awkwardly against `count`, leaving `max` SMALLER than
+  // the real highest data value. Every y-scale here maps `max` to the very
+  // top of the plot, so that undershoot rendered the equity curve's peak
+  // above the plot's own top edge (verified: a curve whose last point was
+  // $69,856 undershot to max=$60,000 with count=5, visibly overrunning the
+  // chart's top border in production). Ceiling guarantees max >= rawMax.
+  const max = Math.ceil(rawMax / step) * step
   const ticks: number[] = []
-  for (let v = min, i = 0; i < count + 1 && v <= rawMax + step * 0.5 + 1e-9; v += step, i++) ticks.push(v)
-  return { min, max: ticks[ticks.length - 1], ticks }
+  for (let v = min; v <= max + 1e-9; v += step) ticks.push(v)
+  return { min, max, ticks }
 }
 
 /** Tracks the same phone-width breakpoint the rest of the app's mobile CSS
