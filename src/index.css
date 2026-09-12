@@ -1271,6 +1271,12 @@ body {
   align-items: stretch;
 }
 
+/* Applied to a trade-table when the Journal's "Hide closed" filter is
+   checked — the Closed column is meaningless once every visible row is,
+   by definition, still open, so drop it rather than leaving a column of
+   blank "—" cells. Not scoped to mobile: desktop gets the same treatment. */
+.jr-hide-closed-col .jr-col-closed { display: none; }
+
 
 .jr-editor {
   display: flex;
