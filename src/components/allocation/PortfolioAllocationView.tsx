@@ -16,6 +16,7 @@ import { fetchQuotes, type Quote } from '../../services/quotes'
 import { fetchRSI, type RsiData } from '../../services/rsi'
 import { loadUserData, saveUserData } from '../../services/userData'
 import { meanReversionSignal, SIGNAL_STYLE } from '../../services/signal'
+import { useManualCashRows, getManualCashTotal } from '../../store/manualCashStore'
 
 export function fmt$(n: number): string {
   const abs = Math.abs(n)
@@ -198,13 +199,20 @@ export type LabelMode = 'pct' | 'dollar'
  * the pie's total always reconciles to net liquidation instead of silently
  * falling short of it. Exported so other pages (e.g. Overview) show the
  * exact same allocation breakdown instead of a different, narrower one. */
-export function currentAllocationSlices(state: { sync: { positions: RawPosition[]; trades: RawTrade[]; cashBalance?: number; netLiquidation?: number } }): { slices: Slice[]; total: number } {
+export function currentAllocationSlices(state: { sync: { positions: RawPosition[]; trades: RawTrade[]; cashBalance?: number; netLiquidation?: number } }, accountId: string): { slices: Slice[]; total: number } {
   const { holdings, nakedOptionsValue } = state.sync.positions.length > 0
     ? holdingsFromPositions(state.sync.positions)
     : { holdings: holdingsFromTrades(state.sync.trades), nakedOptionsValue: 0 }
   const holdingsValue = holdings.reduce((s, h) => s + h.value, 0)
-  const cashBalance = (state.sync.cashBalance ?? 0) + nakedOptionsValue
-  const total = state.sync.netLiquidation ?? (holdingsValue + cashBalance)
+  // Same manual-cash-is-real-cash treatment (and the same symmetric total
+  // bump to keep the reconciliation "OTHER" catch-all from absorbing it
+  // instead) as the default export's own component-body math — see its
+  // comment for the reasoning. This is a plain function (not a component,
+  // called from Overview's own render), so it reads the static snapshot
+  // rather than the reactive hook.
+  const manualCash = getManualCashTotal(accountId)
+  const cashBalance = (state.sync.cashBalance ?? 0) + nakedOptionsValue + manualCash
+  const total = (state.sync.netLiquidation ?? (holdingsValue + cashBalance - manualCash)) + manualCash
   const otherValue = Math.max(0, total - holdingsValue - cashBalance)
   const slices: Slice[] = [
     ...holdings.map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i), shares: h.shares })),
@@ -410,7 +418,19 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   // reconciliation math below still needs it, but displayed as two separate
   // rows further down: OTHER (nakedOptionsValue alone) and CASH
   // (the real state.sync.cashBalance, no options mixed in).
-  const actualCash = state.sync.cashBalance ?? 0
+  // Cash the user tracks manually in the Trade Journal's CASH card (a bank
+  // account, cash at another broker — anything the IBKR sync itself has no
+  // way to know about) is real cash on hand just as much as the synced
+  // balance, so it belongs in this same CASH figure. Added symmetrically to
+  // both actualCash and currentTotal below (not just actualCash alone) so
+  // otherValue's reconciliation math still nets out correctly — IBKR's own
+  // netLiquidation obviously has no idea this money exists, so the total it
+  // reports needs the same bump the cash figure gets, or this would just
+  // shift the shortfall into a bigger "OTHER" slice instead of a bigger
+  // "CASH" one.
+  const { rows: manualCashRows } = useManualCashRows(accountId, sessionKey)
+  const manualCash = manualCashRows.reduce((s, r) => s + r.value, 0)
+  const actualCash = (state.sync.cashBalance ?? 0) + manualCash
   const cashBalance = actualCash + nakedOptionsValue
   // Net liquidation (IBKR's own total-account-value figure) is the source
   // of truth when we have it — it includes everything, not just what this
@@ -418,7 +438,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   // small fx/timing differences) falls into an "Other" slice instead of
   // silently vanishing, so the pie's total always reconciles to the real
   // IBKR number instead of just summing the ticker + cash rows.
-  const currentTotal = state.sync.netLiquidation ?? (holdingsValue + cashBalance)
+  const currentTotal = (state.sync.netLiquidation ?? (holdingsValue + cashBalance - manualCash)) + manualCash
   const otherValue = Math.max(0, currentTotal - holdingsValue - cashBalance)
 
   const [labelMode, setLabelMode] = useState<LabelMode>('pct')
