@@ -425,43 +425,36 @@ function stratGroupLabel(strategy?: string) {
   return LABEL_SHORT[key] ?? key.toUpperCase()
 }
 
-/** Per-currency cash balances, live-converted to a combined USD total.
- * Fetches each non-USD currency's spot rate (Yahoo's "CCYUSD=X" FX ticker,
- * same /api/markets proxy the rest of the app already uses) rather than
- * assuming parity — AUD and USD aren't close enough to 1:1 for that to be a
- * safe shortcut. */
-function useCashRows(cashBalances: Record<string, number> | undefined) {
-  const entries = useMemo(
-    () => Object.entries(cashBalances ?? {}).filter(([, v]) => Math.abs(v) > 0.005).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])),
-    [cashBalances],
+/** Header for the CASH card's table — deliberately different labels from
+ * TableHead (Name/Currency instead of Open/Ticker) since this section's
+ * columns mean something different: a manual row's free-form Name and the
+ * Currency its Market Value is actually denominated in, not a position's
+ * open date/underlying. Same 15-column skeleton (and the same jr-col-open/
+ * jr-col-closed/jr-col-dte classes) so it still lines up under the shared
+ * .jr-strategy-cell fixed-width CSS — it just doesn't need to mean the same
+ * thing column-for-column as the position tables above it. */
+function CashTableHead() {
+  return (
+    <thead>
+      <tr>
+        <th className="jr-col-open">Name</th>
+        <th className="jr-col-closed"></th>
+        <th>Currency</th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th style={{ textAlign: 'right' }}>Market Value</th>
+        <th></th>
+        <th></th>
+        <th className="jr-col-dte"></th>
+        <th></th>
+        <th></th>
+      </tr>
+    </thead>
   )
-  const [fxRates, setFxRates] = useState<Record<string, number>>({})
-  const nonUsdKey = useMemo(() => [...new Set(entries.filter(([ccy]) => ccy !== 'USD').map(([ccy]) => ccy))].sort().join(','), [entries])
-  useEffect(() => {
-    if (!nonUsdKey) { setFxRates({}); return }
-    const currencies = nonUsdKey.split(',')
-    let cancelled = false
-    fetchMarketQuotes(currencies.map(c => `${c}USD=X`)).then(quotes => {
-      if (cancelled) return
-      const rates: Record<string, number> = {}
-      for (const c of currencies) {
-        const q = quotes[`${c}USD=X`]
-        if (q && q.price > 0) rates[c] = q.price
-      }
-      setFxRates(rates)
-    })
-    return () => { cancelled = true }
-  }, [nonUsdKey])
-
-  let totalUsd = 0
-  let fullyConverted = true
-  for (const [ccy, amount] of entries) {
-    if (ccy === 'USD') { totalUsd += amount; continue }
-    const rate = fxRates[ccy]
-    if (rate == null) { fullyConverted = false; continue }
-    totalUsd += amount * rate
-  }
-  return { entries, totalUsd, fullyConverted }
 }
 
 /** One row, laid out across the exact same 15 columns as TableHead/Row so a
@@ -508,32 +501,85 @@ function CashRow({ label, value, total, onToggleAdd, addOpen }: { label: string;
  * user's own manually-added lines (useManualCashRows) into one total — a
  * manual row is entered directly in USD (no currency picker), so it's added
  * to the already-converted currency total as-is. */
+/** Per-currency cash balances (synced + manually-added, each carrying its
+ * own currency) live-converted to a combined USD total. Fetches every
+ * distinct non-USD currency's spot rate once (Yahoo's "CCYUSD=X" FX ticker,
+ * same /api/markets proxy the rest of the app already uses) rather than
+ * assuming parity — AUD and USD aren't close enough to 1:1 for that to be a
+ * safe shortcut. */
 function useCashSection(cashBalances: Record<string, number> | undefined, accountId: string, sessionKey?: string | null) {
-  const { entries, totalUsd: currencyTotalUsd, fullyConverted } = useCashRows(cashBalances)
+  const entries = useMemo(
+    () => Object.entries(cashBalances ?? {}).filter(([, v]) => Math.abs(v) > 0.005).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])),
+    [cashBalances],
+  )
   const { rows: manualRows, addRow, removeRow, updateRow } = useManualCashRows(accountId, sessionKey)
-  const manualTotal = manualRows.reduce((s, r) => s + r.value, 0)
-  return { entries, manualRows, addRow, removeRow, updateRow, totalUsd: currencyTotalUsd + manualTotal, fullyConverted }
+
+  const [fxRates, setFxRates] = useState<Record<string, number>>({})
+  const nonUsdKey = useMemo(() => {
+    const set = new Set<string>()
+    for (const [ccy] of entries) if (ccy !== 'USD') set.add(ccy)
+    for (const r of manualRows) if (r.currency && r.currency !== 'USD') set.add(r.currency)
+    return [...set].sort().join(',')
+  }, [entries, manualRows])
+  useEffect(() => {
+    if (!nonUsdKey) { setFxRates({}); return }
+    const currencies = nonUsdKey.split(',')
+    let cancelled = false
+    fetchMarketQuotes(currencies.map(c => `${c}USD=X`)).then(quotes => {
+      if (cancelled) return
+      const rates: Record<string, number> = {}
+      for (const c of currencies) {
+        const q = quotes[`${c}USD=X`]
+        if (q && q.price > 0) rates[c] = q.price
+      }
+      setFxRates(rates)
+    })
+    return () => { cancelled = true }
+  }, [nonUsdKey])
+
+  function toUsd(currency: string, amount: number): number | null {
+    if (currency === 'USD') return amount
+    const rate = fxRates[currency]
+    return rate == null ? null : amount * rate
+  }
+
+  let totalUsd = 0
+  let fullyConverted = true
+  for (const [ccy, amount] of entries) {
+    const usd = toUsd(ccy, amount)
+    if (usd == null) { fullyConverted = false; continue }
+    totalUsd += usd
+  }
+  for (const r of manualRows) {
+    const usd = toUsd(r.currency || 'USD', r.value)
+    if (usd == null) { fullyConverted = false; continue }
+    totalUsd += usd
+  }
+
+  return { entries, manualRows, addRow, removeRow, updateRow, totalUsd, fullyConverted }
 }
 
 /** A user-added cash line — same column layout as CashRow, plus Edit/Delete
  * buttons in the P&L column. Edit swaps the Ticker/Market Value cells for
  * the same inputs AddCashRowForm uses, Save/Cancel replacing Edit/Delete —
  * same inline-edit pattern as the Allocation page's target rows. */
-function ManualCashRow({ row, onUpdate, onRemove }: { row: ManualCashRow; onUpdate: (ticker: string, value: number) => void; onRemove: () => void }) {
+function ManualCashRow({ row, onUpdate, onRemove }: { row: ManualCashRow; onUpdate: (name: string, currency: string, value: number) => void; onRemove: () => void }) {
   const [editing, setEditing] = useState(false)
-  const [ticker, setTicker] = useState(row.ticker)
+  const [name, setName] = useState(row.name)
+  const [currency, setCurrency] = useState(row.currency)
   const [value, setValue] = useState(String(row.value))
 
   function startEdit() {
-    setTicker(row.ticker)
+    setName(row.name)
+    setCurrency(row.currency)
     setValue(String(row.value))
     setEditing(true)
   }
   function save() {
-    const t = ticker.trim().toUpperCase()
+    const c = currency.trim().toUpperCase()
     const v = parseFloat(value)
-    if (!t || !Number.isFinite(v)) return
-    onUpdate(t, v)
+    if (!c || !Number.isFinite(v)) return
+    onUpdate(name.trim(), c, v)
     setEditing(false)
   }
   function cancel() { setEditing(false) }
@@ -542,12 +588,16 @@ function ManualCashRow({ row, onUpdate, onRemove }: { row: ManualCashRow; onUpda
 
   return (
     <tr>
-      <td className="jr-col-open"></td>{/* 1 Open */}
-      <td className="jr-col-closed"></td>{/* 2 Closed */}
-      <td className="mono" style={{ fontWeight: 700 }}>{/* 3 Ticker */}
+      <td className="jr-col-open">{/* 1 Open -> Name */}
         {editing
-          ? <input value={ticker} onChange={e => setTicker(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }} autoFocus style={{ ...inputStyle, width: '100%' }} />
-          : row.ticker}
+          ? <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }} autoFocus style={{ ...inputStyle, width: '100%' }} />
+          : row.name}
+      </td>
+      <td className="jr-col-closed"></td>{/* 2 Closed */}
+      <td className="mono" style={{ fontWeight: 700 }}>{/* 3 Ticker -> Currency */}
+        {editing
+          ? <input value={currency} onChange={e => setCurrency(e.target.value)} placeholder="Currency" onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }} style={{ ...inputStyle, width: '100%' }} />
+          : row.currency}
       </td>
       <td></td>{/* 4 Stock Price */}
       <td></td>{/* 5 Position */}
@@ -557,8 +607,8 @@ function ManualCashRow({ row, onUpdate, onRemove }: { row: ManualCashRow; onUpda
       <td></td>{/* 9 Market Price */}
       <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)' }}>{/* 10 Market Value */}
         {editing
-          ? <input type="number" value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }} style={{ ...inputStyle, width: 100, textAlign: 'right' }} />
-          : fmt$(row.value, 2)}
+          ? <input type="number" value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }} style={{ ...inputStyle, width: 90, textAlign: 'right' }} />
+          : `${fmt$(row.value, 2)}${row.currency !== 'USD' ? ` ${row.currency}` : ''}`}
       </td>
       <td></td>{/* 11 Unrealised */}
       <td></td>{/* 12 % */}
@@ -595,23 +645,26 @@ function ManualCashRow({ row, onUpdate, onRemove }: { row: ManualCashRow; onUpda
  * every other cash row uses) and an Add button in the P&L column — lets the
  * user add cash held somewhere the IBKR sync doesn't cover (another broker,
  * a bank account) directly into the CASH card's total. */
-function AddCashRowForm({ onAdd }: { onAdd: (ticker: string, value: number) => void }) {
-  const [ticker, setTicker] = useState('')
+function AddCashRowForm({ onAdd }: { onAdd: (name: string, currency: string, value: number) => void }) {
+  const [name, setName] = useState('')
+  const [currency, setCurrency] = useState('')
   const [value, setValue] = useState('')
   function submit() {
-    const t = ticker.trim().toUpperCase()
+    const c = currency.trim().toUpperCase()
     const v = parseFloat(value)
-    if (!t || !Number.isFinite(v)) return
-    onAdd(t, v)
-    setTicker(''); setValue('')
+    if (!c || !Number.isFinite(v)) return
+    onAdd(name.trim(), c, v)
+    setName(''); setCurrency(''); setValue('')
   }
   const inputStyle = { padding: '3px 6px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-1)', fontFamily: 'inherit' }
   return (
     <tr>
-      <td className="jr-col-open"></td>{/* 1 Open */}
+      <td className="jr-col-open">{/* 1 Open -> Name */}
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" onKeyDown={e => { if (e.key === 'Enter') submit() }} style={{ ...inputStyle, width: '100%' }} />
+      </td>
       <td className="jr-col-closed"></td>{/* 2 Closed */}
-      <td>{/* 3 Ticker */}
-        <input value={ticker} onChange={e => setTicker(e.target.value)} placeholder="Ticker" onKeyDown={e => { if (e.key === 'Enter') submit() }} style={{ ...inputStyle, width: '100%' }} />
+      <td>{/* 3 Ticker -> Currency */}
+        <input value={currency} onChange={e => setCurrency(e.target.value)} placeholder="Currency" onKeyDown={e => { if (e.key === 'Enter') submit() }} style={{ ...inputStyle, width: '100%' }} />
       </td>
       <td></td>{/* 4 Stock Price */}
       <td></td>{/* 5 Position */}
@@ -620,7 +673,7 @@ function AddCashRowForm({ onAdd }: { onAdd: (ticker: string, value: number) => v
       <td></td>{/* 8 Breakeven */}
       <td></td>{/* 9 Market Price */}
       <td style={{ textAlign: 'right' }}>{/* 10 Market Value */}
-        <input type="number" value={value} onChange={e => setValue(e.target.value)} placeholder="0.00" onKeyDown={e => { if (e.key === 'Enter') submit() }} style={{ ...inputStyle, width: 100, textAlign: 'right' }} />
+        <input type="number" value={value} onChange={e => setValue(e.target.value)} placeholder="0.00" onKeyDown={e => { if (e.key === 'Enter') submit() }} style={{ ...inputStyle, width: 90, textAlign: 'right' }} />
       </td>
       <td></td>{/* 11 Unrealised */}
       <td></td>{/* 12 % */}
@@ -652,10 +705,10 @@ function CashBalancesCell({ cashBalances, accountId, sessionKey, hideClosed }: {
       <div className="jr-strategy-cell-header">CASH · {entries.length + manualRows.length}</div>
       <div className="jr-strategy-cell-scroll">
         <table className={`trade-table${hideClosed ? ' jr-hide-closed-col' : ''}`} style={{ fontSize: 12 }}>
-          <TableHead />
+          <CashTableHead />
           <tbody>
             {entries.map(([ccy, amount]) => <CashRow key={ccy} label={ccy} value={amount} />)}
-            {manualRows.map(row => <ManualCashRow key={row.id} row={row} onUpdate={(t, v) => updateRow(row.id, t, v)} onRemove={() => removeRow(row.id)} />)}
+            {manualRows.map(row => <ManualCashRow key={row.id} row={row} onUpdate={(n, c, v) => updateRow(row.id, n, c, v)} onRemove={() => removeRow(row.id)} />)}
             {showAdd && <AddCashRowForm onAdd={addRow} />}
             <CashRow label={`TOTAL (USD)${fullyConverted ? '' : ' *'}`} value={totalUsd} total onToggleAdd={() => setShowAdd(v => !v)} addOpen={showAdd} />
           </tbody>
@@ -792,8 +845,6 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, acc
   }, [rows, groupByStrategy])
 
   const COLS = 15
-  const cashRows = useCashSection(cashBalances, accountId, sessionKey)
-  const [showAddCash, setShowAddCash] = useState(false)
 
   return (
     <>
@@ -842,7 +893,7 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, acc
               </div>
             </div>
           ))}
-          {/* Cash last, same as the ungrouped table below — it's a wrap-up
+          {/* Cash last, same as the ungrouped view below — it's a wrap-up
               figure, not a strategy, so it belongs after every real
               position group rather than interleaved among them. */}
           <CashBalancesCell cashBalances={cashBalances} accountId={accountId} sessionKey={sessionKey} hideClosed={hideClosed} />
@@ -866,17 +917,17 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, acc
                 {rows.length === 0 && (
                   <tr><td colSpan={COLS} style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>Nothing here</td></tr>
                 )}
-                {/* Cash last — same shared table as every position row above,
-                    so its Ticker/Market Value columns land in exactly the
-                    same x-position (this view has no per-column fixed
-                    widths the way the grouped strategy cells do, so a
-                    separate table here wouldn't actually line up). */}
-                {cashRows.entries.map(([ccy, amount]) => <CashRow key={ccy} label={ccy} value={amount} />)}
-                {cashRows.manualRows.map(row => <ManualCashRow key={row.id} row={row} onUpdate={(t, v) => cashRows.updateRow(row.id, t, v)} onRemove={() => cashRows.removeRow(row.id)} />)}
-                {showAddCash && <AddCashRowForm onAdd={cashRows.addRow} />}
-                <CashRow label={`TOTAL (USD)${cashRows.fullyConverted ? '' : ' *'}`} value={cashRows.totalUsd} total onToggleAdd={() => setShowAddCash(v => !v)} addOpen={showAddCash} />
               </tbody>
             </table>
+          </div>
+          {/* Cash last — its own card with its own Name/Currency header, not
+              appended into the table above: those columns mean something
+              different here (a manual row's free-form name and the currency
+              its value is in, not a position's open date/ticker), so sharing
+              this table's header would be actively misleading rather than
+              just visually redundant. */}
+          <div style={{ padding: '0 18px 12px' }}>
+            <CashBalancesCell cashBalances={cashBalances} accountId={accountId} sessionKey={sessionKey} hideClosed={hideClosed} />
           </div>
         </div>
       )}
