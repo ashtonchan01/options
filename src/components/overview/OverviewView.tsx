@@ -488,7 +488,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
                   gap around a small pie in a bigger cell. */}
               <div style={{ flex: '1 1 0', minHeight: 0, width: '100%' }}>
                 {(() => {
-                  const { slices, total } = currentAllocationSlices(state)
+                  const { slices, total } = currentAllocationSlices(state, account.id)
                   return <PortfolioPie slices={slices} centerLabel="Current" centerValue={fmtAllocation(total)} labelMode="pct" />
                 })()}
               </div>

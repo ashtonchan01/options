@@ -35,6 +35,18 @@ function saveAll(map: Record<string, ManualCashRow[]>) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(map)) } catch { /* ignore */ }
 }
 
+/** Plain (non-hook) read for callers that aren't already inside a React
+ * component with live state — e.g. the Overview page's Allocation-by-
+ * Position pie, which calls the standalone `currentAllocationSlices`
+ * function rather than rendering a component of its own. Reads whatever
+ * localStorage has synchronously; the reactive `useManualCashRows` below is
+ * preferred wherever a component can use it, since it also catches the
+ * server-mirrored value once that fetch lands for a signed-in user. */
+export function getManualCashTotal(accountId: string): number {
+  const rows = loadAll()[accountId] ?? []
+  return rows.reduce((s, r) => s + r.value, 0)
+}
+
 export function useManualCashRows(accountId: string, sessionKey?: string | null) {
   const [allRows, setAllRows] = useState<Record<string, ManualCashRow[]>>(loadAll)
   const rows = allRows[accountId] ?? []
