@@ -388,7 +388,7 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
     ...points.map(p => p.value), actualDisplay, ...accountActuals.map(a => a.display),
     ...history.map(h => h.value),
   ]
-  const minV = Math.min(cfg.startCapital * 0.5, ...allValues)
+  const minV = Math.min(toDisplayFromAud(cfg.startCapital * 0.5), ...allValues)
   const maxV = Math.max(...allValues) * 1.08
   const logMin = Math.log10(Math.max(1, minV))
   const logMax = Math.log10(Math.max(10, maxV))
@@ -430,7 +430,7 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
       color: ACCOUNT_COLORS[i % ACCOUNT_COLORS.length], weight: 600,
     })),
   ].sort((a, b) => a.dotY - b.dotY)
-  const MIN_LABEL_GAP = 11
+  const MIN_LABEL_GAP = 14
   let prevLabelY = -Infinity
   const labels = labelDefs.map(l => {
     const labelY = Math.max(l.dotY - 6, prevLabelY + MIN_LABEL_GAP)
@@ -467,18 +467,27 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
         <circle key={a.name} cx={x(0)} cy={y(a.display)} r={3} fill={ACCOUNT_COLORS[i % ACCOUNT_COLORS.length]} stroke="var(--bg-card)" strokeWidth={1} />
       ))}
 
-      {labels.map(l => (
-        <g key={l.key}>
-          {Math.abs(l.labelY - (l.dotY - 6)) > 2 && (
-            <line x1={x(0)} y1={l.dotY} x2={x(0) + (actualLabelRight ? 4 : -4)} y2={l.labelY + 2}
-              stroke={l.color} strokeOpacity={0.4} strokeWidth={0.75} />
-          )}
-          <text x={x(0) + (actualLabelRight ? 6 : -6)} y={l.labelY} fontSize={9} fontWeight={l.weight} fill={l.color}
-            textAnchor={actualLabelRight ? 'start' : 'end'} fontFamily="JetBrains Mono, monospace">
-            {l.text}
-          </text>
-        </g>
-      ))}
+      {labels.map(l => {
+        // Approximate monospace glyph width to lay down an opaque backing
+        // rect behind each label — the target curve and its dots pass
+        // directly through this area near x=0, and without a backing the
+        // sloped line reads as a strikethrough cutting across the text.
+        const textW = l.text.length * 5.3
+        const rectX = actualLabelRight ? x(0) + 3 : x(0) - 9 - textW
+        return (
+          <g key={l.key}>
+            <rect x={rectX} y={l.labelY - 8} width={textW + 6} height={10} fill="var(--bg-card)" />
+            {Math.abs(l.labelY - (l.dotY - 6)) > 0.5 && (
+              <line x1={x(0)} y1={l.dotY} x2={x(0) + (actualLabelRight ? 4 : -4)} y2={l.labelY + 2}
+                stroke={l.color} strokeOpacity={0.4} strokeWidth={0.75} />
+            )}
+            <text x={x(0) + (actualLabelRight ? 6 : -6)} y={l.labelY} fontSize={9} fontWeight={l.weight} fill={l.color}
+              textAnchor={actualLabelRight ? 'start' : 'end'} fontFamily="JetBrains Mono, monospace">
+              {l.text}
+            </text>
+          </g>
+        )
+      })}
 
       {yearTicks.map(tick => (
         <text key={tick.t} x={x(tick.t)} y={H - 8} fontSize={9} fill="var(--text-4)" textAnchor="middle" fontFamily="Inter, sans-serif">
@@ -671,9 +680,9 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
           actualDisplay={actualDisplay} accountActuals={accountActuals} history={historyDisplay} years={years} />
         <div className="ms-timeline-scroll" style={{ paddingLeft: `${CHART_PAD_L_PCT}%`, paddingRight: `${CHART_PAD_R_PCT}%` }}>
           {years.length > 0 && (
-            <div className="ms-timeline-year current" style={{ flex: '0 0 auto', minWidth: 0, width: 0, padding: 0, border: 'none', overflow: 'visible' }}>
-              <div className="ms-timeline-year-label" style={{ whiteSpace: 'nowrap' }}>{fmtMonthYear(years[0].startDate)}</div>
-              <div className="ms-timeline-year-value" style={{ whiteSpace: 'nowrap' }}>{fmt$(toDisplayFromAud(years[0].start))}</div>
+            <div className="ms-timeline-year current" style={{ flex: '0 0 auto', minWidth: 64 }}>
+              <div className="ms-timeline-year-label">{fmtMonthYear(years[0].startDate)}</div>
+              <div className="ms-timeline-year-value">{fmt$(toDisplayFromAud(years[0].start))}</div>
             </div>
           )}
           {years.map(y => (
