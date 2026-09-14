@@ -150,6 +150,13 @@ interface YearRow {
   tStart: number
   tEnd: number
   start: number
+  /** Target curve's value at the 31 Dec that falls within this row (or null
+   * if none does — e.g. the first, partial row when today is already past
+   * this calendar year's 31 Dec). Reporting periods here run FY (1 Jul–30
+   * Jun), not calendar years, so "End (Target)" alone never lands on a
+   * calendar-year checkpoint — this gives an interim "where should I be by
+   * 31 Dec" figure to check progress against mid-year. */
+  decEnd: number | null
   /** Pre-tax compounded value this row would reach at `targetPct` — used
    * only to work out the milestone-crossing month within the row (the
    * smooth exponential path tax is paid on, before it's deducted). */
@@ -163,6 +170,20 @@ interface YearRow {
   tax: number
   netPnl: number
   crossed: string[]
+}
+
+/** The 31 Dec that falls within [start, end) — a row's FY span (1 Jul–30
+ * Jun) crosses exactly one calendar year-end, but the very first, partial
+ * row (today → next 30 June) may already be past that year's 31 Dec, in
+ * which case there isn't one to find. Checked over a small fixed range
+ * rather than solved for, since there's at most one candidate year to try
+ * either side of the row's own start. */
+function findDecEndInRange(start: Date, end: Date): Date | null {
+  for (let y = start.getFullYear() - 1; y <= end.getFullYear(); y++) {
+    const dec31 = new Date(y, 11, 31)
+    if (dec31 >= start && dec31 < end) return dec31
+  }
+  return null
 }
 
 function monthIndex(d: Date): number {
@@ -206,12 +227,18 @@ function buildYears(cfg: Config, today: Date): YearRow[] {
         prevMilestonesHit = new Set(prevMilestonesHit).add(m.label)
       }
     }
+    const rowStartDate = i === 0 ? today : monthIndexToDate(boundaries[i])
+    const rowEndDate = monthIndexToDate(boundaries[i + 1])
+    const decDate = findDecEndInRange(rowStartDate, rowEndDate)
+    const decEnd = decDate
+      ? start * Math.pow(1 + r, (decDate.getTime() - rowStartDate.getTime()) / (ONE_YEAR_MS / 12))
+      : null
     rows.push({
       idx: i,
-      startDate: i === 0 ? today : monthIndexToDate(boundaries[i]),
-      endDate: monthIndexToDate(boundaries[i + 1]),
+      startDate: rowStartDate,
+      endDate: rowEndDate,
       months, tStart: tCursor, tEnd: tCursor + months,
-      start, grossEnd, end, grossPnl, tax, netPnl, crossed,
+      start, decEnd, grossEnd, end, grossPnl, tax, netPnl, crossed,
     })
     tCursor += months
     balance = end
@@ -643,10 +670,19 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
         <TimelineChart cfg={cfg} r={r} toDisplayFromAud={toDisplayFromAud}
           actualDisplay={actualDisplay} accountActuals={accountActuals} history={historyDisplay} years={years} />
         <div className="ms-timeline-scroll" style={{ paddingLeft: `${CHART_PAD_L_PCT}%`, paddingRight: `${CHART_PAD_R_PCT}%` }}>
+          {years.length > 0 && (
+            <div className="ms-timeline-year current" style={{ flex: '0 0 auto', minWidth: 0, width: 0, padding: 0, border: 'none', overflow: 'visible' }}>
+              <div className="ms-timeline-year-label" style={{ whiteSpace: 'nowrap' }}>{fmtMonthYear(years[0].startDate)}</div>
+              <div className="ms-timeline-year-value" style={{ whiteSpace: 'nowrap' }}>{fmt$(toDisplayFromAud(years[0].start))}</div>
+            </div>
+          )}
           {years.map(y => (
+            // Label is the END of this row's period (the date the value below
+            // it targets), not the start — the row's start date is shown by
+            // the previous box (or the leading "today" box for row 0).
             <div key={y.idx} className={`ms-timeline-year${y.crossed.length ? ' hit' : ''}${y.idx === 0 ? ' current' : ''}`}
               style={{ width: `${(y.months / (years[years.length - 1]?.tEnd || 1)) * CHART_PLOT_W_PCT}%` }}>
-              <div className="ms-timeline-year-label">{fmtMonthYear(y.startDate)}</div>
+              <div className="ms-timeline-year-label">{fmtMonthYear(addMonths(y.endDate, -1))}</div>
               <div className="ms-timeline-year-value">{fmt$(toDisplayFromAud(y.grossEnd))}</div>
               {y.crossed.map(c => <div key={c} className="ms-timeline-badge">{c}</div>)}
             </div>
@@ -663,6 +699,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
                 <th></th>
                 <th>Period</th>
                 <th style={{ textAlign: 'right' }}>Start</th>
+                <th style={{ textAlign: 'right' }}>End of Dec (Target)</th>
                 <th style={{ textAlign: 'right' }}>End (Target)</th>
                 <th style={{ textAlign: 'right' }}>Gross P&amp;L</th>
                 <th style={{ textAlign: 'right' }}>Tax ({cfg.taxRate}%)</th>
@@ -681,6 +718,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
                         {fmtMonthYear(y.startDate)} – {fmtMonthYear(addMonths(y.endDate, -1))}
                       </td>
                       <td className="mono" style={{ textAlign: 'right' }}>{fmt$(toDisplayFromAud(y.start))}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{y.decEnd != null ? fmt$(toDisplayFromAud(y.decEnd)) : '—'}</td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt$(toDisplayFromAud(y.grossEnd))}</td>
                       <td className="mono" style={{ textAlign: 'right', color: '#10b981' }}>{fmt$(toDisplayFromAud(y.grossPnl))}</td>
                       <td className="mono" style={{ textAlign: 'right', color: '#ef4444' }}>{fmt$(toDisplayFromAud(y.tax))}</td>
@@ -689,7 +727,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
                     </tr>
                     {open && (
                       <tr>
-                        <td colSpan={8} style={{ padding: 0 }}>
+                        <td colSpan={9} style={{ padding: 0 }}>
                           <div className="ms-month-grid">
                             {Array.from({ length: y.months }, (_, i) => {
                               const monthStart = y.start * Math.pow(1 + r, i)
