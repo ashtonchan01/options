@@ -680,9 +680,9 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
           actualDisplay={actualDisplay} accountActuals={accountActuals} history={historyDisplay} years={years} />
         <div className="ms-timeline-scroll" style={{ paddingLeft: `${CHART_PAD_L_PCT}%`, paddingRight: `${CHART_PAD_R_PCT}%` }}>
           {years.length > 0 && (
-            <div className="ms-timeline-year current" style={{ flex: '0 0 auto', minWidth: 0, width: 0, padding: 0, border: 'none', overflow: 'visible' }}>
-              <div className="ms-timeline-year-label" style={{ whiteSpace: 'nowrap' }}>{fmtMonthYear(years[0].startDate)}</div>
-              <div className="ms-timeline-year-value" style={{ whiteSpace: 'nowrap' }}>{fmt$(toDisplayFromAud(years[0].start))}</div>
+            <div className="ms-timeline-year current" style={{ flex: '0 0 auto', minWidth: 64 }}>
+              <div className="ms-timeline-year-label">{fmtMonthYear(years[0].startDate)}</div>
+              <div className="ms-timeline-year-value">{fmt$(toDisplayFromAud(years[0].start))}</div>
             </div>
           )}
           {years.map(y => (
