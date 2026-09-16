@@ -93,8 +93,14 @@ function autoClassify(underlying: string, openLegs: RawTrade[]): TradeLabel | 'p
   if (openLegs.length === 0) return undefined
 
   const distinctStrikes = new Set(openLegs.map(l => l.strike)).size
+  const distinctPutCalls = new Set(openLegs.map(l => l.putCall)).size
   const hasOpposingLegs = openLegs.some(l => l.quantity > 0) && openLegs.some(l => l.quantity < 0)
-  if (distinctStrikes > 1 && hasOpposingLegs) return 'leap'
+  // A same-strike call+put (long one, short the other) is a synthetic long/
+  // short stock position via options — directional just like a real
+  // vertical, just without the strike gap, so it gets the same LEAP label
+  // rather than falling through to the net-quantity same-strike-roll logic
+  // below (which assumes both legs are the same put/call type).
+  if (hasOpposingLegs && (distinctStrikes > 1 || distinctPutCalls > 1)) return 'leap'
 
   const netQty = openLegs.reduce((s, l) => s + l.quantity, 0)
   if (netQty >= 0) return undefined

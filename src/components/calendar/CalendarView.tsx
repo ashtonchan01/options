@@ -296,13 +296,15 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
   // simply have MORE rows than another's. Padding every column's month to
   // the tallest column's row count for that month (with blank filler rows)
   // keeps every month starting at the same running height across columns.
+  const todayStr = todayYMD()
+
   const maxRunsByMonth = useMemo(() => {
     const max = new Array(12).fill(1)
     for (const col of columns) {
-      col.months.forEach((mb, i) => { max[i] = Math.max(max[i], groupRuns(mb.weeks).length) })
+      col.months.forEach((mb, i) => { max[i] = Math.max(max[i], groupRuns(mb.weeks, todayStr).length) })
     }
     return max
-  }, [columns])
+  }, [columns, todayStr])
 
   // Financial-year total (1 Jul of the previous calendar year – 30 Jun of
   // this one) shown at the June boundary — the actual FY convention used
@@ -349,7 +351,7 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
                 </colgroup>
                 <tbody>
                   {col.months.map((mb, mi) => (
-                    <MonthBlock key={mb.month} month={mb.month} weeks={mb.weeks} accent={color} padTo={maxRunsByMonth[mi]}>
+                    <MonthBlock key={mb.month} month={mb.month} weeks={mb.weeks} accent={color} padTo={maxRunsByMonth[mi]} todayStr={todayStr}>
                       {mb.month === 'JUN' && (
                         <TotalRow label={`FY ${col.year - 1}/${String(col.year).slice(-2)}`} value={fyTotalByYear.get(col.year) ?? 0} accent={color} />
                       )}
@@ -371,15 +373,20 @@ function pnlColorCal(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' :
 /** A week-range row for the merged week+total column — a run of one active
  * week (real P&L or a note) or several consecutive blank weeks folded into
  * one line ("W41–44 —") instead of one row per week regardless of content. */
-interface WeekRun { weeks: CalWeekRow[]; active: boolean }
+interface WeekRun { weeks: CalWeekRow[]; active: boolean; isCurrent: boolean }
 
-function groupRuns(weeks: CalWeekRow[]): WeekRun[] {
+// The current week always gets its own row — never folded into a blank run
+// either side of it — so `isCurrent` (todayStr falling within this week)
+// counts as "active" for grouping purposes even when the week itself has no
+// P&L or notes, so there's an actual row to highlight.
+function groupRuns(weeks: CalWeekRow[], todayStr: string): WeekRun[] {
   const runs: WeekRun[] = []
   for (const w of weeks) {
-    const active = w.total !== 0 || w.notes.length > 0
+    const isCurrent = todayStr >= w.startDate && todayStr <= w.endDate
+    const active = w.total !== 0 || w.notes.length > 0 || isCurrent
     const last = runs[runs.length - 1]
     if (!active && last && !last.active) last.weeks.push(w)
-    else runs.push({ weeks: [w], active })
+    else runs.push({ weeks: [w], active, isCurrent })
   }
   return runs
 }
@@ -389,10 +396,10 @@ function groupRuns(weeks: CalWeekRow[]): WeekRun[] {
  * per week regardless of content, which used to burn most of a column's
  * height on rows that never said anything. An active week keeps its own row
  * so its note text still gets full room. */
-function MonthBlock({ month, weeks, accent, padTo, children }: { month: string; weeks: CalWeekRow[]; accent: string; padTo?: number; children?: React.ReactNode }) {
+function MonthBlock({ month, weeks, accent, padTo, todayStr, children }: { month: string; weeks: CalWeekRow[]; accent: string; padTo?: number; todayStr: string; children?: React.ReactNode }) {
   if (weeks.length === 0) return null
   const subtotal = weeks.reduce((s, w) => s + w.total, 0)
-  const runs = groupRuns(weeks)
+  const runs = groupRuns(weeks, todayStr)
   const fillerCount = Math.max(0, (padTo ?? runs.length) - runs.length)
   return (
     <>
@@ -402,8 +409,15 @@ function MonthBlock({ month, weeks, accent, padTo, children }: { month: string; 
         return (
           // A thicker top border marks the boundary between one month and
           // the next (i===0), so months read as clearly separate blocks;
-          // the thin one still separates plain weeks within a month.
-          <tr key={w.startDate} style={{ borderTop: i === 0 ? `2px solid ${accent}70` : `1px solid ${accent}25` }}>
+          // the thin one still separates plain weeks within a month. The
+          // current week (forced into its own run by groupRuns, even when
+          // blank) additionally gets a tinted background and blue side
+          // border so it's findable at a glance across a 5-year grid.
+          <tr key={w.startDate} style={{
+            borderTop: i === 0 ? `2px solid ${accent}70` : `1px solid ${accent}25`,
+            background: run.isCurrent ? 'rgba(56,189,248,0.14)' : undefined,
+            boxShadow: run.isCurrent ? 'inset 2px 0 0 #38bdf8' : undefined,
+          }}>
             {i === 0 && (
               <td rowSpan={runs.length + fillerCount + 1} style={{
                 padding: '4px 1px', fontSize: 9, fontWeight: 700, color: accent,
@@ -433,7 +447,7 @@ function MonthBlock({ month, weeks, accent, padTo, children }: { month: string; 
             <td style={{ padding: '0 4px' }}>
               <div style={{ height: ROW_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 9.5, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                 <span style={{ color: 'var(--text-4)' }}>{weekLabel}</span>
-                {run.active && <span style={{ fontSize: 10, color: pnlColorCal(w.total) }}>{fmt$(w.total)}</span>}
+                {(w.total !== 0 || w.notes.length > 0) && <span style={{ fontSize: 10, color: pnlColorCal(w.total) }}>{fmt$(w.total)}</span>}
               </div>
             </td>
             {/* 2-line clamp within the same fixed ROW_HEIGHT — a single
