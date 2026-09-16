@@ -101,32 +101,40 @@ export default function AnnualRoiView({ state, tradeLabels }: { state: AppState;
         deposits/withdrawals between years. The current financial year's figure includes today's
         unrealized P&L on open positions since the year isn't over yet.
       </div>
-      <table className="trade-table" style={{ width: '100%', fontSize: 13 }}>
-        <thead>
-          <tr>
-            <th>Financial Year</th>
-            <th style={{ textAlign: 'right' }}>Start Balance</th>
-            <th style={{ textAlign: 'right' }}>End Balance</th>
-            <th style={{ textAlign: 'right' }}>P&amp;L ($)</th>
-            <th style={{ textAlign: 'right' }}>ROI (%)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r.key}>
-              <td className="mono" style={{ fontWeight: 700 }}>
-                {r.label}{r.isCurrent && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>YTD</span>}
-              </td>
-              <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{fmtDollar(r.startBalance)}</td>
-              <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{fmtDollar(r.endBalance)}</td>
-              <td className="mono" style={{ textAlign: 'right', color: pnlColor(r.pnl), fontWeight: 600 }}>{fmtDollar(r.pnl)}</td>
-              <td className="mono" style={{ textAlign: 'right', color: r.roiPct == null ? 'var(--text-4)' : pnlColor(r.roiPct), fontWeight: 700 }}>
-                {r.roiPct == null ? '—' : `${r.roiPct >= 0 ? '+' : ''}${r.roiPct.toFixed(1)}%`}
-              </td>
+      {/* Same horizontal-scroll-instead-of-wrap pattern as Company P&L/Monthly
+          Income's tables (.jr-companies-table, min-width + white-space:nowrap
+          on narrow screens) — without it, "Start Balance"/"End Balance"
+          wrapped onto 2 lines while the data cells stayed single-line, so
+          headers and values no longer lined up, and the Financial Year
+          column was pushed off-screen on mobile with no way to reach it. */}
+      <div className="cc-companies-table-scroll" style={{ overflow: 'auto' }}>
+        <table className="trade-table jr-companies-table" style={{ width: '100%', fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th style={{ whiteSpace: 'nowrap' }}>Financial Year</th>
+              <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Start Balance</th>
+              <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>End Balance</th>
+              <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>P&amp;L ($)</th>
+              <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>ROI (%)</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.key}>
+                <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  {r.label}{r.isCurrent && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>YTD</span>}
+                </td>
+                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtDollar(r.startBalance)}</td>
+                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtDollar(r.endBalance)}</td>
+                <td className="mono" style={{ textAlign: 'right', color: pnlColor(r.pnl), fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtDollar(r.pnl)}</td>
+                <td className="mono" style={{ textAlign: 'right', color: r.roiPct == null ? 'var(--text-4)' : pnlColor(r.roiPct), fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  {r.roiPct == null ? '—' : `${r.roiPct >= 0 ? '+' : ''}${r.roiPct.toFixed(1)}%`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
