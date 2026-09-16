@@ -31,7 +31,7 @@ export function tickerColor(i: number): string {
   return `hsl(${hue}, 62%, 55%)`
 }
 
-interface Holding { symbol: string; shares: number; avgCost: number; value: number; optionsValue: number }
+interface Holding { symbol: string; shares: number; avgCost: number; value: number; optionsValue: number; syntheticContracts: number }
 
 /** Live mark-to-market holdings, straight from the account's actual XML/
  * Flex positions snapshot — real market value (positionValue), not a cost
@@ -112,8 +112,33 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
     }
   }
 
+  // Current # of synthetic-long contracts per underlying — a long call
+  // matched against a short put (the same risk-reversal structure detected
+  // above for the pie's naked-options handling), counted here for EVERY
+  // underlying regardless of whether shares are also held, since a stock
+  // position can carry a synthetic-long overlay alongside its shares too.
+  // The matched count is whichever leg is smaller — a 3-lot call against a
+  // 2-lot put is only 2 real synthetic-long contracts, with 1 call lot
+  // uncovered.
+  const longCallQtyByUnderlying = new Map<string, number>()
+  const shortPutQtyByUnderlying = new Map<string, number>()
+  for (const p of positions) {
+    if (p.assetClass !== 'OPT' || Math.abs(p.quantity) < 1e-6) continue
+    const under = p.underlyingSymbol || p.symbol
+    if (p.quantity > 0 && p.putCall === 'C') {
+      longCallQtyByUnderlying.set(under, (longCallQtyByUnderlying.get(under) ?? 0) + p.quantity)
+    } else if (p.quantity < 0 && p.putCall === 'P') {
+      shortPutQtyByUnderlying.set(under, (shortPutQtyByUnderlying.get(under) ?? 0) + Math.abs(p.quantity))
+    }
+  }
+  const syntheticContractsFor = (under: string) =>
+    Math.min(longCallQtyByUnderlying.get(under) ?? 0, shortPutQtyByUnderlying.get(under) ?? 0)
+
   const holdings = [...byUnderlying.entries()]
-    .map(([symbol, e]) => ({ symbol, shares: e.shares, avgCost: e.avgCost, value: e.stockValue + e.optionsValue, optionsValue: e.optionsValue }))
+    .map(([symbol, e]) => ({
+      symbol, shares: e.shares, avgCost: e.avgCost, value: e.stockValue + e.optionsValue, optionsValue: e.optionsValue,
+      syntheticContracts: syntheticContractsFor(symbol),
+    }))
     .sort((a, b) => b.value - a.value)
   return { holdings, nakedOptionsValue }
 }
@@ -139,7 +164,7 @@ export function holdingsFromTrades(trades: RawTrade[]): Holding[] {
   }
   return [...bySymbol.entries()]
     .filter(([, e]) => Math.abs(e.shares) > 1e-6)
-    .map(([symbol, e]) => ({ symbol, shares: e.shares, avgCost: e.shares !== 0 ? e.costBasis / e.shares : 0, value: e.costBasis, optionsValue: 0 }))
+    .map(([symbol, e]) => ({ symbol, shares: e.shares, avgCost: e.shares !== 0 ? e.costBasis / e.shares : 0, value: e.costBasis, optionsValue: 0, syntheticContracts: 0 }))
     .sort((a, b) => b.value - a.value)
 }
 
@@ -554,10 +579,10 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   // annotation (meant to break out an options component from an otherwise
   // stock-value row) would just redundantly repeat the same number.
   const nakedOptsHolding: Holding | null = nakedOptionsValue !== 0
-    ? { symbol: 'OTHER', shares: 0, avgCost: 0, value: nakedOptionsValue, optionsValue: 0 }
+    ? { symbol: 'OTHER', shares: 0, avgCost: 0, value: nakedOptionsValue, optionsValue: 0, syntheticContracts: 0 }
     : null
   const cashHolding: Holding | null = actualCash > 0
-    ? { symbol: 'CASH', shares: 0, avgCost: 0, value: actualCash, optionsValue: 0 }
+    ? { symbol: 'CASH', shares: 0, avgCost: 0, value: actualCash, optionsValue: 0, syntheticContracts: 0 }
     : null
   function holdingFor(ticker: string): Holding | null {
     if (ticker === 'CASH') return cashHolding
@@ -728,6 +753,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                 <th style={{ textAlign: 'right' }}>Avg Cost</th>
                 <th style={{ textAlign: 'right' }}>Current $</th>
                 <th style={{ textAlign: 'right' }}>Current %</th>
+                <th style={{ textAlign: 'right' }} title="Long call + short put on the same underlying, matched contract-for-contract">Synth. Long</th>
                 <th style={{ textAlign: 'right' }}>Target Shares</th>
                 <th style={{ textAlign: 'right' }}>Target $</th>
                 <th style={{ textAlign: 'right' }}>Target %</th>
@@ -737,7 +763,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
             </thead>
             <tbody>
               {mergedRows.length === 0 && (
-                <tr><td colSpan={12} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No stock trades or targets yet — upload a statement or add a ticker above.</td></tr>
+                <tr><td colSpan={13} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No stock trades or targets yet — upload a statement or add a ticker above.</td></tr>
               )}
               {mergedRows.map(({ ticker, holding: h, target: r }, i) => {
                 const currentValue = h?.value ?? 0
@@ -770,6 +796,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                       <td className="mono" style={{ textAlign: 'right', color: avgCostColor, fontWeight: avgCostColor ? 700 : undefined }}>{h && h.shares !== 0 ? `$${h.avgCost.toFixed(2)}` : '—'}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{fmt$(currentValue)}</td>
                       <td className="mono" style={{ textAlign: 'right' }}>{currentTotal > 0 ? `${(currentValue / currentTotal * 100).toFixed(1)}%` : '—'}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{h && h.syntheticContracts > 0 ? h.syntheticContracts.toLocaleString() : '—'}</td>
                       <td style={{ textAlign: 'right' }}>
                         <input
                           type="number" min={0} value={editShares} onChange={e => setEditShares(e.target.value)}
@@ -821,6 +848,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                       {h ? fmt$(h.value) : '—'}{h && h.optionsValue !== 0 && <span style={{ color: h.optionsValue > 0 ? '#10b981' : '#f43f5e', fontSize: 10, marginLeft: 4 }}>({h.optionsValue > 0 ? '+' : ''}{fmt$(h.optionsValue)} opt)</span>}
                     </td>
                     <td className="mono" style={{ textAlign: 'right' }}>{h && currentTotal > 0 ? `${(h.value / currentTotal * 100).toFixed(1)}%` : '—'}</td>
+                    <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{h && h.syntheticContracts > 0 ? h.syntheticContracts.toLocaleString() : '—'}</td>
                     <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{r ? r.shares.toLocaleString() : '—'}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{r?.dollarValue != null ? fmt$(r.dollarValue) : '—'}</td>
                     <td className="mono" style={{ textAlign: 'right' }}>{r?.dollarValue != null && targetAllocatedTotal > 0 ? `${(r.dollarValue / targetAllocatedTotal * 100).toFixed(1)}%` : '—'}</td>
@@ -848,6 +876,7 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
                   <td colSpan={4}></td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{fmt$(holdingsValue + cashBalance)}</td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{currentTotal > 0 ? `${((holdingsValue + cashBalance) / currentTotal * 100).toFixed(1)}%` : '—'}</td>
+                  <td></td>
                   <td></td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{fmt$(targetAllocatedTotal)}</td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 800 }}>{targetAllocatedTotal > 0 ? '100.0%' : '—'}</td>

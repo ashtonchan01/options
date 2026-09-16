@@ -135,7 +135,14 @@ export function classifyPositions(positions: RawPosition[]): Strategy[] {
     }
   }
 
-  // 4. Risk Reversals — short put + long call, similar expiry (±30d), different strikes
+  // 4. Risk Reversals — short put + long call, similar expiry (±30d). A SAME-
+  // strike pairing is a synthetic long (a pure stock substitute — no strike
+  // gap), a different-strike pairing a collar-like risk reversal; both are
+  // one combo, not two independent legs, so neither strike relationship is
+  // excluded here. Previously requiring different strikes left a same-strike
+  // pair unmatched, so its short put fell through to "CSP" (step 5) and its
+  // long call to "LEAP" (step 6) as two separate strategies — same underlying,
+  // same expiry, double-counted as two expiry events instead of one combo.
   const shortPuts = opts.filter(o => o.putCall === 'P' && o.quantity < 0 && !usedIds.has(id(o)))
   const longCalls  = opts.filter(o => o.putCall === 'C' && o.quantity > 0 && !usedIds.has(id(o)))
   for (const sp of shortPuts) {
@@ -144,7 +151,7 @@ export function classifyPositions(positions: RawPosition[]): Strategy[] {
       if (usedIds.has(id(l))) return false
       if ((l.underlyingSymbol ?? l.symbol) !== underlying) return false
       const daysDiff = Math.abs(dte(l.expiry!) - dte(sp.expiry!))
-      return daysDiff <= 30 && l.strike !== sp.strike
+      return daysDiff <= 30
     })
     if (lc) {
       usedIds.add(id(sp))
