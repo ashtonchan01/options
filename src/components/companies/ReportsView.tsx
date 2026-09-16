@@ -13,13 +13,15 @@ import { buildJournalPositions, buildStockPositions } from '../../engine/journal
 import { fyOf, currentFyKey } from './reportsShared'
 import CompanyPnlView from './CompanyPnlView'
 import MonthlyIncomeView from './MonthlyIncomeView'
+import AnnualRoiView from './AnnualRoiView'
 
 type FyFilter = 'all' | string
-type SubPage = 'company' | 'monthly'
+type SubPage = 'company' | 'monthly' | 'annual'
 
 const SUB_PAGES: { id: SubPage; label: string }[] = [
   { id: 'company', label: 'Company P&L' },
   { id: 'monthly', label: 'Monthly Income' },
+  { id: 'annual', label: 'Annual ROI' },
 ]
 
 export default function ReportsView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
@@ -73,26 +75,32 @@ export default function ReportsView({ state, tradeLabels }: { state: AppState; t
           ))}
         </div>
 
-        <div className="tl-filter-row" style={{ gap: 4 }}>
-          <button className={`tl-filter-chip${fy === 'all' ? ' active' : ''}`} onClick={() => setFy('all')}>
-            All Time
-          </button>
-          {fyTabs.map(([key, { label, startYear }]) => (
-            <button
-              key={key}
-              className={`tl-filter-chip${fy === key ? ' active' : ''}`}
-              onClick={() => setFy(key)}
-              title={`1 Jul ${startYear} – 30 Jun ${startYear + 1}`}
-            >
-              {label}
+        {/* Annual ROI is inherently a per-FY breakdown across every year at
+            once — this filter (which narrows the OTHER two pages to a
+            single FY) has nothing to narrow there, so it's hidden rather
+            than shown inert. */}
+        {sub !== 'annual' && (
+          <div className="tl-filter-row" style={{ gap: 4 }}>
+            <button className={`tl-filter-chip${fy === 'all' ? ' active' : ''}`} onClick={() => setFy('all')}>
+              All Time
             </button>
-          ))}
-        </div>
+            {fyTabs.map(([key, { label, startYear }]) => (
+              <button
+                key={key}
+                className={`tl-filter-chip${fy === key ? ' active' : ''}`}
+                onClick={() => setFy(key)}
+                title={`1 Jul ${startYear} – 30 Jun ${startYear + 1}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {sub === 'company'
-        ? <CompanyPnlView state={state} tradeLabels={tradeLabels} fy={fy} />
-        : <MonthlyIncomeView state={state} tradeLabels={tradeLabels} fy={fy} />}
+      {sub === 'company' && <CompanyPnlView state={state} tradeLabels={tradeLabels} fy={fy} />}
+      {sub === 'monthly' && <MonthlyIncomeView state={state} tradeLabels={tradeLabels} fy={fy} />}
+      {sub === 'annual' && <AnnualRoiView state={state} tradeLabels={tradeLabels} />}
     </div>
   )
 }
