@@ -445,7 +445,15 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
       bestScore: Math.max(...rs.map(r => r.score)),
       avgIv: rs.reduce((s, r) => s + r.iv, 0) / rs.length,
       totalContracts: rs.length,
-      topCsp: puts.slice().sort((a, b) => b.score - a.score).slice(0, 5),
+      // `puts` deliberately still includes long-dated (dte >= LEAP_MIN_DTE)
+      // CSPs exempted from the user's own dteMax in filterByMode — those
+      // only exist in this scan to be a Synthetic Long combo's short leg
+      // (see comboExpiries/topCombosAll below). The standalone CSP TOP 5
+      // table is a different consumer of that same `puts` list and has no
+      // business showing a 180+ DTE put when the user picked Short Term
+      // (≤60d) — re-excluding them here keeps that exemption scoped to the
+      // combo builder instead of leaking into the visible CSP table.
+      topCsp: puts.filter(r => r.dte < LEAP_MIN_DTE).sort((a, b) => b.score - a.score).slice(0, 5),
       topCc:  rs.filter(r => r.strategyType === 'covered_call').sort((a, b) => b.score - a.score).slice(0, 5),
       leapExpiries,
       topLeapAll,
