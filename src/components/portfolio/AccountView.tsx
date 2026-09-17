@@ -85,7 +85,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
           {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} sessionKey={sessionKey} />}
           {section === 'reports' && (
             <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>
-              <ReportsView state={accountState} tradeLabels={tradeLabels} accountId={account.id} />
+              <ReportsView state={accountState} tradeLabels={tradeLabels} accountId={account.id} sessionKey={sessionKey} />
             </div>
           )}
         </div>
