@@ -25,6 +25,7 @@ interface FyRoiRow {
   label: string
   startYear: number
   pnl: number
+  manualCash: number
   startBalance: number
   endBalance: number
   roiPct: number | null
@@ -83,6 +84,10 @@ function buildFyRoiRows(state: AppState, tradeLabels: TradeLabels | undefined, a
     const startBalance = endBalance - fy.pnl
     rows.push({
       key: fy.key, label: fy.label, startYear: fy.startYear, pnl: fy.pnl,
+      // Manual cash has no per-year history of its own — just today's
+      // current total — so the same figure is shown (and already deducted)
+      // on every row rather than only the current year.
+      manualCash: manualCashTotal,
       startBalance, endBalance,
       roiPct: startBalance > 0 ? (fy.pnl / startBalance) * 100 : null,
       isCurrent: fy.key === nowFy,
@@ -121,6 +126,7 @@ export default function AnnualRoiView({ state, tradeLabels, accountId }: { state
               <th style={{ whiteSpace: 'nowrap' }}>Financial Year</th>
               <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Start Balance</th>
               <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>End Balance</th>
+              <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }} title="Today's manual cash total — not per-year history, so the same figure applies to every row, and is already subtracted out of P&L">Manual Cash</th>
               <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>P&amp;L ($)</th>
               <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>ROI (%)</th>
             </tr>
@@ -133,6 +139,7 @@ export default function AnnualRoiView({ state, tradeLabels, accountId }: { state
                 </td>
                 <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtDollar(r.startBalance)}</td>
                 <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtDollar(r.endBalance)}</td>
+                <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtDollar(r.manualCash)}</td>
                 <td className="mono" style={{ textAlign: 'right', color: pnlColor(r.pnl), fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtDollar(r.pnl)}</td>
                 <td className="mono" style={{ textAlign: 'right', color: r.roiPct == null ? 'var(--text-4)' : pnlColor(r.roiPct), fontWeight: 700, whiteSpace: 'nowrap' }}>
                   {r.roiPct == null ? '—' : `${r.roiPct >= 0 ? '+' : ''}${r.roiPct.toFixed(1)}%`}
