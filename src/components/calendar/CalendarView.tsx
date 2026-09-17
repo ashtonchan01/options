@@ -991,7 +991,7 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
   const labels = tradeLabels?.labels ?? {}
   const positions = useMemo(() => [
     ...buildJournalPositions(state.sync.trades, labels),
-    ...buildStockPositions(state.sync.trades, labels),
+    ...buildStockPositions(state.sync.trades, labels, state.sync.positions),
   ], [state.sync.trades, labels])
   const tradeStrategy = useMemo(() => {
     const map = new Map<string, string>()

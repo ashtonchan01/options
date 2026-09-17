@@ -34,7 +34,7 @@ function buildFyRoiRows(state: AppState, tradeLabels?: TradeLabels): FyRoiRow[] 
   const labels = tradeLabels?.labels ?? {}
   const positions = [
     ...buildJournalPositions(state.sync.trades, labels),
-    ...buildStockPositions(state.sync.trades, labels),
+    ...buildStockPositions(state.sync.trades, labels, state.sync.positions),
   ]
   const nowFy = currentFyKey()
 

@@ -119,7 +119,7 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
   const narrow = useNarrow()
   const closed = [
     ...buildJournalPositions(state.sync.trades, {}),
-    ...buildStockPositions(state.sync.trades, {}),
+    ...buildStockPositions(state.sync.trades, {}, state.sync.positions),
   ].filter(p => p.status !== 'Active' && p.pnl != null && p.dateClosed)
 
   const byMonth = new Map<string, number>()
@@ -261,7 +261,7 @@ function pnlColor(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'v
 function KpiStrip({ state }: { state: AppState }) {
   const positions = useMemo(() => [
     ...buildJournalPositions(state.sync.trades, {}),
-    ...buildStockPositions(state.sync.trades, {}),
+    ...buildStockPositions(state.sync.trades, {}, state.sync.positions),
   ], [state.sync.trades])
   const closed = useMemo(() => closedByDate(positions), [positions])
   const s = useMemo(() => computeStats(closed), [closed])
@@ -469,7 +469,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
             <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
               <EquityChart points={equityCurve(closedByDate([
                 ...buildJournalPositions(state.sync.trades, {}),
-                ...buildStockPositions(state.sync.trades, {}),
+                ...buildStockPositions(state.sync.trades, {}, state.sync.positions),
               ]))} />
             </div>
           </div>

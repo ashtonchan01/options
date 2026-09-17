@@ -4,7 +4,7 @@
  * groups trades by (tradeDate, expiry, underlying); groups with sell legs open
  * a position, later buy-only groups on the same expiry+underlying close it.
  */
-import type { RawTrade } from '../types'
+import type { RawPosition, RawTrade } from '../types'
 import type { TradeLabel } from '../store/tradeLabelsStore'
 import { tradeId } from '../store/tradeLabelsStore'
 
@@ -463,6 +463,7 @@ export function buildJournalPositions(
 export function buildStockPositions(
   trades: RawTrade[],
   labels: Record<string, TradeLabel>,
+  livePositions?: RawPosition[],
 ): JournalPosition[] {
   const stockTrades = trades.filter(t => t.assetClass === 'STK')
 
@@ -556,6 +557,47 @@ export function buildStockPositions(
         status: 'Active',
         strategy: labels[tradeId(buyTrade)] ?? 'shares',
         tradeIds: [tradeId(buyTrade)],
+      })
+    }
+  }
+
+  // Reconcile against the account's LIVE positions snapshot — a share
+  // position whose opening trade fell outside the Flex Query's own sync
+  // window (e.g. a transfer-in from another broker more than the query's
+  // "Last 365 Calendar Days" ago) is invisible to the lot-matching above
+  // entirely: there's no trade to build a lot from. The live snapshot
+  // (Open Positions, not period-bound) still reports the real share count,
+  // so a real, non-zero holding this pass never explained gets a synthetic
+  // Active row here instead of silently vanishing from the Journal while
+  // still correctly appearing on Overview/Allocation (both of which read
+  // live positions directly, not this trade-history reconstruction).
+  if (livePositions) {
+    const explainedByTicker = new Map<string, number>()
+    for (const p of positions) {
+      if (p.status === 'Active' && p.strikeDisplay === 'SHARES') {
+        explainedByTicker.set(p.underlying, (explainedByTicker.get(p.underlying) ?? 0) + p.contracts)
+      }
+    }
+    for (const lp of livePositions) {
+      if (lp.assetClass !== 'STK' || Math.abs(lp.quantity) < 1e-6) continue
+      const explained = explainedByTicker.get(lp.symbol) ?? 0
+      const untracked = lp.quantity - explained
+      if (Math.abs(untracked) < 1e-6) continue
+      positions.push({
+        id: `stk|${lp.symbol}|untracked`,
+        underlying: lp.symbol,
+        contracts: untracked,
+        strikeDisplay: 'SHARES',
+        strikes: [],
+        putCall: '',
+        expiry: '',
+        dateOpen: '',
+        initialDTE: 0,
+        openFees: 0,
+        netPremium: -(lp.costBasisPrice * untracked),
+        status: 'Active',
+        strategy: 'shares',
+        tradeIds: [],
       })
     }
   }
