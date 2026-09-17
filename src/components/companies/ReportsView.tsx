@@ -24,7 +24,7 @@ const SUB_PAGES: { id: SubPage; label: string }[] = [
   { id: 'annual', label: 'Annual ROI' },
 ]
 
-export default function ReportsView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
+export default function ReportsView({ state, tradeLabels, accountId }: { state: AppState; tradeLabels?: TradeLabels; accountId: string }) {
   const [sub, setSub] = useState<SubPage>('company')
   const [fy, setFy] = useState<FyFilter>('all')
 
@@ -100,7 +100,7 @@ export default function ReportsView({ state, tradeLabels }: { state: AppState; t
 
       {sub === 'company' && <CompanyPnlView state={state} tradeLabels={tradeLabels} fy={fy} />}
       {sub === 'monthly' && <MonthlyIncomeView state={state} tradeLabels={tradeLabels} fy={fy} />}
-      {sub === 'annual' && <AnnualRoiView state={state} tradeLabels={tradeLabels} />}
+      {sub === 'annual' && <AnnualRoiView state={state} tradeLabels={tradeLabels} accountId={accountId} />}
     </div>
   )
 }

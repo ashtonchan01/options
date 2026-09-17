@@ -17,6 +17,7 @@ import { useMemo } from 'react'
 import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
 import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
+import { getManualCashTotal } from '../../store/manualCashStore'
 import { fmtDollar, pnlColor, fyOf, currentFyKey } from './reportsShared'
 
 interface FyRoiRow {
@@ -30,7 +31,7 @@ interface FyRoiRow {
   isCurrent: boolean
 }
 
-function buildFyRoiRows(state: AppState, tradeLabels?: TradeLabels): FyRoiRow[] {
+function buildFyRoiRows(state: AppState, tradeLabels: TradeLabels | undefined, accountId: string): FyRoiRow[] {
   const labels = tradeLabels?.labels ?? {}
   const positions = [
     ...buildJournalPositions(state.sync.trades, labels),
@@ -62,8 +63,13 @@ function buildFyRoiRows(state: AppState, tradeLabels?: TradeLabels): FyRoiRow[] 
   const curEntry = realizedByFy.get(nowFy)
   if (curEntry) curEntry.pnl += totalUnrealized
 
+  // Manual cash rows (an external bank balance or similar entered on the
+  // Journal, not a trading result) aren't a return — deducted from every
+  // year's own P&L per the user's explicit request, rather than left to
+  // inflate what looks like investment performance.
+  const manualCashTotal = getManualCashTotal(accountId)
   const fys = [...realizedByFy.entries()]
-    .map(([key, e]) => ({ key, ...e }))
+    .map(([key, e]) => ({ key, ...e, pnl: e.pnl - manualCashTotal }))
     .sort((a, b) => b.startYear - a.startYear) // latest first, for backward derivation
 
   const stockMV = state.sync.positions.filter(p => p.assetClass === 'STK').reduce((s, p) => s + p.positionValue, 0)
@@ -86,8 +92,8 @@ function buildFyRoiRows(state: AppState, tradeLabels?: TradeLabels): FyRoiRow[] 
   return rows
 }
 
-export default function AnnualRoiView({ state, tradeLabels }: { state: AppState; tradeLabels?: TradeLabels }) {
-  const rows = useMemo(() => buildFyRoiRows(state, tradeLabels), [state, tradeLabels])
+export default function AnnualRoiView({ state, tradeLabels, accountId }: { state: AppState; tradeLabels?: TradeLabels; accountId: string }) {
+  const rows = useMemo(() => buildFyRoiRows(state, tradeLabels, accountId), [state, tradeLabels, accountId])
 
   if (rows.length === 0) {
     return <div style={{ padding: '16px 4px', color: 'var(--text-4)', fontSize: 13 }}>No closed trades or open positions yet — nothing to compute a return from.</div>
@@ -99,7 +105,8 @@ export default function AnnualRoiView({ state, tradeLabels }: { state: AppState;
         Each year's starting balance is derived backward from today's live net worth (peeling off each
         year's own P&L in turn) since there's no historical daily balance to divide against — assumes no
         deposits/withdrawals between years. The current financial year's figure includes today's
-        unrealized P&L on open positions since the year isn't over yet.
+        unrealized P&L on open positions since the year isn't over yet. Any manually-entered cash
+        (Journal's CASH card) is deducted from every year's P&L, since it's capital, not a return.
       </div>
       {/* Same horizontal-scroll-instead-of-wrap pattern as Company P&L/Monthly
           Income's tables (.jr-companies-table, min-width + white-space:nowrap
