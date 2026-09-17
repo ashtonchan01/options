@@ -1018,7 +1018,26 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
 
   // null = no filter applied (show everything); otherwise only trades whose
   // resolved strategy is in this set count toward every total/list below.
-  const [strategyFilter, setStrategyFilter] = useState<Set<string> | null>(null)
+  // Persisted to localStorage so leaving the Calendar tab and coming back
+  // (or reopening the app) keeps whatever was last selected instead of
+  // silently resetting to "show everything" every time.
+  const [strategyFilter, setStrategyFilter] = useState<Set<string> | null>(() => {
+    try {
+      const raw = localStorage.getItem('options:calendarStrategyFilter')
+      if (!raw) return null
+      const arr = JSON.parse(raw) as unknown
+      return Array.isArray(arr) && arr.every(s => typeof s === 'string') ? new Set(arr) : null
+    } catch {
+      return null
+    }
+  })
+
+  function persistStrategyFilter(next: Set<string> | null) {
+    try {
+      if (next) localStorage.setItem('options:calendarStrategyFilter', JSON.stringify([...next]))
+      else localStorage.removeItem('options:calendarStrategyFilter')
+    } catch { /* ignore */ }
+  }
 
   function toggleStrategy(s: string) {
     setStrategyFilter(prev => {
@@ -1029,7 +1048,9 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
       // Every available strategy selected is the same as no filter — collapse
       // back to null so re-adding a newly-appearing strategy later (e.g. after
       // syncing new trades) doesn't get silently excluded by a stale "all"-set.
-      return next.size === availableStrategies.length ? null : next
+      const collapsed = next.size === availableStrategies.length ? null : next
+      persistStrategyFilter(collapsed)
+      return collapsed
     })
   }
 
@@ -1180,7 +1201,7 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
                 })}
                 {strategyFilter && (
                   <button
-                    onClick={() => setStrategyFilter(null)}
+                    onClick={() => { setStrategyFilter(null); persistStrategyFilter(null) }}
                     style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '3px 8px', fontSize: 11, fontFamily: 'inherit', borderRadius: 4 }}
                   >
                     Reset
