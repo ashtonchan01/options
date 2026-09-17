@@ -238,7 +238,7 @@ export default function MonthlyIncomeView({ state, tradeLabels, fy }: { state: A
     const labels = tradeLabels?.labels ?? {}
     return [
       ...buildJournalPositions(state.sync.trades, labels),
-      ...buildStockPositions(state.sync.trades, labels),
+      ...buildStockPositions(state.sync.trades, labels, state.sync.positions),
     ]
   }, [state.sync.trades, tradeLabels?.labels])
 

@@ -529,7 +529,7 @@ export function derivePortfolio(state: AppState) {
   // producing a wildly different number from every other realized-P&L figure
   // in the app (verified: this tile showed +$3.3K while Companies' All Time
   // total for the same data was +$48.2K).
-  const journalPositions = [...buildJournalPositions(trades, {}), ...buildStockPositions(trades, {})]
+  const journalPositions = [...buildJournalPositions(trades, {}), ...buildStockPositions(trades, {}, positions)]
   const realizedPnL = journalPositions
     .filter(p => p.status !== 'Active' && p.pnl != null)
     .reduce((s, p) => s + p.pnl!, 0)

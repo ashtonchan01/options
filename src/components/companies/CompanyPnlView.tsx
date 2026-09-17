@@ -183,7 +183,7 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
     const labels = tradeLabels?.labels ?? {}
     return [
       ...buildJournalPositions(state.sync.trades, labels),
-      ...buildStockPositions(state.sync.trades, labels),
+      ...buildStockPositions(state.sync.trades, labels, state.sync.positions),
     ]
   }, [state.sync.trades, tradeLabels?.labels])
 
