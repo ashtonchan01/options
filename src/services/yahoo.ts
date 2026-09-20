@@ -141,17 +141,17 @@ function computeScore(
   bid: number,
   ask: number,
 ): number {
-  // Yield component (30%) — cap at 200% annualized
+  // Yield component (45%) — cap at 200% annualized
   const yieldScore = Math.min(annualizedYield / 200, 1.0)
 
-  // Volume component (20%) — log scale, 100 = baseline, 10000 = max
+  // Volume component (15%) — log scale, 100 = baseline, 10000 = max
   const volScore = volume > 0 ? Math.min(Math.log10(volume) / 4, 1.0) : 0
 
-  // Delta sweet spot (20%) — peak at |0.25|, drops off both sides
+  // Delta sweet spot (15%) — peak at |0.25|, drops off both sides
   const deltaScore = 1 - Math.abs(Math.abs(delta) - 0.25) * 4
   const clampedDelta = Math.max(0, Math.min(1, deltaScore))
 
-  // IV component (20%) — higher IV = more premium, cap at 100%
+  // IV component (15%) — higher IV = more premium, cap at 100%
   const ivScore = Math.min(iv / 100, 1.0)
 
   // Spread tightness (10%) — tighter = better
@@ -161,10 +161,10 @@ function computeScore(
   const spreadScore = Math.max(0, 1 - spreadPct * 2) // 0% spread = 1.0, 50%+ = 0
 
   const raw =
-    yieldScore * 30 +
-    volScore * 20 +
-    clampedDelta * 20 +
-    ivScore * 20 +
+    yieldScore * 45 +
+    volScore * 15 +
+    clampedDelta * 15 +
+    ivScore * 15 +
     spreadScore * 10
 
   return Math.round(Math.max(0, Math.min(100, raw)))

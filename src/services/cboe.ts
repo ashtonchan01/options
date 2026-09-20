@@ -131,10 +131,10 @@ function computeScore(
   const spreadScore = Math.max(0, 1 - spreadPct * 2)
 
   const raw =
-    yieldScore * 30 +
-    volScore * 20 +
-    deltaScore * 20 +
-    ivScore * 20 +
+    yieldScore * 45 +
+    volScore * 15 +
+    deltaScore * 15 +
+    ivScore * 15 +
     spreadScore * 10
 
   return Math.round(Math.max(0, Math.min(100, raw)))
