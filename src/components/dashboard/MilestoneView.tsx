@@ -87,6 +87,25 @@ function loadExcludedAccounts(accounts: Account[]): Set<string> {
   return new Set(accounts.filter(a => /moomoo/i.test(a.name)).map(a => a.id))
 }
 
+const PAST_YEARS_KEY = 'options:milestone-past-years'
+
+/** A completed financial year's REAL profit, typed in by hand (this page has
+ * no way to derive realized P&L itself — that lives in Reports → Annual
+ * ROI) — shown above the forward-projected Yearly Breakdown as its own small
+ * table so "what I actually made last FY, and the tax on it" has a home
+ * right next to the target/projection this page is otherwise all about.
+ * Profit is in AUD, same as Start Capital/the target curve, converted to
+ * the selected display currency the same way everything else here is. */
+interface PastYearRow { id: string; label: string; profit: number }
+
+function loadPastYears(): PastYearRow[] {
+  try {
+    const raw = localStorage.getItem(PAST_YEARS_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch { /* fall through to the seeded default below */ }
+  return [{ id: 'fy2025-26', label: 'FY 2025/26', profit: 44_000 }]
+}
+
 const HISTORY_KEY = 'options:milestone-actual-history'
 
 /** One recorded "Actual" total (USD, across whichever accounts are
@@ -519,10 +538,25 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
   const [today] = useState(() => new Date())
 
   const [history, setHistory] = useState<HistoryPoint[]>(loadHistory)
+  const [pastYears, setPastYears] = useState<PastYearRow[]>(loadPastYears)
 
   useEffect(() => {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg))
   }, [cfg])
+
+  useEffect(() => {
+    localStorage.setItem(PAST_YEARS_KEY, JSON.stringify(pastYears))
+  }, [pastYears])
+
+  function updatePastYear(id: string, patch: Partial<Omit<PastYearRow, 'id'>>) {
+    setPastYears(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r))
+  }
+  function addPastYear() {
+    setPastYears(prev => [...prev, { id: `py_${Date.now()}`, label: '', profit: 0 }])
+  }
+  function removePastYear(id: string) {
+    setPastYears(prev => prev.filter(r => r.id !== id))
+  }
 
   useEffect(() => {
     localStorage.setItem(EXCLUDED_ACCOUNTS_KEY, JSON.stringify([...excludedAccounts]))
@@ -697,6 +731,57 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="dash-panel ms-table-panel">
+        <div className="dash-panel-header"><span>Past Years (Actual)</span></div>
+        <div className="ms-table-scroll">
+          <table className="trade-table ms-table">
+            <thead>
+              <tr>
+                <th>Period</th>
+                <th style={{ textAlign: 'right' }}>Profit</th>
+                <th style={{ textAlign: 'right' }}>Tax ({cfg.taxRate}%)</th>
+                <th style={{ textAlign: 'right' }}>Net (after tax)</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pastYears.map(py => {
+                const tax = py.profit > 0 ? py.profit * (cfg.taxRate / 100) : 0
+                const net = py.profit - tax
+                return (
+                  <tr key={py.id}>
+                    <td className="mono">
+                      <input
+                        type="text"
+                        value={py.label}
+                        onChange={e => updatePastYear(py.id, { label: e.target.value })}
+                        style={{ width: 100, fontFamily: 'inherit', fontSize: 13, background: 'var(--bg-elevated)', color: 'var(--text-1)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px' }}
+                      />
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <input
+                        type="number"
+                        value={py.profit}
+                        onChange={e => updatePastYear(py.id, { profit: Number(e.target.value) || 0 })}
+                        style={{ width: 100, textAlign: 'right', fontFamily: 'inherit', fontSize: 13, background: 'var(--bg-elevated)', color: 'var(--text-1)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px' }}
+                      />
+                    </td>
+                    <td className="mono" style={{ textAlign: 'right', color: '#ef4444' }}>{fmt$(toDisplayFromAud(tax))}</td>
+                    <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt$(toDisplayFromAud(net))}</td>
+                    <td>
+                      <button onClick={() => removePastYear(py.id)} style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', fontSize: 13, padding: '2px 6px' }}>✕</button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <button onClick={addPastYear} style={{ margin: '8px 0 2px', background: 'none', border: '1px solid var(--border)', color: 'var(--text-3)', cursor: 'pointer', padding: '4px 10px', fontSize: 12, fontFamily: 'inherit', borderRadius: 4 }}>
+          + Add Year
+        </button>
       </div>
 
       <div className="dash-panel ms-table-panel">
