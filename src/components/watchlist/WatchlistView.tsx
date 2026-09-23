@@ -43,6 +43,33 @@ function rsiColor(rsi: number | null): string {
   return 'var(--text-2)'
 }
 
+type SortKey = 'ticker' | 'signal' | 'last' | 'change' | 'changePct' | 'volume' | 'high52' | 'low52' | 'rsi' | 'earnings'
+
+const SORT_COLUMNS: { key: SortKey; label: string }[] = [
+  { key: 'ticker', label: 'Ticker' },
+  { key: 'signal', label: 'Signal' },
+  { key: 'last', label: 'Last' },
+  { key: 'change', label: 'Change' },
+  { key: 'changePct', label: 'Change %' },
+  { key: 'volume', label: 'Volume' },
+  { key: 'high52', label: '52W High' },
+  { key: 'low52', label: '52W Low' },
+  { key: 'rsi', label: 'RSI(14)' },
+  { key: 'earnings', label: 'Next Earnings' },
+]
+
+/** null/undefined always sort to the bottom regardless of direction — an
+ * unknown "Next Earnings" or a quote that hasn't loaded yet shouldn't jump
+ * to the top just because "ascending" treats a missing value as smaller
+ * than every real one. */
+function compareSortValue(a: string | number | null, b: string | number | null, dir: 1 | -1): number {
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
+  if (typeof a === 'string' && typeof b === 'string') return a.localeCompare(b) * dir
+  return ((a as number) - (b as number)) * dir
+}
+
 export default function WatchlistView({ lists, activeId, onSetActive, onAddList, onRemoveList, onRenameList, onAddTicker, onRemoveTicker }: {
   lists: Watchlist[]
   activeId: string
@@ -59,6 +86,14 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
   const [newListName, setNewListName] = useState('')
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<1 | -1>(1)
+
+  function toggleSort(key: SortKey) {
+    if (sortKey !== key) { setSortKey(key); setSortDir(1); return }
+    if (sortDir === 1) { setSortDir(-1); return }
+    setSortKey(null) // third click on the same column clears back to list order
+  }
 
   useEffect(() => {
     if (!lists.some(l => l.id === selectedId)) setSelectedId(lists[0]?.id ?? '')
@@ -105,6 +140,34 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
     if (renamingId && name) onRenameList(renamingId, name)
     setRenamingId(null); setRenameValue('')
   }
+
+  const rows = useMemo(() => {
+    const built = tickers.map(sym => {
+      const q = quotes[sym]
+      const change = q?.prevClose ? q.price - q.prevClose : null
+      const changePct = q?.prevClose ? (change! / q.prevClose) * 100 : null
+      const ne = nextEarnings(earnings[sym])
+      const r = rsi[sym]?.rsi ?? null
+      const signal = meanReversionSignal(r)
+      return { sym, q, change, changePct, ne, r, signal }
+    })
+    if (!sortKey) return built
+    const valueOf = (row: typeof built[number]): string | number | null => {
+      switch (sortKey) {
+        case 'ticker': return row.sym
+        case 'signal': return row.signal ?? null
+        case 'last': return row.q?.price ?? null
+        case 'change': return row.change
+        case 'changePct': return row.changePct
+        case 'volume': return row.q?.volume ?? null
+        case 'high52': return row.q?.high52 ?? null
+        case 'low52': return row.q?.low52 ?? null
+        case 'rsi': return row.r
+        case 'earnings': return row.ne
+      }
+    }
+    return [...built].sort((a, b) => compareSortValue(valueOf(a), valueOf(b), sortDir))
+  }, [tickers, quotes, rsi, earnings, sortKey, sortDir])
 
   return (
     <div className="jr-root">
@@ -202,30 +265,27 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
             <table className="trade-table" style={{ width: '100%', fontSize: 12 }}>
               <thead>
                 <tr>
-                  <th>Ticker</th>
-                  <th style={{ textAlign: 'center' }} title="Mean-reversion read on RSI(14): oversold (<=30) suggests a bounce, overbought (>=70) suggests a pullback">Signal</th>
-                  <th style={{ textAlign: 'right' }}>Last</th>
-                  <th style={{ textAlign: 'right' }}>Change</th>
-                  <th style={{ textAlign: 'right' }}>Change %</th>
-                  <th style={{ textAlign: 'right' }}>Volume</th>
-                  <th style={{ textAlign: 'right' }}>52W High</th>
-                  <th style={{ textAlign: 'right' }}>52W Low</th>
-                  <th style={{ textAlign: 'right' }}>RSI(14)</th>
-                  <th style={{ textAlign: 'right' }}>Next Earnings</th>
+                  {SORT_COLUMNS.map(col => (
+                    <th
+                      key={col.key}
+                      onClick={() => toggleSort(col.key)}
+                      style={{
+                        textAlign: col.key === 'ticker' ? 'left' : col.key === 'signal' ? 'center' : 'right',
+                        cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+                      }}
+                      title={col.key === 'signal' ? 'Mean-reversion read on RSI(14): oversold (<=30) suggests a bounce, overbought (>=70) suggests a pullback — click to sort' : 'Click to sort'}
+                    >
+                      {col.label}{sortKey === col.key ? (sortDir === 1 ? ' ▲' : ' ▼') : ''}
+                    </th>
+                  ))}
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {tickers.length === 0 && (
+                {rows.length === 0 && (
                   <tr><td colSpan={11} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No tickers yet — add one above.</td></tr>
                 )}
-                {tickers.map(sym => {
-                  const q = quotes[sym]
-                  const change = q?.prevClose ? q.price - q.prevClose : null
-                  const changePct = q?.prevClose ? (change! / q.prevClose) * 100 : null
-                  const ne = nextEarnings(earnings[sym])
-                  const r = rsi[sym]?.rsi ?? null
-                  const signal = meanReversionSignal(r)
+                {rows.map(({ sym, q, change, changePct, ne, r, signal }) => {
                   return (
                     <tr key={sym}>
                       <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{sym}</td>
