@@ -229,9 +229,18 @@ function processChain(
   data: CboeData,
   underlying: string,
   dteRange: DteRange,
+  livePrice?: number,
 ): ScanResult[] {
   const now = Date.now()
-  const stockPrice = data.current_price
+  // CBOE's own delayed-quotes feed occasionally stalls current_price for a
+  // symbol well past what "delayed" should mean (verified: NVDA stuck a
+  // full day behind while every other field in the same payload — the
+  // chain's own strikes/Greeks/volume — kept updating) with nothing in the
+  // response to say so. A live quote (same source Watchlist/Allocation
+  // already trust) overrides it whenever one's available; CBOE's own price
+  // is still the fallback so a scan never fails outright just because the
+  // live-quote fetch missed this one ticker.
+  const stockPrice = livePrice ?? data.current_price
   if (!stockPrice || !data.options?.length) return []
 
   // Parse all options
@@ -403,6 +412,7 @@ export async function scanAllTickersCboe(
   tickers: string[],
   onProgress?: (ticker: string, i: number, total: number) => void,
   dteRange: DteRange = { min: MIN_DTE, max: MAX_DTE },
+  livePrices?: Record<string, number>,
 ): Promise<ScanResult[]> {
   onProgress?.('Fetching all chains...', 0, tickers.length)
 
@@ -417,7 +427,7 @@ export async function scanAllTickersCboe(
           const data = await fetchCboeChain(sym)
           onProgress?.(sym, i + 1, tickers.length)
           if (!data) return []
-          return processChain(data, sym, dteRange)
+          return processChain(data, sym, dteRange, livePrices?.[sym])
         } catch (e) {
           console.warn(`[CBOE] ${sym} failed:`, e)
           return []
