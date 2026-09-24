@@ -5,6 +5,7 @@ import { scanAllTickersCboe, LEAP_MAX_DTE, LEAP_MIN_DTE } from '../../services/c
 import { fetchEarningsDates } from '../../services/earnings'
 import { fetchFomcDates } from '../../services/fomc'
 import { fetchRSI, type RsiData } from '../../services/rsi'
+import { fetchQuotes } from '../../services/quotes'
 
 interface Props {
   state: AppState
@@ -801,7 +802,17 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
       // display, via each term's own cfg in filterByMode — this only
       // changes what gets fetched and considered.
       const dteRange = { min: TERM_BOUNDS.short.dteFloor, max: Math.max(TERM_BOUNDS.long.dteCeil, LEAP_MAX_DTE) }
-      const all = await scanAllTickersCboe(tickers, (sym, i, total) => setScanProgress(`${sym} (${i}/${total})`), dteRange)
+      // CBOE's own delayed-quotes current_price occasionally stalls for a
+      // symbol (verified: NVDA stuck a full day behind live) with nothing
+      // in the response to flag it — a live quote from the same source
+      // Watchlist/Allocation already use overrides it per-ticker wherever
+      // available, CBOE's own price staying the fallback so one missed
+      // quote never fails that ticker's whole scan.
+      const liveQuotes = await fetchQuotes(tickers)
+      const livePrices = Object.fromEntries(
+        Object.entries(liveQuotes).filter(([, q]) => q.price > 0).map(([sym, q]) => [sym, q.price]),
+      )
+      const all = await scanAllTickersCboe(tickers, (sym, i, total) => setScanProgress(`${sym} (${i}/${total})`), dteRange, livePrices)
       if (!all.length && tickers.length) setError('No results — try again in 30s.')
       setResults(all); setScanned(true)
     } catch (e) { setError(String(e)) }
