@@ -31,7 +31,7 @@ function pnlColor(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef4444' : 'v
 
 /** A LEAP/risk-reversal combo's breakeven, solved per payoff segment rather
  * than assuming `callStrike + netCost` (only correct when the root falls
- * above both strikes) — mirrors comboBreakevenPrice in OpportunitiesView.tsx.
+ * above both strikes) — mirrors comboBreakevenPrice in leapCombos.ts.
  * Unlike a generic multi-strike position, a leap combo's two legs are
  * unambiguous BY DEFINITION (call bought, put sold), so which strike is
  * "the short one" doesn't need to survive leg aggregation the way it would

@@ -109,7 +109,16 @@ export const LEAP_MIN_DTE = 180
 // otherwise scopes to the much narrower Short/Long Term toggle bounds) can
 // be widened to actually include them instead of silently truncating the
 // chain before the LEAP pass ever sees the furthest-dated expiries.
+// LAST / 2ND LAST / 3RD LAST / ALL 3 keep using this ceiling. Raising it
+// would change which expiry counts as "the last one".
 export const LEAP_MAX_DTE = 1100
+// ANY 1Y+ scans every expiry at least a year out, including ones that are
+// not among the three furthest and any listed LEAP past LEAP_MAX_DTE.
+// The CBOE request already returns the full chain; this is the client-side
+// window for that mode only (tagged leapHorizon: 'extended' so the other
+// four buttons never see those contracts).
+export const LEAP_ANY_MIN_DTE = 365
+export const LEAP_ANY_MAX_DTE = 1825
 
 // ─── Scoring & flags (same logic as other services) ──────────────────────────
 
@@ -225,7 +234,7 @@ async function fetchCboeChain(symbol: string, attempt = 0): Promise<CboeData | n
   }
 }
 
-function processChain(
+export function processChain(
   data: CboeData,
   underlying: string,
   dteRange: DteRange,
@@ -343,21 +352,18 @@ function processChain(
   if (puts.length > 0) processGroup(puts, true, 'csp')
   if (calls.length > 0) processGroup(calls, false, 'covered_call')
 
-  // LEAP buy candidates draw from the SAME `calls` list, just filtered to
-  // the opposite (deep-ITM, long-dated) end — independent of the
-  // covered-call pass above rather than a further filter on it, since a
-  // delta ≥0.65 call would never have passed MAX_DELTA=0.55 to begin with.
-  const leapCalls = calls.filter(({ raw: o, parsed: p }) => {
-    const dte = Math.round((expiryToMs(p.expiry) - now) / 86400000)
-    const absDelta = Math.abs(o.delta ?? 0)
-    return dte >= LEAP_MIN_DTE && dte <= LEAP_MAX_DTE && absDelta >= LEAP_MIN_DELTA && absDelta <= LEAP_MAX_DELTA && o.ask > 0
-  })
-  for (const { raw: o, parsed: p } of leapCalls) {
-    const dte = Math.round((expiryToMs(p.expiry) - now) / 86400000)
+  const dteOf = (expiry: string) => Math.round((expiryToMs(expiry) - now) / 86400000)
+
+  const pushLeapCall = (
+    o: CboeOption,
+    p: NonNullable<ReturnType<typeof parseOcc>>,
+    dte: number,
+    horizon?: ScanResult['leapHorizon'],
+  ) => {
     const delta = o.delta ?? 0
     const iv = (o.iv ?? 0) * 100
     const mid = (o.bid + o.ask) / 2
-    if (mid < MIN_BID) continue
+    if (mid < MIN_BID) return
     const volume = o.volume ?? 0
     const openInterest = o.open_interest ?? 0
     const intrinsic = Math.max(stockPrice - p.strike, 0)
@@ -365,7 +371,7 @@ function processChain(
     const extrinsicPctAnnual = (extrinsic / stockPrice) * (365 / dte) * 100
     const score = computeLeapScore(extrinsicPctAnnual, delta, volume, o.bid, o.ask)
 
-    results.push({
+    const row: ScanResult = {
       underlying,
       strategyType: 'leap',
       stockPrice,
@@ -388,7 +394,42 @@ function processChain(
       flags: dte <= 14 ? ['NEAR_TERM'] : [],
       extrinsic: parseFloat(extrinsic.toFixed(2)),
       leverage: mid > 0 ? parseFloat((stockPrice / mid).toFixed(2)) : undefined,
-    })
+    }
+    if (horizon) row.leapHorizon = horizon
+    results.push(row)
+  }
+
+  // LEAP buy candidates draw from the SAME `calls` list, just filtered to
+  // the opposite (deep-ITM, long-dated) end — independent of the
+  // covered-call pass above rather than a further filter on it, since a
+  // delta ≥0.65 call would never have passed MAX_DELTA=0.55 to begin with.
+  const leapCalls = calls.filter(({ raw: o, parsed: p }) => {
+    const dte = dteOf(p.expiry)
+    const absDelta = Math.abs(o.delta ?? 0)
+    return dte >= LEAP_MIN_DTE && dte <= LEAP_MAX_DTE && absDelta >= LEAP_MIN_DELTA && absDelta <= LEAP_MAX_DELTA && o.ask > 0
+  })
+  for (const { raw: o, parsed: p } of leapCalls) pushLeapCall(o, p, dteOf(p.expiry))
+
+  // Anything past the caller's DTE ceiling (the scanner passes LEAP_MAX_DTE)
+  // never reached `calls`/`puts` above. ANY 1Y+ still needs those expiries,
+  // and it needs the long-dated puts that finance them. Tag them so the
+  // LAST / 2ND LAST / 3RD LAST / ALL 3 path can ignore them.
+  const beyondWindow = parsed.filter(({ parsed: p }) => {
+    const dte = dteOf(p.expiry)
+    return dte > dteRange.max && dte >= LEAP_ANY_MIN_DTE && dte <= LEAP_ANY_MAX_DTE
+  })
+  const beyondPuts = beyondWindow.filter(x => x.parsed.isPut)
+  const beyondCalls = beyondWindow.filter(x => !x.parsed.isPut)
+  if (beyondPuts.length > 0) {
+    const before = results.length
+    processGroup(beyondPuts, true, 'csp')
+    for (let i = before; i < results.length; i++) results[i].leapHorizon = 'extended'
+  }
+  for (const { raw: o, parsed: p } of beyondCalls) {
+    const dte = dteOf(p.expiry)
+    const absDelta = Math.abs(o.delta ?? 0)
+    if (absDelta < LEAP_MIN_DELTA || absDelta > LEAP_MAX_DELTA || o.ask <= 0) continue
+    pushLeapCall(o, p, dte, 'extended')
   }
 
   return results
