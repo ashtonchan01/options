@@ -503,8 +503,10 @@ function SyntheticLongCombosSection({ combos, label }: { combos: SyntheticLongCo
 
 // ANY 1Y+ rows are a different question than the budget ranking above, so
 // they get their own columns: the cash debit, the cost of time per day, and
-// the same figure on the neighbouring expiries.
-const ANY1Y_GRID = '16px 1.35fr 0.7fr 0.95fr 0.75fr'
+// the same figure on the neighbouring expiries. BEP is the combo breakeven
+// (the same figure the other LEAP buttons show). CALL, beside it, is the
+// breakeven of that call bought alone.
+const ANY1Y_GRID = '16px 1.2fr 0.62fr 0.85fr 0.68fr 0.85fr 0.85fr'
 
 function Any1yComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
   const neighbors = c.termNeighbors ?? []
@@ -516,13 +518,15 @@ function Any1yComboRow({ c, rank }: { c: SyntheticLongCombo; rank: number }) {
       borderBottom: '1px solid var(--border)', fontSize: 11, fontFamily: 'Inter, sans-serif',
       background: rank === 1 ? '#10b98110' : 'transparent',
     }}
-      title={`${fmtExpMonthYear(c.call.expiry)}, ${c.dte}d · NET ${fmtMoney(c.comboNetCost)} is the cash to open the combo · $/DAY ${fmtPerDay(perDay)} is the cost of time (net debit minus intrinsic, which does not change across expiries for these strikes) per day · neighbours ${vs} · the other expiries imply ${fmtPerDay(perDay + (c.termGap ?? 0))}/d, so this one is ${fmtPerDay(c.termGap ?? 0)}/d under that line · breakeven $${c.comboBreakeven.toFixed(2)} · straight LEAP ${fmtMoney(c.straightCost)}`}>
+      title={`${fmtExpMonthYear(c.call.expiry)}, ${c.dte}d · NET ${fmtMoney(c.comboNetCost)} is the cash to open the combo · $/DAY ${fmtPerDay(perDay)} is the cost of time (net debit minus intrinsic, which does not change across expiries for these strikes) per day · neighbours ${vs} · the other expiries imply ${fmtPerDay(perDay + (c.termGap ?? 0))}/d, so this one is ${fmtPerDay(c.termGap ?? 0)}/d under that line · BEP $${c.comboBreakeven.toFixed(2)} is where the combo expires at zero · CALL $${c.straightBreakeven.toFixed(2)} is the breakeven of that call bought alone · straight LEAP ${fmtMoney(c.straightCost)}`}>
       <div style={{ display: 'grid', gridTemplateColumns: ANY1Y_GRID, gap: 3, alignItems: 'center' }}>
         <span style={{ color: 'var(--text-5)', fontSize: 10, textAlign: 'center' }}>{rank}</span>
         <span style={{ color: 'var(--text-1)', fontWeight: 600, whiteSpace: 'nowrap' }}>${c.call.strike}C/${c.put.strike}P</span>
         <span style={{ color: 'var(--text-3)', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtExpMonthYear(c.call.expiry)}</span>
         <span style={{ color: c.comboNetCost < 0 ? '#10b981' : 'var(--text-1)', fontWeight: 600, textAlign: 'right' }}>{fmtMoney(c.comboNetCost)}</span>
         <span style={{ color: perDay < 0 ? '#10b981' : 'var(--text-1)', fontWeight: 600, textAlign: 'right' }}>{fmtPerDay(perDay)}</span>
+        <span style={{ color: 'var(--text-2)', textAlign: 'right' }}>${c.comboBreakeven.toFixed(2)}</span>
+        <span style={{ color: 'var(--text-2)', textAlign: 'right' }}>${c.straightBreakeven.toFixed(2)}</span>
       </div>
       <div style={{ padding: '2px 0 1px 22px', fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif', lineHeight: 1.35 }}>
         vs {vs || '—'}
@@ -541,12 +545,14 @@ function Any1yCombosSection({ combos }: { combos: SyntheticLongCombo[] }) {
         <span style={{ fontSize: 9, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>ANY 1Y+ · CHEAP VS NEIGHBOURS</span>
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <div style={{ minWidth: 390 }}>
+        <div style={{ minWidth: 520 }}>
           <div style={{ display: 'grid', gridTemplateColumns: ANY1Y_GRID, gap: 3, padding: '3px 0 5px', borderBottom: '1px solid var(--border-light)', fontSize: 8, fontWeight: 600, color: 'var(--text-4)', letterSpacing: '0.5px' }}>
             <span style={{ textAlign: 'center' }}>#</span><span>LEGS</span>
             <span style={{ textAlign: 'right' }}>EXP</span>
             <span style={{ textAlign: 'right' }}>NET</span>
             <span style={{ textAlign: 'right' }} title="Cost of time per day: net debit minus intrinsic, divided by days to expiry">$/DAY</span>
+            <span style={{ textAlign: 'right' }} title="Combo breakeven — stock price where the long call and short put expire at zero">BEP</span>
+            <span style={{ textAlign: 'right' }} title="Breakeven of this call bought alone: strike plus the call premium">CALL</span>
           </div>
           {combos.map((c, i) => <Any1yComboRow key={`${c.call.expiry}-${c.call.strike}-${c.put.strike}`} c={c} rank={i + 1} />)}
         </div>
