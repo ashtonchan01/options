@@ -1,5 +1,5 @@
 /**
- * Wealth Timeline — projects a compounding target (default: $500,000 AUD
+ * Wealth Timeline — projects a compounding target (default: $462,000 AUD
  * growing at 30%/yr) forward from TODAY, alongside the actual live net
  * worth summed across every account (IBKR netLiquidation, falling back to
  * cash + position values for a query that never enabled "Equity Summary in
@@ -64,13 +64,20 @@ interface Config {
 }
 
 const DEFAULT_CONFIG: Config = {
-  startCapital: 500_000,
+  startCapital: 462_000,
   targetPct: 30,
   taxRate: 25,
   numYears: 15,
 }
 
 const CONFIG_KEY = 'options:milestone-config'
+/** Baked-in start capital before it was lowered to 462,000 AUD. Opening this
+ * page writes the whole config to localStorage, so browsers that already
+ * visited Milestone still have 500_000 saved even though nobody typed it. */
+const PREVIOUS_DEFAULT_START_CAPITAL = 500_000
+/** Set once the saved start capital has been considered for that upgrade.
+ * Stops a later, deliberate 500,000 from being rewritten to 462,000. */
+const START_CAPITAL_MIGRATION_KEY = 'options:milestone-start-capital-migrated'
 const EXCLUDED_ACCOUNTS_KEY = 'options:milestone-excluded-accounts'
 
 /** Which accounts are excluded from "Actual", from localStorage — or, on a
@@ -114,7 +121,12 @@ function loadConfig(): Config {
   try {
     const raw = localStorage.getItem(CONFIG_KEY)
     if (!raw) return DEFAULT_CONFIG
-    return { ...DEFAULT_CONFIG, ...JSON.parse(raw) }
+    const merged = { ...DEFAULT_CONFIG, ...JSON.parse(raw) } as Config
+    const alreadyMigrated = localStorage.getItem(START_CAPITAL_MIGRATION_KEY) === '1'
+    if (!alreadyMigrated && merged.startCapital === PREVIOUS_DEFAULT_START_CAPITAL) {
+      return { ...merged, startCapital: DEFAULT_CONFIG.startCapital }
+    }
+    return merged
   } catch {
     return DEFAULT_CONFIG
   }
@@ -522,6 +534,10 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
 
   useEffect(() => {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg))
+    // Record that this browser has loaded the 462,000 default (or kept a
+    // custom start). Done here, not in loadConfig, so the read stays pure
+    // under Strict Mode's double-invoked state initializer.
+    localStorage.setItem(START_CAPITAL_MIGRATION_KEY, '1')
   }, [cfg])
 
   useEffect(() => {
