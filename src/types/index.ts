@@ -209,6 +209,10 @@ export interface ScanResult {
   /** 'leap' only — stockPrice / mid: how many dollars of stock exposure one
    * dollar spent on the call controls, vs buying shares outright. */
   leverage?: number
+  /** Set on contracts past the standard LEAP window (see LEAP_MAX_DTE).
+   * They exist only so the scanner's ANY 1Y+ choice can see expiries the
+   * LAST / 2ND LAST / 3RD LAST / ALL 3 rankings do not use. */
+  leapHorizon?: 'extended'
 }
 
 // ─── IBKR Sync State ─────────────────────────────────────────────────────────
