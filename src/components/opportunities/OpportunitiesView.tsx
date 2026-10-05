@@ -194,7 +194,6 @@ interface TickerCard {
   // is versus the same strikes on the other expiries. Not limited to the
   // three furthest, and not run through buildComboRankings' budget gates.
   any1yCombos: SyntheticLongCombo[]
-  any1yExpiryCount: number
   nextEarnings: string | null
 }
 
@@ -316,7 +315,6 @@ function buildCards(results: ScanResult[], tickers: string[], earningsMap: Recor
       comboExpiries,
       topCombosAll,
       any1yCombos: buildAny1yCombos(any1yCalls, any1yPuts),
-      any1yExpiryCount: new Set(any1yCalls.map(c => c.expiry)).size,
       nextEarnings: nextEarningsFor(symbol, earningsMap),
     })
   }
@@ -680,15 +678,20 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
   // sort to the end rather than the top, so missing data never masquerades
   // as "most oversold."
   const displayCards = useMemo(() => {
-    if (strategyFilter !== 'leap') return cards
-    return cards.slice().sort((a, b) => {
+    // ANY 1Y+ only lists a ticker when it actually has a cheap combo. A chain
+    // whose cost of time lines up would otherwise be a blank card.
+    const pool = strategyFilter === 'leap' && leapExpirySel === 'any1y'
+      ? cards.filter(c => c.any1yCombos.length > 0)
+      : cards
+    if (strategyFilter !== 'leap') return pool
+    return pool.slice().sort((a, b) => {
       const ra = rsiMap[a.symbol]?.rsi, rb = rsiMap[b.symbol]?.rsi
       if (ra == null && rb == null) return 0
       if (ra == null) return 1
       if (rb == null) return -1
       return ra - rb
     })
-  }, [cards, strategyFilter, rsiMap])
+  }, [cards, strategyFilter, rsiMap, leapExpirySel])
 
   function toggleCollapse(sym: string) {
     setCollapsed(prev => { const n = new Set(prev); n.has(sym) ? n.delete(sym) : n.add(sym); return n })
@@ -752,7 +755,7 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
         {scanning && <span style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'Inter, sans-serif', animation: 'pulse 2s infinite' }}>{scanProgress || 'Initializing…'}</span>}
         {scanned && (
           <span style={{ fontSize: 11, color: 'var(--text-4)', marginLeft: 'auto', fontFamily: 'Inter, sans-serif' }}>
-            {filtered.filter(r => r.leapHorizon !== 'extended').length} results · {cards.length} tickers
+            {filtered.filter(r => r.leapHorizon !== 'extended').length} results · {displayCards.length} tickers
           </span>
         )}
         <button onClick={() => setTopCollapsed(c => !c)} title={topCollapsed ? 'Expand controls' : 'Collapse controls'} style={{
@@ -981,8 +984,7 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
               : comboGroup ? `TOP ${comboItems.length} · ${fmtExpMonthYear(comboGroup.expiry)} (${comboGroup.dte}d)` : ''
             const showCombo = showLeap && comboItems.length > 0
             const showAny1y = strategyFilter === 'leap' && any1y && comboItems.length > 0
-            const showAny1yEmpty = strategyFilter === 'leap' && any1y && comboItems.length === 0 && (card.any1yExpiryCount > 0 || card.leapExpiries.length > 0)
-            const hasData = showCsp || showCc || showLeap || showAny1y || showAny1yEmpty
+            const hasData = showCsp || showCc || showLeap || showAny1y
             const shares = stocksHeld[card.symbol] ?? 0
             return (
               <div key={card.symbol} style={{ width: CARD_W, minWidth: CARD_W, maxWidth: CARD_W, background: 'var(--bg-card)', border: `1px solid ${idx < 3 && hasData ? 'var(--accent-border)' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
@@ -1048,13 +1050,6 @@ export default function OpportunitiesView({ state, tickers: watchlistTickers, on
                     {showLeap && <LeapSection items={leapItems} label={leapLabel} />}
                     {showCombo && <SyntheticLongCombosSection combos={comboItems} label={comboLabel} />}
                     {showAny1y && <Any1yCombosSection combos={comboItems} />}
-                    {showAny1yEmpty && (
-                      <div style={{ fontSize: 11, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif', lineHeight: 1.5, padding: '4px 0 6px' }}>
-                        {card.any1yExpiryCount > 0
-                          ? 'No 1Y+ combo is cheap versus the other expiries. The cost of time lines up across this chain.'
-                          : 'No expiry at least a year out in this chain.'}
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
