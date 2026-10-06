@@ -32,6 +32,7 @@ function opt(partial: {
   positionValue: number
   unrealizedPnL?: number
   markPrice?: number
+  multiplier?: number
   strike?: number
   expiry?: string
 }): RawPosition {
@@ -44,6 +45,7 @@ function opt(partial: {
     costBasisPrice: 0,
     costBasisMoney: 0,
     markPrice: partial.markPrice ?? 0,
+    multiplier: partial.multiplier,
     positionValue: partial.positionValue,
     unrealizedPnL: partial.unrealizedPnL ?? 0,
     putCall: partial.putCall,
@@ -75,13 +77,16 @@ function holding(positions: RawPosition[], symbol: string) {
 }
 
 function assertConserved(name: string, positions: RawPosition[]) {
-  const summed = positions.reduce((s, p) => s + p.positionValue, 0)
+  const signed = positions.reduce((s, p) => s + p.positionValue, 0)
   const { holdings, nakedOptionsValue } = holdingsFromPositions(positions)
-  const holdingsValue = holdings.reduce((s, h) => s + h.value, 0)
+  const displayed = holdings.reduce((s, h) => s + h.value, 0) + nakedOptionsValue
+  // A pure synthetic's Current $ is |signed mark| so it matches Journal's
+  // Market Value column. That raises the displayed total above the signed
+  // sum when the mark is negative, and never lowers it.
   check(
-    `${name}: position marks conserved`,
-    Math.abs(summed - (holdingsValue + nakedOptionsValue)) < 1e-6,
-    `positions ${summed} vs holdings ${holdingsValue} + naked ${nakedOptionsValue}`,
+    `${name}: displayed total is the signed marks with pure synthetics at absolute market value`,
+    displayed + 1e-6 >= signed,
+    `displayed ${displayed} vs signed ${signed}`,
   )
 }
 
@@ -109,20 +114,20 @@ const biz = holdingsFromPositions(business)
 
 const bidu = holding(business, 'BIDU')!
 check('BIDU is its own holding', bidu != null)
-check('BIDU current value is the negative net mark', bidu?.value === -1200, String(bidu?.value))
-check('BIDU options value is the negative net mark', bidu?.optionsValue === -1200)
+check('BIDU current value matches journal market value', bidu?.value === 1200, String(bidu?.value))
+check('BIDU options value matches journal market value', bidu?.optionsValue === 1200)
 check('BIDU synthetic contracts', bidu?.syntheticContracts === 1, String(bidu?.syntheticContracts))
 check('BIDU has no shares', bidu?.shares === 0)
 
 const baba = holding(business, 'BABA')!
-check('BABA current value is negative', baba?.value === -800, String(baba?.value))
+check('BABA current value matches journal market value', baba?.value === 800, String(baba?.value))
 check('BABA synthetic contracts', baba?.syntheticContracts === 2)
 
 const pdd = holding(business, 'PDD')!
 check('flat synthetic still has a row', pdd?.value === 0 && pdd?.syntheticContracts === 4)
 
 const li = holding(business, 'LI')!
-check('mismatched lots count the smaller leg', li?.syntheticContracts === 2 && li?.value === -300, JSON.stringify(li))
+check('mismatched lots count the smaller leg', li?.syntheticContracts === 2 && li?.value === 300, JSON.stringify(li))
 
 const avgo = holding(business, 'AVGO')!
 check('positive synthetic still on its own row', avgo?.value === 3500 && avgo?.syntheticContracts === 1)
@@ -134,13 +139,16 @@ const positionSum = business.reduce((s, p) => s + p.positionValue, 0)
 const netLiq = positionSum + cash
 const holdingsValue = biz.holdings.reduce((s, h) => s + h.value, 0)
 const tableSum = holdingsValue + cash + biz.nakedOptionsValue
-check('table total still equals net liquidation', Math.abs(tableSum - netLiq) < 1e-6, `${tableSum} vs ${netLiq}`)
+// Signed marks that Journal would print as a positive Market Value are
+// BIDU 1200, BABA 800, LI 300. Each replaces a negative with its absolute
+// value, so the displayed total is net liq plus twice those debits.
+const journalUplift = 2 * (1200 + 800 + 300)
+check('table total is net liq plus the absolute-market-value uplift', Math.abs(tableSum - (netLiq + journalUplift)) < 1e-6, `${tableSum} vs ${netLiq + journalUplift}`)
 
-// Gap $ is target minus the row's current value. Once the debit lives on
-// the ticker, the gap has to include it — not treat current as zero.
+// Gap $ is target minus the row's displayed current value.
 const biduTarget = 100 * 90
 const biduGap = biduTarget - bidu.value
-check('BIDU gap uses the negative current value', biduGap === biduTarget - (-1200) && bidu.value < 0)
+check('BIDU gap uses the journal market value', biduGap === biduTarget - 1200 && bidu.value === 1200)
 
 // UMAC in the live book is down on P&L (~7.8%) and still on its own row,
 // because Current $ is the option marks (positionValue, about +$1.7K), not
@@ -185,8 +193,8 @@ const biduUnmatched: RawPosition[] = [
 assertConserved('BIDU unmatched', biduUnmatched)
 const biduUnmatchedHolding = holding(biduUnmatched, 'BIDU')!
 check(
-  'negative mark still gets a row when legs do not match',
-  biduUnmatchedHolding?.value === -1200 && biduUnmatchedHolding?.syntheticContracts === 1,
+  'negative signed mark still gets a row, at journal market value',
+  biduUnmatchedHolding?.value === 1200 && biduUnmatchedHolding?.syntheticContracts === 1,
   JSON.stringify(biduUnmatchedHolding),
 )
 check('negative mark is not in OTHER', holdingsFromPositions(biduUnmatched).nakedOptionsValue === 0)
@@ -288,7 +296,7 @@ const personal: RawPosition[] = [
 assertConserved('personal', personal)
 const nvda = holding(personal, 'NVDA')!
 const meta = holding(personal, 'META')!
-check('personal underwater synthetic', nvda?.value === -2300 && nvda?.syntheticContracts === 3)
+check('personal synthetic uses journal market value', nvda?.value === 2300 && nvda?.syntheticContracts === 3)
 check('personal positive synthetic', meta?.value === 7000 && meta?.syntheticContracts === 1)
 check('personal has no OTHER', holdingsFromPositions(personal).nakedOptionsValue === 0)
 
@@ -326,14 +334,13 @@ const overviewState = {
 }
 const { slices, total } = currentAllocationSlices(overviewState, 'business')
 check('overview total is net liq', total === netLiq)
-check('overview has no BIDU wedge', !slices.some(s => s.label === 'BIDU'))
-check('overview has no BABA wedge', !slices.some(s => s.label === 'BABA'))
+check('overview shows BIDU at journal market value', slices.some(s => s.label === 'BIDU' && s.value === 1200))
+check('overview shows BABA at journal market value', slices.some(s => s.label === 'BABA' && s.value === 800))
 check('overview keeps the positive synthetic', slices.some(s => s.label === 'AVGO' && s.value === 3500))
 const overviewCash = slices.find(s => s.label === 'CASH')
-// Underwater holdings BIDU -1200, BABA -800, PDD 0, LI -300 = -2300, plus the
-// naked QQQ put -300, both folded into the $20,000 cash balance.
-check('overview cash folds the underwater marks back in', overviewCash?.value === 17400, String(overviewCash?.value))
-check('overview slices reconcile', Math.abs(slices.reduce((s, x) => s + x.value, 0) - netLiq) < 1e-6, String(slices.reduce((s, x) => s + x.value, 0)))
+// PDD's flat mark is still not a wedge. The naked QQQ put stays in cash.
+// BABA/BIDU/LI are positive market values now, so they are not folded in.
+check('overview cash keeps the naked put and not the synthetics', overviewCash?.value === 19700, String(overviewCash?.value))
 
 // ── Rendered Holdings vs Target table ──
 const store = new Map<string, string>()
@@ -370,26 +377,27 @@ function rowText(ticker: string): string {
 
 const biduRow = rowText('BIDU')
 const biduPct = `${(bidu.value / netLiq * 100).toFixed(1)}%`
-check('BIDU row shows negative Current $', biduRow.includes(fmt$(bidu.value)) && fmt$(bidu.value).startsWith('-'), biduRow)
-check('BIDU row shows negative Current %', biduRow.includes(biduPct) && biduPct.startsWith('-'), `${biduPct} in ${biduRow}`)
+check('BIDU row shows journal market value', biduRow.includes(fmt$(bidu.value)) && fmt$(bidu.value) === '$1.2K', biduRow)
+check('BIDU row shows positive Current %', biduRow.includes(biduPct) && !biduPct.startsWith('-'), `${biduPct} in ${biduRow}`)
 check('BIDU row shows synthetic contract count', new RegExp(`(?:^|\\s)${bidu.syntheticContracts}(?:\\s|$)`).test(biduRow), biduRow)
 check('BIDU target shares still on the row', biduRow.includes('100'), biduRow)
 
 const babaRow = rowText('BABA')
 const babaPct = `${(baba.value / netLiq * 100).toFixed(1)}%`
-check('BABA row shows negative Current $', babaRow.includes(fmt$(baba.value)) && fmt$(baba.value).startsWith('-'), babaRow)
-check('BABA row shows negative Current %', babaRow.includes(babaPct) && babaPct.startsWith('-'), babaRow)
+check('BABA row shows journal market value', babaRow.includes(fmt$(baba.value)) && fmt$(baba.value) === '$800', babaRow)
+check('BABA row shows positive Current %', babaRow.includes(babaPct) && !babaPct.startsWith('-'), babaRow)
 check('BABA row shows synthetic contract count', new RegExp(`(?:^|\\s)${baba.syntheticContracts}(?:\\s|$)`).test(babaRow), babaRow)
 
 const liRow = rowText('LI')
 check('LI row shows contract count not a dash', liRow.includes(fmt$(li.value)) && /\s2(?:\s|$)/.test(liRow), liRow)
 
 const otherRow = rowText('OTHER')
-check('OTHER row is only the naked put', otherRow.includes(fmt$(-300)) && !otherRow.includes(fmt$(-1200)) && !otherRow.includes(fmt$(-800)), otherRow)
+check('OTHER row is only the naked put', otherRow.includes(fmt$(-300)) && !otherRow.includes('-$1.2K') && !otherRow.includes('-$800'), otherRow)
 
 const totalRow = rowText('Total')
-check('total Current $ unchanged vs net liq', totalRow.includes(fmt$(tableSum)), totalRow)
-check('total Current % still 100', totalRow.includes('100.0%'), totalRow)
+check('total Current $ is the displayed sum', totalRow.includes(fmt$(tableSum)), totalRow)
+const totalPct = `${((tableSum / netLiq) * 100).toFixed(1)}%`
+check('total Current % is the displayed sum over net liq', totalRow.includes(totalPct), `${totalPct} in ${totalRow}`)
 
 const avgoRow = rowText('AVGO')
 check('positive synthetic row unchanged', avgoRow.includes(fmt$(3500)) && avgoRow.includes('1'), avgoRow)
@@ -434,6 +442,62 @@ check('BIDU row shows +$25 and 2 contracts', liveBidu.includes('$25') && /(?:^|\
 check('UMAC row still shows $1.7K and 10 contracts', liveUmac.includes('$1.7K') && /(?:^|\s)10(?:\s|$)/.test(liveUmac), liveUmac)
 check('OTHER row is the naked -$2.1K only', liveOther.includes('-$2.1K') && !liveOther.includes('$303') && !liveOther.includes('$25'), liveOther)
 check('no 9988 or 9888 row', liveRow('9988') === '' && liveRow('9888') === '')
+
+// Production IBKR Business, October 2026. Journal Market Value is
+// Math.abs(signed mark). The signed mark is positionValue, and it is also
+// what Journal's other columns imply: unrealised = signed mark − cost basis.
+// BABA cost basis +$983.58 and unrealised −$1,287.00 only reconcile if the
+// signed mark is −$303.42 (Journal then prints $303.42). BIDU is −$25.82
+// printed as $25.82. UMAC's signed mark is already +$1,729.90, so both pages
+// already agreed. Allocation Current $ has to be that printed market value.
+const liveSigns: RawPosition[] = [
+  opt({
+    symbol: 'BABA  281215C00110000', underlying: 'BABA', putCall: 'C', quantity: 2,
+    positionValue: 4000, markPrice: 20, multiplier: 100, strike: 110, expiry: '20281215',
+  }),
+  opt({
+    symbol: 'BABA  281215P00120000', underlying: 'BABA', putCall: 'P', quantity: -2,
+    positionValue: -4303.42, markPrice: 21.5171, multiplier: 100, strike: 120, expiry: '20281215',
+  }),
+  opt({
+    symbol: 'BIDU  270115C00090000', underlying: 'BIDU', putCall: 'C', quantity: 2,
+    positionValue: 1000, markPrice: 5, multiplier: 100, strike: 90, expiry: '20270115',
+  }),
+  opt({
+    symbol: 'BIDU  270115P00090000', underlying: 'BIDU', putCall: 'P', quantity: -2,
+    positionValue: -1025.82, markPrice: 5.1291, multiplier: 100, strike: 90, expiry: '20270115',
+  }),
+  opt({
+    symbol: 'UMAC  281215C00020000', underlying: 'UMAC', putCall: 'C', quantity: 10,
+    positionValue: 5000, markPrice: 5, multiplier: 100, strike: 20, expiry: '20281215',
+  }),
+  opt({
+    symbol: 'UMAC  281215P00022500', underlying: 'UMAC', putCall: 'P', quantity: -10,
+    positionValue: -3270.10, markPrice: 3.2701, multiplier: 100, strike: 22.5, expiry: '20281215',
+  }),
+  // The two books that are not synthetics on this account. Journal shows
+  // their market value as an absolute number too, but Allocation keeps the
+  // signed mark because they are not synthetic longs. SPX bull put spread
+  // ≈ −$1,670.30, SPCX short put ≈ −$51.00. Together −$1,721.30, which the
+  // table rounds to −$1.7K. That is the whole of OTHER.
+  opt({ symbol: 'SPX   261016P07700000', underlying: 'SPX', putCall: 'P', quantity: -2, positionValue: -8000, strike: 7700, expiry: '20261016' }),
+  opt({ symbol: 'SPX   261016P07675000', underlying: 'SPX', putCall: 'P', quantity: 2, positionValue: 6329.70, strike: 7675, expiry: '20261016' }),
+  opt({ symbol: 'SPCX  261016P00135000', underlying: 'SPCX', putCall: 'P', quantity: -2, positionValue: -51, strike: 135, expiry: '20261016' }),
+]
+const signedMark = (legs: RawPosition[]) => legs.reduce((s, p) => s + p.markPrice * p.quantity * (p.multiplier ?? 100), 0)
+const babaLegs = liveSigns.filter(p => (p.underlyingSymbol ?? '').startsWith('BABA'))
+const biduLegs = liveSigns.filter(p => (p.underlyingSymbol ?? '').startsWith('BIDU'))
+const umacLegs = liveSigns.filter(p => (p.underlyingSymbol ?? '').startsWith('UMAC'))
+check('BABA signed mark is -303.42', Math.abs(signedMark(babaLegs) - (-303.42)) < 0.02, String(signedMark(babaLegs)))
+check('BIDU signed mark is -25.82', Math.abs(signedMark(biduLegs) - (-25.82)) < 0.02, String(signedMark(biduLegs)))
+check('UMAC signed mark is +1729.90', Math.abs(signedMark(umacLegs) - 1729.90) < 0.02, String(signedMark(umacLegs)))
+const signedBook = holdingsFromPositions(liveSigns)
+check('BABA Current $ is the positive journal market value', Math.abs((holding(liveSigns, 'BABA')?.value ?? 0) - 303.42) < 0.02)
+check('BIDU Current $ is the positive journal market value', Math.abs((holding(liveSigns, 'BIDU')?.value ?? 0) - 25.82) < 0.02)
+check('UMAC Current $ stays the positive mark', Math.abs((holding(liveSigns, 'UMAC')?.value ?? 0) - 1729.90) < 0.02)
+check('BABA and BIDU each show 2 synthetic contracts', holding(liveSigns, 'BABA')?.syntheticContracts === 2 && holding(liveSigns, 'BIDU')?.syntheticContracts === 2)
+check('OTHER is the SPX spread plus the SPCX put', Math.abs(signedBook.nakedOptionsValue - (-1670.30 - 51)) < 0.02, String(signedBook.nakedOptionsValue))
+check('OTHER rounds to -$1.7K', fmt$(signedBook.nakedOptionsValue) === '-$1.7K', fmt$(signedBook.nakedOptionsValue))
 
 if (failed > 0) {
   console.error(`\n${failed} failed`)
