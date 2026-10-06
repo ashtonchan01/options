@@ -33,6 +33,48 @@ export function tickerColor(i: number): string {
 
 interface Holding { symbol: string; shares: number; avgCost: number; value: number; optionsValue: number; syntheticContracts: number }
 
+/**
+ * IBKR's Hong Kong line uses the numeric board ticker. The US ADR — and the
+ * allocation row — uses the letter ticker. A synthetic whose call is booked
+ * on one line and whose put is booked on the other never shares a grouping
+ * key, so neither side looks like a long-call + short-put and both marks
+ * fall into OTHER. UMAC has only one listing, so this never comes up for it.
+ */
+const HK_LISTING_TO_ADR: Record<string, string> = {
+  '9988': 'BABA',
+  '9888': 'BIDU',
+}
+
+/** OCC root + right, e.g. "BABA  270115C00120000" or "9988  270115P00090000". */
+function occContract(symbol: string): { root: string; putCall: 'C' | 'P' } | null {
+  const m = symbol.trim().toUpperCase().match(/^([A-Z0-9][A-Z0-9.]{0,5})\s*(\d{6})([CP])(\d{8})$/)
+  if (!m) return null
+  return { root: m[1], putCall: m[3] as 'C' | 'P' }
+}
+
+function adrTicker(root: string): string {
+  return HK_LISTING_TO_ADR[root] ?? root
+}
+
+/** Ticker IBKR actually put on this leg, before the HK→ADR alias.
+ *  A blank underlyingSymbol used to fall through to the whole contract
+ *  symbol, which is different for the call and the put, so the two legs
+ *  could never meet. The root (text before the OCC date) is the underlying. */
+function rawOptionUnderlying(p: RawPosition): string {
+  const under = (p.underlyingSymbol ?? '').trim()
+  const underOcc = under ? occContract(under) : null
+  if (under && !underOcc) return under.split(/\s+/)[0]!.toUpperCase()
+  const fromSymbol = occContract(p.symbol)
+  if (fromSymbol) return fromSymbol.root
+  if (underOcc) return underOcc.root
+  return (under || p.symbol).trim().split(/\s+/)[0]?.toUpperCase() ?? p.symbol
+}
+
+function optionRight(p: RawPosition): 'C' | 'P' | undefined {
+  if (p.putCall === 'C' || p.putCall === 'P') return p.putCall
+  return occContract(p.symbol)?.putCall ?? (p.underlyingSymbol ? occContract(p.underlyingSymbol)?.putCall : undefined)
+}
+
 /** Option-only rows whose mark is zero or negative (an underwater synthetic
  * long). The holdings table still shows them — Current $ is negative and
  * Synth. Long still has the contract count — but a pie wedge can't be
@@ -81,24 +123,39 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
   // directional exposure to the underlying, just built from options instead
   // of shares, so it earns its own row (netting both legs' mark value
   // together) instead of disappearing into the cash / OTHER bucket.
+  //
+  // The two legs are the same synthetic when they share a ticker after
+  // resolving the OCC root and the HK board code (9988 → BABA, 9888 → BIDU).
+  // Grouping on the raw `underlyingSymbol || symbol` string left a call
+  // booked as BABA and a put booked as 9988 (or a blank underlying, so the
+  // key was the full "BABA  270115C…" contract) in two groups. Neither group
+  // had both a long call and a short put, so each leg was added to OTHER and
+  // the BABA/BIDU target rows stayed "—". Strike, expiry, and lot size are
+  // not part of this test. The net mark's sign is not either — a positive
+  // net that never shared a key was still dumped into OTHER, and a negative
+  // net that did share a key still belongs on the ticker row.
+  const displayKey = (p: RawPosition): string => {
+    const raw = rawOptionUnderlying(p)
+    const canonical = adrTicker(raw)
+    if (stkSymbols.has(raw)) return raw
+    if (stkSymbols.has(canonical)) return canonical
+    return canonical
+  }
   const nakedOptsByUnderlying = new Map<string, RawPosition[]>()
   for (const p of positions) {
     if (p.assetClass !== 'OPT' || Math.abs(p.quantity) < 1e-6) continue
-    const under = p.underlyingSymbol || p.symbol
-    if (stkSymbols.has(under)) continue
-    if (!nakedOptsByUnderlying.has(under)) nakedOptsByUnderlying.set(under, [])
-    nakedOptsByUnderlying.get(under)!.push(p)
+    const raw = rawOptionUnderlying(p)
+    const canonical = adrTicker(raw)
+    if (stkSymbols.has(raw) || stkSymbols.has(canonical)) continue
+    const key = canonical
+    if (!nakedOptsByUnderlying.has(key)) nakedOptsByUnderlying.set(key, [])
+    nakedOptsByUnderlying.get(key)!.push(p)
   }
-  // The combo is a synthetic long whether the legs currently net to a credit
-  // or a debit. Requiring a positive net mark treated an underwater
-  // synthetic as a naked option: its ticker row showed "—" for Current $,
-  // Current %, and Synth. Long, and the debit was lumped into OTHER.
-  // (A pie still can't draw that negative mark — holdingsForPie drops it.)
   const riskReversalUnderlyings = new Set(
     [...nakedOptsByUnderlying.entries()]
       .filter(([, opts]) =>
-        opts.some(o => o.quantity > 0 && o.putCall === 'C') &&
-        opts.some(o => o.quantity < 0 && o.putCall === 'P'))
+        opts.some(o => o.quantity > 0 && optionRight(o) === 'C') &&
+        opts.some(o => o.quantity < 0 && optionRight(o) === 'P'))
       .map(([under]) => under),
   )
 
@@ -111,17 +168,18 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
       e.stockValue += p.positionValue
       byUnderlying.set(p.symbol, e)
     } else if (p.assetClass === 'OPT') {
-      const under = p.underlyingSymbol || p.symbol
-      if (!stkSymbols.has(under)) {
-        if (!riskReversalUnderlyings.has(under)) { nakedOptionsValue += p.positionValue; continue }
-        const e = byUnderlying.get(under) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0 }
+      const key = displayKey(p)
+      const onStock = stkSymbols.has(rawOptionUnderlying(p)) || stkSymbols.has(adrTicker(rawOptionUnderlying(p)))
+      if (!onStock) {
+        if (!riskReversalUnderlyings.has(key)) { nakedOptionsValue += p.positionValue; continue }
+        const e = byUnderlying.get(key) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0 }
         e.optionsValue += p.positionValue
-        byUnderlying.set(under, e)
+        byUnderlying.set(key, e)
         continue
       }
-      const e = byUnderlying.get(under) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0 }
+      const e = byUnderlying.get(key) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0 }
       e.optionsValue += p.positionValue
-      byUnderlying.set(under, e)
+      byUnderlying.set(key, e)
     }
   }
 
@@ -137,10 +195,11 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
   const shortPutQtyByUnderlying = new Map<string, number>()
   for (const p of positions) {
     if (p.assetClass !== 'OPT' || Math.abs(p.quantity) < 1e-6) continue
-    const under = p.underlyingSymbol || p.symbol
-    if (p.quantity > 0 && p.putCall === 'C') {
+    const under = displayKey(p)
+    const right = optionRight(p)
+    if (p.quantity > 0 && right === 'C') {
       longCallQtyByUnderlying.set(under, (longCallQtyByUnderlying.get(under) ?? 0) + p.quantity)
-    } else if (p.quantity < 0 && p.putCall === 'P') {
+    } else if (p.quantity < 0 && right === 'P') {
       shortPutQtyByUnderlying.set(under, (shortPutQtyByUnderlying.get(under) ?? 0) + Math.abs(p.quantity))
     }
   }

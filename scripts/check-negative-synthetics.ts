@@ -26,8 +26,8 @@ function check(name: string, ok: boolean, detail?: string) {
 
 function opt(partial: {
   symbol: string
-  underlying: string
-  putCall: 'C' | 'P'
+  underlying?: string
+  putCall?: 'C' | 'P'
   quantity: number
   positionValue: number
   unrealizedPnL?: number
@@ -168,7 +168,8 @@ check(
 check('that positive mark is not in OTHER', holdingsFromPositions(umac).nakedOptionsValue === 0)
 
 // Same unmatched legs (different strike, expiry, and quantity), no live
-// price, but the marks themselves sum negative — this is the BIDU/BABA case.
+// price, marks sum negative. Strike/expiry/quantity still do not decide
+// whether the row exists — a negative net on one shared ticker still shows.
 const biduUnmatched: RawPosition[] = [
   opt({
     symbol: 'BIDU C', underlying: 'BIDU', putCall: 'C', quantity: 1,
@@ -189,6 +190,93 @@ check(
   JSON.stringify(biduUnmatchedHolding),
 )
 check('negative mark is not in OTHER', holdingsFromPositions(biduUnmatched).nakedOptionsValue === 0)
+
+// Live book: nets are positive (BABA ~$303, BIDU ~$25, UMAC ~$1.7K) but the
+// call and the put are not the same underlying string. IBKR's HK line is
+// 9988 / 9888; the ADR line, and the target row, is BABA / BIDU. A blank
+// underlyingSymbol falls through to the full OCC symbol, which also differs
+// per leg. Either way the old grouping never saw both a long call and a
+// short put, so each leg was added to OTHER (the short put is the negative
+// piece) and the target row stayed "—".
+const splitListings: RawPosition[] = [
+  opt({
+    symbol: 'BABA  270115C00120000', underlying: 'BABA', putCall: 'C', quantity: 1,
+    positionValue: 2000, strike: 120, expiry: '20270115',
+  }),
+  opt({
+    symbol: '9988  270630P00090000', underlying: '9988', putCall: 'P', quantity: -1,
+    positionValue: -1697, strike: 90, expiry: '20270630',
+  }),
+  opt({
+    symbol: 'BIDU  270115C00100000', underlying: 'BIDU', putCall: 'C', quantity: 2,
+    positionValue: 900, strike: 100, expiry: '20270115',
+  }),
+  opt({
+    symbol: '9888  270115P00080000', underlying: '9888', putCall: 'P', quantity: -2,
+    positionValue: -875, strike: 80, expiry: '20270115',
+  }),
+  opt({
+    symbol: 'UMAC  270115C00015000', underlying: 'UMAC', putCall: 'C', quantity: 10,
+    positionValue: 4000, strike: 15, expiry: '20270115',
+  }),
+  opt({
+    symbol: 'UMAC  270617P00012000', underlying: 'UMAC', putCall: 'P', quantity: -10,
+    positionValue: -2300, strike: 12, expiry: '20270617',
+  }),
+  // Real naked short. Must stay in OTHER, and must not become a BABA/BIDU row.
+  opt({ symbol: 'QQQ   P', underlying: 'QQQ', putCall: 'P', quantity: -1, positionValue: -2100 }),
+]
+assertConserved('split listings', splitListings)
+const split = holdingsFromPositions(splitListings)
+const babaSplit = holding(splitListings, 'BABA')!
+const biduSplit = holding(splitListings, 'BIDU')!
+const umacSplit = holding(splitListings, 'UMAC')!
+check('no HK board-code row', holding(splitListings, '9988') == null && holding(splitListings, '9888') == null)
+check('BABA synthetic net is +303 on the ADR row', babaSplit?.value === 303 && babaSplit?.syntheticContracts === 1, JSON.stringify(babaSplit))
+check('BIDU synthetic net is +25 on the ADR row', biduSplit?.value === 25 && biduSplit?.syntheticContracts === 2, JSON.stringify(biduSplit))
+check('UMAC still its own positive row', umacSplit?.value === 1700 && umacSplit?.syntheticContracts === 10, JSON.stringify(umacSplit))
+check('OTHER is only the naked put, not the synthetics', split.nakedOptionsValue === -2100, String(split.nakedOptionsValue))
+
+// Both legs already on the HK code (no ADR string anywhere). They still
+// have to land on BABA, not on "9988" and not in OTHER.
+const bothHk: RawPosition[] = [
+  opt({ symbol: '9988 C', underlying: '9988', putCall: 'C', quantity: 1, positionValue: 1800, strike: 100, expiry: '20270115' }),
+  opt({ symbol: '9988 P', underlying: '9988', putCall: 'P', quantity: -1, positionValue: -1497, strike: 80, expiry: '20270617' }),
+]
+assertConserved('both HK', bothHk)
+check('HK-only synthetic shows as BABA', holding(bothHk, 'BABA')?.value === 303 && holding(bothHk, 'BABA')?.syntheticContracts === 1)
+check('HK-only synthetic is not a 9988 row', holding(bothHk, '9988') == null)
+check('HK-only synthetic is not OTHER', holdingsFromPositions(bothHk).nakedOptionsValue === 0)
+
+// No underlyingSymbol at all: the contract symbol is the only ticker, and
+// it is different for the call and the put. putCall is also absent and has
+// to be read off the OCC symbol.
+const occOnly: RawPosition[] = [
+  opt({ symbol: 'BABA  270115C00120000', quantity: 1, positionValue: 500, strike: 120, expiry: '20270115' }),
+  opt({ symbol: 'BABA  270115P00090000', quantity: -1, positionValue: -197, strike: 90, expiry: '20270115' }),
+]
+assertConserved('OCC only', occOnly)
+check('OCC legs with no underlyingSymbol pair on BABA', holding(occOnly, 'BABA')?.value === 303 && holding(occOnly, 'BABA')?.syntheticContracts === 1, JSON.stringify(holding(occOnly, 'BABA')))
+check('OCC legs are not OTHER', holdingsFromPositions(occOnly).nakedOptionsValue === 0)
+
+// A lone HK put is still naked. Aliasing the ticker must not invent a synthetic.
+const loneHkPut: RawPosition[] = [
+  opt({ symbol: '9988 P', underlying: '9988', putCall: 'P', quantity: -1, positionValue: -400 }),
+]
+check('lone HK put is not a BABA row', holding(loneHkPut, 'BABA') == null && holding(loneHkPut, '9988') == null)
+check('lone HK put stays in OTHER', holdingsFromPositions(loneHkPut).nakedOptionsValue === -400)
+
+// HK shares keep their own row. Options on that same line stay with the
+// shares instead of being renamed onto the ADR.
+const hkStock: RawPosition[] = [
+  stk('9988', 100, 5000, 80),
+  opt({ symbol: '9988 C', underlying: '9988', putCall: 'C', quantity: 1, positionValue: 200 }),
+  opt({ symbol: '9988 P', underlying: '9988', putCall: 'P', quantity: -1, positionValue: -50 }),
+]
+assertConserved('HK stock', hkStock)
+const hkShares = holding(hkStock, '9988')!
+check('HK shares stay on 9988 and keep the option marks', hkShares?.symbol === '9988' && hkShares?.shares === 100 && hkShares?.value === 5150 && hkShares?.syntheticContracts === 1, JSON.stringify(hkShares))
+check('HK shares did not also open a BABA row', holding(hkStock, 'BABA') == null)
 
 // ── Personal account: same structure, different tickers / signs ──
 const personal: RawPosition[] = [
@@ -305,6 +393,47 @@ check('total Current % still 100', totalRow.includes('100.0%'), totalRow)
 
 const avgoRow = rowText('AVGO')
 check('positive synthetic row unchanged', avgoRow.includes(fmt$(3500)) && avgoRow.includes('1'), avgoRow)
+
+// The corrected live shape: positive nets, legs on different listing tickers,
+// target rows already named BABA and BIDU. Current $ is the signed net,
+// Synth. Long is the matched contracts, OTHER is only the naked put.
+store.set('options:targetAllocations', JSON.stringify({
+  live: {
+    rows: [
+      { id: 't-baba', ticker: 'BABA', shares: 10 },
+      { id: 't-bidu', ticker: 'BIDU', shares: 10 },
+    ],
+  },
+}))
+const liveState = emptyAppState()
+const liveCash = 80_000
+const livePositions = splitListings
+const liveSum = livePositions.reduce((s, p) => s + p.positionValue, 0) + liveCash
+liveState.sync = {
+  ...liveState.sync,
+  positions: livePositions,
+  trades: [],
+  cashBalance: liveCash,
+  netLiquidation: liveSum,
+}
+const liveHtml = renderToStaticMarkup(createElement(PortfolioAllocationView, {
+  state: liveState,
+  accountId: 'live',
+  sessionKey: null,
+}))
+function liveRow(ticker: string): string {
+  const rows = liveHtml.split(/<tr[\s>]/).slice(1).map(r => r.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+  return rows.find(r => new RegExp(`(?:^|\\s)${ticker}(?:\\s|$)`).test(r)) ?? ''
+}
+const liveBaba = liveRow('BABA')
+const liveBidu = liveRow('BIDU')
+const liveOther = liveRow('OTHER')
+const liveUmac = liveRow('UMAC')
+check('BABA row shows +$303 and 1 contract', liveBaba.includes('$303') && /(?:^|\s)1(?:\s|$)/.test(liveBaba), liveBaba)
+check('BIDU row shows +$25 and 2 contracts', liveBidu.includes('$25') && /(?:^|\s)2(?:\s|$)/.test(liveBidu), liveBidu)
+check('UMAC row still shows $1.7K and 10 contracts', liveUmac.includes('$1.7K') && /(?:^|\s)10(?:\s|$)/.test(liveUmac), liveUmac)
+check('OTHER row is the naked -$2.1K only', liveOther.includes('-$2.1K') && !liveOther.includes('$303') && !liveOther.includes('$25'), liveOther)
+check('no 9988 or 9888 row', liveRow('9988') === '' && liveRow('9888') === '')
 
 if (failed > 0) {
   console.error(`\n${failed} failed`)
