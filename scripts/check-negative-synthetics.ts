@@ -30,6 +30,10 @@ function opt(partial: {
   putCall: 'C' | 'P'
   quantity: number
   positionValue: number
+  unrealizedPnL?: number
+  markPrice?: number
+  strike?: number
+  expiry?: string
 }): RawPosition {
   return {
     accountId: 'acct',
@@ -39,10 +43,12 @@ function opt(partial: {
     quantity: partial.quantity,
     costBasisPrice: 0,
     costBasisMoney: 0,
-    markPrice: 0,
+    markPrice: partial.markPrice ?? 0,
     positionValue: partial.positionValue,
-    unrealizedPnL: 0,
+    unrealizedPnL: partial.unrealizedPnL ?? 0,
     putCall: partial.putCall,
+    strike: partial.strike,
+    expiry: partial.expiry,
     underlyingSymbol: partial.underlying,
     currency: 'USD',
   }
@@ -135,6 +141,54 @@ check('table total still equals net liquidation', Math.abs(tableSum - netLiq) < 
 const biduTarget = 100 * 90
 const biduGap = biduTarget - bidu.value
 check('BIDU gap uses the negative current value', biduGap === biduTarget - (-1200) && bidu.value < 0)
+
+// UMAC in the live book is down on P&L (~7.8%) and still on its own row,
+// because Current $ is the option marks (positionValue, about +$1.7K), not
+// fifo P&L. The old gate was `sum(positionValue) > 0`. It did not look at
+// unrealizedPnL, strike, expiry, equal quantities, or the live quote.
+const umac: RawPosition[] = [
+  opt({
+    symbol: 'UMAC C', underlying: 'UMAC', putCall: 'C', quantity: 10,
+    positionValue: 4000, unrealizedPnL: -180, markPrice: 0,
+    strike: 15, expiry: '20270115',
+  }),
+  opt({
+    symbol: 'UMAC P', underlying: 'UMAC', putCall: 'P', quantity: -12,
+    positionValue: -2300, unrealizedPnL: -90, markPrice: 0,
+    strike: 12, expiry: '20270617',
+  }),
+]
+assertConserved('UMAC-like', umac)
+const umacHolding = holding(umac, 'UMAC')!
+check(
+  'losing P&L with a positive mark still gets a row',
+  umacHolding?.value === 1700 && umacHolding?.syntheticContracts === 10,
+  JSON.stringify(umacHolding),
+)
+check('that positive mark is not in OTHER', holdingsFromPositions(umac).nakedOptionsValue === 0)
+
+// Same unmatched legs (different strike, expiry, and quantity), no live
+// price, but the marks themselves sum negative — this is the BIDU/BABA case.
+const biduUnmatched: RawPosition[] = [
+  opt({
+    symbol: 'BIDU C', underlying: 'BIDU', putCall: 'C', quantity: 1,
+    positionValue: 400, unrealizedPnL: -900, markPrice: 0,
+    strike: 100, expiry: '20270116',
+  }),
+  opt({
+    symbol: 'BIDU P', underlying: 'BIDU', putCall: 'P', quantity: -3,
+    positionValue: -1600, unrealizedPnL: -400, markPrice: 0,
+    strike: 90, expiry: '20270618',
+  }),
+]
+assertConserved('BIDU unmatched', biduUnmatched)
+const biduUnmatchedHolding = holding(biduUnmatched, 'BIDU')!
+check(
+  'negative mark still gets a row when legs do not match',
+  biduUnmatchedHolding?.value === -1200 && biduUnmatchedHolding?.syntheticContracts === 1,
+  JSON.stringify(biduUnmatchedHolding),
+)
+check('negative mark is not in OTHER', holdingsFromPositions(biduUnmatched).nakedOptionsValue === 0)
 
 // ── Personal account: same structure, different tickers / signs ──
 const personal: RawPosition[] = [
