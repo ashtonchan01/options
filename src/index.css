@@ -784,71 +784,74 @@ body {
    Percentage widths did this too, but at these cells' actual rendered
    width some values (e.g. "-$10,377.50", "-164.7%") were wider than their
    allotted slice and got clipped with an ellipsis. Pixel widths sized to
-   comfortably fit realistic values, combined with a min-width equal to
-   their sum and the cell's own scroll container (overflow:auto), mean the
-   table simply scrolls horizontally on a narrow viewport instead of ever
-   shrinking a column below what its content needs. */
-.jr-strategy-cell table { table-layout: fixed; min-width: 1250px; }
-.jr-strategy-cell table th, .jr-strategy-cell table td {
+   comfortably fit realistic values, combined with a min-width and the cell's
+   own scroll container (overflow:auto), mean the table scrolls horizontally
+   on a narrow viewport instead of shrinking a column below what its content
+   needs. */
+/* Direct child only. A nested table used to live in the expanded row; sizing
+   that inner table shrink-to-fit (width:auto) made Safari shrink the parent
+   strategy table to ~70% of the other sections. Every section table is
+   width:100% with the same fixed columns, so Open…P&L share x-positions
+   whether or not a row is expanded. Detail rows are excluded from the
+   per-cell widths: the header row owns the columns, and a colspan leg cell
+   must not be given the ticker column's 70px. */
+.jr-strategy-cell-scroll > table.trade-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 1250px;
+}
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th,
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr > td {
   padding: 8px 10px;
   white-space: nowrap;
   overflow: visible;
 }
-.jr-strategy-cell table th:nth-child(1),  .jr-strategy-cell table td:nth-child(1)  { width: 90px; }  /* Open */
-.jr-strategy-cell table th:nth-child(2),  .jr-strategy-cell table td:nth-child(2)  { width: 90px; }  /* Closed */
-.jr-strategy-cell table th:nth-child(3),  .jr-strategy-cell table td:nth-child(3)  { width: 70px; }  /* Ticker */
-.jr-strategy-cell table th:nth-child(4),  .jr-strategy-cell table td:nth-child(4)  { width: 90px; }  /* Stock Price */
-.jr-strategy-cell table th:nth-child(5),  .jr-strategy-cell table td:nth-child(5)  { width: 150px; } /* Position */
-.jr-strategy-cell table th:nth-child(6),  .jr-strategy-cell table td:nth-child(6)  { width: 90px; }  /* Avg Price */
-.jr-strategy-cell table th:nth-child(7),  .jr-strategy-cell table td:nth-child(7)  { width: 110px; } /* Cost Basis */
-.jr-strategy-cell table th:nth-child(8),  .jr-strategy-cell table td:nth-child(8)  { width: 100px; } /* Breakeven */
-.jr-strategy-cell table th:nth-child(9),  .jr-strategy-cell table td:nth-child(9)  { width: 100px; } /* Market Price */
-.jr-strategy-cell table th:nth-child(10), .jr-strategy-cell table td:nth-child(10) { width: 100px; } /* Market Value */
-.jr-strategy-cell table th:nth-child(11), .jr-strategy-cell table td:nth-child(11) { width: 110px; } /* Unrealised */
-.jr-strategy-cell table th:nth-child(12), .jr-strategy-cell table td:nth-child(12) { width: 90px; }  /* % */
-.jr-strategy-cell table th:nth-child(13), .jr-strategy-cell table td:nth-child(13) { width: 70px; }  /* DTE */
-.jr-strategy-cell table th:nth-child(14), .jr-strategy-cell table td:nth-child(14) { width: 80px; }  /* Fees */
-.jr-strategy-cell table th:nth-child(15), .jr-strategy-cell table td:nth-child(15) { width: 90px; }  /* P&L */
-
-/* Expanded leg/trade breakdown. It is a second <table> inside the colspan
-   cell, so the 15-column rules above would otherwise size its handful of
-   columns as if they were Open/Closed/Ticker… and stretch it to the
-   table's min-width. These widths are the parent columns the detail sits
-   under (Open, Closed, Ticker+Stock Price, Position, …) so the labels
-   share the parent's x-positions and the same 8px 10px cell padding.
-   The table stays only as wide as those columns — it does not run out
-   to P&L. */
-.jr-strategy-cell table td.jr-detail-cell { width: auto; padding: 0 !important; }
-.jr-strategy-cell table.jr-leg-table {
-  table-layout: fixed;
-  width: auto;
-  min-width: 0;
-}
-.jr-strategy-cell table.jr-leg-table th,
-.jr-strategy-cell table.jr-leg-table td {
-  width: auto;
-  background: transparent;
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(1),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(1):not(.jr-detail-cell) { width: 90px; }  /* Open */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(2),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(2) { width: 90px; }  /* Closed */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(3),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(3) { width: 70px; }  /* Ticker */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(4),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(4) { width: 90px; }  /* Stock Price */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(5),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(5) { width: 150px; } /* Position */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(6),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(6) { width: 90px; }  /* Avg Price */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(7),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(7) { width: 110px; } /* Cost Basis */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(8),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(8) { width: 100px; } /* Breakeven */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(9),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(9) { width: 100px; } /* Market Price */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(10),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(10) { width: 100px; } /* Market Value */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(11),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(11) { width: 110px; } /* Unrealised */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(12),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(12) { width: 90px; }  /* % */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(13),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(13) { width: 70px; }  /* DTE */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(14),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(14) { width: 80px; }  /* Fees */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(15),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(15) { width: 90px; }  /* P&L */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr > td.jr-detail-cell { padding: 0 !important; }
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr.jr-detail-row > td {
+  background: rgba(16,185,129,0.03);
   font-size: 12px;
   letter-spacing: 0;
   text-transform: none;
-  border-bottom: 1px solid var(--border);
 }
-.jr-strategy-cell table.jr-leg-table th {
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr.jr-detail-head > td {
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-4);
-  text-align: left;
 }
-.jr-strategy-cell table.jr-leg-table .jr-leg-c1 { width: 90px; }                 /* Open */
-.jr-strategy-cell table.jr-leg-table .jr-leg-c2 { width: 90px; }                 /* Closed */
-.jr-strategy-cell table.jr-leg-table .jr-leg-c3 { width: 160px; }                /* Ticker + Stock Price */
-.jr-strategy-cell table.jr-leg-table .jr-leg-c4 { width: 150px; }                /* Position */
-.jr-strategy-cell table.jr-leg-table .jr-leg-c5 { width: 90px; }                 /* Avg Price */
-.jr-strategy-cell table.jr-leg-table .jr-leg-c6 { width: 110px; }                /* Cost Basis */
-.jr-strategy-cell table.jr-leg-table .jr-leg-c7 { width: 100px; }                /* Breakeven */
-.jr-strategy-cell table.jr-leg-table .jr-leg-num { text-align: right; }
+.jr-detail-empty { padding: 14px 16px; color: var(--text-4); font-size: 12px; }
+.jr-leg-num { text-align: right; }
 .jr-leg-action-inline { display: none; font-weight: 600; margin-right: 8px; }
 .jr-hide-closed-col .jr-leg-action-inline { display: inline; }
 
