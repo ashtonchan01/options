@@ -17,8 +17,15 @@
  * table below it. Every time the portfolio's Actual total changes
  * (a fresh IBKR sync), that day's figure is recorded to localStorage so the
  * Actual side grows into a real history line over time rather than staying
- * a single live point. Highlights the year each of $1M/$5M/$10M is first
- * crossed, breaks each row down into the monthly dollar return the target
+ * a single live point. A second curve, "your pace", compounds the start
+ * capital at the annualised growth the synced accounts have actually
+ * produced (IBKR's own net-liquidation history when a Flex sync stored it,
+ * otherwise today's balance with each closed trade's profit and loss
+ * stepped back through time) and is drawn next to that target. When there
+ * isn't enough history for a meaningful rate, the pace curve uses the
+ * target % and the page says so. Highlights the year each of A$1M/A$5M/A$10M
+ * is first crossed on both curves, breaks each row down into the monthly
+ * dollar return the target
  * implies, and shows the row's tax bill + after-tax profit at a flat
  * configurable rate.
  *
@@ -32,29 +39,17 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { Account } from '../../store/accountsStore'
 import { fetchQuotes } from '../../services/quotes'
-
-/** An account's real net worth, not just its cash balance — falling back to
- * cashBalance alone (as this page used to) silently ignores every open
- * stock/option position's value, understating a portfolio holding real
- * positions by however much those positions are worth. Most Flex queries
- * report `netLiquidation` directly (IBKR's own cash + all positions'
- * market value), but a query that never enabled "Equity Summary in Base"
- * leaves it undefined forever — this recomputes the same total from the
- * positions this app already has (cash + each position's own positionValue,
- * IBKR's own per-leg market value) so the number doesn't silently stay
- * cash-only just because the account's Flex config didn't opt into that
- * one column. */
-function accountNetWorth(a: Account): number {
-  if (a.netLiquidation != null) return a.netLiquidation
-  const positionsValue = (a.positions ?? []).reduce((s, p) => s + (p.positionValue ?? 0), 0)
-  return (a.cashBalance ?? 0) + positionsValue
-}
+import { accountNetWorth, describePace, fmtPct, projectMilestone, resolvePace } from './milestonePace'
 
 const MILESTONES = [
-  { label: '$1M', value: 1_000_000 },
-  { label: '$5M', value: 5_000_000 },
-  { label: '$10M', value: 10_000_000 },
+  { label: 'A$1M', value: 1_000_000 },
+  { label: 'A$5M', value: 5_000_000 },
+  { label: 'A$10M', value: 10_000_000 },
 ]
+
+const TARGET_COLOR = '#10b981'
+const PACE_COLOR = '#f59e0b'
+const ACTUAL_COLOR = '#38bdf8'
 
 interface Config {
   startCapital: number
@@ -258,16 +253,6 @@ function buildYears(cfg: Config, today: Date): YearRow[] {
   return rows
 }
 
-/** Which month (1-indexed) within the row a milestone is first reached, or
- * null if it isn't reached in this row at all — used to phrase "reached in
- * month 8" rather than just flagging the whole row. Capped to the row's
- * own length since the first row may run fewer than 12 months. */
-function crossingMonth(start: number, end: number, target: number, r: number, months: number): number | null {
-  if (target < start || target > end) return null
-  const t = Math.log(target / start) / Math.log(1 + r)
-  return Math.max(1, Math.min(months, Math.ceil(t)))
-}
-
 function fmt$(n: number): string {
   const sign = n < 0 ? '-' : ''
   return `${sign}$${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
@@ -349,15 +334,19 @@ interface AccountActual { name: string; display: number }
  * account, and each account's own figure as its own marker so e.g.
  * Personal and Business stay visually distinguishable instead of only ever
  * appearing pre-summed. */
-function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals, history, years }: {
-  cfg: Config; r: number; toDisplayFromAud: (v: number) => number
+function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, accountActuals, history, actualPath, years }: {
+  cfg: Config; r: number; paceMonthly: number; toDisplayFromAud: (v: number) => number
   actualDisplay: number; accountActuals: AccountActual[]
   /** Recorded past "Actual" points, in chart-years-from-today (negative =
-   * past) and already display-currency-converted. */
+   * past) and already display-currency-converted. Used only when the
+   * account history didn't produce its own path. */
   history: { t: number; value: number }[]
+  /** Real account value over time, same units as `history`. Preferred. */
+  actualPath: { t: number; value: number }[]
   years: YearRow[]
 }) {
   const [setNode, measured] = useElementSize<HTMLDivElement>()
+  const past = (actualPath.length > 1 ? actualPath : history).filter(p => p.value > 0)
 
   // Drawn as one continuous exponential from today at the target rate —
   // the annual tax drag (each row's real, lower after-tax start) is still
@@ -365,6 +354,8 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
   // but charting it produced a sawtooth that read as jagged/broken rather
   // than informative. This line is the smooth "if nothing were ever taxed"
   // reference curve; the actual after-tax numbers live in the table below.
+  // The amber pace line is the same shape at the rate the accounts have
+  // actually achieved (or the target rate, when that rate isn't knowable).
   const totalMonths = years[years.length - 1]?.tEnd ?? cfg.numYears * 12
   const points = useMemo(() => {
     const pts: { t: number; value: number }[] = []
@@ -373,6 +364,13 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
     }
     return pts
   }, [totalMonths, r, cfg.startCapital, toDisplayFromAud])
+  const pacePoints = useMemo(() => {
+    const pts: { t: number; value: number }[] = []
+    for (let t = 0; t <= totalMonths; t++) {
+      pts.push({ t, value: toDisplayFromAud(cfg.startCapital * Math.pow(1 + paceMonthly, t)) })
+    }
+    return pts
+  }, [totalMonths, paceMonthly, cfg.startCapital, toDisplayFromAud])
 
   // viewBox width is the container's own measured pixel width (not a fixed
   // assumption) — text/dot sizes are defined in user-space units that scale
@@ -394,11 +392,13 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
   // The x-axis normally starts at t=0 (today) — a recorded history stretches
   // it a bit to the left so past readings have somewhere to sit instead of
   // being clipped off before the chart even begins.
-  const domainMinYears = Math.min(0, ...history.map(h => h.t))
+  const rawMinYears = Math.min(0, ...past.map(h => h.t))
+  const domainMinYears = rawMinYears < 0 ? rawMinYears - 0.2 : rawMinYears
 
   const allValues = [
-    ...points.map(p => p.value), actualDisplay, ...accountActuals.map(a => a.display),
-    ...history.map(h => h.value),
+    ...points.map(p => p.value), ...pacePoints.map(p => p.value),
+    actualDisplay, ...accountActuals.map(a => a.display),
+    ...past.map(h => h.value),
   ]
   const minV = Math.min(toDisplayFromAud(cfg.startCapital * 0.5), ...allValues)
   const maxV = Math.max(...allValues) * 1.08
@@ -410,9 +410,11 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
   const y = (v: number) => padT + plotH - ((Math.log10(Math.max(1, v)) - logMin) / (logMax - logMin)) * plotH
 
   const linePath = smoothPath(points.map(p => ({ x: x(p.t / 12), y: y(p.value) })))
-  const historyPath = history.length > 1
-    ? smoothPath(history.map(h => ({ x: x(h.t), y: y(h.value) })))
+  const pacePath = smoothPath(pacePoints.map(p => ({ x: x(p.t / 12), y: y(p.value) })))
+  const pastPath = past.length > 1
+    ? smoothPath(past.map(h => ({ x: x(h.t), y: y(h.value) })))
     : null
+  const pastDots = past.length <= 24 ? past : [past[0], past[past.length - 1]].filter(Boolean)
 
   const milestoneLines = MILESTONES
     .map(m => ({ ...m, display: toDisplayFromAud(m.value) }))
@@ -463,15 +465,16 @@ function TimelineChart({ cfg, r, toDisplayFromAud, actualDisplay, accountActuals
         </g>
       ))}
 
-      <path d={linePath} fill="none" stroke="#10b981" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-
-      {[0, ...years.map(row => row.tEnd)].map(t => (
-        <circle key={t} cx={x(t / 12)} cy={y(toDisplayFromAud(cfg.startCapital * Math.pow(1 + r, t)))} r={1.8} fill="#10b981" />
+      {pastPath && <path d={pastPath} fill="none" stroke={ACTUAL_COLOR} strokeWidth={2.25} vectorEffect="non-scaling-stroke" />}
+      {pastDots.map(h => (
+        <circle key={`${h.t}-${h.value}`} cx={x(h.t)} cy={y(h.value)} r={1.6} fill={ACTUAL_COLOR} />
       ))}
 
-      {historyPath && <path d={historyPath} fill="none" stroke="#e5e7eb" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />}
-      {history.map(h => (
-        <circle key={h.t} cx={x(h.t)} cy={y(h.value)} r={1.6} fill="#e5e7eb" />
+      <path d={pacePath} fill="none" stroke={PACE_COLOR} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+      <path d={linePath} fill="none" stroke={TARGET_COLOR} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+
+      {[0, ...years.map(row => row.tEnd)].map(t => (
+        <circle key={t} cx={x(t / 12)} cy={y(toDisplayFromAud(cfg.startCapital * Math.pow(1 + r, t)))} r={1.8} fill={TARGET_COLOR} />
       ))}
 
       {showCombined && <circle cx={x(0)} cy={y(actualDisplay)} r={3.2} fill="#e5e7eb" stroke="var(--bg-card)" strokeWidth={1} />}
@@ -572,6 +575,16 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
 
   const years = useMemo(() => buildYears(cfg, today), [cfg, today])
   const r = monthlyRate(cfg.targetPct)
+  const pace = useMemo(
+    () => resolvePace(accounts.filter(a => !excludedAccounts.has(a.id)), today, cfg.targetPct),
+    [accounts, excludedAccounts, today, cfg.targetPct],
+  )
+  const paceMonthly = pace.usingTarget ? r : Math.pow(1 + pace.pacePct / 100, 1 / 12) - 1
+  const paceNote = describePace(pace, {
+    startCapital: cfg.startCapital,
+    startMonthLabel: fmtMonthYear(today),
+    targetPct: cfg.targetPct,
+  })
 
   const actualNetWorthUsd = useMemo(
     () => includedAccounts.reduce((s, a) => s + accountNetWorth(a), 0),
@@ -599,6 +612,17 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
       return next
     })
   }, [actualNetWorthUsd, accounts.length])
+
+  const actualPathDisplay = useMemo(
+    () => pace.actualPath.map(p => {
+      const [y, m, d] = p.date.split('-').map(Number)
+      return {
+        t: (new Date(y, m - 1, d).getTime() - today.getTime()) / ONE_YEAR_MS,
+        value: toDisplayFromUsd(p.valueUsd),
+      }
+    }),
+    [pace.actualPath, today, currency, rate],
+  )
 
   const historyDisplay = useMemo(
     () => history.map(h => ({
@@ -671,29 +695,46 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
           </div>
         </div>
         {MILESTONES.map(m => {
-          const row = years.find(y => y.crossed.includes(m.label))
+          const target = projectMilestone(cfg.startCapital, m.value, cfg.targetPct / 100, today)
+          const yours = pace.usingTarget
+            ? target
+            : projectMilestone(cfg.startCapital, m.value, pace.pacePct / 100, today)
           const alreadyActual = actualNetWorthUsd >= m.value * rate
           return (
-            <div key={m.label} className={`dash-panel ms-summary-tile ms-milestone-tile${row ? ' hit' : ''}`}>
-              <div className="dash-panel-sub">{m.label} Target</div>
-              <div className="ms-summary-value">
-                {row ? fmtMonthYear(addMonths(row.endDate, -1)) : '—'}
+            <div key={m.label} className="dash-panel ms-summary-tile ms-milestone-tile">
+              <div className="dash-panel-sub">{m.label}</div>
+              <div className="ms-compare">
+                <div className="ms-compare-k" style={{ color: TARGET_COLOR }}>Target · {fmtPct(cfg.targetPct)}</div>
+                <div className="ms-compare-date">{target.label}</div>
+                <div className="ms-compare-left">{target.remaining}</div>
               </div>
-              {row && (() => {
-                const month = crossingMonth(row.start, row.grossEnd, m.value, r, row.months)
-                if (!month) return null
-                return <div className="ms-summary-sub">{fmtMonthYear(addMonths(row.startDate, month - 1))}</div>
-              })()}
+              <div className="ms-compare">
+                <div className="ms-compare-k" style={{ color: PACE_COLOR }}>Your pace · {pace.usingTarget ? `target ${fmtPct(cfg.targetPct)}` : fmtPct(pace.pacePct)}</div>
+                <div className="ms-compare-date">{yours.label}</div>
+                <div className="ms-compare-left">{yours.remaining}</div>
+              </div>
               {alreadyActual && <div className="ms-summary-sub" style={{ color: '#10b981' }}>Already reached (actual)</div>}
             </div>
           )
         })}
       </div>
 
+      <div className="dash-panel" style={{ flex: '0 0 auto' }}>
+        <div className="ms-pace-note">{paceNote}</div>
+      </div>
+
       <div className="dash-panel ms-timeline-panel">
-        <div className="dash-panel-header"><span>Timeline</span></div>
-        <TimelineChart cfg={cfg} r={r} toDisplayFromAud={toDisplayFromAud}
-          actualDisplay={actualDisplay} accountActuals={accountActuals} history={historyDisplay} years={years} />
+        <div className="dash-panel-header">
+          <span>Timeline</span>
+          <span className="ms-legend">
+            <span><i style={{ background: TARGET_COLOR }} />Target</span>
+            <span><i style={{ background: PACE_COLOR }} />Your pace</span>
+            <span><i style={{ background: ACTUAL_COLOR }} />Actual</span>
+          </span>
+        </div>
+        <TimelineChart cfg={cfg} r={r} paceMonthly={paceMonthly} toDisplayFromAud={toDisplayFromAud}
+          actualDisplay={actualDisplay} accountActuals={accountActuals} history={historyDisplay}
+          actualPath={actualPathDisplay} years={years} />
         <div className="ms-timeline-scroll" style={{ paddingLeft: `${CHART_PAD_L_PCT}%`, paddingRight: `${CHART_PAD_R_PCT}%` }}>
           {years.length > 0 && (
             <div className="ms-timeline-year current" style={{ flex: '0 0 auto', minWidth: 64 }}>
