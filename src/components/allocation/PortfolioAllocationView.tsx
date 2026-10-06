@@ -33,6 +33,18 @@ export function tickerColor(i: number): string {
 
 interface Holding { symbol: string; shares: number; avgCost: number; value: number; optionsValue: number; syntheticContracts: number }
 
+/** Option-only rows whose mark is zero or negative (an underwater synthetic
+ * long). The holdings table still shows them — Current $ is negative and
+ * Synth. Long still has the contract count — but a pie wedge can't be
+ * negative, so slice builders skip these rows. */
+function isUnderwaterOptionHolding(h: Holding): boolean {
+  return h.shares === 0 && h.value <= 0
+}
+
+function holdingsForPie(holdings: Holding[]): Holding[] {
+  return holdings.filter(h => !isUnderwaterOptionHolding(h))
+}
+
 /** Live mark-to-market holdings, straight from the account's actual XML/
  * Flex positions snapshot — real market value (positionValue), not a cost
  * basis estimate, so this lines up with IBKR's own numbers.
@@ -67,8 +79,8 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
   // same underlying with no shares is a risk reversal / synthetic long (a
   // LEAP-style stock substitute, typically >1yr out) — that combo *is* real
   // directional exposure to the underlying, just built from options instead
-  // of shares, so it earns its own slice (netting both legs' mark value
-  // together) instead of disappearing into the cash bucket.
+  // of shares, so it earns its own row (netting both legs' mark value
+  // together) instead of disappearing into the cash / OTHER bucket.
   const nakedOptsByUnderlying = new Map<string, RawPosition[]>()
   for (const p of positions) {
     if (p.assetClass !== 'OPT' || Math.abs(p.quantity) < 1e-6) continue
@@ -77,15 +89,16 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
     if (!nakedOptsByUnderlying.has(under)) nakedOptsByUnderlying.set(under, [])
     nakedOptsByUnderlying.get(under)!.push(p)
   }
-  // A pie can't render a negative wedge — only break a risk reversal out of
-  // the cash bucket when its two legs actually net to positive exposure;
-  // otherwise leave it folded into cash same as any other naked option.
+  // The combo is a synthetic long whether the legs currently net to a credit
+  // or a debit. Requiring a positive net mark treated an underwater
+  // synthetic as a naked option: its ticker row showed "—" for Current $,
+  // Current %, and Synth. Long, and the debit was lumped into OTHER.
+  // (A pie still can't draw that negative mark — holdingsForPie drops it.)
   const riskReversalUnderlyings = new Set(
     [...nakedOptsByUnderlying.entries()]
       .filter(([, opts]) =>
         opts.some(o => o.quantity > 0 && o.putCall === 'C') &&
-        opts.some(o => o.quantity < 0 && o.putCall === 'P') &&
-        opts.reduce((s, o) => s + o.positionValue, 0) > 0)
+        opts.some(o => o.quantity < 0 && o.putCall === 'P'))
       .map(([under]) => under),
   )
 
@@ -228,7 +241,13 @@ export function currentAllocationSlices(state: { sync: { positions: RawPosition[
   const { holdings, nakedOptionsValue } = state.sync.positions.length > 0
     ? holdingsFromPositions(state.sync.positions)
     : { holdings: holdingsFromTrades(state.sync.trades), nakedOptionsValue: 0 }
-  const holdingsValue = holdings.reduce((s, h) => s + h.value, 0)
+  // Underwater synthetics are real holdings in the table, but this pie
+  // folds their mark back into cash — same place it lived when a negative
+  // net was still classified as naked — so the wedge math stays reconciled
+  // instead of dropping the debit and inflating every other slice.
+  const pieHoldings = holdingsForPie(holdings)
+  const underwaterValue = holdings.reduce((s, h) => s + (isUnderwaterOptionHolding(h) ? h.value : 0), 0)
+  const holdingsValue = pieHoldings.reduce((s, h) => s + h.value, 0)
   // Same manual-cash-is-real-cash treatment (and the same symmetric total
   // bump to keep the reconciliation "OTHER" catch-all from absorbing it
   // instead) as the default export's own component-body math — see its
@@ -236,11 +255,11 @@ export function currentAllocationSlices(state: { sync: { positions: RawPosition[
   // called from Overview's own render), so it reads the static snapshot
   // rather than the reactive hook.
   const manualCash = getManualCashTotal(accountId)
-  const cashBalance = (state.sync.cashBalance ?? 0) + nakedOptionsValue + manualCash
+  const cashBalance = (state.sync.cashBalance ?? 0) + nakedOptionsValue + underwaterValue + manualCash
   const total = (state.sync.netLiquidation ?? (holdingsValue + cashBalance - manualCash)) + manualCash
   const otherValue = Math.max(0, total - holdingsValue - cashBalance)
   const slices: Slice[] = [
-    ...holdings.map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i), shares: h.shares })),
+    ...pieHoldings.map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i), shares: h.shares })),
     ...(cashBalance > 0 ? [{ label: 'CASH', value: cashBalance, color: '#10b981' }] : []),
     ...(otherValue > 0 ? [{ label: 'OTHER', value: otherValue, color: 'var(--text-5)' }] : []),
   ]
@@ -645,8 +664,11 @@ export default function PortfolioAllocationView({ state, accountId, sessionKey }
   // total below zero on its own the way otherValue's own max(0, ...) guard
   // already prevents).
   const combinedOther = nakedOptionsValue + otherValue
+  // Skip underwater synthetics here. They're on the table below; including
+  // a negative value in this list would shrink the pie's denominator
+  // (PortfolioPie sums every slice, then hides non-positive wedges).
   const currentSlices: Slice[] = [
-    ...holdings.map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i), shares: h.shares })),
+    ...holdingsForPie(holdings).map((h, i) => ({ label: h.symbol, value: h.value, color: tickerColor(i), shares: h.shares })),
     ...(actualCash > 0 ? [{ label: 'CASH', value: actualCash, color: '#10b981' }] : []),
     ...(combinedOther > 0 ? [{ label: 'OTHER', value: combinedOther, color: 'var(--text-5)' }] : []),
   ]
