@@ -5,16 +5,30 @@ const FLEX_PROXY = 'https://options-jade.vercel.app'
 
 // ─── XML Upload ───────────────────────────────────────────────────────────────
 
-export async function syncFromXML(file: File): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; cashBalances: Record<string, number>; netLiquidation?: number; fromDate?: string; toDate?: string }> {
+export async function syncFromXML(file: File): Promise<FlexSnapshot> {
   const text = await file.text()
   const doc = new DOMParser().parseFromString(text, 'application/xml')
   const { positions, trades } = filterToPrimaryAccount(parsePositions(doc), allTrades(doc))
-  return { positions, trades, cashBalance: parseCash(doc), cashBalances: parseCashByCurrency(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
+  return { positions, trades, cashBalance: parseCash(doc), cashBalances: parseCashByCurrency(doc), netLiquidation: parseNetLiq(doc), equityHistory: parseEquityHistory(doc, primaryAccountId(positions, trades)), ...parseReportWindow(doc) }
 }
 
 // ─── Flex API ─────────────────────────────────────────────────────────────────
 
-export async function syncFromFlexAPI(token: string, queryId: string): Promise<{ positions: RawPosition[]; trades: RawTrade[]; cashBalance: number; cashBalances: Record<string, number>; netLiquidation?: number; fromDate?: string; toDate?: string }> {
+export interface FlexSnapshot {
+  positions: RawPosition[]
+  trades: RawTrade[]
+  cashBalance: number
+  cashBalances: Record<string, number>
+  netLiquidation?: number
+  /** One net-liquidation reading per report date, when the Flex query
+   * included Equity Summary. Kept in full so the Milestone page can plot
+   * the account's real value over time instead of only the latest row. */
+  equityHistory?: { date: string; netLiquidation: number }[]
+  fromDate?: string
+  toDate?: string
+}
+
+export async function syncFromFlexAPI(token: string, queryId: string): Promise<FlexSnapshot> {
   if (!token || !queryId) throw new Error('Token and Query ID are required')
 
   const url = `${FLEX_PROXY}/api/flex-sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
@@ -33,7 +47,7 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<{
   const xml = text
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
   const { positions, trades } = filterToPrimaryAccount(parsePositions(doc), allTrades(doc))
-  return { positions, trades, cashBalance: parseCash(doc), cashBalances: parseCashByCurrency(doc), netLiquidation: parseNetLiq(doc), ...parseReportWindow(doc) }
+  return { positions, trades, cashBalance: parseCash(doc), cashBalances: parseCashByCurrency(doc), netLiquidation: parseNetLiq(doc), equityHistory: parseEquityHistory(doc, primaryAccountId(positions, trades)), ...parseReportWindow(doc) }
 }
 
 // ─── Ping ─────────────────────────────────────────────────────────────────────
@@ -186,6 +200,40 @@ function latestByReportDate(rows: Element[]): Element | undefined {
   if (withDates.length === 0) return rows[rows.length - 1]
   return withDates.reduce((latest, el) =>
     (el.getAttribute('reportDate')! > latest.getAttribute('reportDate')!) ? el : latest)
+}
+
+function isoReportDate(raw: string): string | null {
+  if (/^\d{8}$/.test(raw)) return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10)
+  return null
+}
+
+function primaryAccountId(positions: RawPosition[], trades: RawTrade[]): string | undefined {
+  return positions.find(p => p.accountId)?.accountId ?? trades.find(t => t.accountId)?.accountId
+}
+
+/** Every Equity Summary row, not just the latest. ByReportDate overwrites
+ * a same-day EquitySummaryInBase figure when both are present. Rows for a
+ * different linked account are dropped once the sync has picked a primary. */
+function parseEquityHistory(doc: Document, accountId?: string): { date: string; netLiquidation: number }[] {
+  const byDate = new Map<string, number>()
+  const take = (selector: string) => {
+    for (const el of doc.querySelectorAll(selector)) {
+      const id = el.getAttribute('accountId') ?? ''
+      if (accountId && id && id !== accountId) continue
+      const date = isoReportDate(el.getAttribute('reportDate') ?? '')
+      const nl = el.getAttribute('netLiquidation')
+      if (!date || nl == null || nl === '') continue
+      const n = Number(nl)
+      if (!Number.isFinite(n)) continue
+      byDate.set(date, n)
+    }
+  }
+  take('EquitySummaryInBase')
+  take('EquitySummaryByReportDateInBase')
+  return [...byDate.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, netLiquidation]) => ({ date, netLiquidation }))
 }
 
 function parseNetLiq(doc: Document): number | undefined {

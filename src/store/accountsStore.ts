@@ -39,6 +39,9 @@ export interface Account {
    * syncs provide this (see cashBalance's own comment above). */
   cashBalances?: Record<string, number>
   netLiquidation?: number
+  /** Net liquidation on each Flex report date (YYYY-MM-DD), when the query
+   * included an equity summary series. Absent for CSV/PDF imports. */
+  equityHistory?: { date: string; netLiquidation: number }[]
 }
 
 interface SyncResult {
@@ -47,6 +50,7 @@ interface SyncResult {
   cashBalance?: number
   cashBalances?: Record<string, number>
   netLiquidation?: number
+  equityHistory?: { date: string; netLiquidation: number }[]
   /** The Flex report's own "YYYYMMDD" reporting window, when the source
    * provided one (XML/Flex sync only — CSV/XLSX/PDF imports don't). */
   fromDate?: string
@@ -221,7 +225,7 @@ export function useAccounts(sessionKey: string | null) {
   const clearTrades = useCallback((id: string) => {
     setAccounts(prev => {
       const next = prev.map(a => a.id === id
-        ? { ...a, trades: [], positions: undefined, cashBalance: undefined, cashBalances: undefined, netLiquidation: undefined, fileName: undefined, uploadedAt: undefined }
+        ? { ...a, trades: [], positions: undefined, cashBalance: undefined, cashBalances: undefined, netLiquidation: undefined, equityHistory: undefined, fileName: undefined, uploadedAt: undefined }
         : a)
       persist(next)
       return next
@@ -253,6 +257,7 @@ export function useAccounts(sessionKey: string | null) {
               cashBalance: result.cashBalance ?? a.cashBalance,
               cashBalances: result.cashBalances ?? a.cashBalances,
               netLiquidation: result.netLiquidation ?? a.netLiquidation,
+              equityHistory: result.equityHistory?.length ? result.equityHistory : a.equityHistory,
               fileName: file.name,
               uploadedAt: Date.now(),
             }
@@ -285,6 +290,7 @@ export function useAccounts(sessionKey: string | null) {
               cashBalance: result.cashBalance ?? a.cashBalance,
               cashBalances: result.cashBalances ?? a.cashBalances,
               netLiquidation: result.netLiquidation ?? a.netLiquidation,
+              equityHistory: result.equityHistory?.length ? result.equityHistory : a.equityHistory,
               flexToken: token, flexQueryId: queryId, fileName: 'IBKR Flex sync', uploadedAt: Date.now(),
             }
           : a)
