@@ -32,6 +32,7 @@ function opt(partial: {
   positionValue: number
   unrealizedPnL?: number
   markPrice?: number
+  multiplier?: number
   strike?: number
   expiry?: string
 }): RawPosition {
@@ -44,6 +45,7 @@ function opt(partial: {
     costBasisPrice: 0,
     costBasisMoney: 0,
     markPrice: partial.markPrice ?? 0,
+    multiplier: partial.multiplier,
     positionValue: partial.positionValue,
     unrealizedPnL: partial.unrealizedPnL ?? 0,
     putCall: partial.putCall,
@@ -434,6 +436,63 @@ check('BIDU row shows +$25 and 2 contracts', liveBidu.includes('$25') && /(?:^|\
 check('UMAC row still shows $1.7K and 10 contracts', liveUmac.includes('$1.7K') && /(?:^|\s)10(?:\s|$)/.test(liveUmac), liveUmac)
 check('OTHER row is the naked -$2.1K only', liveOther.includes('-$2.1K') && !liveOther.includes('$303') && !liveOther.includes('$25'), liveOther)
 check('no 9988 or 9888 row', liveRow('9988') === '' && liveRow('9888') === '')
+
+// Production IBKR Business, October 2026. Journal used to print
+// Math.abs(signed mark), so BABA's −$303.42 showed as $303.42. Allocation
+// Current $ is the signed positionValue, and Journal Market Value now
+// prints that same signed number. Cost basis +$983.58 and unrealised
+// −$1,287.00 only reconcile if the mark is −$303.42. BIDU is −$25.82.
+// UMAC's signed mark is already +$1,729.90. OTHER stays the signed marks
+// of the two books that are not synthetics.
+const liveSigns: RawPosition[] = [
+  opt({
+    symbol: 'BABA  281215C00110000', underlying: 'BABA', putCall: 'C', quantity: 2,
+    positionValue: 4000, markPrice: 20, multiplier: 100, strike: 110, expiry: '20281215',
+  }),
+  opt({
+    symbol: 'BABA  281215P00120000', underlying: 'BABA', putCall: 'P', quantity: -2,
+    positionValue: -4303.42, markPrice: 21.5171, multiplier: 100, strike: 120, expiry: '20281215',
+  }),
+  opt({
+    symbol: 'BIDU  270115C00090000', underlying: 'BIDU', putCall: 'C', quantity: 2,
+    positionValue: 1000, markPrice: 5, multiplier: 100, strike: 90, expiry: '20270115',
+  }),
+  opt({
+    symbol: 'BIDU  270115P00090000', underlying: 'BIDU', putCall: 'P', quantity: -2,
+    positionValue: -1025.82, markPrice: 5.1291, multiplier: 100, strike: 90, expiry: '20270115',
+  }),
+  opt({
+    symbol: 'UMAC  281215C00020000', underlying: 'UMAC', putCall: 'C', quantity: 10,
+    positionValue: 5000, markPrice: 5, multiplier: 100, strike: 20, expiry: '20281215',
+  }),
+  opt({
+    symbol: 'UMAC  281215P00022500', underlying: 'UMAC', putCall: 'P', quantity: -10,
+    positionValue: -3270.10, markPrice: 3.2701, multiplier: 100, strike: 22.5, expiry: '20281215',
+  }),
+  // The two books that are not synthetics on this account. SPX bull put
+  // spread ≈ −$1,670.30, SPCX short put ≈ −$51.00. Together −$1,721.30,
+  // which the table rounds to −$1.7K. That is the whole of OTHER.
+  opt({ symbol: 'SPX   261016P07700000', underlying: 'SPX', putCall: 'P', quantity: -2, positionValue: -8000, strike: 7700, expiry: '20261016' }),
+  opt({ symbol: 'SPX   261016P07675000', underlying: 'SPX', putCall: 'P', quantity: 2, positionValue: 6329.70, strike: 7675, expiry: '20261016' }),
+  opt({ symbol: 'SPCX  261016P00135000', underlying: 'SPCX', putCall: 'P', quantity: -2, positionValue: -51, strike: 135, expiry: '20261016' }),
+]
+const signedMark = (legs: RawPosition[]) => legs.reduce((s, p) => s + p.markPrice * p.quantity * (p.multiplier ?? 100), 0)
+const babaLegs = liveSigns.filter(p => (p.underlyingSymbol ?? '').startsWith('BABA'))
+const biduLegs = liveSigns.filter(p => (p.underlyingSymbol ?? '').startsWith('BIDU'))
+const umacLegs = liveSigns.filter(p => (p.underlyingSymbol ?? '').startsWith('UMAC'))
+check('BABA signed mark is -303.42', Math.abs(signedMark(babaLegs) - (-303.42)) < 0.02, String(signedMark(babaLegs)))
+check('BIDU signed mark is -25.82', Math.abs(signedMark(biduLegs) - (-25.82)) < 0.02, String(signedMark(biduLegs)))
+check('UMAC signed mark is +1729.90', Math.abs(signedMark(umacLegs) - 1729.90) < 0.02, String(signedMark(umacLegs)))
+const signedBook = holdingsFromPositions(liveSigns)
+check('BABA Current $ is -303.42', Math.abs((holding(liveSigns, 'BABA')?.value ?? 0) - (-303.42)) < 0.02)
+check('BIDU Current $ is -25.82', Math.abs((holding(liveSigns, 'BIDU')?.value ?? 0) - (-25.82)) < 0.02)
+check('UMAC Current $ is +1729.90', Math.abs((holding(liveSigns, 'UMAC')?.value ?? 0) - 1729.90) < 0.02)
+check('BABA and BIDU each show 2 synthetic contracts', holding(liveSigns, 'BABA')?.syntheticContracts === 2 && holding(liveSigns, 'BIDU')?.syntheticContracts === 2)
+check('OTHER is the SPX spread plus the SPCX put', Math.abs(signedBook.nakedOptionsValue - (-1670.30 - 51)) < 0.02, String(signedBook.nakedOptionsValue))
+check('OTHER rounds to -$1.7K', fmt$(signedBook.nakedOptionsValue) === '-$1.7K', fmt$(signedBook.nakedOptionsValue))
+const liveSignedSum = liveSigns.reduce((s, p) => s + p.positionValue, 0)
+const liveDisplayed = signedBook.holdings.reduce((s, h) => s + h.value, 0) + signedBook.nakedOptionsValue
+check('signed book still sums to the position marks', Math.abs(liveDisplayed - liveSignedSum) < 0.02, `${liveDisplayed} vs ${liveSignedSum}`)
 
 if (failed > 0) {
   console.error(`\n${failed} failed`)

@@ -183,63 +183,86 @@ function EntryEditor({ pos, entry, updateEntry, setups, addSetup }: {
   )
 }
 
+/** Expanded breakdowns are extra rows of the parent table (15 cells, same
+ * padding and column widths), not a nested table. A nested table sized
+ * shrink-to-fit pulled the whole strategy table narrower than the other
+ * sections in Safari, and its own columns never reached P&L. */
+type JournalDetail =
+  | { kind: 'rows'; node: React.ReactNode }
+  | { kind: 'panel'; node: React.ReactNode }
+
+function noHistory(): JournalDetail {
+  return { kind: 'panel', node: <div className="jr-detail-empty">No trade history found for this position.</div> }
+}
+
+/** Columns 9–15 stay empty so the breakdown row still occupies Market Price
+ * through P&L and the row is as wide as the position row above it. */
+function DetailTail() {
+  return (
+    <>
+      <td />
+      <td />
+      <td />
+      <td />
+      <td className="jr-col-dte" />
+      <td />
+      <td />
+    </>
+  )
+}
+
 /** Shown in place of the setup/mistakes/notes editor when a SHARES row is
  * expanded — a ticker's aggregate row hides exactly which trades built up
  * the position, so instead of freeform notes this lists every buy/sell
  * (including option assignments, which land in the Flex report as ordinary
- * STK trades with zero commission) that contributed to it, oldest first. */
-function SharesTradesTable({ pos, tradesByKey }: { pos: JournalPosition; tradesByKey: Map<string, RawTrade> }) {
+ * STK trades with zero commission) that contributed to it, oldest first.
+ * Date sits under Open, Action under Closed (dropped with Hide closed, with
+ * the side inlined under Ticker), Qty/Price/Fees/Total under Position, Avg
+ * Price, Cost Basis and Breakeven. */
+function SharesTradesTable({ pos, tradesByKey }: { pos: JournalPosition; tradesByKey: Map<string, RawTrade> }): JournalDetail {
   const rows = pos.tradeIds
     .map(id => tradesByKey.get(id))
     .filter((t): t is RawTrade => t != null)
     .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate))
 
-  if (rows.length === 0) {
-    return <div style={{ padding: '14px 16px', color: 'var(--text-4)', fontSize: 12 }}>No trade history found for this position.</div>
-  }
+  if (rows.length === 0) return noHistory()
 
-  return (
-    <table className="mono jr-leg-table">
-      <colgroup>
-        <col className="jr-leg-c1" />
-        <col className="jr-leg-c2 jr-col-closed" />
-        <col className="jr-leg-c3" />
-        <col className="jr-leg-c4" />
-        <col className="jr-leg-c5" />
-        <col className="jr-leg-c6" />
-      </colgroup>
-      <thead>
-        <tr>
-          <th className="jr-leg-c1">Date</th>
-          <th className="jr-leg-c2 jr-col-closed">Action</th>
-          <th className="jr-leg-c3 jr-leg-num">Qty</th>
-          <th className="jr-leg-c4 jr-leg-num">Price</th>
-          <th className="jr-leg-c5 jr-leg-num">Fees</th>
-          <th className="jr-leg-c6 jr-leg-num">Total</th>
+  return {
+    kind: 'rows',
+    node: (
+      <>
+        <tr className="jr-detail-row jr-detail-head">
+          <td>Date</td>
+          <td className="jr-col-closed">Action</td>
+          <td colSpan={2} />
+          <td className="jr-leg-num">Qty</td>
+          <td className="jr-leg-num">Price</td>
+          <td className="jr-leg-num">Fees</td>
+          <td className="jr-leg-num">Total</td>
+          <DetailTail />
         </tr>
-      </thead>
-      <tbody>
         {rows.map((t, i) => {
           const assigned = Math.abs(t.commissions ?? 0) < 0.005
           const action = `${t.quantity > 0 ? 'Buy' : 'Sell'}${assigned ? ' (assigned)' : ''}`
           const actionColor = t.quantity > 0 ? '#10b981' : '#ef4444'
           return (
-            <tr key={`${t.tradeDate}|${i}`}>
-              <td className="jr-leg-c1" style={{ color: 'var(--text-3)' }}>{fmtDate(t.tradeDate)}</td>
-              <td className="jr-leg-c2 jr-col-closed" style={{ color: actionColor, fontWeight: 600 }}>{action}</td>
-              <td className="jr-leg-c3 jr-leg-num">
+            <tr key={`${t.tradeDate}|${i}`} className="jr-detail-row mono">
+              <td style={{ color: 'var(--text-3)' }}>{fmtDate(t.tradeDate)}</td>
+              <td className="jr-col-closed" style={{ color: actionColor, fontWeight: 600 }}>{action}</td>
+              <td colSpan={2}>
                 <span className="jr-leg-action-inline" style={{ color: actionColor }}>{action}</span>
-                {Math.abs(t.quantity)}
               </td>
-              <td className="jr-leg-c4 jr-leg-num">{fmt$(t.tradePrice, 2)}</td>
-              <td className="jr-leg-c5 jr-leg-num" style={{ color: 'var(--text-4)' }}>{fmt$(Math.abs(t.commissions ?? 0), 2)}</td>
-              <td className="jr-leg-c6 jr-leg-num" style={{ color: 'var(--text-2)' }}>{fmt$(Math.abs(t.quantity) * t.tradePrice, 2)}</td>
+              <td className="jr-leg-num">{Math.abs(t.quantity)}</td>
+              <td className="jr-leg-num">{fmt$(t.tradePrice, 2)}</td>
+              <td className="jr-leg-num" style={{ color: 'var(--text-4)' }}>{fmt$(Math.abs(t.commissions ?? 0), 2)}</td>
+              <td className="jr-leg-num" style={{ color: 'var(--text-2)' }}>{fmt$(Math.abs(t.quantity) * t.tradePrice, 2)}</td>
+              <DetailTail />
             </tr>
           )
         })}
-      </tbody>
-    </table>
-  )
+      </>
+    ),
+  }
 }
 
 /** Shown in place of the setup/mistakes/notes editor when a multi-leg spread
@@ -247,62 +270,53 @@ function SharesTradesTable({ pos, tradesByKey }: { pos: JournalPosition; tradesB
  * row only shows the combined strikes/premium, hiding which individual
  * option leg trades (and, for a leap combo scaled into over multiple fills,
  * which specific fills) built it up. Lists every leg trade that contributed,
- * oldest first, same spirit as SharesTradesTable above. */
-function OptionLegsTable({ pos, tradesByKey }: { pos: JournalPosition; tradesByKey: Map<string, RawTrade> }) {
+ * oldest first, same column slots as SharesTradesTable. The leg name spans
+ * Ticker + Stock Price (a strike/expiry doesn't fit the ticker column). */
+function OptionLegsTable({ pos, tradesByKey }: { pos: JournalPosition; tradesByKey: Map<string, RawTrade> }): JournalDetail {
   const rows = pos.tradeIds
     .map(id => tradesByKey.get(id))
     .filter((t): t is RawTrade => t != null && t.assetClass === 'OPT')
     .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || (a.strike ?? 0) - (b.strike ?? 0))
 
-  if (rows.length === 0) {
-    return <div style={{ padding: '14px 16px', color: 'var(--text-4)', fontSize: 12 }}>No trade history found for this position.</div>
-  }
+  if (rows.length === 0) return noHistory()
 
-  return (
-    <table className="mono jr-leg-table">
-      <colgroup>
-        <col className="jr-leg-c1" />
-        <col className="jr-leg-c2 jr-col-closed" />
-        <col className="jr-leg-c3" />
-        <col className="jr-leg-c4" />
-        <col className="jr-leg-c5" />
-        <col className="jr-leg-c6" />
-        <col className="jr-leg-c7" />
-      </colgroup>
-      <thead>
-        <tr>
-          <th className="jr-leg-c1">Date</th>
-          <th className="jr-leg-c2 jr-col-closed">Action</th>
-          <th className="jr-leg-c3">Leg</th>
-          <th className="jr-leg-c4 jr-leg-num">Qty</th>
-          <th className="jr-leg-c5 jr-leg-num">Price</th>
-          <th className="jr-leg-c6 jr-leg-num">Fees</th>
-          <th className="jr-leg-c7 jr-leg-num">Total</th>
+  return {
+    kind: 'rows',
+    node: (
+      <>
+        <tr className="jr-detail-row jr-detail-head">
+          <td>Date</td>
+          <td className="jr-col-closed">Action</td>
+          <td colSpan={2}>Leg</td>
+          <td className="jr-leg-num">Qty</td>
+          <td className="jr-leg-num">Price</td>
+          <td className="jr-leg-num">Fees</td>
+          <td className="jr-leg-num">Total</td>
+          <DetailTail />
         </tr>
-      </thead>
-      <tbody>
         {rows.map((t, i) => {
           const action = t.quantity > 0 ? 'Buy' : 'Sell'
           const actionColor = t.quantity > 0 ? '#10b981' : '#ef4444'
           const leg = `${t.strike ?? ''}${t.putCall ?? ''} ${fmtDate(t.expiry ?? '')}`.trim()
           return (
-            <tr key={`${t.tradeDate}|${i}`}>
-              <td className="jr-leg-c1" style={{ color: 'var(--text-3)' }}>{fmtDate(t.tradeDate)}</td>
-              <td className="jr-leg-c2 jr-col-closed" style={{ color: actionColor, fontWeight: 600 }}>{action}</td>
-              <td className="jr-leg-c3" style={{ color: 'var(--text-2)' }}>
+            <tr key={`${t.tradeDate}|${i}`} className="jr-detail-row mono">
+              <td style={{ color: 'var(--text-3)' }}>{fmtDate(t.tradeDate)}</td>
+              <td className="jr-col-closed" style={{ color: actionColor, fontWeight: 600 }}>{action}</td>
+              <td colSpan={2} style={{ color: 'var(--text-2)' }}>
                 <span className="jr-leg-action-inline" style={{ color: actionColor }}>{action}</span>
                 {leg}
               </td>
-              <td className="jr-leg-c4 jr-leg-num">{Math.abs(t.quantity)}</td>
-              <td className="jr-leg-c5 jr-leg-num">{fmt$(t.tradePrice, 2)}</td>
-              <td className="jr-leg-c6 jr-leg-num" style={{ color: 'var(--text-4)' }}>{fmt$(Math.abs(t.commissions ?? 0), 2)}</td>
-              <td className="jr-leg-c7 jr-leg-num" style={{ color: 'var(--text-2)' }}>{fmt$(Math.abs(t.quantity) * t.tradePrice * 100, 2)}</td>
+              <td className="jr-leg-num">{Math.abs(t.quantity)}</td>
+              <td className="jr-leg-num">{fmt$(t.tradePrice, 2)}</td>
+              <td className="jr-leg-num" style={{ color: 'var(--text-4)' }}>{fmt$(Math.abs(t.commissions ?? 0), 2)}</td>
+              <td className="jr-leg-num" style={{ color: 'var(--text-2)' }}>{fmt$(Math.abs(t.quantity) * t.tradePrice * 100, 2)}</td>
+              <DetailTail />
             </tr>
           )
         })}
-      </tbody>
-    </table>
-  )
+      </>
+    ),
+  }
 }
 
 /** Collapses every SHARES lot (buy/sell FIFO-matched pairs plus any still-open
@@ -427,10 +441,10 @@ function aggregateActiveOptionLots(positions: JournalPosition[]): JournalPositio
  * get their individual leg trades; everything else keeps the freeform
  * setup/mistakes/notes editor. */
 function pickEditor(p: JournalPosition, e: JournalEntry, tradesByKey: Map<string, RawTrade>,
-  updateEntry: (id: string, patch: Partial<JournalEntry>) => void, setups: string[], addSetup: (s: string) => void) {
-  if (p.strikeDisplay === 'SHARES') return <SharesTradesTable pos={p} tradesByKey={tradesByKey} />
-  if (p.strikes.length > 1) return <OptionLegsTable pos={p} tradesByKey={tradesByKey} />
-  return <EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} />
+  updateEntry: (id: string, patch: Partial<JournalEntry>) => void, setups: string[], addSetup: (s: string) => void): JournalDetail {
+  if (p.strikeDisplay === 'SHARES') return SharesTradesTable({ pos: p, tradesByKey })
+  if (p.strikes.length > 1) return OptionLegsTable({ pos: p, tradesByKey })
+  return { kind: 'panel', node: <EntryEditor pos={p} entry={e} updateEntry={updateEntry} setups={setups} addSetup={addSetup} /> }
 }
 
 const STRAT_GROUP_ORDER = [
@@ -984,7 +998,7 @@ function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, open, cols, 
   pos: JournalPosition; livePositions: RawPosition[]; strikeUsage: Map<string, number>
   underlyingPrice: number | null
   entry: JournalEntry; open: boolean; cols: number
-  onToggle: () => void; editor: React.ReactNode
+  onToggle: () => void; editor: JournalDetail
 }) {
   const daysLeft = dte(p.expiry)
   const urgent = p.status === 'Active' && daysLeft != null && daysLeft <= 7
@@ -1098,7 +1112,8 @@ function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, open, cols, 
           {marketPrice != null ? fmt$(marketPrice, 2) : '—'}
         </td>
         <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
-          {ownMarketValue != null ? fmt$(Math.abs(ownMarketValue), 2) : '—'}
+          {/* Signed mark, same number as Allocation Current $. Abs hid a negative synthetic. */}
+          {ownMarketValue != null ? fmt$(ownMarketValue, 2) : '—'}
         </td>
         <td className={`mono ${unrealized != null ? pnlCls(unrealized) : ''}`} style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
           {unrealized != null ? fmt$(unrealized, 2) : '—'}
@@ -1116,10 +1131,11 @@ function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, open, cols, 
           {p.pnl != null ? fmt$(p.pnl, 2) : '—'}
         </td>
       </tr>
-      {open && (
+      {open && editor.kind === 'rows' && editor.node}
+      {open && editor.kind === 'panel' && (
         <tr>
           <td colSpan={cols} className="jr-detail-cell" style={{ background: 'rgba(16,185,129,0.03)' }}>
-            {editor}
+            {editor.node}
           </td>
         </tr>
       )}

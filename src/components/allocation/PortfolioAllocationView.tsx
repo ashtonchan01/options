@@ -208,7 +208,14 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
 
   const holdings = [...byUnderlying.entries()]
     .map(([symbol, e]) => ({
-      symbol, shares: e.shares, avgCost: e.avgCost, value: e.stockValue + e.optionsValue, optionsValue: e.optionsValue,
+      symbol,
+      shares: e.shares,
+      avgCost: e.avgCost,
+      // Signed IBKR positionValue. A short-put-heavy synthetic is a negative
+      // mark; taking abs would paint a loser green and push the column above
+      // net liquidation. Journal Market Value prints this same signed number.
+      value: e.stockValue + e.optionsValue,
+      optionsValue: e.optionsValue,
       syntheticContracts: syntheticContractsFor(symbol),
     }))
     .sort((a, b) => b.value - a.value)
