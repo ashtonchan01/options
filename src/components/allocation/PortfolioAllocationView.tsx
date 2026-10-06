@@ -207,22 +207,17 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
     Math.min(longCallQtyByUnderlying.get(under) ?? 0, shortPutQtyByUnderlying.get(under) ?? 0)
 
   const holdings = [...byUnderlying.entries()]
-    .map(([symbol, e]) => {
-      const syntheticContracts = syntheticContractsFor(symbol)
-      // Signed mark of the legs. For a pure synthetic this is the same
-      // number Journal builds as markPrice × quantity × multiplier (IBKR's
-      // positionValue is that product). Journal's Market Value column then
-      // prints Math.abs of it — a short-put-heavy BABA/BIDU combo is a
-      // negative signed mark and would show red here and green there.
-      // Current $ uses that absolute market value. A synthetic sitting on
-      // top of shares keeps the signed mark, so a short option still reduces
-      // the stock row.
-      const signed = e.stockValue + e.optionsValue
-      const asMarketValue = e.shares === 0 && syntheticContracts > 0
-      const value = asMarketValue ? Math.abs(signed) : signed
-      const optionsValue = asMarketValue ? Math.abs(e.optionsValue) : e.optionsValue
-      return { symbol, shares: e.shares, avgCost: e.avgCost, value, optionsValue, syntheticContracts }
-    })
+    .map(([symbol, e]) => ({
+      symbol,
+      shares: e.shares,
+      avgCost: e.avgCost,
+      // Signed IBKR positionValue. A short-put-heavy synthetic is a negative
+      // mark; taking abs would paint a loser green and push the column above
+      // net liquidation. Journal Market Value prints this same signed number.
+      value: e.stockValue + e.optionsValue,
+      optionsValue: e.optionsValue,
+      syntheticContracts: syntheticContractsFor(symbol),
+    }))
     .sort((a, b) => b.value - a.value)
   return { holdings, nakedOptionsValue }
 }

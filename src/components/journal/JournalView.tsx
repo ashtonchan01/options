@@ -1112,7 +1112,8 @@ function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, open, cols, 
           {marketPrice != null ? fmt$(marketPrice, 2) : '—'}
         </td>
         <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
-          {ownMarketValue != null ? fmt$(Math.abs(ownMarketValue), 2) : '—'}
+          {/* Signed mark, same number as Allocation Current $. Abs hid a negative synthetic. */}
+          {ownMarketValue != null ? fmt$(ownMarketValue, 2) : '—'}
         </td>
         <td className={`mono ${unrealized != null ? pnlCls(unrealized) : ''}`} style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
           {unrealized != null ? fmt$(unrealized, 2) : '—'}
