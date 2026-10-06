@@ -810,6 +810,48 @@ body {
 .jr-strategy-cell table th:nth-child(14), .jr-strategy-cell table td:nth-child(14) { width: 80px; }  /* Fees */
 .jr-strategy-cell table th:nth-child(15), .jr-strategy-cell table td:nth-child(15) { width: 90px; }  /* P&L */
 
+/* Expanded leg/trade breakdown. It is a second <table> inside the colspan
+   cell, so the 15-column rules above would otherwise size its handful of
+   columns as if they were Open/Closed/Ticker… and stretch it to the
+   table's min-width. These widths are the parent columns the detail sits
+   under (Open, Closed, Ticker+Stock Price, Position, …) so the labels
+   share the parent's x-positions and the same 8px 10px cell padding.
+   The table stays only as wide as those columns — it does not run out
+   to P&L. */
+.jr-strategy-cell table td.jr-detail-cell { width: auto; padding: 0 !important; }
+.jr-strategy-cell table.jr-leg-table {
+  table-layout: fixed;
+  width: auto;
+  min-width: 0;
+}
+.jr-strategy-cell table.jr-leg-table th,
+.jr-strategy-cell table.jr-leg-table td {
+  width: auto;
+  background: transparent;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  border-bottom: 1px solid var(--border);
+}
+.jr-strategy-cell table.jr-leg-table th {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-4);
+  text-align: left;
+}
+.jr-strategy-cell table.jr-leg-table .jr-leg-c1 { width: 90px; }                 /* Open */
+.jr-strategy-cell table.jr-leg-table .jr-leg-c2 { width: 90px; }                 /* Closed */
+.jr-strategy-cell table.jr-leg-table .jr-leg-c3 { width: 160px; }                /* Ticker + Stock Price */
+.jr-strategy-cell table.jr-leg-table .jr-leg-c4 { width: 150px; }                /* Position */
+.jr-strategy-cell table.jr-leg-table .jr-leg-c5 { width: 90px; }                 /* Avg Price */
+.jr-strategy-cell table.jr-leg-table .jr-leg-c6 { width: 110px; }                /* Cost Basis */
+.jr-strategy-cell table.jr-leg-table .jr-leg-c7 { width: 100px; }                /* Breakeven */
+.jr-strategy-cell table.jr-leg-table .jr-leg-num { text-align: right; }
+.jr-leg-action-inline { display: none; font-weight: 600; margin-right: 8px; }
+.jr-hide-closed-col .jr-leg-action-inline { display: inline; }
+
 .cc-section-title {
   font-size: 10px;
   font-weight: 700;

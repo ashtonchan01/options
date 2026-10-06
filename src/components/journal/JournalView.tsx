@@ -199,36 +199,46 @@ function SharesTradesTable({ pos, tradesByKey }: { pos: JournalPosition; tradesB
   }
 
   return (
-    <div style={{ padding: '10px 16px' }}>
-      <table className="mono" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ color: 'var(--text-4)', textAlign: 'left' }}>
-            <th style={{ fontWeight: 500, padding: '3px 8px 3px 0' }}>Date</th>
-            <th style={{ fontWeight: 500, padding: '3px 8px' }}>Action</th>
-            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Qty</th>
-            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Price</th>
-            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Fees</th>
-            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((t, i) => {
-            const assigned = Math.abs(t.commissions ?? 0) < 0.005
-            const action = `${t.quantity > 0 ? 'Buy' : 'Sell'}${assigned ? ' (assigned)' : ''}`
-            return (
-              <tr key={`${t.tradeDate}|${i}`} style={{ borderTop: '1px solid var(--border)' }}>
-                <td style={{ padding: '4px 8px 4px 0', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtDate(t.tradeDate)}</td>
-                <td style={{ padding: '4px 8px', color: t.quantity > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>{action}</td>
-                <td style={{ padding: '4px 8px', textAlign: 'right' }}>{Math.abs(t.quantity)}</td>
-                <td style={{ padding: '4px 8px', textAlign: 'right' }}>{fmt$(t.tradePrice, 2)}</td>
-                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-4)' }}>{fmt$(Math.abs(t.commissions ?? 0), 2)}</td>
-                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-2)' }}>{fmt$(Math.abs(t.quantity) * t.tradePrice, 2)}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+    <table className="mono jr-leg-table">
+      <colgroup>
+        <col className="jr-leg-c1" />
+        <col className="jr-leg-c2 jr-col-closed" />
+        <col className="jr-leg-c3" />
+        <col className="jr-leg-c4" />
+        <col className="jr-leg-c5" />
+        <col className="jr-leg-c6" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th className="jr-leg-c1">Date</th>
+          <th className="jr-leg-c2 jr-col-closed">Action</th>
+          <th className="jr-leg-c3 jr-leg-num">Qty</th>
+          <th className="jr-leg-c4 jr-leg-num">Price</th>
+          <th className="jr-leg-c5 jr-leg-num">Fees</th>
+          <th className="jr-leg-c6 jr-leg-num">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((t, i) => {
+          const assigned = Math.abs(t.commissions ?? 0) < 0.005
+          const action = `${t.quantity > 0 ? 'Buy' : 'Sell'}${assigned ? ' (assigned)' : ''}`
+          const actionColor = t.quantity > 0 ? '#10b981' : '#ef4444'
+          return (
+            <tr key={`${t.tradeDate}|${i}`}>
+              <td className="jr-leg-c1" style={{ color: 'var(--text-3)' }}>{fmtDate(t.tradeDate)}</td>
+              <td className="jr-leg-c2 jr-col-closed" style={{ color: actionColor, fontWeight: 600 }}>{action}</td>
+              <td className="jr-leg-c3 jr-leg-num">
+                <span className="jr-leg-action-inline" style={{ color: actionColor }}>{action}</span>
+                {Math.abs(t.quantity)}
+              </td>
+              <td className="jr-leg-c4 jr-leg-num">{fmt$(t.tradePrice, 2)}</td>
+              <td className="jr-leg-c5 jr-leg-num" style={{ color: 'var(--text-4)' }}>{fmt$(Math.abs(t.commissions ?? 0), 2)}</td>
+              <td className="jr-leg-c6 jr-leg-num" style={{ color: 'var(--text-2)' }}>{fmt$(Math.abs(t.quantity) * t.tradePrice, 2)}</td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }
 
@@ -249,38 +259,49 @@ function OptionLegsTable({ pos, tradesByKey }: { pos: JournalPosition; tradesByK
   }
 
   return (
-    <div style={{ padding: '10px 16px' }}>
-      <table className="mono" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ color: 'var(--text-4)', textAlign: 'left' }}>
-            <th style={{ fontWeight: 500, padding: '3px 8px 3px 0' }}>Date</th>
-            <th style={{ fontWeight: 500, padding: '3px 8px' }}>Action</th>
-            <th style={{ fontWeight: 500, padding: '3px 8px' }}>Leg</th>
-            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Qty</th>
-            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Price</th>
-            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Fees</th>
-            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((t, i) => {
-            const action = t.quantity > 0 ? 'Buy' : 'Sell'
-            const leg = `${t.strike ?? ''}${t.putCall ?? ''} ${fmtDate(t.expiry ?? '')}`.trim()
-            return (
-              <tr key={`${t.tradeDate}|${i}`} style={{ borderTop: '1px solid var(--border)' }}>
-                <td style={{ padding: '4px 8px 4px 0', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{fmtDate(t.tradeDate)}</td>
-                <td style={{ padding: '4px 8px', color: t.quantity > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>{action}</td>
-                <td style={{ padding: '4px 8px', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{leg}</td>
-                <td style={{ padding: '4px 8px', textAlign: 'right' }}>{Math.abs(t.quantity)}</td>
-                <td style={{ padding: '4px 8px', textAlign: 'right' }}>{fmt$(t.tradePrice, 2)}</td>
-                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-4)' }}>{fmt$(Math.abs(t.commissions ?? 0), 2)}</td>
-                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-2)' }}>{fmt$(Math.abs(t.quantity) * t.tradePrice * 100, 2)}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+    <table className="mono jr-leg-table">
+      <colgroup>
+        <col className="jr-leg-c1" />
+        <col className="jr-leg-c2 jr-col-closed" />
+        <col className="jr-leg-c3" />
+        <col className="jr-leg-c4" />
+        <col className="jr-leg-c5" />
+        <col className="jr-leg-c6" />
+        <col className="jr-leg-c7" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th className="jr-leg-c1">Date</th>
+          <th className="jr-leg-c2 jr-col-closed">Action</th>
+          <th className="jr-leg-c3">Leg</th>
+          <th className="jr-leg-c4 jr-leg-num">Qty</th>
+          <th className="jr-leg-c5 jr-leg-num">Price</th>
+          <th className="jr-leg-c6 jr-leg-num">Fees</th>
+          <th className="jr-leg-c7 jr-leg-num">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((t, i) => {
+          const action = t.quantity > 0 ? 'Buy' : 'Sell'
+          const actionColor = t.quantity > 0 ? '#10b981' : '#ef4444'
+          const leg = `${t.strike ?? ''}${t.putCall ?? ''} ${fmtDate(t.expiry ?? '')}`.trim()
+          return (
+            <tr key={`${t.tradeDate}|${i}`}>
+              <td className="jr-leg-c1" style={{ color: 'var(--text-3)' }}>{fmtDate(t.tradeDate)}</td>
+              <td className="jr-leg-c2 jr-col-closed" style={{ color: actionColor, fontWeight: 600 }}>{action}</td>
+              <td className="jr-leg-c3" style={{ color: 'var(--text-2)' }}>
+                <span className="jr-leg-action-inline" style={{ color: actionColor }}>{action}</span>
+                {leg}
+              </td>
+              <td className="jr-leg-c4 jr-leg-num">{Math.abs(t.quantity)}</td>
+              <td className="jr-leg-c5 jr-leg-num">{fmt$(t.tradePrice, 2)}</td>
+              <td className="jr-leg-c6 jr-leg-num" style={{ color: 'var(--text-4)' }}>{fmt$(Math.abs(t.commissions ?? 0), 2)}</td>
+              <td className="jr-leg-c7 jr-leg-num" style={{ color: 'var(--text-2)' }}>{fmt$(Math.abs(t.quantity) * t.tradePrice * 100, 2)}</td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }
 
@@ -1097,7 +1118,7 @@ function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, open, cols, 
       </tr>
       {open && (
         <tr>
-          <td colSpan={cols} style={{ padding: 0, background: 'rgba(16,185,129,0.03)' }}>
+          <td colSpan={cols} className="jr-detail-cell" style={{ background: 'rgba(16,185,129,0.03)' }}>
             {editor}
           </td>
         </tr>
