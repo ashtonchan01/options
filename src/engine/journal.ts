@@ -1,8 +1,10 @@
 /**
  * Journal engine — Edgewonk-style analytics over Flex-synced option trades.
  * Reuses the open/close position-matching semantics from StrategyTradeLog:
- * groups trades by (tradeDate, expiry, underlying); groups with sell legs open
- * a position, later buy-only groups on the same expiry+underlying close it.
+ * groups trades by (tradeDate, tradeTime, expiry, underlying); groups with
+ * sell legs open a position, and later — or same-day — buybacks on the same
+ * expiry+underlying close it, including a partial buyback that leaves a
+ * smaller open lot.
  */
 import type { RawPosition, RawTrade } from '../types'
 import type { TradeLabel } from '../store/tradeLabelsStore'
@@ -111,6 +113,22 @@ function autoClassify(underlying: string, openLegs: RawTrade[]): TradeLabel | 'p
 
 const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0)
 
+/** Soonest expiry still ahead of `today`, or the most recent one if every
+ * date has already passed. YYYYMMDD sorts chronologically, so a multi-expiry
+ * combo (a synthetic whose call and put don't share a date) shows the
+ * nearest date rather than whichever leg happened to be read first. */
+export function nearestExpiry(expiries: string[], today: Date = TODAY): string {
+  const norm = [...new Set(expiries.map(e => (e ?? '').replace(/-/g, '')).filter(e => /^\d{8}$/.test(e)))]
+  if (norm.length === 0) return ''
+  const y = today.getFullYear()
+  const m = String(today.getMonth() + 1).padStart(2, '0')
+  const d = String(today.getDate()).padStart(2, '0')
+  const todayStr = `${y}${m}${d}`
+  const upcoming = norm.filter(e => e >= todayStr).sort()
+  if (upcoming.length > 0) return upcoming[0]
+  return norm.sort()[norm.length - 1]
+}
+
 /** Two unrelated verticals sharing the same short strike, opened the same day
  * (e.g. adding 10 more lots to an existing 7525P/7520P spread, then separately
  * opening a fresh 2-lot 7525P/7500P spread minutes later) land in the same
@@ -184,8 +202,9 @@ export function buildJournalPositions(
     groups.get(key)!.push(t)
   }
 
-  const openGroups:  Array<{ key: string; date: string; expiry: string; underlying: string; legs: RawTrade[] }> = []
-  const closeGroups: Array<{ date: string; expiry: string; underlying: string; legs: RawTrade[] }> = []
+  const openGroups:  Array<{ key: string; date: string; time: string; expiry: string; underlying: string; legs: RawTrade[] }> = []
+  const closeGroups: Array<{ date: string; time: string; expiry: string; underlying: string; legs: RawTrade[] }> = []
+  const legKeyOf = (l: RawTrade) => `${l.strike}${l.putCall}`
 
   for (const [key, legs] of groups) {
     // Closing a spread means buying back the short leg AND selling to close the
@@ -202,31 +221,134 @@ export function buildJournalPositions(
     // real account where an MSTR CC roll and an AVGO CSP roll both left the
     // original leg open. Splitting the marked-close legs out into their own
     // closeGroup entry (regardless of whether the rest of the group opens
-    // something new) lets that leg do its job of closing the earlier position,
-    // while og.legs below still carries the full leg set unchanged so its own
-    // openLegs/settlementLegs filtering (by openClose) works exactly as before.
-    const [date, , expiry, underlying] = key.split('|')
+    // something new) lets that leg do its job of closing the earlier position.
+    //
+    // A buyback of THIS group's own strikes (sell 50, buy 30 back, same order
+    // or same second) is the opposite case: it belongs to the position being
+    // opened here, not to an older one. Those legs stay on the open group.
+    // A buyback that doesn't cover every leg of the open (only the short leg
+    // of a spread, with the long leg filled as its own order) goes to the
+    // shared close pool instead, so the two fills can meet.
+    const [date, time, expiry, underlying] = key.split('|')
     const closeLegs = legs.filter(l => l.openClose === 'C')
     const otherLegs = legs.filter(l => l.openClose !== 'C')
-    if (closeLegs.length > 0) closeGroups.push({ date, expiry, underlying, legs: closeLegs })
-    if (otherLegs.length > 0) {
-      const hasSell = otherLegs.some(l => l.quantity < 0)
-      const hasBuy  = otherLegs.some(l => l.quantity > 0)
-      if (hasSell) {
-        const clusters = splitByLongStrike(otherLegs)
-        // closeLegs (this same group's own same-day settlement legs, if any)
-        // aren't part of the split — reattach to the first cluster only, same
-        // og.legs shape downstream code already expects; which cluster
-        // carries them doesn't matter since each position's own
-        // openContracts/settlementLegs match is derived by strike, not by
-        // which array slot they happen to sit in.
-        if (clusters.length > 0) clusters[0].push(...closeLegs)
-        clusters.forEach((clusterLegs, i) => {
-          const clusterKey = clusters.length > 1 ? `${key}#s${i}` : key
-          openGroups.push({ key: clusterKey, date, expiry, underlying, legs: clusterLegs })
-        })
-      }
-      else if (hasBuy) closeGroups.push({ date, expiry, underlying, legs: otherLegs })
+    const hasSell = otherLegs.some(l => l.quantity < 0)
+    if (hasSell) {
+      const shortKeys = new Set(otherLegs.filter(l => l.quantity < 0).map(legKeyOf))
+      // Same-strike buys that were not flagged closing are still buybacks.
+      // Pull them out before the long-strike split so they aren't mistaken
+      // for the long leg of a vertical.
+      const unmarkedBuybacks = otherLegs.filter(l => l.quantity > 0 && shortKeys.has(legKeyOf(l)))
+      const openingLegs = otherLegs.filter(l => !(l.quantity > 0 && shortKeys.has(legKeyOf(l))))
+      const openKeys = new Set(openingLegs.map(legKeyOf))
+      const reserved = [
+        ...closeLegs.filter(l => openKeys.has(legKeyOf(l))),
+        ...unmarkedBuybacks,
+      ]
+      const sharedCloses = closeLegs.filter(l => !openKeys.has(legKeyOf(l)))
+      const reservedCoversOpen = openKeys.size > 0 && [...openKeys].every(k => reserved.some(l => legKeyOf(l) === k))
+      if (sharedCloses.length > 0) closeGroups.push({ date, time, expiry, underlying, legs: sharedCloses })
+      if (reserved.length > 0 && !reservedCoversOpen) closeGroups.push({ date, time, expiry, underlying, legs: reserved })
+
+      const clusters = splitByLongStrike(openingLegs)
+      if (reservedCoversOpen && clusters.length > 0) clusters[0].push(...reserved)
+      clusters.forEach((clusterLegs, i) => {
+        const clusterKey = clusters.length > 1 ? `${key}#s${i}` : key
+        openGroups.push({ key: clusterKey, date, time, expiry, underlying, legs: clusterLegs })
+      })
+    } else {
+      if (closeLegs.length > 0) closeGroups.push({ date, time, expiry, underlying, legs: closeLegs })
+      // A buy with no sell in the group is normally a close (SPX often marks
+      // every fill 'O', so the buy/sell heuristic is the fallback). The
+      // exception is an explicit opening long call: a synthetic whose call
+      // and put expire on different dates never shares a grouping key with
+      // the short put, and used to be filed as a close — the call vanished
+      // and only the put remained. Park those here and pair them below.
+      // Anything that doesn't find its put goes back to the close pool, so
+      // a lone buy-to-close marked 'O' still closes the short call.
+      const openingLongCalls = otherLegs.length > 0 && otherLegs.every(l => l.openClose === 'O' && l.putCall === 'C' && l.quantity > 0)
+      if (openingLongCalls) openGroups.push({ key, date, time, expiry, underlying, legs: otherLegs })
+      else if (otherLegs.some(l => l.quantity > 0)) closeGroups.push({ date, time, expiry, underlying, legs: otherLegs })
+    }
+  }
+
+  openGroups.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || a.key.localeCompare(b.key))
+
+  // A synthetic long opened as one order can carry a call and a put on
+  // different expiries. Those legs never shared a grouping key, so they
+  // used to show up as two rows (or the call was swallowed as a close).
+  // Pair a same-timestamp short put with a same-timestamp long call (equal
+  // size, nothing else in either group) into one position; the expiry
+  // column then shows the nearest of the two.
+  {
+    const wingOf = (legs: RawTrade[]): 'short-put' | 'long-call' | 'other' => {
+      const opens = legs.filter(l => l.openClose !== 'C')
+      const shortKeys = new Set(opens.filter(l => l.quantity < 0).map(legKeyOf))
+      const kept = opens.filter(l => !(l.quantity > 0 && shortKeys.has(legKeyOf(l))))
+      if (kept.length === 0 || new Set(kept.map(l => l.putCall)).size !== 1) return 'other'
+      if (kept.every(l => l.putCall === 'P' && l.quantity < 0)) return 'short-put'
+      if (kept.every(l => l.putCall === 'C' && l.quantity > 0)) return 'long-call'
+      return 'other'
+    }
+    const qtyOf = (legs: RawTrade[]) => {
+      const opens = legs.filter(l => l.openClose !== 'C')
+      const shortKeys = new Set(opens.filter(l => l.quantity < 0).map(legKeyOf))
+      return opens.filter(l => !(l.quantity > 0 && shortKeys.has(legKeyOf(l)))).reduce((s, l) => s + Math.abs(l.quantity), 0)
+    }
+    const buckets = new Map<string, number[]>()
+    openGroups.forEach((og, i) => {
+      const k = `${og.date}|${og.time}|${og.underlying}`
+      const list = buckets.get(k) ?? []
+      list.push(i)
+      buckets.set(k, list)
+    })
+    const drop = new Set<number>()
+    const extras: typeof openGroups = []
+    for (const idxs of buckets.values()) {
+      if (idxs.length !== 2) continue
+      const [a, b] = [openGroups[idxs[0]], openGroups[idxs[1]]]
+      const put = wingOf(a.legs) === 'short-put' ? a : wingOf(b.legs) === 'short-put' ? b : null
+      const call = wingOf(a.legs) === 'long-call' ? a : wingOf(b.legs) === 'long-call' ? b : null
+      if (!put || !call || put.expiry === call.expiry) continue
+      if (qtyOf(put.legs) !== qtyOf(call.legs)) continue
+      // A buy of a call that matches a short call already open is a
+      // buy-to-close (even when IBKR marked it 'O'), not the long wing of
+      // a new synthetic. Leave it for the close pool.
+      const callKeys = new Set(call.legs.map(legKeyOf))
+      const closesExistingShort = openGroups.some(og =>
+        og !== call && og.underlying === call.underlying && og.expiry === call.expiry
+        && (og.date < call.date || (og.date === call.date && og.time < call.time))
+        && og.legs.some(l => l.quantity < 0 && l.putCall === 'C' && callKeys.has(legKeyOf(l))),
+      )
+      if (closesExistingShort) continue
+      drop.add(idxs[0]); drop.add(idxs[1])
+      extras.push({
+        key: `${put.date}|${put.time}|${put.underlying}|synth`,
+        date: put.date,
+        time: put.time,
+        expiry: nearestExpiry([put.expiry, call.expiry]),
+        underlying: put.underlying,
+        legs: [...put.legs, ...call.legs],
+      })
+    }
+    if (drop.size > 0) {
+      for (const i of [...drop].sort((a, b) => b - a)) openGroups.splice(i, 1)
+      openGroups.push(...extras)
+      openGroups.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || a.key.localeCompare(b.key))
+    }
+  }
+
+  // Long calls that never found a matching short put are buy-to-closes
+  // (or a lone debit call this matcher has always treated as a close).
+  {
+    const stranded: number[] = []
+    openGroups.forEach((og, i) => {
+      if (og.legs.length > 0 && og.legs.every(l => l.openClose === 'O' && l.putCall === 'C' && l.quantity > 0)) stranded.push(i)
+    })
+    for (const i of [...stranded].sort((a, b) => b - a)) {
+      const og = openGroups[i]
+      closeGroups.push({ date: og.date, time: og.time, expiry: og.expiry, underlying: og.underlying, legs: og.legs })
+      openGroups.splice(i, 1)
     }
   }
 
@@ -248,15 +370,17 @@ export function buildJournalPositions(
   // AVGO 425P sold for $1,085 credit and bought back for a $5,642 debit
   // (net ~$4,558 loss) was showing as "Expired" with the full $1,085 credit
   // counted as profit until this fix.
-  const mergedCloseGroups = new Map<string, { date: string; expiry: string; underlying: string; legs: RawTrade[] }>()
+  const mergedCloseGroups = new Map<string, { date: string; expiry: string; underlying: string; maxTime: string; legs: RawTrade[] }>()
   for (const cg of closeGroups) {
     const k = `${cg.date}|${cg.expiry}|${cg.underlying}`
-    if (!mergedCloseGroups.has(k)) mergedCloseGroups.set(k, { date: cg.date, expiry: cg.expiry, underlying: cg.underlying, legs: [] })
-    mergedCloseGroups.get(k)!.legs.push(...cg.legs)
+    const cur = mergedCloseGroups.get(k)
+    if (!cur) mergedCloseGroups.set(k, { date: cg.date, expiry: cg.expiry, underlying: cg.underlying, maxTime: cg.time, legs: [...cg.legs] })
+    else {
+      cur.legs.push(...cg.legs)
+      if (cg.time > cur.maxTime) cur.maxTime = cg.time
+    }
   }
   const closeGroupsMerged = [...mergedCloseGroups.values()]
-
-  openGroups.sort((a, b) => a.date.localeCompare(b.date) || a.key.localeCompare(b.key))
 
   // Position ids feed the JournalEntry review store (ratings/mistakes/setup
   // tags, keyed by id) and must stay stable across syncs. The base id below
@@ -285,40 +409,77 @@ export function buildJournalPositions(
   // 1:1 let only the earlier position claim that transaction, leaving the
   // second stuck "Active" forever with nothing left to match against. Instead,
   // each close group tracks remaining per-leg quantity (keyed by strike+
-  // putCall) that open positions draw down as they're matched, FIFO by close
+  // putCall) that open positions draw down as they're matched, FIFO by open
   // date, so one closing transaction can satisfy however many open positions
-  // it actually covers.
-  const legKeyOf = (l: RawTrade) => `${l.strike}${l.putCall}`
-  const closePools = closeGroupsMerged.map(cg => {
+  // it actually covers — including a partial buyback, which used to be
+  // ignored unless the close was big enough to flatten the whole position.
+  interface LegPool {
+    date: string
+    maxTime: string
+    expiry: string
+    underlying: string
+    remaining: Map<string, number>
+    netCashPerUnit: Map<string, number>
+    feesPerUnit: Map<string, number>
+    legs: RawTrade[]
+  }
+  function toPool(date: string, maxTime: string, expiry: string, underlying: string, legs: RawTrade[]): LegPool {
     const remaining = new Map<string, number>()
     const netCashPerUnit = new Map<string, number>()
     const feesPerUnit = new Map<string, number>()
     const byLeg = new Map<string, RawTrade[]>()
-    for (const l of cg.legs) {
+    for (const l of legs) {
       const k = legKeyOf(l)
       if (!byLeg.has(k)) byLeg.set(k, [])
       byLeg.get(k)!.push(l)
     }
-    for (const [k, legs] of byLeg) {
-      const qty = legs.reduce((s, l) => s + Math.abs(l.quantity), 0)
+    for (const [k, ls] of byLeg) {
+      const qty = ls.reduce((s, l) => s + Math.abs(l.quantity), 0)
       remaining.set(k, qty)
-      netCashPerUnit.set(k, qty > 0 ? legs.reduce((s, l) => s + legNetCash(l), 0) / qty : 0)
-      feesPerUnit.set(k, qty > 0 ? legs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0) / qty : 0)
+      netCashPerUnit.set(k, qty > 0 ? ls.reduce((s, l) => s + legNetCash(l), 0) / qty : 0)
+      feesPerUnit.set(k, qty > 0 ? ls.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0) / qty : 0)
     }
-    return { cg, remaining, netCashPerUnit, feesPerUnit }
-  })
+    return { date, maxTime, expiry, underlying, remaining, netCashPerUnit, feesPerUnit, legs }
+  }
+  const closePools = closeGroupsMerged.map(cg => toPool(cg.date, cg.maxTime, cg.expiry, cg.underlying, cg.legs))
 
-  return openGroups.map(og => {
-    const expDate = parseExpiry(og.expiry)
-    const openLegs = og.legs.filter(l => l.openClose !== 'C')
-    // Same-day (0DTE) settlement legs for THIS position's own contracts only —
-    // a 'C'-marked leg sharing this group's date/expiry/underlying can still be
-    // closing a completely different strike (e.g. buying back an unrelated
-    // older covered call the same day a fresh CSP opens on the same expiry
-    // coincidentally); matching strike+putCall against the actual opening legs
-    // keeps that unrelated close out of this position's P&L.
-    const openContracts = new Set(openLegs.map(l => `${l.strike}${l.putCall}`))
-    const settlementLegs = og.legs.filter(l => l.openClose === 'C' && openContracts.has(`${l.strike}${l.putCall}`))
+  // A same-day buy-to-close is a later execution, so it does not share the
+  // opening group's tradeTime and never used to become a settlement leg.
+  // The matcher also required the close date to be strictly after the open
+  // date, so that fill was dropped and the row kept every opening sell.
+  // Same-day closes are eligible when they print at or after the open (or
+  // when either side has no timestamp). A close that prints earlier the
+  // same day belongs to an older lot, which FIFO already consumed.
+  function poolEligible(openDate: string, openTime: string, pool: LegPool): boolean {
+    if (pool.date > openDate) return true
+    if (pool.date < openDate) return false
+    if (!pool.maxTime || !openTime) return true
+    return pool.maxTime >= openTime
+  }
+  function take(pool: LegPool, keys: string[], qty: number): { qty: number; closeNetCash: number; closeFees: number; legIds: string[] } | null {
+    if (qty <= 1e-9 || keys.length === 0) return null
+    let closable = qty
+    for (const k of keys) closable = Math.min(closable, pool.remaining.get(k) ?? 0)
+    if (closable <= 1e-9) return null
+    let closeNetCash = 0
+    let closeFees = 0
+    for (const k of keys) {
+      pool.remaining.set(k, (pool.remaining.get(k) ?? 0) - closable)
+      closeNetCash += (pool.netCashPerUnit.get(k) ?? 0) * closable
+      closeFees += (pool.feesPerUnit.get(k) ?? 0) * closable
+    }
+    const keySet = new Set(keys)
+    const legIds = pool.legs.filter(l => keySet.has(legKeyOf(l))).map(tradeId)
+    return { qty: closable, closeNetCash, closeFees, legIds }
+  }
+
+  return openGroups.flatMap(og => {
+    const markedClose = og.legs.filter(l => l.openClose === 'C')
+    const rawOpen = og.legs.filter(l => l.openClose !== 'C')
+    const sellKeys = new Set(rawOpen.filter(l => l.quantity < 0).map(legKeyOf))
+    const unmarkedBuybacks = rawOpen.filter(l => l.quantity > 0 && sellKeys.has(legKeyOf(l)))
+    const openLegs = rawOpen.filter(l => !(l.quantity > 0 && sellKeys.has(legKeyOf(l))))
+    const reservedLegs = [...markedClose, ...unmarkedBuybacks]
     const sells = openLegs.filter(l => l.quantity < 0)
 
     // A single order can fill across several separate trade records at the
@@ -326,7 +487,8 @@ export function buildJournalPositions(
     // own quantity undercounts to whatever that one execution happened to be
     // (verified: a real 3-lot order, each execution -1, read as 1 contract
     // instead of 3). Sum every execution sharing the anchor leg's strike+
-    // putCall instead.
+    // putCall instead. Same-strike buybacks are not part of openLegs, so
+    // they don't inflate this back up to the original sale.
     const contracts = sells.length > 0
       ? openLegs.filter(l => legKeyOf(l) === legKeyOf(sells[0])).reduce((s, l) => s + Math.abs(l.quantity), 0)
       : 1
@@ -341,116 +503,167 @@ export function buildJournalPositions(
     // the same day a fresh CSP is sold) shares this group's date/expiry/
     // underlying but isn't part of THIS position; its strike has no business
     // showing up here, only in whatever position it's actually closing out.
-    const legKey = (l: RawTrade) => `${l.strike}${l.putCall}`
-    const uniqueLegs = [...new Map(openLegs.filter(l => l.strike != null && l.putCall).map(l => [legKey(l), l])).values()]
+    const uniqueLegs = [...new Map(openLegs.filter(l => l.strike != null && l.putCall).map(l => [legKeyOf(l), l])).values()]
       .sort((a, b) => (b.strike ?? 0) - (a.strike ?? 0))
     const strikeDisplay = uniqueLegs.length > 0
       ? uniqueLegs.map(l => `${l.strike! % 1 === 0 ? l.strike!.toFixed(0) : l.strike!.toFixed(2)}${l.putCall}`).join('/')
       : '—'
     const strikes = uniqueLegs.map(l => l.strike!)
     const putCall = sells[0]?.putCall ?? openLegs[0]?.putCall ?? ''
+    const legExpiries = [...new Set(openLegs.map(l => l.expiry).filter((e): e is string => !!e))]
+    const expiry = nearestExpiry(legExpiries.length > 0 ? legExpiries : [og.expiry])
+    const expDate = parseExpiry(expiry)
 
-    // Built from openLegs + this position's own settlementLegs only, not all
-    // of og.legs — og.legs can carry a same-day close leg reattached from an
-    // entirely different position (e.g. buying back an old CSP the same
-    // moment a new covered call opens on the same underlying/expiry, both
-    // sharing this group's key). Blindly including it here put that old
-    // buyback's trade id into the NEW position's tradeIds, which then let the
-    // new position's strategy label bleed onto the old close (verified: a CSP
-    // closed the same instant a covered call was opened on the same
-    // underlying/expiry showed that CSP's buyback trade classified as the
-    // covered call in the Calendar's strategy filter).
-    const tradeIds = [...openLegs, ...settlementLegs].map(tradeId)
-    const strategy = tradeIds.map(id => labels[id]).find(Boolean) ?? autoClassify(og.underlying, openLegs)
+    // Opening trades carry the strategy label. Close fills are added onto
+    // the position that actually consumed them so the Calendar can attribute
+    // the buyback without letting it pick the strategy.
+    const openTradeIds = openLegs.map(tradeId)
+    const strategy = openTradeIds.map(id => labels[id]).find(Boolean) ?? autoClassify(og.underlying, openLegs)
 
     const base = {
       id: idFor.get(og.key)!,
       underlying: og.underlying,
       contracts, strikeDisplay, strikes, putCall,
-      expiry: og.expiry,
+      expiry,
       dateOpen: og.date,
       initialDTE: expDate ? daysBetween(og.date, expDate) : 0,
       openFees,
       netPremium: openingNetCash,
       strategy,
-      tradeIds,
+      tradeIds: openTradeIds,
     }
 
-    // Earliest-available closing transaction (by date) that still has enough
-    // remaining quantity on every one of this position's own leg strikes.
-    const pool = closePools
-      .filter(p => p.cg.expiry === og.expiry && p.cg.underlying === og.underlying && p.cg.date > og.date)
-      .sort((a, b) => a.cg.date.localeCompare(b.cg.date))
-      .find(p => openLegs.every(l => (p.remaining.get(legKeyOf(l)) ?? 0) >= contracts))
+    const keys = [...new Set(openLegs.map(legKeyOf))]
+    const slices: Array<{ qty: number; date: string; closeNetCash: number; closeFees: number; legIds: string[] }> = []
+    const reservedPool = toPool(og.date, og.time, og.expiry, og.underlying, reservedLegs)
+    const reservedTake = take(reservedPool, keys, contracts)
+    if (reservedTake) slices.push({ ...reservedTake, date: og.date })
+    let left = contracts - (reservedTake?.qty ?? 0)
 
-    if (pool) {
-      let closeFees = 0
-      let closeNetCash = 0
-      // openLegs can hold several partial-fill rows at the same strike/putCall
-      // (e.g. a 3-lot order filled as three separate -1 executions) — walking
-      // every row here would charge this position's close cost once per row
-      // instead of once per distinct leg, tripling it. Consume the pool once
-      // per unique leg key instead, by this position's own `contracts` size.
-      const uniqueKeys = new Set(openLegs.map(legKeyOf))
-      for (const k of uniqueKeys) {
-        pool.remaining.set(k, (pool.remaining.get(k) ?? 0) - contracts)
-        closeNetCash += (pool.netCashPerUnit.get(k) ?? 0) * contracts
-        closeFees    += (pool.feesPerUnit.get(k) ?? 0) * contracts
+    // Each leg is closed out of the pool for its own expiry, so a
+    // multi-expiry synthetic can buy back the put and sell the call on
+    // the same day even though those fills no longer share one pool.
+    // Same-expiry positions still require every leg to be present that
+    // day — a pool that only has one side of a spread closes nothing.
+    const legExpiry = new Map(openLegs.map(l => [legKeyOf(l), l.expiry || og.expiry]))
+    const pools = closePools.filter(p => p.underlying === og.underlying && poolEligible(og.date, og.time, p) && [...legExpiry.values()].includes(p.expiry))
+    const dates = [...new Set(pools.map(p => p.date))].sort()
+    for (const date of dates) {
+      if (left <= 1e-9) break
+      const day = pools.filter(p => p.date === date)
+      let closable = left
+      for (const k of keys) {
+        const avail = day.filter(p => p.expiry === legExpiry.get(k)).reduce((s, p) => s + (p.remaining.get(k) ?? 0), 0)
+        closable = Math.min(closable, avail)
       }
-      const cg = pool.cg
-      // The closing trade(s) themselves never had a tradeId in `base.tradeIds`
-      // (that's built from this position's own opening/settlement legs only) —
-      // add them here, filtered to this position's own strikes since one
-      // closeGroup's legs can be shared across several open positions via the
-      // pool's per-strike remaining-quantity bookkeeping above. Without this,
-      // a closing buy-to-close trade had no strategy of its own anywhere and
-      // silently fell back to "unlabelled" in anything keyed off tradeIds
-      // (e.g. the Calendar's per-trade strategy filter).
-      const closeLegIds = cg.legs.filter(l => uniqueKeys.has(legKeyOf(l))).map(tradeId)
-      return {
+      if (closable <= 1e-9) continue
+      let closeNetCash = 0
+      let closeFees = 0
+      const legIds: string[] = []
+      for (const k of keys) {
+        let need = closable
+        for (const pool of day.filter(p => p.expiry === legExpiry.get(k))) {
+          if (need <= 1e-9) break
+          const got = take(pool, [k], need)
+          if (!got) continue
+          need -= got.qty
+          closeNetCash += got.closeNetCash
+          closeFees += got.closeFees
+          legIds.push(...got.legIds)
+        }
+      }
+      slices.push({ qty: closable, date, closeNetCash, closeFees, legIds })
+      left -= closable
+    }
+
+    const closedQty = slices.reduce((s, sl) => s + sl.qty, 0)
+    const openQty = contracts - closedQty
+    if (slices.length > 0 && openQty <= 1e-6) {
+      const closeNetCash = slices.reduce((s, sl) => s + sl.closeNetCash, 0)
+      const closeFees = slices.reduce((s, sl) => s + sl.closeFees, 0)
+      const dateClosed = slices[slices.length - 1].date
+      const closeIds = [...new Set(slices.flatMap(sl => sl.legIds))]
+      return [{
         ...base,
         status: 'Closed' as const,
-        dateClosed: cg.date,
+        dateClosed,
         closeFees,
         pnl: openingNetCash + closeNetCash,
-        holdDays: Math.max(0, daysBetween(og.date, cg.date)),
-        tradeIds: [...tradeIds, ...closeLegIds],
-      }
+        holdDays: Math.max(0, daysBetween(og.date, dateClosed)),
+        tradeIds: [...openTradeIds, ...closeIds],
+      }]
     }
 
-    // Same-day close: the closing leg(s) were marked 'C' but share this group's
-    // exact open date, so they never formed a separate closeGroup for the
-    // findIndex search above (that search requires cg.date > og.date, strictly
-    // later) — this was previously only handled for genuine 0DTE *expiration*
-    // (below), leaving any position manually opened and closed within the same
-    // calendar day stuck "Active" forever even though it isn't 0DTE at all.
-    if (settlementLegs.length > 0) {
-      const settlementNetCash = settlementLegs.reduce((s, l) => s + legNetCash(l), 0)
-      const settlementFees    = settlementLegs.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0)
-      return {
+    const out: JournalPosition[] = []
+    slices.forEach((sl, i) => {
+      const frac = contracts > 0 ? sl.qty / contracts : 0
+      out.push({
         ...base,
+        id: `${base.id}#c${i + 1}`,
+        contracts: sl.qty,
+        openFees: openFees * frac,
+        netPremium: openingNetCash * frac,
         status: 'Closed' as const,
-        dateClosed: og.date,
-        closeFees: settlementFees,
-        pnl: openingNetCash + settlementNetCash,
-        holdDays: 0,
-      }
-    }
+        dateClosed: sl.date,
+        closeFees: sl.closeFees,
+        pnl: openingNetCash * frac + sl.closeNetCash,
+        holdDays: Math.max(0, daysBetween(og.date, sl.date)),
+        tradeIds: [...openTradeIds, ...sl.legIds],
+      })
+    })
 
+    const openFrac = contracts > 0 ? openQty / contracts : 1
     const expired = expDate ? expDate < TODAY : false
     if (expired) {
       const closeDate = expDate!.toISOString().slice(0, 10).replace(/-/g, '')
-      return {
+      out.push({
         ...base,
+        contracts: openQty,
+        openFees: openFees * openFrac,
+        netPremium: openingNetCash * openFrac,
         status: 'Expired' as const,
         dateClosed: closeDate,
-        pnl: openingNetCash,
+        pnl: openingNetCash * openFrac,
         holdDays: Math.max(0, daysBetween(og.date, expDate!)),
-      }
+      })
+    } else {
+      const closeIds = [...new Set(slices.flatMap(sl => sl.legIds))]
+      out.push({
+        ...base,
+        contracts: openQty,
+        openFees: openFees * openFrac,
+        netPremium: openingNetCash * openFrac,
+        status: 'Active' as const,
+        tradeIds: [...openTradeIds, ...closeIds],
+      })
     }
-
-    return { ...base, status: 'Active' as const }
+    return out
   })
+}
+
+/** While a position is still open, show the realised P&L of its partial
+ * closes on that open row (the same way a share lot's partial sells roll
+ * into the one SHARES row) and keep the closed slices out of the table.
+ * The slices themselves stay in `buildJournalPositions` so reports and the
+ * calendar, which read that list directly, still book the realised P&L. */
+export function foldPartialCloses(positions: JournalPosition[]): JournalPosition[] {
+  const kids = new Map<string, JournalPosition[]>()
+  for (const p of positions) {
+    const m = p.id.match(/^(.*)#c\d+$/)
+    if (!m) continue
+    const list = kids.get(m[1]) ?? []
+    list.push(p)
+    kids.set(m[1], list)
+  }
+  if (kids.size === 0) return positions
+  const hidden = new Set<string>()
+  const next = positions.map(p => {
+    const list = kids.get(p.id)
+    if (!list || p.status !== 'Active') return p
+    for (const k of list) hidden.add(k.id)
+    return { ...p, pnl: (p.pnl ?? 0) + list.reduce((s, k) => s + (k.pnl ?? 0), 0) }
+  })
+  return next.filter(p => !hidden.has(p.id))
 }
 
 /** Stock-leg P&L (assignment outcomes, manual buys/sells) — kept entirely

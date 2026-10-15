@@ -798,7 +798,7 @@ body {
 .jr-strategy-cell-scroll > table.trade-table {
   table-layout: fixed;
   width: 100%;
-  min-width: 1250px;
+  min-width: 1520px;
 }
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th,
 .jr-strategy-cell-scroll > table.trade-table > tbody > tr > td {
@@ -811,31 +811,33 @@ body {
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(2),
 .jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(2) { width: 90px; }  /* Closed */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(3),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(3) { width: 70px; }  /* Ticker */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(3) { width: 90px; }  /* Expiry */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(4),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(4) { width: 90px; }  /* Stock Price */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(4) { width: 70px; }  /* Ticker */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(5),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(5) { width: 150px; } /* Position */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(5) { width: 90px; }  /* Stock Price */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(6),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(6) { width: 90px; }  /* Avg Price */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(6) { width: 150px; } /* Position */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(7),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(7) { width: 110px; } /* Cost Basis */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(7) { width: 90px; }  /* Avg Price */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(8),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(8) { width: 100px; } /* Breakeven */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(8) { width: 110px; } /* Cost Basis */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(9),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(9) { width: 100px; } /* Market Price */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(9) { width: 100px; } /* Breakeven */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(10),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(10) { width: 100px; } /* Market Value */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(10) { width: 100px; } /* Market Price */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(11),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(11) { width: 110px; } /* Unrealised */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(11) { width: 100px; } /* Market Value */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(12),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(12) { width: 90px; }  /* % */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(12) { width: 110px; } /* Unrealised */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(13),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(13) { width: 70px; }  /* DTE */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(13) { width: 90px; }  /* % */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(14),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(14) { width: 80px; }  /* Fees */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(14) { width: 70px; }  /* DTE */
 .jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(15),
-.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(15) { width: 90px; }  /* P&L */
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(15) { width: 80px; }  /* Fees */
+.jr-strategy-cell-scroll > table.trade-table > thead > tr > th:nth-child(16),
+.jr-strategy-cell-scroll > table.trade-table > tbody > tr:not(.jr-detail-row) > td:nth-child(16) { width: 90px; }  /* P&L */
 .jr-strategy-cell-scroll > table.trade-table > tbody > tr > td.jr-detail-cell { padding: 0 !important; }
 .jr-strategy-cell-scroll > table.trade-table > tbody > tr.jr-detail-row > td {
   background: rgba(16,185,129,0.03);
@@ -1319,8 +1321,24 @@ body {
 /* Applied to a trade-table when the Journal's "Hide closed" filter is
    checked — the Closed column is meaningless once every visible row is,
    by definition, still open, so drop it rather than leaving a column of
-   blank "—" cells. Not scoped to mobile: desktop gets the same treatment. */
-.jr-hide-closed-col .jr-col-closed { display: none; }
+   blank "—" cells. Not scoped to mobile: desktop gets the same treatment.
+   Width 0, not display:none: a colspan notes row (single-leg CSP/CC) made
+   Chrome drop the hidden column and snap the rest back to their specified
+   widths, so that one section no longer lined up with the others. */
+.jr-hide-closed-col .jr-col-closed {
+  width: 0 !important;
+  max-width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  color: transparent !important;
+  overflow: hidden;
+}
+.jr-strategy-cell-scroll > table.trade-table.jr-hide-closed-col {
+  min-width: 1430px;
+}
 
 
 .jr-editor {
@@ -1527,7 +1545,7 @@ body {
      enough to tell a position is live) — restored since the actual open
      date is still useful at a glance, same truncate-not-hide treatment
      Closed already got rather than reserving a wide date column. */
-  .jr-col-open, .jr-col-closed { max-width: 46px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .jr-col-open, .jr-col-closed, .jr-col-expiry { max-width: 46px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 /* ─── Edgewonk shell — sidebar + main ─────────────────────────────────────── */
