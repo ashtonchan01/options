@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2, Pencil, Check, X } from 'lucide-react'
-import { type JournalPosition } from '../../engine/journal'
+import { foldPartialCloses, nearestExpiry, type JournalPosition } from '../../engine/journal'
 import { MISTAKES, type JournalEntry } from '../../store/journalStore'
 import { tradeId } from '../../store/tradeLabelsStore'
 import { fetchQuotes } from '../../services/quotes'
@@ -24,6 +24,16 @@ function fmt$(n: number, d = 0) {
 function fmtDate(s: string) {
   const d = new Date(s)
   return isNaN(d.getTime()) ? s : d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: '2-digit' })
+}
+
+/** Option expiry in the same YYYYMMDD form the Open column already shows
+ * (`new Date('20261007')` is invalid, so those dates pass through raw).
+ * Shares and anything without an expiry get an em dash. A combo whose legs
+ * don't share a date shows the nearest one. */
+function fmtExpiry(expiry: string | undefined, extras: string[] = []): string {
+  const dates = [expiry ?? '', ...extras].map(s => s.replace(/-/g, '')).filter(s => /^\d{8}$/.test(s))
+  if (dates.length === 0) return '—'
+  return nearestExpiry(dates)
 }
 
 function pnlCls(n: number) { return n > 0 ? 'pos' : n < 0 ? 'neg' : 'neu' }
@@ -195,7 +205,7 @@ function noHistory(): JournalDetail {
   return { kind: 'panel', node: <div className="jr-detail-empty">No trade history found for this position.</div> }
 }
 
-/** Columns 9–15 stay empty so the breakdown row still occupies Market Price
+/** Columns 10–16 stay empty so the breakdown row still occupies Market Price
  * through P&L and the row is as wide as the position row above it. */
 function DetailTail() {
   return (
@@ -234,6 +244,7 @@ function SharesTradesTable({ pos, tradesByKey }: { pos: JournalPosition; tradesB
         <tr className="jr-detail-row jr-detail-head">
           <td>Date</td>
           <td className="jr-col-closed">Action</td>
+          <td className="jr-col-expiry">Expiry</td>
           <td colSpan={2} />
           <td className="jr-leg-num">Qty</td>
           <td className="jr-leg-num">Price</td>
@@ -249,6 +260,7 @@ function SharesTradesTable({ pos, tradesByKey }: { pos: JournalPosition; tradesB
             <tr key={`${t.tradeDate}|${i}`} className="jr-detail-row mono">
               <td style={{ color: 'var(--text-3)' }}>{fmtDate(t.tradeDate)}</td>
               <td className="jr-col-closed" style={{ color: actionColor, fontWeight: 600 }}>{action}</td>
+              <td className="jr-col-expiry" style={{ color: 'var(--text-4)' }}>—</td>
               <td colSpan={2}>
                 <span className="jr-leg-action-inline" style={{ color: actionColor }}>{action}</span>
               </td>
@@ -287,6 +299,7 @@ function OptionLegsTable({ pos, tradesByKey }: { pos: JournalPosition; tradesByK
         <tr className="jr-detail-row jr-detail-head">
           <td>Date</td>
           <td className="jr-col-closed">Action</td>
+          <td className="jr-col-expiry">Expiry</td>
           <td colSpan={2}>Leg</td>
           <td className="jr-leg-num">Qty</td>
           <td className="jr-leg-num">Price</td>
@@ -302,6 +315,7 @@ function OptionLegsTable({ pos, tradesByKey }: { pos: JournalPosition; tradesByK
             <tr key={`${t.tradeDate}|${i}`} className="jr-detail-row mono">
               <td style={{ color: 'var(--text-3)' }}>{fmtDate(t.tradeDate)}</td>
               <td className="jr-col-closed" style={{ color: actionColor, fontWeight: 600 }}>{action}</td>
+              <td className="jr-col-expiry" style={{ color: 'var(--text-3)' }}>{fmtExpiry(t.expiry)}</td>
               <td colSpan={2} style={{ color: 'var(--text-2)' }}>
                 <span className="jr-leg-action-inline" style={{ color: actionColor }}>{action}</span>
                 {leg}
@@ -431,6 +445,8 @@ function aggregateActiveOptionLots(positions: JournalPosition[]): JournalPositio
       openFees: lots.reduce((s, l) => s + l.openFees, 0),
       netPremium: lots.reduce((s, l) => s + l.netPremium, 0),
       tradeIds: lots.flatMap(l => l.tradeIds),
+      pnl: lots.some(l => l.pnl != null) ? lots.reduce((s, l) => s + (l.pnl ?? 0), 0) : undefined,
+      expiry: nearestExpiry(lots.map(l => l.expiry)),
     })
   }
   return [...others, ...merged]
@@ -464,7 +480,7 @@ function stratGroupLabel(strategy?: string) {
  * TableHead (Name/Currency instead of Open/Ticker) since this section's
  * columns mean something different: a manual row's free-form Name and the
  * Currency its Market Value is actually denominated in, not a position's
- * open date/underlying. Same 15-column skeleton (and the same jr-col-open/
+ * open date/underlying. Same 16-column skeleton (and the same jr-col-open/
  * jr-col-closed/jr-col-dte classes) so it still lines up under the shared
  * .jr-strategy-cell fixed-width CSS — it just doesn't need to mean the same
  * thing column-for-column as the position tables above it. */
@@ -474,6 +490,7 @@ function CashTableHead() {
       <tr>
         <th className="jr-col-open">Name</th>
         <th className="jr-col-closed"></th>
+        <th className="jr-col-expiry">Expiry</th>
         <th>Currency</th>
         <th></th>
         <th></th>
@@ -492,7 +509,7 @@ function CashTableHead() {
   )
 }
 
-/** One row, laid out across the exact same 15 columns as TableHead/Row so a
+/** One row, laid out across the exact same 16 columns as TableHead/Row so a
  * currency's balance lands in the Market Value column and its code in the
  * Ticker column — every other column is blank rather than this needing its
  * own separate table (which, in the ungrouped view, has no fixed per-column
@@ -515,7 +532,8 @@ function CashRow({ label, value, total, onToggleAdd, addOpen }: { label: string;
         )}
       </td>
       <td className="jr-col-closed"></td>{/* 2 Closed */}
-      <td className="mono" style={{ fontWeight: total ? 800 : 700, color: total ? 'var(--text-1)' : undefined }}>{label}</td>{/* 3 Ticker */}
+      <td className="jr-col-expiry" style={{ color: 'var(--text-4)' }}>—</td>{/* 3 Expiry */}
+      <td className="mono" style={{ fontWeight: total ? 800 : 700, color: total ? 'var(--text-1)' : undefined }}>{label}</td>{/* 4 Ticker */}
       <td></td>{/* 4 Stock Price */}
       <td></td>{/* 5 Position */}
       <td></td>{/* 6 Avg Price */}
@@ -629,7 +647,8 @@ function ManualCashRow({ row, onUpdate, onRemove }: { row: ManualCashRow; onUpda
           : row.name}
       </td>
       <td className="jr-col-closed"></td>{/* 2 Closed */}
-      <td className="mono" style={{ fontWeight: 700 }}>{/* 3 Ticker -> Currency */}
+      <td className="jr-col-expiry" style={{ color: 'var(--text-4)' }}>—</td>{/* 3 Expiry */}
+      <td className="mono" style={{ fontWeight: 700 }}>{/* 4 Ticker -> Currency */}
         {editing
           ? <input value={currency} onChange={e => setCurrency(e.target.value)} placeholder="Currency" onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }} style={{ ...inputStyle, width: '100%' }} />
           : row.currency}
@@ -698,7 +717,8 @@ function AddCashRowForm({ onAdd }: { onAdd: (name: string, currency: string, val
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" onKeyDown={e => { if (e.key === 'Enter') submit() }} style={{ ...inputStyle, width: '100%' }} />
       </td>
       <td className="jr-col-closed"></td>{/* 2 Closed */}
-      <td>{/* 3 Ticker -> Currency */}
+      <td className="jr-col-expiry" style={{ color: 'var(--text-4)' }}>—</td>{/* 3 Expiry */}
+      <td>{/* 4 Ticker -> Currency */}
         <input value={currency} onChange={e => setCurrency(e.target.value)} placeholder="Currency" onKeyDown={e => { if (e.key === 'Enter') submit() }} style={{ ...inputStyle, width: '100%' }} />
       </td>
       <td></td>{/* 4 Stock Price */}
@@ -770,7 +790,10 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, acc
   const [groupByStrategy, setGroupByStrategy] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  const displayPositions = useMemo(() => aggregateActiveOptionLots(aggregateShares(positions, livePositions)), [positions, livePositions])
+  const displayPositions = useMemo(
+    () => aggregateActiveOptionLots(foldPartialCloses(aggregateShares(positions, livePositions))),
+    [positions, livePositions],
+  )
 
   // Underlying's live stock price, shown in its own column — fetched
   // regardless of whether shares of that ticker are actually held, since a
@@ -879,7 +902,7 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, acc
       .map(([key, groupRows]) => ({ label: stratGroupLabel(key), rows: groupRows }))
   }, [rows, groupByStrategy])
 
-  const COLS = 15
+  const COLS = 16
 
   return (
     <>
@@ -976,6 +999,7 @@ function TableHead() {
       <tr>
         <th className="jr-col-open">Open</th>
         <th className="jr-col-closed">Closed</th>
+        <th className="jr-col-expiry">Expiry</th>
         <th>Ticker</th>
         <th style={{ textAlign: 'right' }}>Stock Price</th>
         <th style={{ textAlign: 'right' }}>Position</th>
@@ -1091,6 +1115,9 @@ function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, open, cols, 
         </td>
         <td className="mono jr-col-closed" style={{ whiteSpace: 'nowrap', color: 'var(--text-3)' }}>
           {p.dateClosed ? fmtDate(p.dateClosed) : '—'}
+        </td>
+        <td className="mono jr-col-expiry" style={{ whiteSpace: 'nowrap', color: 'var(--text-3)' }}>
+          {p.strikeDisplay === 'SHARES' ? '—' : fmtExpiry(p.expiry)}
         </td>
         <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>{p.underlying}</td>
         <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
