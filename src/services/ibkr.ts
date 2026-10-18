@@ -1,4 +1,4 @@
-import type { RawPosition, RawTrade } from '../types'
+import type { ClosedLot, OpenLot, RawPosition, RawTrade } from '../types'
 
 // Vercel serverless function uses AWS IPs — not blocked by IBKR like Cloudflare
 const FLEX_PROXY = 'https://options-jade.vercel.app'
@@ -8,8 +8,7 @@ const FLEX_PROXY = 'https://options-jade.vercel.app'
 export async function syncFromXML(file: File): Promise<FlexSnapshot> {
   const text = await file.text()
   const doc = new DOMParser().parseFromString(text, 'application/xml')
-  const { positions, trades } = filterToPrimaryAccount(parsePositions(doc), allTrades(doc))
-  return { positions, trades, cashBalance: parseCash(doc), cashBalances: parseCashByCurrency(doc), netLiquidation: parseNetLiq(doc), equityHistory: parseEquityHistory(doc, primaryAccountId(positions, trades)), ...parseReportWindow(doc) }
+  return parseFlexDocument(doc)
 }
 
 // ─── Flex API ─────────────────────────────────────────────────────────────────
@@ -46,6 +45,13 @@ export async function syncFromFlexAPI(token: string, queryId: string): Promise<F
 
   const xml = text
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
+  return parseFlexDocument(doc)
+}
+
+/** Parse a Flex Query document. Exported so lot-matching can be tested
+ * without a browser DOMParser — pass any object that implements
+ * querySelector / querySelectorAll / getAttribute the same way. */
+export function parseFlexDocument(doc: Document): FlexSnapshot {
   const { positions, trades } = filterToPrimaryAccount(parsePositions(doc), allTrades(doc))
   return { positions, trades, cashBalance: parseCash(doc), cashBalances: parseCashByCurrency(doc), netLiquidation: parseNetLiq(doc), equityHistory: parseEquityHistory(doc, primaryAccountId(positions, trades)), ...parseReportWindow(doc) }
 }
@@ -76,11 +82,50 @@ function numAttr(el: Element, ...names: string[]): number {
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
 
+function positionKey(p: RawPosition): string {
+  return `${p.accountId}|${p.assetClass}|${p.symbol}|${p.strike ?? ''}|${p.expiry ?? ''}|${p.putCall ?? ''}`
+}
+
+function toOpenLot(p: RawPosition): OpenLot {
+  return {
+    quantity: p.quantity,
+    costBasisPrice: p.costBasisPrice,
+    costBasisMoney: p.costBasisMoney,
+    ...(p.openDate ? { openDate: p.openDate } : {}),
+    unrealizedPnL: p.unrealizedPnL,
+  }
+}
+
+/** Lot-only stock rows (no SUMMARY sibling) become one position whose
+ * quantity and basis are the sum, with each lot kept on `openLots`.
+ * Leaving them as separate rows made allocation's average cost the last
+ * lot's price and made the journal's "what's still open" check run once
+ * per lot against the whole ticker. */
+function collapseStockLots(lots: RawPosition[]): RawPosition {
+  const quantity = lots.reduce((s, l) => s + l.quantity, 0)
+  const costBasisMoney = lots.reduce((s, l) => s + l.costBasisMoney, 0)
+  const positionValue = lots.reduce((s, l) => s + l.positionValue, 0)
+  const unrealizedPnL = lots.reduce((s, l) => s + l.unrealizedPnL, 0)
+  const first = lots[0]
+  return {
+    ...first,
+    quantity,
+    costBasisMoney,
+    costBasisPrice: quantity !== 0 ? costBasisMoney / quantity : first.costBasisPrice,
+    positionValue,
+    unrealizedPnL,
+    levelOfDetail: 'SUMMARY',
+    openDate: undefined,
+    openLots: lots.map(toOpenLot),
+  }
+}
+
 function parsePositions(doc: Document): RawPosition[] {
-  let positions = Array.from(doc.querySelectorAll('OpenPosition')).map(el => {
+  let positions: RawPosition[] = Array.from(doc.querySelectorAll('OpenPosition')).map((el): RawPosition => {
     // IBKR Flex XML uses assetCategory in most reports, assetClass in some
     const ac = attr(el, 'assetCategory', 'assetClass') ?? ''
     const pc = attr(el, 'putCall')
+    const openDate = flexDate(attr(el, 'openDateTime', 'openDate', 'origTradeDate'))
     return {
       accountId:        el.getAttribute('accountId') ?? '',
       symbol:           el.getAttribute('symbol') ?? '',
@@ -99,6 +144,7 @@ function parsePositions(doc: Document): RawPosition[] {
       underlyingSymbol: attr(el, 'underlyingSymbol') ?? undefined,
       currency:         el.getAttribute('currency') ?? 'USD',
       levelOfDetail:    attr(el, 'levelOfDetail') ?? undefined,
+      ...(openDate ? { openDate } : {}),
     }
   })
 
@@ -109,14 +155,37 @@ function parsePositions(doc: Document): RawPosition[] {
   // costBasisMoney/positionValue/unrealizedPnL for any position with more
   // than one lot (verified: a real TSLA 320P CSP reported costBasisMoney
   // twice over, -$1,707.89 shown instead of IBKR's own -$854 SUMMARY row).
-  // When a key has a SUMMARY row, keep only that; a key with LOT rows and no
-  // SUMMARY (report configured for LOT only) is left alone since summing
-  // those actually-distinct lots is correct there.
+  // When a key has a SUMMARY row, keep only that and hang the LOT rows off
+  // it as openLots (share cost basis needs the individual lots; portfolio
+  // totals must keep using the summary). A key with LOT rows and no SUMMARY
+  // is collapsed for stocks so the lots stay available without being summed
+  // twice; option LOT-only rows are left as they were.
   const hasAnyLevelOfDetail = positions.some(p => p.levelOfDetail)
   if (hasAnyLevelOfDetail) {
-    const keyOf = (p: typeof positions[number]) => `${p.accountId}|${p.assetClass}|${p.symbol}|${p.strike ?? ''}|${p.expiry ?? ''}|${p.putCall ?? ''}`
-    const keysWithSummary = new Set(positions.filter(p => p.levelOfDetail === 'SUMMARY').map(keyOf))
-    positions = positions.filter(p => p.levelOfDetail !== 'LOT' || !keysWithSummary.has(keyOf(p)))
+    const keysWithSummary = new Set(positions.filter(p => (p.levelOfDetail ?? '').toUpperCase() === 'SUMMARY').map(positionKey))
+    const lotsByKey = new Map<string, RawPosition[]>()
+    for (const p of positions) {
+      if ((p.levelOfDetail ?? '').toUpperCase() !== 'LOT') continue
+      const key = positionKey(p)
+      lotsByKey.set(key, [...(lotsByKey.get(key) ?? []), p])
+    }
+    positions = positions.filter(p => (p.levelOfDetail ?? '').toUpperCase() !== 'LOT' || !keysWithSummary.has(positionKey(p)))
+    for (const p of positions) {
+      const lots = lotsByKey.get(positionKey(p))
+      if (lots && lots.length > 0 && (p.levelOfDetail ?? '').toUpperCase() === 'SUMMARY') p.openLots = lots.map(toOpenLot)
+    }
+    const leftoverLots = new Map<string, RawPosition[]>()
+    const kept: RawPosition[] = []
+    for (const p of positions) {
+      if (p.assetClass === 'STK' && (p.levelOfDetail ?? '').toUpperCase() === 'LOT') {
+        const key = positionKey(p)
+        leftoverLots.set(key, [...(leftoverLots.get(key) ?? []), p])
+      } else {
+        kept.push(p)
+      }
+    }
+    for (const lots of leftoverLots.values()) kept.push(collapseStockLots(lots))
+    positions = kept
   }
 
   // Debug: log first few positions so we can verify parsing
@@ -252,12 +321,38 @@ function parseNetLiq(doc: Document): number | undefined {
   return undefined
 }
 
-function parseTrades(doc: Document): RawTrade[] {
-  return Array.from(doc.querySelectorAll('Trade')).map(el => ({
+/** First YYYYMMDD in an IBKR date or dateTime ("20261016", "20261016;060248", "2026-10-16"). */
+function flexDate(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined
+  const digits = raw.replace(/\D/g, '')
+  return digits.length >= 8 ? digits.slice(0, 8) : undefined
+}
+
+function optionalNumber(el: Element, ...names: string[]): number | undefined {
+  const v = attr(el, ...names)
+  if (v == null || v === '') return undefined
+  const n = Number(v)
+  return Number.isFinite(n) ? n : undefined
+}
+
+/** A Trade row plus the closed-lot fields that only CLOSED_LOT rows carry.
+ * Those fields are copied onto `ClosedLot` and not kept on the execution. */
+interface ParsedTrade extends RawTrade {
+  origTradeDate?: string
+  origTradePrice?: number
+  origTradeId?: string
+}
+
+function readTrade(el: Element, forceLevel?: string): ParsedTrade {
+  const level = forceLevel ?? attr(el, 'levelOfDetail') ?? undefined
+  const cost = optionalNumber(el, 'cost', 'costBasis')
+  const fifoPnlRealized = optionalNumber(el, 'fifoPnlRealized', 'realizedPnl')
+  const origTradePrice = optionalNumber(el, 'origTradePrice', 'openPrice')
+  return {
     accountId:        el.getAttribute('accountId') ?? undefined,
-    execId:           el.getAttribute('tradeID') ?? undefined,
+    execId:           el.getAttribute('tradeID') || undefined,
     orderId:          el.getAttribute('ibOrderID') || el.getAttribute('orderID') || undefined,
-    tradeDate:        el.getAttribute('tradeDate') ?? '',
+    tradeDate:        el.getAttribute('tradeDate') || flexDate(el.getAttribute('dateTime')) || el.getAttribute('date') || '',
     // Real Flex reports (verified against a live account's XML) don't
     // actually populate a standalone `tradeTime` attribute at all — only
     // `dateTime="YYYYMMDD;HHMMSS"`. Reading the missing attribute silently
@@ -268,7 +363,7 @@ function parseTrades(doc: Document): RawTrade[] {
     // spreads merging into one fake blended position. Pull the time portion
     // out of dateTime as a fallback so that disambiguation actually runs.
     tradeTime:        el.getAttribute('tradeTime') ?? el.getAttribute('dateTime')?.split(';')[1] ?? undefined,
-    symbol:           el.getAttribute('symbol') ?? '',
+    symbol:           (el.getAttribute('symbol') ?? '').trim(),
     underlyingSymbol: el.getAttribute('underlyingSymbol') ?? undefined,
     assetClass:       (attr(el, 'assetCategory', 'assetClass') ?? 'STK') as RawTrade['assetClass'],
     putCall:          (el.getAttribute('putCall') || undefined) as RawTrade['putCall'],
@@ -277,10 +372,162 @@ function parseTrades(doc: Document): RawTrade[] {
     quantity:         Number(el.getAttribute('quantity') ?? 0),
     tradePrice:       Number(el.getAttribute('tradePrice') ?? 0),
     proceeds:         Number(el.getAttribute('proceeds') ?? 0),
-    commissions:      Number(el.getAttribute('ibCommission') ?? 0),
+    commissions:      Number(el.getAttribute('ibCommission') ?? el.getAttribute('commissions') ?? 0),
     netCash:          Number(el.getAttribute('netCash') ?? 0),
     openClose:        (el.getAttribute('openCloseIndicator') || undefined) as RawTrade['openClose'],
-  }))
+    ...(level ? { levelOfDetail: level } : {}),
+    ...(cost != null ? { cost } : {}),
+    ...(fifoPnlRealized != null ? { fifoPnlRealized } : {}),
+    origTradeDate:    flexDate(attr(el, 'origTradeDate', 'openDateTime', 'openDate')),
+    ...(origTradePrice != null ? { origTradePrice } : {}),
+    origTradeId:      attr(el, 'origTradeID', 'origTradeId') ?? undefined,
+  }
+}
+
+function toClosedLot(row: ParsedTrade): ClosedLot {
+  return {
+    quantity: row.quantity,
+    tradeDate: row.tradeDate,
+    tradePrice: row.tradePrice,
+    proceeds: row.proceeds,
+    commissions: row.commissions,
+    cost: row.cost ?? 0,
+    ...(row.fifoPnlRealized != null ? { fifoPnlRealized: row.fifoPnlRealized } : {}),
+    ...(row.origTradeDate ? { origTradeDate: row.origTradeDate } : {}),
+    ...(row.origTradePrice != null ? { origTradePrice: row.origTradePrice } : {}),
+    ...(row.origTradeId ? { origTradeId: row.origTradeId } : {}),
+  }
+}
+
+function sameFlexDay(a: string, b: string): boolean {
+  const da = flexDate(a) ?? a
+  const db = flexDate(b) ?? b
+  return da !== '' && da === db
+}
+
+/** Pick closed-lot rows whose quantities sum to the execution. An exact
+ * subset wins; otherwise a single row of the same size. */
+function takeClosedLots(pool: { row: ParsedTrade; index: number }[], need: number): { row: ParsedTrade; index: number }[] {
+  if (pool.length === 0 || need <= 0) return []
+  if (pool.length <= 12) {
+    let found: { row: ParsedTrade; index: number }[] | null = null
+    const acc: { row: ParsedTrade; index: number }[] = []
+    const dfs = (i: number, left: number) => {
+      if (found) return
+      if (Math.abs(left) <= 0.01) { found = [...acc]; return }
+      if (i >= pool.length || left < -0.01) return
+      dfs(i + 1, left)
+      const q = Math.abs(pool[i].row.quantity)
+      if (q > 0) {
+        acc.push(pool[i])
+        dfs(i + 1, left - q)
+        acc.pop()
+      }
+    }
+    dfs(0, need)
+    if (found) return found
+  }
+  const one = pool.find(p => Math.abs(Math.abs(p.row.quantity) - need) <= 0.01)
+  return one ? [one] : []
+}
+
+function syntheticClose(row: ParsedTrade): RawTrade {
+  const qty = row.quantity < 0 ? row.quantity : -Math.abs(row.quantity || 0)
+  const lot = toClosedLot({ ...row, quantity: qty })
+  const trade: RawTrade = {
+    accountId: row.accountId,
+    execId: row.execId,
+    tradeDate: row.tradeDate,
+    tradeTime: row.tradeTime,
+    symbol: row.symbol,
+    underlyingSymbol: row.underlyingSymbol,
+    assetClass: row.assetClass,
+    quantity: qty,
+    tradePrice: row.tradePrice,
+    proceeds: row.proceeds,
+    commissions: row.commissions,
+    netCash: row.netCash,
+    openClose: 'C',
+    levelOfDetail: 'EXECUTION',
+    closedLots: [lot],
+  }
+  if (row.cost != null) trade.cost = row.cost
+  if (row.fifoPnlRealized != null) trade.fifoPnlRealized = row.fifoPnlRealized
+  return trade
+}
+
+/**
+ * Closed-lot rows are detail about a sale, not a second sale. Fold them
+ * onto the execution they belong to. ORDER rows are a rollup of EXECUTION
+ * rows when both are present, and WASH_SALE rows repeat the same fill, so
+ * neither is kept as its own trade. A stock closed lot with no execution
+ * (the query was set to Closed Lots only) is kept as one closing trade so
+ * its basis and P&L are not dropped. Option closed lots are never turned
+ * into extra trades — that would double-count the option matcher.
+ */
+function attachClosedLots(rows: ParsedTrade[]): RawTrade[] {
+  const hasExecution = rows.some(r => (r.levelOfDetail ?? '').toUpperCase() === 'EXECUTION')
+  const lots: ParsedTrade[] = []
+  const execs: ParsedTrade[] = []
+  for (const row of rows) {
+    const level = (row.levelOfDetail ?? '').toUpperCase()
+    if (level === 'CLOSED_LOT') { lots.push(row); continue }
+    if (level === 'WASH_SALE') continue
+    if (hasExecution && level === 'ORDER') continue
+    execs.push(row)
+  }
+
+  const used = new Set<number>()
+  for (const exec of execs) {
+    const closingStock = exec.assetClass === 'STK' && exec.quantity < 0
+    const closingOption = exec.assetClass === 'OPT' && (exec.openClose === 'C' || exec.quantity > 0)
+    if (!closingStock && !closingOption) continue
+    const candidates = lots
+      .map((row, index) => ({ row, index }))
+      .filter(({ index, row }) => !used.has(index)
+        && row.symbol === exec.symbol
+        && row.assetClass === exec.assetClass
+        && (!row.accountId || !exec.accountId || row.accountId === exec.accountId)
+        && sameFlexDay(row.tradeDate, exec.tradeDate))
+    const idHits = exec.execId
+      ? candidates.filter(({ row }) => row.execId != null && row.execId === exec.execId)
+      : []
+    const pool = idHits.length > 0 ? idHits : candidates
+    const taken = takeClosedLots(pool, Math.abs(exec.quantity))
+    if (taken.length === 0) continue
+    for (const t of taken) used.add(t.index)
+    const closed = taken.map(t => toClosedLot(t.row))
+    exec.closedLots = closed
+    if (exec.fifoPnlRealized == null && closed.every(c => c.fifoPnlRealized != null)) {
+      exec.fifoPnlRealized = closed.reduce((s, c) => s + (c.fifoPnlRealized ?? 0), 0)
+    }
+    if ((exec.cost == null || exec.cost === 0) && closed.some(c => c.cost !== 0)) {
+      exec.cost = closed.reduce((s, c) => s + c.cost, 0)
+    }
+  }
+
+  const out: RawTrade[] = execs.map(exec => {
+    const trade: RawTrade = { ...exec }
+    const extra = trade as ParsedTrade
+    delete extra.origTradeDate
+    delete extra.origTradePrice
+    delete extra.origTradeId
+    return trade
+  })
+  for (let i = 0; i < lots.length; i++) {
+    if (used.has(i)) continue
+    if (lots[i].assetClass !== 'STK') continue
+    out.push(syntheticClose(lots[i]))
+  }
+  return out
+}
+
+function parseTrades(doc: Document): RawTrade[] {
+  const fromTrades = Array.from(doc.querySelectorAll('Trade')).map(el => readTrade(el))
+  // Some Flex templates emit a dedicated element instead of a Trade row
+  // tagged levelOfDetail="CLOSED_LOT". Treat those the same.
+  const fromElements = Array.from(doc.querySelectorAll('ClosedLot')).map(el => readTrade(el, 'CLOSED_LOT'))
+  return attachClosedLots([...fromTrades, ...fromElements])
 }
 
 /** Option Exercises, Assignments & Expirations (and SPX/SPXW-style cash
@@ -437,16 +684,22 @@ function filterToPrimaryAccount(
 }
 
 function allTrades(doc: Document): RawTrade[] {
-  const usedTradeIds = new Set(
-    Array.from(doc.querySelectorAll('Trade'))
-      .map(el => el.getAttribute('tradeID'))
-      .filter((id): id is string => id !== null),
-  )
+  // Execution ids only. A CLOSED_LOT row often repeats the closing tradeID;
+  // collecting every Trade element's id (the old approach) is the same set
+  // for that case, but a closed-lot-only id must not suppress an OptionEAE
+  // assignment that isn't already in the execution list.
+  const trades = parseTrades(doc)
+  const usedTradeIds = new Set(trades.map(t => t.execId).filter((id): id is string => !!id))
   const optionEae = parseOptionEAE(doc, usedTradeIds)
   const optionEaeStockKeys = new Set(
     optionEae
       .filter(t => t.assetClass === 'STK')
       .map(t => `${t.tradeDate}|${t.symbol}|${t.quantity}`),
   )
-  return [...parseTrades(doc), ...optionEae, ...parseTransfers(doc, optionEaeStockKeys)]
+  // `trades` already replaced whatever this report window contains. Accounts
+  // synced before cost / fifoPnlRealized / closedLots were parsed pick those
+  // fields up on the next Flex sync — portfolio data is one JSON document,
+  // so there is no separate column migration. History older than the report
+  // window is left as it was (see mergeTrades).
+  return [...trades, ...optionEae, ...parseTransfers(doc, optionEaeStockKeys)]
 }

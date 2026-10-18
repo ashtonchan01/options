@@ -112,7 +112,7 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
   const stkSymbols = new Set(
     positions.filter(p => p.assetClass === 'STK' && Math.abs(p.quantity) > 1e-6).map(p => p.symbol),
   )
-  const byUnderlying = new Map<string, { shares: number; avgCost: number; stockValue: number; optionsValue: number }>()
+  const byUnderlying = new Map<string, { shares: number; avgCost: number; stockValue: number; optionsValue: number; costBasisMoney: number }>()
   let nakedOptionsValue = 0
 
   // Options on an underlying with no shares held are usually a pure income
@@ -162,9 +162,14 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
   for (const p of positions) {
     if (Math.abs(p.quantity) < 1e-6) continue
     if (p.assetClass === 'STK') {
-      const e = byUnderlying.get(p.symbol) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0 }
+      const e = byUnderlying.get(p.symbol) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0, costBasisMoney: 0 }
       e.shares += p.quantity
-      e.avgCost = p.costBasisPrice
+      // Sum IBKR's own cost (summary, or each lot when the query had no
+      // summary) and divide once. Assigning avgCost = costBasisPrice kept
+      // only the last lot's price when a ticker arrived as several rows.
+      const lotBasis = p.costBasisMoney !== 0 ? p.costBasisMoney : p.costBasisPrice * p.quantity
+      e.costBasisMoney += lotBasis
+      e.avgCost = e.shares !== 0 ? e.costBasisMoney / e.shares : 0
       e.stockValue += p.positionValue
       byUnderlying.set(p.symbol, e)
     } else if (p.assetClass === 'OPT') {
@@ -172,12 +177,12 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
       const onStock = stkSymbols.has(rawOptionUnderlying(p)) || stkSymbols.has(adrTicker(rawOptionUnderlying(p)))
       if (!onStock) {
         if (!riskReversalUnderlyings.has(key)) { nakedOptionsValue += p.positionValue; continue }
-        const e = byUnderlying.get(key) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0 }
+        const e = byUnderlying.get(key) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0, costBasisMoney: 0 }
         e.optionsValue += p.positionValue
         byUnderlying.set(key, e)
         continue
       }
-      const e = byUnderlying.get(key) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0 }
+      const e = byUnderlying.get(key) ?? { shares: 0, avgCost: 0, stockValue: 0, optionsValue: 0, costBasisMoney: 0 }
       e.optionsValue += p.positionValue
       byUnderlying.set(key, e)
     }
@@ -227,6 +232,25 @@ export function holdingsFromPositions(positions: RawPosition[]): { holdings: Hol
  * generic .csv/.xlsx/.pdf statement upload that has no positions snapshot.
  * Value is the remaining cost basis (what's actually invested), not a live
  * mark — used only as a fallback when there's no real positions data. */
+/** Basis dollars a closing fill removed, from IBKR's cost / closed lots.
+ * Undefined when the fill doesn't carry them (CSV, or a sync from before
+ * those fields were stored) — the caller then relieves average cost. */
+function relievedBasis(t: RawTrade): number | undefined {
+  if (t.closedLots && t.closedLots.length > 0) {
+    const sum = t.closedLots.reduce((s, l) => s + Math.abs(l.cost), 0)
+    if (sum > 0) return sum
+  }
+  if (t.cost != null && Number.isFinite(t.cost) && t.cost !== 0) return Math.abs(t.cost)
+  if (t.fifoPnlRealized != null && Number.isFinite(t.fifoPnlRealized)) {
+    const proceeds = t.proceeds !== 0 ? t.proceeds : Math.abs(t.quantity) * t.tradePrice
+    const comm = t.commissions ?? 0
+    const signedComm = comm > 0 ? -comm : comm
+    const basis = proceeds + signedComm - t.fifoPnlRealized
+    if (Number.isFinite(basis) && basis > 0) return basis
+  }
+  return undefined
+}
+
 export function holdingsFromTrades(trades: RawTrade[]): Holding[] {
   const bySymbol = new Map<string, { shares: number; costBasis: number }>()
   for (const t of trades) {
@@ -234,11 +258,25 @@ export function holdingsFromTrades(trades: RawTrade[]): Holding[] {
     const e = bySymbol.get(t.symbol) ?? { shares: 0, costBasis: 0 }
     if (t.quantity > 0) {
       e.costBasis += t.quantity * t.tradePrice
+      e.shares += t.quantity
     } else {
-      const avgCost = e.shares > 0 ? e.costBasis / e.shares : 0
-      e.costBasis += t.quantity * avgCost
+      const sold = Math.abs(t.quantity)
+      const relieved = relievedBasis(t)
+      if (relieved != null) {
+        // Only take the basis off lots this trade list actually contains.
+        // A sale IBKR matched to a lot opened outside the window has a
+        // basis larger than everything we hold here; subtracting it would
+        // wipe a cheaper lot that is still open (the MSTR assignment).
+        if (relieved <= e.costBasis + 0.05) {
+          e.costBasis -= relieved
+          e.shares -= sold
+        }
+      } else {
+        const avgCost = e.shares > 0 ? e.costBasis / e.shares : 0
+        e.costBasis -= avgCost * sold
+        e.shares -= sold
+      }
     }
-    e.shares += t.quantity
     bySymbol.set(t.symbol, e)
   }
   return [...bySymbol.entries()]
