@@ -295,6 +295,46 @@ const MSTR_PX = 326.7901
   check('parsed open quantity matches Flex', Math.abs(openQty - 180) < 1e-6, `qty ${openQty}`)
 }
 
+// A position transfer's market value is not its tax cost. When the Flex
+// row carries cost, that basis is the lot. When it does not, the mark must
+// not be what a later sale realises against.
+{
+  const rows: { tag: string; attrs: Record<string, string> }[] = [
+    { tag: 'Transfer', attrs: {
+      accountId: 'U21440275', assetCategory: 'STK', symbol: 'MSTR', date: '20260820',
+      direction: 'IN', quantity: '100', positionAmount: '10425',
+    } },
+    { tag: 'Transfer', attrs: {
+      accountId: 'U21440275', assetCategory: 'STK', symbol: 'IBIT', date: '20260820',
+      direction: 'IN', quantity: '200', positionAmount: '7756', cost: '-9200',
+      transferPrice: '46', fifoPnlRealized: '0',
+    } },
+  ]
+  const elements = rows.map(r => ({
+    tag: r.tag,
+    getAttribute(name: string) {
+      return Object.prototype.hasOwnProperty.call(r.attrs, name) ? r.attrs[name] : null
+    },
+  }))
+  const doc = {
+    querySelectorAll(sel: string) { return elements.filter(e => e.tag === sel) },
+    querySelector(sel: string) { return elements.find(e => e.tag === sel) ?? null },
+  }
+  const snap = parseFlexDocument(doc as unknown as Document)
+  const mstrIn = snap.trades.find(t => t.symbol === 'MSTR')
+  const ibitIn = snap.trades.find(t => t.symbol === 'IBIT')
+  check('transfer market value is the display price and not cost', !!mstrIn && mstrIn.isTransfer === true && mstrIn.cost == null && mstrIn.fifoPnlRealized == null && Math.abs(mstrIn.tradePrice - 104.25) < 0.001 && mstrIn.quantity === 100, JSON.stringify(mstrIn))
+  check('transfer cost basis wins over the same-day mark', !!ibitIn && ibitIn.cost === -9200 && ibitIn.fifoPnlRealized === 0 && Math.abs(ibitIn.tradePrice - 46) < 0.001, JSON.stringify(ibitIn))
+
+  const carried = buildStockPositions([
+    stk({ symbol: 'MSTR', tradeDate: '20260820', quantity: 100, tradePrice: 104.25, cost: -MSTR_BASIS, isTransfer: true, fifoPnlRealized: 0, proceeds: -10425 }),
+    stk({ symbol: 'MSTR', tradeDate: '20261017', quantity: -100, tradePrice: 135, proceeds: 13500, commissions: -0.52 }),
+  ], {})
+  const carriedClosed = carried.filter(p => p.status === 'Closed')
+  const carriedPnl = carriedClosed.reduce((s, p) => s + (p.pnl ?? 0), 0)
+  check('a transfer that carries IBKR cost is closed at that cost, not the $104.25 mark', Math.abs(carriedPnl - MSTR_PNL) < 0.05 && carried.filter(p => p.status === 'Active').length === 0 && Math.abs((carriedClosed[0]?.shareFills?.[0]?.price ?? 0) - MSTR_PX) < 0.001, `pnl ${carriedPnl} price ${carriedClosed[0]?.shareFills?.[0]?.price}`)
+}
+
 if (failed > 0) {
   console.error(`\n${failed} failed`)
   process.exit(1)

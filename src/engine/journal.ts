@@ -1243,22 +1243,39 @@ export function buildStockPositions(
       // No IBKR basis on this fill. Newest lot first — the previous
       // fallback — so a same-day partial sale still realises against the
       // lot it came out of when the file can't say which one IBKR used.
+      // A transfer priced at that day's market value is not the tax basis.
+      // IBKR keeps the original cost, and it shows up on the closing fill.
+      // Using the mark here booked the 16 Oct 2026 MSTR sale against the
+      // $104.25 transfer instead of the $326.79 lot.
       let sellRemaining = sellQty
       const sellFeesTotal = Math.abs(t.commissions ?? 0)
       while (sellRemaining > 0 && openLots.length > 0) {
-        const lotIndex = openLots.length - 1
+        let lotIndex = -1
+        for (let i = openLots.length - 1; i >= 0; i--) {
+          const candidate = openLots[i]
+          if (candidate.remaining <= 1e-6) continue
+          if (candidate.trade.isTransfer && (candidate.trade.cost == null || candidate.trade.cost === 0)) continue
+          lotIndex = i
+          break
+        }
+        if (lotIndex < 0) break
         const lot = openLots[lotIndex]
         const matched = Math.min(lot.remaining, sellRemaining)
         const buyTrade = lot.trade
         const buyFeesShare = Math.abs(buyTrade.commissions ?? 0) * (matched / Math.abs(buyTrade.quantity))
         const sellFeesShare = sellFeesTotal * (matched / sellQty)
-        const buyCost = buyTrade.tradePrice * matched
+        // A transfer can show the transfer-day mark as tradePrice and still
+        // carry IBKR's original cost. The cost is the tax basis.
+        const basisPerShare = buyTrade.cost != null && Number.isFinite(buyTrade.cost) && buyTrade.cost !== 0 && buyTrade.quantity !== 0
+          ? Math.abs(buyTrade.cost) / Math.abs(buyTrade.quantity)
+          : buyTrade.tradePrice
+        const buyCost = basisPerShare * matched
         const sellProceeds = t.tradePrice * matched
         seq++
         positions.push(closedSharePosition(ticker, t, {
           qty: matched,
           openDate: buyTrade.tradeDate,
-          openPrice: buyTrade.tradePrice,
+          openPrice: basisPerShare,
           basis: buyCost,
           pnl: sellProceeds - buyCost - buyFeesShare - sellFeesShare,
           openFees: buyFeesShare,

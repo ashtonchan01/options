@@ -645,9 +645,18 @@ function parseTransfers(doc: Document, optionEaeStockKeys: Set<string>): RawTrad
       const rawQty = Number(el.getAttribute('quantity') ?? 0)
       const quantity = direction === 'OUT' ? -Math.abs(rawQty) : Math.abs(rawQty)
       const positionAmount = Math.abs(Number(el.getAttribute('positionAmount') ?? 0))
-      const tradePrice = rawQty !== 0 ? positionAmount / Math.abs(rawQty) : 0
-      // Shares coming IN cost the account money (like a buy, negative cash);
-      // shares going OUT return value (like a sell, positive cash).
+      // positionAmount on a transfer is the market value that day (the
+      // activity statement's 18,181.00). Realised P&L on those rows is 0.
+      // The tax basis is a separate cost attribute when the query has one;
+      // the transfer-day mark is not a substitute. The 16 Oct 2026 MSTR
+      // sale closed a $326.79 lot, not the $104.25 transfer.
+      const costBasis = optionalNumber(el, 'cost', 'costBasis', 'costBasisMoney')
+      const transferPrice = optionalNumber(el, 'transferPrice')
+      const fifoPnlRealized = optionalNumber(el, 'fifoPnlRealized', 'realizedPnl')
+      const taxPerShare = costBasis != null && rawQty !== 0
+        ? Math.abs(costBasis) / Math.abs(rawQty)
+        : (transferPrice != null && transferPrice > 0 ? transferPrice : undefined)
+      const tradePrice = taxPerShare ?? (rawQty !== 0 ? positionAmount / Math.abs(rawQty) : 0)
       const netCash = quantity > 0 ? -positionAmount : positionAmount
       return {
         accountId:        el.getAttribute('accountId') ?? undefined,
@@ -661,6 +670,8 @@ function parseTransfers(doc: Document, optionEaeStockKeys: Set<string>): RawTrad
         commissions:      0,
         netCash,
         isTransfer:       true,
+        ...(costBasis != null ? { cost: quantity > 0 ? -Math.abs(costBasis) : Math.abs(costBasis) } : {}),
+        ...(fifoPnlRealized != null ? { fifoPnlRealized } : {}),
       }
     })
 }

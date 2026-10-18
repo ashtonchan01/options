@@ -1,11 +1,12 @@
 /**
- * FY realised P&L against the U21440275 Activity Statement, 20 Aug 2025 –
- * 30 Jun 2026. The fixture is the statement's per-symbol summary and trades.
+ * FY realised P&L against the U21440275 Activity Statements:
+ * FY2025-26 (20 Aug 2025 – 30 Jun 2026) and FY2026-27 to 16 Oct 2026.
+ * Each fixture is that statement's per-symbol summary and trades.
  * Run with: npm test
  */
 import { readFileSync } from 'node:fs'
 import type { RawTrade } from '../src/types'
-import { buildJournalPositions } from '../src/engine/journal'
+import { buildJournalPositions, buildStockPositions } from '../src/engine/journal'
 import {
   closesMissingRealized,
   fyStartYearOf,
@@ -189,6 +190,138 @@ function opt(partial: Partial<RawTrade> & Pick<RawTrade, 'tradeDate' | 'quantity
 }
 
 console.log(`engine FY2025-26 U21440275  stocks ${totals.stocks.total.toFixed(2)}  options ${totals.options.total.toFixed(2)}  forex ${totals.forex.total.toFixed(2)}  total ${totals.all.total.toFixed(2)}`)
+
+{
+  const fy = JSON.parse(readFileSync(new URL('./fixtures/ibkr-u21440275-fy2026-27.json', import.meta.url), 'utf8')) as StatementFixture
+  const fyTrades = tradesFromFixture(fy)
+  const fyLines = realizedLines(fyTrades, fy.fyStartYear)
+  const fyTotals = summarize(fyLines)
+  const fyBySymbol = new Map(fyLines.map(l => [`${l.category}|${l.symbol}`, l]))
+  const printed = fy.official.stocks + fy.official.options + fy.official.forex
+
+  check('FY2026-27 printed total is 26,555.24', fy.official.total === 26555.24)
+  check(
+    'FY2026-27 stocks + options + forex is the printed total',
+    Math.abs(printed - fy.official.total) < 1e-9,
+    `got ${printed}`,
+  )
+  check(
+    'FY2026-27 position transfers are not part of the realised total',
+    Math.abs(printed + (fy.official.positionTransfers ?? 0) - fy.official.total) > 1000,
+  )
+  check(
+    'FY2026-27 other fees are not part of the realised total',
+    Math.abs(printed + fy.official.otherFees - fy.official.total) > 0.5,
+  )
+  check(
+    'FY2026-27 broker interest is not part of the realised total',
+    Math.abs(printed + fy.official.brokerInterest - fy.official.total) > 1,
+  )
+
+  check('FY2026-27 stocks realised matches -17,910.88', Math.abs(fyTotals.stocks.total - -17910.88) < 0.001, `got ${fyTotals.stocks.total}`)
+  check(
+    'FY2026-27 options realised is within 2 cents of the printed 46,273.55',
+    Math.abs(fyTotals.options.total - 46273.55) <= 0.02,
+    `got ${fyTotals.options.total} delta ${(fyTotals.options.total - 46273.55).toFixed(2)}`,
+  )
+  check('FY2026-27 options short-term loss matches -599,813.13', Math.abs(fyTotals.options.stLoss - -599813.13) < 0.001, `got ${fyTotals.options.stLoss}`)
+  check(
+    'FY2026-27 options short-term profit is within 2 cents of 646,086.68',
+    Math.abs(fyTotals.options.stProfit - 646086.68) <= 0.02,
+    `got ${fyTotals.options.stProfit}`,
+  )
+  check('FY2026-27 forex realised matches -1,807.43', Math.abs(fyTotals.forex.total - -1807.43) < 0.001, `got ${fyTotals.forex.total}`)
+  check('FY2026-27 forex short-term loss matches -1,807.43', Math.abs(fyTotals.forex.stLoss - -1807.43) < 0.001)
+  check('FY2026-27 forex short-term profit is 0', fyTotals.forex.stProfit === 0)
+  check('FY2026-27 forex has no long-term', fyTotals.forex.ltProfit === 0 && fyTotals.forex.ltLoss === 0)
+  check(
+    'FY2026-27 all-assets total is within 2 cents of 26,555.24',
+    Math.abs(fyTotals.all.total - 26555.24) <= 0.02,
+    `got ${fyTotals.all.total} delta ${(fyTotals.all.total - 26555.24).toFixed(2)}`,
+  )
+
+  const fyMismatches: string[] = []
+  for (const symbol of fy.symbols) {
+    const line = fyBySymbol.get(`${symbol.category}|${symbol.symbol}`)
+    const got = line?.total ?? 0
+    if (Math.abs(got - symbol.realized) > 0.02) {
+      fyMismatches.push(`${symbol.symbol} statement ${symbol.realized} engine ${got}`)
+    }
+  }
+  check('FY2026-27 every summary symbol matches within 2 cents', fyMismatches.length === 0, fyMismatches.slice(0, 8).join('; '))
+  const fyExtras = fyLines.filter(l => Math.abs(l.total) > 0.02 && !fy.symbols.some(s => s.category === l.category && s.symbol === l.symbol))
+  check('FY2026-27 no extra non-zero symbols', fyExtras.length === 0, fyExtras.map(l => l.symbol).join(', '))
+
+  const mstrStock = fyBySymbol.get('stocks|MSTR')
+  check('FY2026-27 MSTR stock realised is -19,179.53', mstrStock != null && Math.abs(mstrStock.total - -19179.53) < 0.001, `got ${mstrStock?.total}`)
+  check(
+    'FY2026-27 MSTR loss stays short-term without a lot open date',
+    mstrStock != null && mstrStock.ltLoss === 0 && Math.abs(mstrStock.stLoss - -19179.53) < 0.001,
+    JSON.stringify(mstrStock),
+  )
+  const ibitStock = fyBySymbol.get('stocks|IBIT')
+  check('FY2026-27 IBIT stock realised is 1,106.40', ibitStock != null && Math.abs(ibitStock.total - 1106.40) < 0.001, `got ${ibitStock?.total}`)
+  const ibitCall = fyBySymbol.get('options|IBIT 18SEP26 46 C')
+  check('assigned IBIT call contributes 0, not its 56.63 premium', (ibitCall?.total ?? 0) === 0, `got ${ibitCall?.total}`)
+
+  check('FY2026-27 fixture has no 1 Jul trade', !fyTrades.some(t => t.tradeDate === '20260701'))
+  const mstrSale = fyTrades.find(t => t.assetClass === 'STK' && t.symbol === 'MSTR' && t.quantity < 0)
+  check(
+    '16 Oct MSTR sale is stamped 17 Oct 06:02 and is inside FY2026-27',
+    !!mstrSale && mstrSale.tradeDate === '20261017' && mstrSale.tradeTime === '060248' && inFy(mstrSale, 2026) && !inFy(mstrSale, 2025),
+  )
+  const spxw = fyTrades.filter(t => t.underlyingSymbol === 'SPXW' && t.tradeDate === '20261017')
+  check(
+    '16 Oct SPXW closes before 10:00 on 17 Oct are in FY2026-27',
+    spxw.length === 2 && spxw.every(t => inFy(t, 2026)) && spxw.every(t => (t.tradeTime ?? '') < '100000'),
+  )
+
+  const transfers = fyTrades.filter(t => t.isTransfer)
+  check('FY2026-27 has the two inbound transfers', transfers.length === 2 && transfers.every(t => t.fifoPnlRealized === 0 && t.cost == null && (t.quantity ?? 0) > 0))
+  const withoutTransfers = summarize(realizedLines(fyTrades.filter(t => !t.isTransfer), 2026))
+  check('transfer market value is not added to realised P&L', Math.abs(fyTotals.all.total - withoutTransfers.all.total) < 0.001, `with ${fyTotals.all.total} without ${withoutTransfers.all.total}`)
+  check('FY2026-27 closes all carry fifo', closesMissingRealized(fyTrades, 2026).length === 0)
+
+  const classified = realizedLines([{
+    ...mstrSale!,
+    closedLots: [{
+      quantity: -100,
+      tradeDate: '20261017',
+      tradePrice: 135,
+      proceeds: 13500,
+      commissions: -0.52,
+      cost: -32679.01,
+      fifoPnlRealized: -19179.53,
+      origTradeDate: '20251016',
+    }],
+  }], 2026)
+  check(
+    'MSTR sale after the one-year anniversary is long-term and the total is unchanged',
+    classified.length === 1 && Math.abs(classified[0].ltLoss - -19179.53) < 0.001 && classified[0].stLoss === 0 && Math.abs(classified[0].total - -19179.53) < 0.001,
+    JSON.stringify(classified[0]),
+  )
+
+  const mstrTransfer = transfers.find(t => t.symbol === 'MSTR')!
+  const journal = buildStockPositions([mstrTransfer, mstrSale!], {})
+  const closed = journal.filter(p => p.status === 'Closed')
+  const open = journal.filter(p => p.status === 'Active')
+  const journalPnl = closed.reduce((s, p) => s + (p.pnl ?? 0), 0)
+  check('journal books the MSTR sale at IBKR realised, not the transfer mark', Math.abs(journalPnl - -19179.53) < 0.02, `pnl ${journalPnl}`)
+  check(
+    'the $104.25 transfer stays open',
+    open.length === 1 && open[0].contracts === 100 && open[0].dateOpen === '20260820' && !closed.some(p => p.dateOpen === '20260820'),
+    JSON.stringify(open.map(p => [p.dateOpen, p.contracts])),
+  )
+  const bareSale: RawTrade = { ...mstrSale!, fifoPnlRealized: undefined, cost: undefined }
+  const unmarked = buildStockPositions([mstrTransfer, bareSale], {})
+  check(
+    'a sale with no IBKR basis does not realise the transfer at its $104.25 mark',
+    unmarked.filter(p => p.status === 'Closed').length === 0 && unmarked.some(p => p.status === 'Active' && p.contracts === 100),
+    JSON.stringify(unmarked.map(p => [p.status, p.contracts, p.pnl])),
+  )
+
+  console.log(`engine FY2026-27 U21440275  stocks ${fyTotals.stocks.total.toFixed(2)}  options ${fyTotals.options.total.toFixed(2)}  forex ${fyTotals.forex.total.toFixed(2)}  total ${fyTotals.all.total.toFixed(2)}`)
+}
 
 if (failed > 0) {
   console.error(`${failed} failed`)

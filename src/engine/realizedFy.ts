@@ -87,6 +87,18 @@
  * the symbol total). Adding the forex summary columns (1,079.33) makes
  * 22,774.16 against the printed 22,773.85. Unrounded Flex values can land
  * on the printed total; the engine does not adjust either way.
+ *
+ * The same rule on the 1 Jul 2026 – 16 Oct 2026 statement (printed total
+ * 26,555.24) gives stocks −17,910.88, option fills 46,273.54 against the
+ * printed category 46,273.55, and forex −1,807.43, so 26,555.23. There is
+ * no trade on 1 Jul 2026; the 02:01 PLTR trade stayed in the first
+ * statement. The printed end date is 16 Oct, and the statement includes
+ * the 17 Oct 01:35 SPXW closes and the 17 Oct 06:02 MSTR sale because they
+ * are before 10:00 Sydney. Position transfers of 18,181.00 are market value
+ * in the Change in NAV, with realised 0, and are not added. The MSTR sale's
+ * basis is the $326.7901 lot (−32,679.01), not the $104.25 transfer mark.
+ * That sale is long-term on the statement. Without a closed-lot open date
+ * the whole fill stays short-term; the total does not change.
  */
 import type { RawTrade } from '../types'
 

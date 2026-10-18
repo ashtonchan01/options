@@ -59,10 +59,25 @@ export interface StatementFixture {
     total: number
     otherFees: number
     brokerInterest: number
+    /** Long-term loss when the statement prints one. Absent on FY2025-26 stocks, which had long-term profit only. */
+    stocksLtLoss?: number
+    /** Market value of position transfers in the Change in NAV. Realised P&L on those rows is zero. */
+    positionTransfers?: number
   }
   symbols: StatementSymbol[]
   trades: StatementTrade[]
   forexSummary: ForexSummaryTrade[]
+  /** Incoming transfers. Market value is not a tax cost and realised is 0. */
+  transfers?: StatementTransfer[]
+}
+
+export interface StatementTransfer {
+  symbol: string
+  date: string
+  quantity: number
+  marketValue: number
+  realized: number
+  direction?: 'IN' | 'OUT'
 }
 
 function openCloseFromCode(code: string | undefined): OpenClose | undefined {
@@ -93,6 +108,24 @@ export function tradesFromFixture(fixture: StatementFixture): RawTrade[] {
     openClose: openCloseFromCode(t.code),
     fifoPnlRealized: t.realized,
   }))
+  for (const tr of fixture.transfers ?? []) {
+    const inbound = tr.direction !== 'OUT'
+    const qty = inbound ? Math.abs(tr.quantity) : -Math.abs(tr.quantity)
+    const price = tr.quantity !== 0 ? tr.marketValue / Math.abs(tr.quantity) : 0
+    trades.push({
+      accountId: fixture.accountId,
+      tradeDate: tr.date,
+      symbol: tr.symbol,
+      assetClass: 'STK',
+      quantity: qty,
+      tradePrice: price,
+      proceeds: inbound ? -tr.marketValue : tr.marketValue,
+      commissions: 0,
+      netCash: inbound ? -tr.marketValue : tr.marketValue,
+      isTransfer: true,
+      fifoPnlRealized: tr.realized,
+    })
+  }
   for (const fx of fixture.forexSummary) {
     trades.push({
       accountId: fixture.accountId,

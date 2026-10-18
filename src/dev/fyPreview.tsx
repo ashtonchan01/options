@@ -4,14 +4,16 @@
  * part of the production bundle.
  */
 import { useMemo, useState } from 'react'
-import fixtureJson from '../../scripts/fixtures/ibkr-u21440275-fy2025-26.json'
+import fy2526Json from '../../scripts/fixtures/ibkr-u21440275-fy2025-26.json'
+import fy2627Json from '../../scripts/fixtures/ibkr-u21440275-fy2026-27.json'
 import { tradesFromFixture, type StatementFixture } from '../engine/statementFixture'
 import type { Account } from '../store/accountsStore'
 import AccountView from '../components/portfolio/AccountView'
 import type { TradeLabels } from '../App'
 import type { RawTrade } from '../types'
 
-const fixture = fixtureJson as StatementFixture
+const fy2526 = fy2526Json as StatementFixture
+const fy2627 = fy2627Json as StatementFixture
 
 function stock(partial: Partial<RawTrade> & Pick<RawTrade, 'tradeDate' | 'symbol' | 'fifoPnlRealized'>): RawTrade {
   return {
@@ -32,7 +34,7 @@ function previewAccounts(): Account[] {
     {
       id: 'preview-personal',
       name: 'Personal',
-      trades: tradesFromFixture(fixture),
+      trades: [...tradesFromFixture(fy2526), ...tradesFromFixture(fy2627)],
     },
     {
       id: 'preview-business',

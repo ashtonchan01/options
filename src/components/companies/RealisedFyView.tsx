@@ -185,7 +185,7 @@ export default function RealisedFyView({ accounts, activeAccountId }: { accounts
 
       {preview && (
         <div style={{ fontSize: 12, color: 'var(--text-2)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
-          Preview uses the FY2025-26 statement fixture for Personal, plus two small synthetic accounts. It is not a live Flex sync.
+          Preview uses the FY2025-26 and FY2026-27 statement fixtures for Personal, plus two small synthetic accounts dated September 2025. It is not a live Flex sync.
         </div>
       )}
 
@@ -274,7 +274,7 @@ export default function RealisedFyView({ accounts, activeAccountId }: { accounts
       </div>
 
       <div style={{ fontSize: 11, color: 'var(--text-4)', lineHeight: 1.5, maxWidth: 760 }}>
-        Long-term is split only when each closed lot has its open date and its own realised figure. Otherwise the whole trade stays short-term. The NVDA sale in the FY2025-26 statement is 227.97 short-term and 446.94 long-term, and that split appears once the Flex closed lots carry those dates. Fees outside trades, such as Other Fees and broker interest, are not included.
+        Long-term is split only when each closed lot has its open date and its own realised figure. Otherwise the whole trade stays short-term. The NVDA sale in the FY2025-26 statement is 227.97 short-term and 446.94 long-term, and the 16 Oct 2026 MSTR sale is a 19,179.53 long-term loss; those splits appear once the Flex closed lots carry the open dates. A transfer in keeps its IBKR cost basis. The 20 Aug 2026 MSTR transfer's $104.25 mark is not the lot that sale closed. Fees outside trades, such as Other Fees and broker interest, are not included.
       </div>
     </div>
   )
