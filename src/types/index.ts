@@ -141,6 +141,15 @@ export interface RawTrade {
    * journal then falls back to `cost` and `fifoPnlRealized` on this fill.
    */
   closedLots?: ClosedLot[]
+  /**
+   * Stock delivered by option assignment or exercise (activity-statement
+   * code A or Ex, a Flex trade note of the same, or an OptionEAE stock
+   * leg). The shares left the account. IBKR's basis on that fill includes
+   * the option premium, so it does not have to match a lot in this trade
+   * list. An ordinary sale is not marked, and its lots stay put until one
+   * of them costs what IBKR reported.
+   */
+  isAssignment?: boolean
 }
 
 // ─── Classified Strategy ─────────────────────────────────────────────────────

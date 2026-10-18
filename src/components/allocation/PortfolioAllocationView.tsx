@@ -259,6 +259,14 @@ export function holdingsFromTrades(trades: RawTrade[]): Holding[] {
     if (t.quantity > 0) {
       e.costBasis += t.quantity * t.tradePrice
       e.shares += t.quantity
+    } else if (t.isAssignment && e.shares > 1e-9) {
+      // Called away or exercised. The shares are gone even when IBKR's
+      // basis (premium rolled in) is larger than the mark on a transfer
+      // still in this file. Take only the shares this list actually holds.
+      const take = Math.min(e.shares, Math.abs(t.quantity))
+      e.costBasis -= (e.costBasis / e.shares) * take
+      e.shares -= take
+      if (Math.abs(e.shares) <= 1e-9) e.costBasis = 0
     } else {
       const sold = Math.abs(t.quantity)
       const relieved = relievedBasis(t)

@@ -320,6 +320,17 @@ console.log(`engine FY2025-26 U21440275  stocks ${totals.stocks.total.toFixed(2)
     JSON.stringify(unmarked.map(p => [p.status, p.contracts, p.pnl])),
   )
 
+  const ibitSale = fyTrades.find(t => t.assetClass === 'STK' && t.symbol === 'IBIT' && t.quantity < 0)
+  const ibitTransfer = transfers.find(t => t.symbol === 'IBIT')!
+  check('IBIT stock delivery is an assignment, the MSTR sale is not', ibitSale?.isAssignment === true && mstrSale?.isAssignment !== true)
+  const ibitJournal = buildStockPositions([ibitTransfer, ibitSale!], {})
+  const ibitPnl = ibitJournal.filter(p => p.status === 'Closed').reduce((s, p) => s + (p.pnl ?? 0), 0)
+  check(
+    'called-away IBIT closes the 20 Aug transfer and books 1,106.40',
+    ibitJournal.every(p => p.status !== 'Active') && Math.abs(ibitPnl - 1106.4) < 0.02 && ibitJournal.some(p => p.dateOpen === '20260820' && p.contracts === 200),
+    JSON.stringify(ibitJournal.map(p => [p.status, p.dateOpen, p.contracts, p.pnl])),
+  )
+
   console.log(`engine FY2026-27 U21440275  stocks ${fyTotals.stocks.total.toFixed(2)}  options ${fyTotals.options.total.toFixed(2)}  forex ${fyTotals.forex.total.toFixed(2)}  total ${fyTotals.all.total.toFixed(2)}`)
 }
 

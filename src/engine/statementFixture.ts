@@ -88,6 +88,14 @@ function openCloseFromCode(code: string | undefined): OpenClose | undefined {
   return undefined
 }
 
+function assignmentClose(t: StatementTrade): boolean {
+  if (t.section !== 'stocks' || t.quantity >= 0) return false
+  const tokens = new Set((t.code ?? '').split(';').map(s => s.trim().toUpperCase()).filter(Boolean))
+  // A = assignment, Ex = exercise. The stock was delivered. C;HC on an
+  // ordinary sale (the 16 Oct 2026 MSTR fill) is not one of these.
+  return tokens.has('A') || tokens.has('EX')
+}
+
 export function tradesFromFixture(fixture: StatementFixture): RawTrade[] {
   const trades: RawTrade[] = fixture.trades.map(t => ({
     accountId: fixture.accountId,
@@ -107,6 +115,7 @@ export function tradesFromFixture(fixture: StatementFixture): RawTrade[] {
     netCash: t.proceeds + t.commissions,
     openClose: openCloseFromCode(t.code),
     fifoPnlRealized: t.realized,
+    ...(assignmentClose(t) ? { isAssignment: true } : {}),
   }))
   for (const tr of fixture.transfers ?? []) {
     const inbound = tr.direction !== 'OUT'

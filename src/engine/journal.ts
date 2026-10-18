@@ -950,7 +950,70 @@ function slicesFromClosedLots(t: RawTrade, lots: MutableLot[], sellQty: number):
   const total = tradeRealized(t, sellQty)
   if (total != null) snapPnl(slices, total)
   for (const [index, qty] of reserved) lots[index].remaining -= qty
+  return coverAssignmentWithHeldLots(t, lots, slices, sellQty)
+}
+
+/** Shares an assignment or exercise actually delivered. Oldest lot first,
+ * up to the quantity that left the account. IBKR's basis is spread across
+ * those shares; a remainder with no lot in this file stays a synthetic close. */
+function takeHeldLots(t: RawTrade, lots: MutableLot[], qty: number, sellQty: number): CloseSlice[] {
+  const basisTotal = closeBasis(t, sellQty)
+  const fee = Math.abs(t.commissions ?? 0)
+  let left = qty
+  const slices: CloseSlice[] = []
+  for (let i = 0; i < lots.length && left > 1e-9; i++) {
+    const lot = lots[i]
+    if (lot.remaining <= 1e-9) continue
+    const take = Math.min(lot.remaining, left)
+    const share = sellQty > 0 ? take / sellQty : 0
+    const sliceBasis = basisTotal != null ? basisTotal * share : lot.price * take
+    const buyQty = Math.abs(lot.trade.quantity) || take
+    slices.push({
+      qty: take,
+      openDate: lot.date,
+      openPrice: take > 0 ? sliceBasis / take : lot.price,
+      basis: sliceBasis,
+      pnl: t.tradePrice * take - sliceBasis - fee * share,
+      openFees: Math.abs(lot.trade.commissions ?? 0) * (take / buyQty),
+      closeFees: fee * share,
+      lotIndex: i,
+      openTrade: lot.trade,
+    })
+    lot.remaining -= take
+    left -= take
+  }
+  if (left > 1e-6) {
+    const share = sellQty > 0 ? left / sellQty : 0
+    const sliceBasis = basisTotal != null ? basisTotal * share : 0
+    slices.push({
+      qty: left,
+      openDate: '',
+      openPrice: left > 0 ? sliceBasis / left : 0,
+      basis: sliceBasis,
+      pnl: t.tradePrice * left - sliceBasis - fee * share,
+      openFees: 0,
+      closeFees: fee * share,
+      lotIndex: null,
+    })
+  }
   return slices
+}
+
+/** Called-away and exercised shares leave the account even when IBKR's
+ * basis (the option premium rolled in) matches none of the lots we hold.
+ * An ordinary sale does not come through here: consuming the nearest lot
+ * is what paired the 16 Oct 2026 MSTR sale with the $104.25 transfer. */
+function coverAssignmentWithHeldLots(t: RawTrade, lots: MutableLot[], slices: CloseSlice[], sellQty: number): CloseSlice[] {
+  if (!t.isAssignment) return slices
+  const taken = slices.reduce((s, sl) => s + (sl.lotIndex != null ? sl.qty : 0), 0)
+  const need = sellQty - taken
+  if (need <= 1e-6) return slices
+  if (!lots.some(l => l.remaining > 1e-6)) return slices
+  const kept = slices.filter(sl => sl.lotIndex != null)
+  const merged = [...kept, ...takeHeldLots(t, lots, need, sellQty)]
+  const total = tradeRealized(t, sellQty)
+  if (total != null) snapPnl(merged, total)
+  return merged
 }
 
 function slicesFromCost(t: RawTrade, lots: MutableLot[], sellQty: number): CloseSlice[] {
@@ -979,14 +1042,15 @@ function slicesFromCost(t: RawTrade, lots: MutableLot[], sellQty: number): Close
       if (sl.lotIndex == null) continue
       lots[sl.lotIndex].remaining -= sl.qty
     }
-    return slices
+    return coverAssignmentWithHeldLots(t, lots, slices, sellQty)
   }
   // The lot IBKR closed isn't in this trade list (opened outside the Flex
   // window). Book its basis and P&L, and leave every other lot open —
   // consuming the newest buy here is what paired Ashton's sale with the
-  // $104.25 assignment.
+  // $104.25 assignment. An assignment is the exception: the shares were
+  // delivered, so the lots still held are the ones that left.
   const price = basis != null && sellQty > 0 ? basis / sellQty : 0
-  return [{
+  return coverAssignmentWithHeldLots(t, lots, [{
     qty: sellQty,
     openDate: '',
     openPrice: price,
@@ -995,7 +1059,7 @@ function slicesFromCost(t: RawTrade, lots: MutableLot[], sellQty: number): Close
     openFees: 0,
     closeFees: fee,
     lotIndex: null,
-  }]
+  }], sellQty)
 }
 
 function closedSharePosition(
@@ -1042,7 +1106,7 @@ function closedSharePosition(
       },
       {
         date: sell.tradeDate,
-        action: 'Sell',
+        action: sell.isAssignment ? 'Sell (assigned)' : 'Sell',
         role: 'sell',
         quantity: slice.qty,
         price: sell.tradePrice,
@@ -1197,7 +1261,19 @@ function reconcileOpenShares(positions: JournalPosition[], livePositions: RawPos
     const basis = residualBasis > 0 ? residualBasis : (rows[0]?.costBasisPrice ?? 0) * gap
     out.push(residualOpenPosition(symbol, gap, basis))
   }
-  return out
+  // IBKR omits a symbol once its quantity is 0. A snapshot that contains
+  // any other position is still a full open-position list, so a share
+  // ticker that isn't in it is flat. Leaving the journal's reconstructed
+  // lot Active is how a called-away transfer (basis on the assignment
+  // doesn't match the transfer-day mark) stays on the Journal with Hide
+  // closed on. An empty snapshot means we have no opinion.
+  const held = new Set<string>()
+  for (const [symbol, rows] of bySymbol) {
+    const qty = rows.reduce((s, r) => s + r.quantity, 0)
+    const lotQty = rows.reduce((s, r) => s + (r.openLots ?? []).reduce((a, l) => a + l.quantity, 0), 0)
+    if (Math.abs(qty) > 1e-4 || Math.abs(lotQty) > 1e-4) held.add(symbol)
+  }
+  return out.filter(p => p.strikeDisplay !== 'SHARES' || p.status !== 'Active' || held.has(p.underlying))
 }
 
 export function buildStockPositions(
