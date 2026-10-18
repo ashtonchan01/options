@@ -39,11 +39,13 @@ const SECTION_TABS: { id: Section; label: string }[] = [
   { id: 'allocation', label: 'Allocation' },
 ]
 
-export default function AccountView({ account, accounts, loading, error, onUpload, onClear, onSyncFlex, tradeLabels, watchlistTickers, sessionKey, expand }: {
+export default function AccountView({ account, accounts, loading, error, syncNote, uploadError, onUpload, onClear, onSyncFlex, tradeLabels, watchlistTickers, sessionKey, expand }: {
   account: Account
   accounts?: Account[]
   loading: boolean
   error: string | null
+  syncNote?: string | null
+  uploadError?: string | null
   onUpload: (file: File) => void | Promise<void>
   onClear: () => void
   onSyncFlex: (token: string, queryId: string) => void
@@ -81,6 +83,8 @@ export default function AccountView({ account, accounts, loading, error, onUploa
               account={account}
               loading={loading}
               error={error}
+              syncNote={syncNote}
+              uploadError={uploadError}
               onUpload={onUpload}
               onClear={onClear}
               onSyncFlex={onSyncFlex}

@@ -5,9 +5,10 @@
  * around 18 Oct 2025 and misses 20 Aug–17 Oct 2025 of FY2025-26, which is
  * where the early MSTR and NVDA assignments sit. IBKR SendRequest accepts
  * `fd` and `td` together (YYYYMMDD, max 365 days, not combined with period
- * `p`). Each sync therefore fetches the query's own window first, then any
- * older uncovered stretch back to the first reconciled FY, in chunks of at
- * most 365 days.
+ * `p`). Each sync fetches the query's own window first, then any older
+ * stretch back to the first reconciled FY that is not already stored, in
+ * chunks of at most 365 days. A stored chunk is closed history and is not
+ * requested again.
  *
  * History before 1 Jul 2025 is not requested. Future FYs fall inside the
  * rolling window once they start, and merge keeps trades outside each

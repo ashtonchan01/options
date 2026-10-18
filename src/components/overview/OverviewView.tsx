@@ -408,11 +408,13 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
   )
 }
 
-export default function OverviewView({ state, account, loading, error, onUpload, onClear, onSyncFlex }: {
+export default function OverviewView({ state, account, loading, error, syncNote, uploadError, onUpload, onClear, onSyncFlex }: {
   state: AppState
   account: Account
   loading: boolean
   error: string | null
+  syncNote?: string | null
+  uploadError?: string | null
   onUpload: (file: File) => void | Promise<void>
   onClear: () => void
   onSyncFlex: (token: string, queryId: string) => void
@@ -429,6 +431,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
             savedQueryId={account.flexQueryId}
             loading={loading}
             error={error}
+            note={syncNote}
             onSync={onSyncFlex}
           />
           <AccountUploadBar
@@ -436,7 +439,7 @@ export default function OverviewView({ state, account, loading, error, onUpload,
             fileName={account.fileName}
             uploadedAt={account.uploadedAt}
             loading={loading}
-            error={error}
+            error={uploadError ?? null}
             onUpload={onUpload}
             onClear={onClear}
           />
