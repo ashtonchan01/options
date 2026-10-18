@@ -27,10 +27,21 @@ export interface FlexSnapshot {
   toDate?: string
 }
 
-export async function syncFromFlexAPI(token: string, queryId: string): Promise<FlexSnapshot> {
+export async function syncFromFlexAPI(
+  token: string,
+  queryId: string,
+  range?: { fromDate: string; toDate: string },
+): Promise<FlexSnapshot> {
   if (!token || !queryId) throw new Error('Token and Query ID are required')
 
-  const url = `${FLEX_PROXY}/api/flex-sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
+  const params = new URLSearchParams({ token, query: queryId })
+  // fd and td together override the query's saved period. IBKR rejects them
+  // combined with `p`, and rejects a span longer than 365 days.
+  if (range?.fromDate && range?.toDate) {
+    params.set('fd', range.fromDate)
+    params.set('td', range.toDate)
+  }
+  const url = `${FLEX_PROXY}/api/flex-sync?${params}`
   const res = await fetch(url)
 
   const text = await res.text()
@@ -343,11 +354,54 @@ interface ParsedTrade extends RawTrade {
   origTradeId?: string
 }
 
+function codeTokens(raw: string | null | undefined): Set<string> {
+  return new Set(
+    (raw ?? '').split(/[;,\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean),
+  )
+}
+
+/** Activity-statement / Flex codes: A = assignment, Ex = exercise. */
+function describesAssignment(transactionType: string, notes: string | null | undefined): boolean {
+  const kind = transactionType.trim().toLowerCase()
+  if (kind === 'assignment' || kind === 'exercise' || kind.includes('assignment') || kind.includes('exercise')) return true
+  const tokens = codeTokens(notes)
+  return tokens.has('A') || tokens.has('EX')
+}
+
+/** OptionEAE stock quantity is not reliably signed. A covered-call
+ * assignment is cash in (proceeds > 0): the shares were called away.
+ * A put assignment is cash out: shares were received. A quantity Flex
+ * already signed is kept. */
+function signedStockQty(transactionType: string, rawQty: number, proceeds: number, notes?: string | null): number {
+  const kind = transactionType.trim().toLowerCase()
+  if (kind === 'sell' || kind === 's') return -Math.abs(rawQty)
+  if (kind === 'buy' || kind === 'b') return Math.abs(rawQty)
+  if (describesAssignment(transactionType, notes)) {
+    if (rawQty < 0) return rawQty
+    if (proceeds > 0) return -Math.abs(rawQty)
+    if (proceeds < 0) return Math.abs(rawQty)
+  }
+  return rawQty
+}
+
 function readTrade(el: Element, forceLevel?: string): ParsedTrade {
   const level = forceLevel ?? attr(el, 'levelOfDetail') ?? undefined
   const cost = optionalNumber(el, 'cost', 'costBasis')
   const fifoPnlRealized = optionalNumber(el, 'fifoPnlRealized', 'realizedPnl')
   const origTradePrice = optionalNumber(el, 'origTradePrice', 'openPrice')
+  const assetClass = (attr(el, 'assetCategory', 'assetClass') ?? 'STK') as RawTrade['assetClass']
+  const transactionType = el.getAttribute('transactionType') ?? ''
+  const notes = el.getAttribute('notes') ?? el.getAttribute('code')
+  let quantity = Number(el.getAttribute('quantity') ?? 0)
+  const proceeds = Number(el.getAttribute('proceeds') ?? 0)
+  // Some templates leave an assignment's stock quantity unsigned. Cash in
+  // means the shares were delivered (called away); cash out means they
+  // were received. A quantity that is already negative stays a sale.
+  if (assetClass === 'STK' && quantity > 0 && proceeds > 0 && describesAssignment(transactionType, notes)) {
+    quantity = -quantity
+  }
+  const isAssignment = assetClass === 'STK' && quantity < 0 && describesAssignment(transactionType, notes)
+  const openCloseRaw = el.getAttribute('openCloseIndicator')
   return {
     accountId:        el.getAttribute('accountId') ?? undefined,
     execId:           el.getAttribute('tradeID') || undefined,
@@ -365,16 +419,17 @@ function readTrade(el: Element, forceLevel?: string): ParsedTrade {
     tradeTime:        el.getAttribute('tradeTime') ?? el.getAttribute('dateTime')?.split(';')[1] ?? undefined,
     symbol:           (el.getAttribute('symbol') ?? '').trim(),
     underlyingSymbol: el.getAttribute('underlyingSymbol') ?? undefined,
-    assetClass:       (attr(el, 'assetCategory', 'assetClass') ?? 'STK') as RawTrade['assetClass'],
+    assetClass,
     putCall:          (el.getAttribute('putCall') || undefined) as RawTrade['putCall'],
     strike:           el.getAttribute('strike') ? Number(el.getAttribute('strike')) : undefined,
     expiry:           el.getAttribute('expiry') ?? undefined,
-    quantity:         Number(el.getAttribute('quantity') ?? 0),
+    quantity,
     tradePrice:       Number(el.getAttribute('tradePrice') ?? 0),
-    proceeds:         Number(el.getAttribute('proceeds') ?? 0),
+    proceeds,
     commissions:      Number(el.getAttribute('ibCommission') ?? el.getAttribute('commissions') ?? 0),
     netCash:          Number(el.getAttribute('netCash') ?? 0),
-    openClose:        (el.getAttribute('openCloseIndicator') || undefined) as RawTrade['openClose'],
+    openClose:        (openCloseRaw || (isAssignment ? 'C' : undefined)) as RawTrade['openClose'],
+    ...(isAssignment ? { isAssignment: true } : {}),
     ...(level ? { levelOfDetail: level } : {}),
     ...(cost != null ? { cost } : {}),
     ...(fifoPnlRealized != null ? { fifoPnlRealized } : {}),
@@ -453,6 +508,7 @@ function syntheticClose(row: ParsedTrade): RawTrade {
   }
   if (row.cost != null) trade.cost = row.cost
   if (row.fifoPnlRealized != null) trade.fifoPnlRealized = row.fifoPnlRealized
+  if (row.isAssignment) trade.isAssignment = true
   return trade
 }
 
@@ -555,24 +611,32 @@ function parseOptionEAE(doc: Document, usedTradeIds: Set<string>): RawTrade[] {
     .map(el => {
     const assetClass    = (attr(el, 'assetCategory') ?? 'STK') as RawTrade['assetClass']
     const transactionType = el.getAttribute('transactionType') ?? ''
+    const notes           = el.getAttribute('notes') ?? el.getAttribute('code')
     const rawQty         = Number(el.getAttribute('quantity') ?? 0)
     const proceeds        = Number(el.getAttribute('proceeds') ?? 0)
     const commissions     = Number(el.getAttribute('commisionsAndTax') ?? 0)
+    const fifoPnlRealized = optionalNumber(el, 'fifoPnlRealized', 'realizedPnl')
+    const cost            = optionalNumber(el, 'cost', 'costBasis')
 
-    // STK leg (shares bought/delivered via assignment): sign matters for the
-    // FIFO lot matcher — Buy opens a lot, Sell closes one.
-    // OPT leg (the option's own exercise/assignment/expiration/cash-settlement):
-    // this always fully closes the position, and the matcher only checks
-    // openClose === 'C' for it (quantity sign isn't load-bearing there), so a
-    // plain magnitude is fine.
+    // STK leg (shares bought or delivered): sign matters for the lot
+    // matcher — a buy opens a lot, a sale closes one. "Sell" is not the
+    // only sale. Assignment and Exercise often arrive with an unsigned
+    // quantity; proceeds > 0 means the shares were called away.
+    // OPT leg (the option's own exercise/assignment/expiration): the
+    // matcher only checks openClose === 'C', so a magnitude is enough.
     const quantity = assetClass === 'STK'
-      ? (transactionType === 'Sell' ? -Math.abs(rawQty) : Math.abs(rawQty))
+      ? signedStockQty(transactionType, rawQty, proceeds, notes)
       : Math.abs(rawQty)
+    const kind = transactionType.trim().toLowerCase()
+    const isAssignment = assetClass === 'STK' && quantity < 0 && (
+      describesAssignment(transactionType, notes) || kind === 'sell' || kind === 's'
+    )
 
     return {
       accountId:        el.getAttribute('accountId') ?? undefined,
       execId:           el.getAttribute('tradeID') ?? undefined,
-      tradeDate:        el.getAttribute('date') ?? '',
+      tradeDate:        el.getAttribute('date') || flexDate(el.getAttribute('dateTime')) || '',
+      tradeTime:        el.getAttribute('tradeTime') ?? el.getAttribute('dateTime')?.split(';')[1] ?? undefined,
       symbol:           (el.getAttribute('symbol') ?? '').trim(),
       underlyingSymbol: el.getAttribute('underlyingSymbol') || undefined,
       assetClass,
@@ -583,16 +647,18 @@ function parseOptionEAE(doc: Document, usedTradeIds: Set<string>): RawTrade[] {
       tradePrice:       Number(el.getAttribute('tradePrice') ?? 0),
       proceeds,
       commissions,
-      // Regular <Trade> records carry IBKR's own netCash; OptionEAE doesn't
-      // have that attribute, so it's derived the same way IBKR derives it —
-      // proceeds minus commissions. For a plain assignment/exercise/expiration
-      // proceeds is 0 (the option itself changes no cash; the economics move
-      // into the resulting stock position's cost basis), correctly leaving the
-      // full original premium as the position's P&L. For an SPX/SPXW cash
-      // settlement, proceeds carries the actual settlement payment.
+      // OptionEAE has no netCash attribute. proceeds − |commission| matches
+      // the cash that moved. It is not the realised P&L: an equity assignment
+      // prints realised 0 on the option (the premium rolls into the stock's
+      // fifoPnlRealized), and a cash-settled SPX/SPXW exercise puts the full
+      // result in fifoPnlRealized while proceeds on that line can be 0.
       netCash:          proceeds - Math.abs(commissions),
-      // Every OptionEAE event is terminal for that option — always a close.
-      openClose:        assetClass === 'OPT' ? 'C' as const : undefined,
+      // Every OptionEAE option event is a close. A stock delivery is a
+      // close too; a stock receipt (put assignment) is an open.
+      openClose:        assetClass === 'OPT' || quantity < 0 ? 'C' as const : undefined,
+      ...(isAssignment ? { isAssignment: true } : {}),
+      ...(cost != null ? { cost } : {}),
+      ...(fifoPnlRealized != null ? { fifoPnlRealized } : {}),
     }
   })
 }
@@ -631,9 +697,18 @@ function parseTransfers(doc: Document, optionEaeStockKeys: Set<string>): RawTrad
       const rawQty = Number(el.getAttribute('quantity') ?? 0)
       const quantity = direction === 'OUT' ? -Math.abs(rawQty) : Math.abs(rawQty)
       const positionAmount = Math.abs(Number(el.getAttribute('positionAmount') ?? 0))
-      const tradePrice = rawQty !== 0 ? positionAmount / Math.abs(rawQty) : 0
-      // Shares coming IN cost the account money (like a buy, negative cash);
-      // shares going OUT return value (like a sell, positive cash).
+      // positionAmount on a transfer is the market value that day (the
+      // activity statement's 18,181.00). Realised P&L on those rows is 0.
+      // The tax basis is a separate cost attribute when the query has one;
+      // the transfer-day mark is not a substitute. The 16 Oct 2026 MSTR
+      // sale closed a $326.79 lot, not the $104.25 transfer.
+      const costBasis = optionalNumber(el, 'cost', 'costBasis', 'costBasisMoney')
+      const transferPrice = optionalNumber(el, 'transferPrice')
+      const fifoPnlRealized = optionalNumber(el, 'fifoPnlRealized', 'realizedPnl')
+      const taxPerShare = costBasis != null && rawQty !== 0
+        ? Math.abs(costBasis) / Math.abs(rawQty)
+        : (transferPrice != null && transferPrice > 0 ? transferPrice : undefined)
+      const tradePrice = taxPerShare ?? (rawQty !== 0 ? positionAmount / Math.abs(rawQty) : 0)
       const netCash = quantity > 0 ? -positionAmount : positionAmount
       return {
         accountId:        el.getAttribute('accountId') ?? undefined,
@@ -647,6 +722,8 @@ function parseTransfers(doc: Document, optionEaeStockKeys: Set<string>): RawTrad
         commissions:      0,
         netCash,
         isTransfer:       true,
+        ...(costBasis != null ? { cost: quantity > 0 ? -Math.abs(costBasis) : Math.abs(costBasis) } : {}),
+        ...(fifoPnlRealized != null ? { fifoPnlRealized } : {}),
       }
     })
 }

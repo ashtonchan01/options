@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import Sidebar, { type TabId, parseAccountTabId } from './components/layout/Sidebar'
 import AuthGate from './components/auth/AuthGate'
 import { useTradeLabelStore } from './store/tradeLabelsStore'
@@ -44,7 +44,22 @@ export interface TradeLabels {
 // prop, so an empty one is all there is to pass.
 const EMPTY_STATE = tradesToAppState([])
 
+const FyPreviewApp = import.meta.env.DEV
+  ? lazy(() => import('./dev/fyPreview').then(m => ({ default: m.FyPreviewApp })))
+  : null
+
 export default function App() {
+  if (FyPreviewApp && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('fypreview') === '1') {
+    return (
+      <Suspense fallback={<div style={{ height: '100vh', width: '100vw', background: 'var(--bg-surface)' }} />}>
+        <FyPreviewApp />
+      </Suspense>
+    )
+  }
+  return <SignedInApp />
+}
+
+function SignedInApp() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
   const auth = useAuthStore()
   const { labels, setLabel, setMany, clearAll } = useTradeLabelStore(auth.user?.email ?? null)
@@ -88,6 +103,7 @@ export default function App() {
             <AccountView
               key={activeAccount.id}
               account={activeAccount}
+              accounts={accountsStore.accounts}
               loading={accountsStore.loadingId === activeAccount.id}
               error={accountsStore.error}
               onUpload={file => accountsStore.uploadStatement(activeAccount.id, file)}

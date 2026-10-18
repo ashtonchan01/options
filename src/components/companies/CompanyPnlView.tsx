@@ -14,10 +14,11 @@
  * expansion — so "how did this P&L number happen" is always one click away
  * instead of having to cross-reference the raw statement yourself.
  */
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import type { AppState, RawTrade } from '../../types'
 import type { TradeLabels } from '../../App'
 import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
+import { closesMissingRealized, realizedLines } from '../../engine/realizedFy'
 import { fmtDollar, pnlColor, fyOf, currentFyKey, normalizeDateStr } from './reportsShared'
 
 interface CompanyRow {
@@ -40,6 +41,7 @@ type FyFilter = 'all' | string
 function buildRows(
   positions: ReturnType<typeof buildJournalPositions>,
   livePositions: AppState['sync']['positions'],
+  trades: RawTrade[],
   fy: FyFilter,
 ) {
   const byCompany = new Map<string, CompanyRow>()
@@ -63,9 +65,14 @@ function buildRows(
     const closedFy = p.dateClosed ? fyOf(p.dateClosed).key : nowFy
     if (fy !== 'all' && fy !== closedFy) continue
     const row = get(p.underlying)
-    row.realized += p.pnl
     row.closedTrades++
     row.fees += p.openFees + (p.closeFees ?? 0)
+  }
+
+  const year = fy === 'all' ? undefined : Number(fy)
+  for (const line of realizedLines(trades, Number.isFinite(year) ? year : undefined)) {
+    const symbol = line.category === 'forex' ? line.symbol : line.underlying
+    get(symbol).realized += line.total
   }
 
   if (fy === 'all' || fy === nowFy) {
@@ -124,6 +131,7 @@ function CompanyTradesTable({ symbol, trades, fy }: { symbol: string; trades: Ra
             <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Qty</th>
             <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Price</th>
             <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Fees</th>
+            <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }} title="IBKR fifoPnlRealized on this fill. Blank when the Flex row didn't include it.">Realised</th>
             <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Net Cash</th>
           </tr>
         </thead>
@@ -141,6 +149,9 @@ function CompanyTradesTable({ symbol, trades, fy }: { symbol: string; trades: Ra
                 <td style={{ padding: '4px 8px', textAlign: 'right' }}>{Math.abs(t.quantity)}</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right' }}>{fmtDollar(t.tradePrice)}</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-4)' }}>{fmtDollar(Math.abs(t.commissions ?? 0))}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', color: t.fifoPnlRealized == null ? 'var(--text-5)' : pnlColor(t.fifoPnlRealized), fontWeight: 600 }}>
+                  {t.fifoPnlRealized == null ? '—' : fmtDollar(t.fifoPnlRealized)}
+                </td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', color: pnlColor(t.netCash), fontWeight: 600 }}>{fmtDollar(t.netCash)}</td>
               </tr>
             )
@@ -188,8 +199,8 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
   }, [state.sync.trades, tradeLabels?.labels])
 
   const rows = useMemo(
-    () => buildRows(positions, state.sync.positions, fy),
-    [positions, state.sync.positions, fy],
+    () => buildRows(positions, state.sync.positions, state.sync.trades, fy),
+    [positions, state.sync.positions, state.sync.trades, fy],
   )
 
   const filtered = useMemo(() => {
@@ -227,6 +238,12 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
     fees: acc.fees + r.fees,
   }), { realized: 0, unrealized: 0, total: 0, closedTrades: 0, openPositions: 0, fees: 0 }), [filtered])
 
+  const missingRealized = useMemo(() => {
+    if (fy === 'all') return 0
+    const year = Number(fy)
+    return Number.isFinite(year) ? closesMissingRealized(state.sync.trades, year).length : 0
+  }, [fy, state.sync.trades])
+
   const hasData = state.sync.trades.length > 0
 
   if (!hasData) {
@@ -250,6 +267,11 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
         <div className="jr-mini"><span className="label">Losers</span><b style={{ color: '#ef4444' }}>{losers}</b></div>
         <div className="jr-mini"><span className="label">Fees</span><b style={{ color: 'var(--text-2)' }}>{fmtDollar(grand.fees)}</b></div>
       </div>
+      {missingRealized > 0 && (
+        <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
+          Realised uses IBKR's own figure. {missingRealized} closing {missingRealized === 1 ? 'trade is' : 'trades are'} missing it for this year, so that P&amp;L is not in the total until the next Flex sync.
+        </div>
+      )}
 
       <div className="cc-controls" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <input
@@ -263,8 +285,17 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
       </div>
 
       <div className="cc-section cc-table-section" style={{ flex: '0 0 auto', minHeight: 'auto' }}>
-        <div className="cc-companies-table-scroll" style={{ overflow: 'auto' }}>
-          <table className="trade-table jr-companies-table" style={{ fontSize: 13 }}>
+        <div className="cc-fy-fixed-scroll">
+          <table className="trade-table jr-companies-table cc-fy-fixed cc-fy-company" style={{ fontSize: 13 }}>
+            <colgroup>
+              <col className="cc-fy-col-company" />
+              <col className="cc-fy-col-money" />
+              <col className="cc-fy-col-money" />
+              <col className="cc-fy-col-money" />
+              <col className="cc-fy-col-money" />
+              <col className="cc-fy-col-money" />
+              <col className="cc-fy-col-money" />
+            </colgroup>
             <thead>
               <tr>
                 <CompanySortTh label="Company" sortKey="symbol" sortKeyState={sortKey} sortDir={sortDir} onSort={toggleSort} />
@@ -278,9 +309,8 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
             </thead>
             <tbody>
               {filtered.map(r => (
-                <>
+                <Fragment key={r.symbol}>
                   <tr
-                    key={r.symbol}
                     onClick={() => setExpanded(expanded === r.symbol ? null : r.symbol)}
                     style={{ cursor: 'pointer' }}
                   >
@@ -302,7 +332,7 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
               {filtered.length === 0 && (
                 <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-5)', padding: 24 }}>No matches</td></tr>

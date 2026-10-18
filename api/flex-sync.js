@@ -15,13 +15,19 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.status(204).end()
 
-  const { token, query } = req.query
+  const { token, query, fd, td } = req.query
   if (!token || !query) return res.status(400).json({ error: 'Missing token or query' })
+
+  // fd and td together (YYYYMMDD) override the query's saved period. IBKR
+  // allows at most 365 days and rejects the pair when it is combined with
+  // period `p`, so this proxy never sends `p`.
+  const dated = typeof fd === 'string' && typeof td === 'string' && /^\d{8}$/.test(fd) && /^\d{8}$/.test(td)
+  const range = dated ? `&fd=${fd}&td=${td}` : ''
 
   // Step 1: SendRequest → get ReferenceCode
   let referenceCode
   try {
-    const r    = await fetch(`${IBKR_SEND}?t=${token}&q=${query}&v=3`)
+    const r    = await fetch(`${IBKR_SEND}?t=${token}&q=${query}${range}&v=3`)
     const body = await r.text()
     const ref  = el(body, 'ReferenceCode')
     if (!ref) {

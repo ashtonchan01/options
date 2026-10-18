@@ -439,12 +439,16 @@ export function buildJournalPositions(
     remaining: Map<string, number>
     netCashPerUnit: Map<string, number>
     feesPerUnit: Map<string, number>
+    /** IBKR fifoPnlRealized per contract. Null when any fill on the leg
+     * omitted the field — the cash formula stays in force for that leg. */
+    fifoPerUnit: Map<string, number | null>
     legs: RawTrade[]
   }
   function toPool(date: string, maxTime: string, expiry: string, underlying: string, legs: RawTrade[]): LegPool {
     const remaining = new Map<string, number>()
     const netCashPerUnit = new Map<string, number>()
     const feesPerUnit = new Map<string, number>()
+    const fifoPerUnit = new Map<string, number | null>()
     const byLeg = new Map<string, RawTrade[]>()
     for (const l of legs) {
       const k = legKeyOf(l)
@@ -456,8 +460,10 @@ export function buildJournalPositions(
       remaining.set(k, qty)
       netCashPerUnit.set(k, qty > 0 ? ls.reduce((s, l) => s + legNetCash(l), 0) / qty : 0)
       feesPerUnit.set(k, qty > 0 ? ls.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0) / qty : 0)
+      const known = ls.every(l => l.fifoPnlRealized != null && Number.isFinite(l.fifoPnlRealized))
+      fifoPerUnit.set(k, known && qty > 0 ? ls.reduce((s, l) => s + (l.fifoPnlRealized ?? 0), 0) / qty : null)
     }
-    return { date, maxTime, expiry, underlying, remaining, netCashPerUnit, feesPerUnit, legs }
+    return { date, maxTime, expiry, underlying, remaining, netCashPerUnit, feesPerUnit, fifoPerUnit, legs }
   }
   const closePools = closeGroupsMerged.map(cg => toPool(cg.date, cg.maxTime, cg.expiry, cg.underlying, cg.legs))
 
@@ -474,21 +480,26 @@ export function buildJournalPositions(
     if (!pool.maxTime || !openTime) return true
     return pool.maxTime >= openTime
   }
-  function take(pool: LegPool, keys: string[], qty: number): { qty: number; closeNetCash: number; closeFees: number; legIds: string[] } | null {
+  function take(pool: LegPool, keys: string[], qty: number): { qty: number; closeNetCash: number; closeFees: number; closeFifo: number | null; legIds: string[] } | null {
     if (qty <= 1e-9 || keys.length === 0) return null
     let closable = qty
     for (const k of keys) closable = Math.min(closable, pool.remaining.get(k) ?? 0)
     if (closable <= 1e-9) return null
     let closeNetCash = 0
     let closeFees = 0
+    let closeFifo = 0
+    let fifoKnown = true
     for (const k of keys) {
       pool.remaining.set(k, (pool.remaining.get(k) ?? 0) - closable)
       closeNetCash += (pool.netCashPerUnit.get(k) ?? 0) * closable
       closeFees += (pool.feesPerUnit.get(k) ?? 0) * closable
+      const per = pool.fifoPerUnit.get(k)
+      if (per == null) fifoKnown = false
+      else closeFifo += per * closable
     }
     const keySet = new Set(keys)
     const legIds = pool.legs.filter(l => keySet.has(legKeyOf(l))).map(tradeId)
-    return { qty: closable, closeNetCash, closeFees, legIds }
+    return { qty: closable, closeNetCash, closeFees, closeFifo: fifoKnown ? closeFifo : null, legIds }
   }
 
   return openGroups.flatMap(og => {
@@ -552,7 +563,7 @@ export function buildJournalPositions(
     }
 
     const keys = [...new Set(openLegs.map(legKeyOf))]
-    const slices: Array<{ qty: number; date: string; closeNetCash: number; closeFees: number; legIds: string[] }> = []
+    const slices: Array<{ qty: number; date: string; closeNetCash: number; closeFees: number; closeFifo: number | null; legIds: string[] }> = []
     const reservedPool = toPool(og.date, og.time, og.expiry, og.underlying, reservedLegs)
     const reservedTake = take(reservedPool, keys, contracts)
     if (reservedTake) slices.push({ ...reservedTake, date: og.date })
@@ -577,6 +588,8 @@ export function buildJournalPositions(
       if (closable <= 1e-9) continue
       let closeNetCash = 0
       let closeFees = 0
+      let closeFifo = 0
+      let fifoKnown = true
       const legIds: string[] = []
       for (const k of keys) {
         let need = closable
@@ -587,10 +600,13 @@ export function buildJournalPositions(
           need -= got.qty
           closeNetCash += got.closeNetCash
           closeFees += got.closeFees
+          if (got.closeFifo == null) fifoKnown = false
+          else closeFifo += got.closeFifo
           legIds.push(...got.legIds)
         }
+        if (need > 1e-9) fifoKnown = false
       }
-      slices.push({ qty: closable, date, closeNetCash, closeFees, legIds })
+      slices.push({ qty: closable, date, closeNetCash, closeFees, closeFifo: fifoKnown ? closeFifo : null, legIds })
       left -= closable
     }
 
@@ -599,6 +615,12 @@ export function buildJournalPositions(
     if (slices.length > 0 && openQty <= 1e-6) {
       const closeNetCash = slices.reduce((s, sl) => s + sl.closeNetCash, 0)
       const closeFees = slices.reduce((s, sl) => s + sl.closeFees, 0)
+      // IBKR's fifoPnlRealized already includes the premium kept on expiry
+      // and is 0 when an equity assignment rolls the premium into the
+      // shares. Adding the opening credit on top of that double-counts.
+      // The cash formula stays only when a close leg omitted the field.
+      const fifoKnown = slices.every(sl => sl.closeFifo != null)
+      const fifoPnl = slices.reduce((s, sl) => s + (sl.closeFifo ?? 0), 0)
       const dateClosed = slices[slices.length - 1].date
       const closeIds = [...new Set(slices.flatMap(sl => sl.legIds))]
       return [{
@@ -606,7 +628,7 @@ export function buildJournalPositions(
         status: 'Closed' as const,
         dateClosed,
         closeFees,
-        pnl: openingNetCash + closeNetCash,
+        pnl: fifoKnown ? fifoPnl : openingNetCash + closeNetCash,
         holdDays: Math.max(0, daysBetween(og.date, dateClosed)),
         tradeIds: [...openTradeIds, ...closeIds],
       }]
@@ -624,7 +646,7 @@ export function buildJournalPositions(
         status: 'Closed' as const,
         dateClosed: sl.date,
         closeFees: sl.closeFees,
-        pnl: openingNetCash * frac + sl.closeNetCash,
+        pnl: sl.closeFifo != null ? sl.closeFifo : openingNetCash * frac + sl.closeNetCash,
         holdDays: Math.max(0, daysBetween(og.date, sl.date)),
         tradeIds: [...openTradeIds, ...sl.legIds],
       })
@@ -928,7 +950,70 @@ function slicesFromClosedLots(t: RawTrade, lots: MutableLot[], sellQty: number):
   const total = tradeRealized(t, sellQty)
   if (total != null) snapPnl(slices, total)
   for (const [index, qty] of reserved) lots[index].remaining -= qty
+  return coverAssignmentWithHeldLots(t, lots, slices, sellQty)
+}
+
+/** Shares an assignment or exercise actually delivered. Oldest lot first,
+ * up to the quantity that left the account. IBKR's basis is spread across
+ * those shares; a remainder with no lot in this file stays a synthetic close. */
+function takeHeldLots(t: RawTrade, lots: MutableLot[], qty: number, sellQty: number): CloseSlice[] {
+  const basisTotal = closeBasis(t, sellQty)
+  const fee = Math.abs(t.commissions ?? 0)
+  let left = qty
+  const slices: CloseSlice[] = []
+  for (let i = 0; i < lots.length && left > 1e-9; i++) {
+    const lot = lots[i]
+    if (lot.remaining <= 1e-9) continue
+    const take = Math.min(lot.remaining, left)
+    const share = sellQty > 0 ? take / sellQty : 0
+    const sliceBasis = basisTotal != null ? basisTotal * share : lot.price * take
+    const buyQty = Math.abs(lot.trade.quantity) || take
+    slices.push({
+      qty: take,
+      openDate: lot.date,
+      openPrice: take > 0 ? sliceBasis / take : lot.price,
+      basis: sliceBasis,
+      pnl: t.tradePrice * take - sliceBasis - fee * share,
+      openFees: Math.abs(lot.trade.commissions ?? 0) * (take / buyQty),
+      closeFees: fee * share,
+      lotIndex: i,
+      openTrade: lot.trade,
+    })
+    lot.remaining -= take
+    left -= take
+  }
+  if (left > 1e-6) {
+    const share = sellQty > 0 ? left / sellQty : 0
+    const sliceBasis = basisTotal != null ? basisTotal * share : 0
+    slices.push({
+      qty: left,
+      openDate: '',
+      openPrice: left > 0 ? sliceBasis / left : 0,
+      basis: sliceBasis,
+      pnl: t.tradePrice * left - sliceBasis - fee * share,
+      openFees: 0,
+      closeFees: fee * share,
+      lotIndex: null,
+    })
+  }
   return slices
+}
+
+/** Called-away and exercised shares leave the account even when IBKR's
+ * basis (the option premium rolled in) matches none of the lots we hold.
+ * An ordinary sale does not come through here: consuming the nearest lot
+ * is what paired the 16 Oct 2026 MSTR sale with the $104.25 transfer. */
+function coverAssignmentWithHeldLots(t: RawTrade, lots: MutableLot[], slices: CloseSlice[], sellQty: number): CloseSlice[] {
+  if (!t.isAssignment) return slices
+  const taken = slices.reduce((s, sl) => s + (sl.lotIndex != null ? sl.qty : 0), 0)
+  const need = sellQty - taken
+  if (need <= 1e-6) return slices
+  if (!lots.some(l => l.remaining > 1e-6)) return slices
+  const kept = slices.filter(sl => sl.lotIndex != null)
+  const merged = [...kept, ...takeHeldLots(t, lots, need, sellQty)]
+  const total = tradeRealized(t, sellQty)
+  if (total != null) snapPnl(merged, total)
+  return merged
 }
 
 function slicesFromCost(t: RawTrade, lots: MutableLot[], sellQty: number): CloseSlice[] {
@@ -957,14 +1042,15 @@ function slicesFromCost(t: RawTrade, lots: MutableLot[], sellQty: number): Close
       if (sl.lotIndex == null) continue
       lots[sl.lotIndex].remaining -= sl.qty
     }
-    return slices
+    return coverAssignmentWithHeldLots(t, lots, slices, sellQty)
   }
   // The lot IBKR closed isn't in this trade list (opened outside the Flex
   // window). Book its basis and P&L, and leave every other lot open —
   // consuming the newest buy here is what paired Ashton's sale with the
-  // $104.25 assignment.
+  // $104.25 assignment. An assignment is the exception: the shares were
+  // delivered, so the lots still held are the ones that left.
   const price = basis != null && sellQty > 0 ? basis / sellQty : 0
-  return [{
+  return coverAssignmentWithHeldLots(t, lots, [{
     qty: sellQty,
     openDate: '',
     openPrice: price,
@@ -973,7 +1059,7 @@ function slicesFromCost(t: RawTrade, lots: MutableLot[], sellQty: number): Close
     openFees: 0,
     closeFees: fee,
     lotIndex: null,
-  }]
+  }], sellQty)
 }
 
 function closedSharePosition(
@@ -1020,7 +1106,7 @@ function closedSharePosition(
       },
       {
         date: sell.tradeDate,
-        action: 'Sell',
+        action: sell.isAssignment ? 'Sell (assigned)' : 'Sell',
         role: 'sell',
         quantity: slice.qty,
         price: sell.tradePrice,
@@ -1175,7 +1261,19 @@ function reconcileOpenShares(positions: JournalPosition[], livePositions: RawPos
     const basis = residualBasis > 0 ? residualBasis : (rows[0]?.costBasisPrice ?? 0) * gap
     out.push(residualOpenPosition(symbol, gap, basis))
   }
-  return out
+  // IBKR omits a symbol once its quantity is 0. A snapshot that contains
+  // any other position is still a full open-position list, so a share
+  // ticker that isn't in it is flat. Leaving the journal's reconstructed
+  // lot Active is how a called-away transfer (basis on the assignment
+  // doesn't match the transfer-day mark) stays on the Journal with Hide
+  // closed on. An empty snapshot means we have no opinion.
+  const held = new Set<string>()
+  for (const [symbol, rows] of bySymbol) {
+    const qty = rows.reduce((s, r) => s + r.quantity, 0)
+    const lotQty = rows.reduce((s, r) => s + (r.openLots ?? []).reduce((a, l) => a + l.quantity, 0), 0)
+    if (Math.abs(qty) > 1e-4 || Math.abs(lotQty) > 1e-4) held.add(symbol)
+  }
+  return out.filter(p => p.strikeDisplay !== 'SHARES' || p.status !== 'Active' || held.has(p.underlying))
 }
 
 export function buildStockPositions(
@@ -1221,22 +1319,39 @@ export function buildStockPositions(
       // No IBKR basis on this fill. Newest lot first — the previous
       // fallback — so a same-day partial sale still realises against the
       // lot it came out of when the file can't say which one IBKR used.
+      // A transfer priced at that day's market value is not the tax basis.
+      // IBKR keeps the original cost, and it shows up on the closing fill.
+      // Using the mark here booked the 16 Oct 2026 MSTR sale against the
+      // $104.25 transfer instead of the $326.79 lot.
       let sellRemaining = sellQty
       const sellFeesTotal = Math.abs(t.commissions ?? 0)
       while (sellRemaining > 0 && openLots.length > 0) {
-        const lotIndex = openLots.length - 1
+        let lotIndex = -1
+        for (let i = openLots.length - 1; i >= 0; i--) {
+          const candidate = openLots[i]
+          if (candidate.remaining <= 1e-6) continue
+          if (candidate.trade.isTransfer && (candidate.trade.cost == null || candidate.trade.cost === 0)) continue
+          lotIndex = i
+          break
+        }
+        if (lotIndex < 0) break
         const lot = openLots[lotIndex]
         const matched = Math.min(lot.remaining, sellRemaining)
         const buyTrade = lot.trade
         const buyFeesShare = Math.abs(buyTrade.commissions ?? 0) * (matched / Math.abs(buyTrade.quantity))
         const sellFeesShare = sellFeesTotal * (matched / sellQty)
-        const buyCost = buyTrade.tradePrice * matched
+        // A transfer can show the transfer-day mark as tradePrice and still
+        // carry IBKR's original cost. The cost is the tax basis.
+        const basisPerShare = buyTrade.cost != null && Number.isFinite(buyTrade.cost) && buyTrade.cost !== 0 && buyTrade.quantity !== 0
+          ? Math.abs(buyTrade.cost) / Math.abs(buyTrade.quantity)
+          : buyTrade.tradePrice
+        const buyCost = basisPerShare * matched
         const sellProceeds = t.tradePrice * matched
         seq++
         positions.push(closedSharePosition(ticker, t, {
           qty: matched,
           openDate: buyTrade.tradeDate,
-          openPrice: buyTrade.tradePrice,
+          openPrice: basisPerShare,
           basis: buyCost,
           pnl: sellProceeds - buyCost - buyFeesShare - sellFeesShare,
           openFees: buyFeesShare,

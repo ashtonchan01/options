@@ -21,9 +21,10 @@ import { useEffect, useMemo, useState } from 'react'
 import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
 import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
+import { realizedLines } from '../../engine/realizedFy'
 import { useAnnualRoiManualCash } from '../../store/annualRoiCashStore'
 import { fetchMarketQuotes } from '../../services/markets'
-import { fmtDollar, pnlColor, fyOf, currentFyKey } from './reportsShared'
+import { fmtDollar, pnlColor, fyLabel, fyOf, currentFyKey, sydneyYmd } from './reportsShared'
 
 const CURRENCIES = ['USD', 'AUD', 'EUR', 'GBP', 'NZD', 'CAD', 'JPY', 'HKD', 'SGD', 'CHF']
 
@@ -58,15 +59,16 @@ function buildFyRoiRows(
   const realizedByFy = new Map<string, { label: string; startYear: number; pnl: number }>()
   let hasOpenPositions = false
   for (const p of positions) {
-    if (p.status === 'Active') { hasOpenPositions = true; continue }
-    if (p.pnl == null || !p.dateClosed) continue
-    const f = fyOf(p.dateClosed)
-    const e = realizedByFy.get(f.key) ?? { label: f.label, startYear: f.startYear, pnl: 0 }
-    e.pnl += p.pnl
-    realizedByFy.set(f.key, e)
+    if (p.status === 'Active') hasOpenPositions = true
+  }
+  for (const line of realizedLines(state.sync.trades)) {
+    const key = String(line.fyStartYear)
+    const e = realizedByFy.get(key) ?? { label: fyLabel(line.fyStartYear), startYear: line.fyStartYear, pnl: 0 }
+    e.pnl += line.total
+    realizedByFy.set(key, e)
   }
   if (hasOpenPositions || !realizedByFy.has(nowFy)) {
-    const cur = fyOf(`${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}01`)
+    const cur = fyOf(sydneyYmd())
     if (!realizedByFy.has(nowFy)) realizedByFy.set(nowFy, { label: cur.label, startYear: cur.startYear, pnl: 0 })
   }
   const totalUnrealized = state.sync.positions.reduce((s, p) => s + p.unrealizedPnL, 0)
@@ -76,7 +78,7 @@ function buildFyRoiRows(
   for (const [key, entry] of Object.entries(manualCashByFy)) {
     if (entry.value === 0 || realizedByFy.has(key)) continue
     const startYear = Number(key)
-    realizedByFy.set(key, { label: `FY ${startYear}/${String((startYear + 1) % 100).padStart(2, '0')}`, startYear, pnl: 0 })
+    realizedByFy.set(key, { label: fyLabel(startYear), startYear, pnl: 0 })
   }
 
   function toUsd(entry: { value: number; currency: string } | undefined): number {
@@ -201,13 +203,22 @@ export default function AnnualRoiView({ state, tradeLabels, accountId, sessionKe
       <div style={{ fontSize: 11, color: 'var(--text-4)', marginBottom: 10, lineHeight: 1.5 }}>
         Each year's starting balance is derived backward from today's live net worth (peeling off each
         year's own P&L in turn) since there's no historical daily balance to divide against — assumes no
-        deposits/withdrawals between years. The current financial year's figure includes today's
-        unrealized P&L on open positions since the year isn't over yet. Type a deposit/withdrawal amount
-        and pick its currency into a year's Manual Cash cell to convert it to USD and deduct it from that
-        year's own P&L instead of counting it as a trading gain.
+        deposits/withdrawals between years. Realised P&L is IBKR's own figure on closing trades in the
+        Australian financial year (1 Jul 10:00 to the next 1 Jul 10:00, Sydney). The current year's
+        figure also includes today's unrealized P&L on open positions, since the year isn't over yet.
+        Type a deposit/withdrawal amount and pick its currency into a year's Manual Cash cell to convert
+        it to USD and deduct it from that year's own P&L instead of counting it as a trading gain.
       </div>
-      <div className="cc-companies-table-scroll" style={{ overflow: 'auto' }}>
-        <table className="trade-table jr-companies-table" style={{ width: '100%', fontSize: 13 }}>
+      <div className="cc-fy-fixed-scroll">
+        <table className="trade-table jr-companies-table cc-fy-fixed cc-fy-annual" style={{ fontSize: 13 }}>
+          <colgroup>
+            <col className="cc-fy-col-fy" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-cash" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-roi" />
+          </colgroup>
           <thead>
             <tr>
               <th style={{ whiteSpace: 'nowrap' }}>Financial Year</th>

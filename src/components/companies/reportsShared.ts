@@ -23,19 +23,34 @@ export function pnlColor(n: number) { return n > 0 ? '#10b981' : n < 0 ? '#ef444
  * "fy2526", key "2025"). Computed from the actual dates present in the data
  * rather than a hardcoded pair, so older financial years automatically get
  * their own tab instead of being silently folded into "All Time". */
+export function fyLabel(startYear: number): string {
+  return `FY${startYear}-${String((startYear + 1) % 100).padStart(2, '0')}`
+}
+
 export function fyOf(dateStr: string): { key: string; label: string; startYear: number } {
   const d = normalizeDateStr(dateStr)
   const year = parseInt(d.slice(0, 4), 10)
   const month = parseInt(d.slice(4, 6), 10)
   const startYear = month >= 7 ? year : year - 1
   const key = String(startYear)
-  const label = `FY ${startYear}/${String((startYear + 1) % 100).padStart(2, '0')}`
-  return { key, label, startYear }
+  return { key, label: fyLabel(startYear), startYear }
 }
 
-export function currentFyKey(): string {
-  const now = new Date()
-  return fyOf(`${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`).key
+/** Calendar date in Australia/Sydney, YYYYMMDD. The realised report's 10:00
+ * cutoff is applied to trade timestamps separately; this is "which FY is
+ * it today" for the selector. */
+export function sydneyYmd(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Australia/Sydney',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now)
+  return parts.replace(/-/g, '')
+}
+
+export function currentFyKey(now = new Date()): string {
+  return fyOf(sydneyYmd(now)).key
 }
 
 export const STRAT_ORDER = [
