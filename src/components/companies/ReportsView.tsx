@@ -14,18 +14,26 @@ import { fyOf, currentFyKey } from './reportsShared'
 import CompanyPnlView from './CompanyPnlView'
 import MonthlyIncomeView from './MonthlyIncomeView'
 import AnnualRoiView from './AnnualRoiView'
+import RealisedFyView, { type RealisedAccount } from './RealisedFyView'
 
 type FyFilter = 'all' | string
-type SubPage = 'company' | 'monthly' | 'annual'
+type SubPage = 'realised' | 'company' | 'monthly' | 'annual'
 
 const SUB_PAGES: { id: SubPage; label: string }[] = [
+  { id: 'realised', label: 'Realised' },
   { id: 'company', label: 'Company P&L' },
   { id: 'monthly', label: 'Monthly Income' },
   { id: 'annual', label: 'Annual ROI' },
 ]
 
-export default function ReportsView({ state, tradeLabels, accountId, sessionKey }: { state: AppState; tradeLabels?: TradeLabels; accountId: string; sessionKey?: string | null }) {
-  const [sub, setSub] = useState<SubPage>('company')
+export default function ReportsView({ state, tradeLabels, accountId, sessionKey, accounts }: {
+  state: AppState
+  tradeLabels?: TradeLabels
+  accountId: string
+  sessionKey?: string | null
+  accounts?: RealisedAccount[]
+}) {
+  const [sub, setSub] = useState<SubPage>('realised')
   const [fy, setFy] = useState<FyFilter>('all')
 
   const positions = useMemo(() => {
@@ -75,11 +83,9 @@ export default function ReportsView({ state, tradeLabels, accountId, sessionKey 
           ))}
         </div>
 
-        {/* Annual ROI is inherently a per-FY breakdown across every year at
-            once — this filter (which narrows the OTHER two pages to a
-            single FY) has nothing to narrow there, so it's hidden rather
-            than shown inert. */}
-        {sub !== 'annual' && (
+        {/* Annual ROI and Realised own their own year navigation. This
+            filter narrows Company P&L and Monthly Income. */}
+        {sub !== 'annual' && sub !== 'realised' && (
           <div className="tl-filter-row" style={{ gap: 4 }}>
             <button className={`tl-filter-chip${fy === 'all' ? ' active' : ''}`} onClick={() => setFy('all')}>
               All Time
@@ -98,6 +104,12 @@ export default function ReportsView({ state, tradeLabels, accountId, sessionKey 
         )}
       </div>
 
+      {sub === 'realised' && (
+        <RealisedFyView
+          accounts={accounts && accounts.length > 0 ? accounts : [{ id: accountId, name: 'This account', trades: state.sync.trades }]}
+          activeAccountId={accountId}
+        />
+      )}
       {sub === 'company' && <CompanyPnlView state={state} tradeLabels={tradeLabels} fy={fy} />}
       {sub === 'monthly' && <MonthlyIncomeView state={state} tradeLabels={tradeLabels} fy={fy} />}
       {sub === 'annual' && <AnnualRoiView state={state} tradeLabels={tradeLabels} accountId={accountId} sessionKey={sessionKey} />}

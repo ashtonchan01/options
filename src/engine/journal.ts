@@ -439,12 +439,16 @@ export function buildJournalPositions(
     remaining: Map<string, number>
     netCashPerUnit: Map<string, number>
     feesPerUnit: Map<string, number>
+    /** IBKR fifoPnlRealized per contract. Null when any fill on the leg
+     * omitted the field — the cash formula stays in force for that leg. */
+    fifoPerUnit: Map<string, number | null>
     legs: RawTrade[]
   }
   function toPool(date: string, maxTime: string, expiry: string, underlying: string, legs: RawTrade[]): LegPool {
     const remaining = new Map<string, number>()
     const netCashPerUnit = new Map<string, number>()
     const feesPerUnit = new Map<string, number>()
+    const fifoPerUnit = new Map<string, number | null>()
     const byLeg = new Map<string, RawTrade[]>()
     for (const l of legs) {
       const k = legKeyOf(l)
@@ -456,8 +460,10 @@ export function buildJournalPositions(
       remaining.set(k, qty)
       netCashPerUnit.set(k, qty > 0 ? ls.reduce((s, l) => s + legNetCash(l), 0) / qty : 0)
       feesPerUnit.set(k, qty > 0 ? ls.reduce((s, l) => s + Math.abs(l.commissions ?? 0), 0) / qty : 0)
+      const known = ls.every(l => l.fifoPnlRealized != null && Number.isFinite(l.fifoPnlRealized))
+      fifoPerUnit.set(k, known && qty > 0 ? ls.reduce((s, l) => s + (l.fifoPnlRealized ?? 0), 0) / qty : null)
     }
-    return { date, maxTime, expiry, underlying, remaining, netCashPerUnit, feesPerUnit, legs }
+    return { date, maxTime, expiry, underlying, remaining, netCashPerUnit, feesPerUnit, fifoPerUnit, legs }
   }
   const closePools = closeGroupsMerged.map(cg => toPool(cg.date, cg.maxTime, cg.expiry, cg.underlying, cg.legs))
 
@@ -474,21 +480,26 @@ export function buildJournalPositions(
     if (!pool.maxTime || !openTime) return true
     return pool.maxTime >= openTime
   }
-  function take(pool: LegPool, keys: string[], qty: number): { qty: number; closeNetCash: number; closeFees: number; legIds: string[] } | null {
+  function take(pool: LegPool, keys: string[], qty: number): { qty: number; closeNetCash: number; closeFees: number; closeFifo: number | null; legIds: string[] } | null {
     if (qty <= 1e-9 || keys.length === 0) return null
     let closable = qty
     for (const k of keys) closable = Math.min(closable, pool.remaining.get(k) ?? 0)
     if (closable <= 1e-9) return null
     let closeNetCash = 0
     let closeFees = 0
+    let closeFifo = 0
+    let fifoKnown = true
     for (const k of keys) {
       pool.remaining.set(k, (pool.remaining.get(k) ?? 0) - closable)
       closeNetCash += (pool.netCashPerUnit.get(k) ?? 0) * closable
       closeFees += (pool.feesPerUnit.get(k) ?? 0) * closable
+      const per = pool.fifoPerUnit.get(k)
+      if (per == null) fifoKnown = false
+      else closeFifo += per * closable
     }
     const keySet = new Set(keys)
     const legIds = pool.legs.filter(l => keySet.has(legKeyOf(l))).map(tradeId)
-    return { qty: closable, closeNetCash, closeFees, legIds }
+    return { qty: closable, closeNetCash, closeFees, closeFifo: fifoKnown ? closeFifo : null, legIds }
   }
 
   return openGroups.flatMap(og => {
@@ -552,7 +563,7 @@ export function buildJournalPositions(
     }
 
     const keys = [...new Set(openLegs.map(legKeyOf))]
-    const slices: Array<{ qty: number; date: string; closeNetCash: number; closeFees: number; legIds: string[] }> = []
+    const slices: Array<{ qty: number; date: string; closeNetCash: number; closeFees: number; closeFifo: number | null; legIds: string[] }> = []
     const reservedPool = toPool(og.date, og.time, og.expiry, og.underlying, reservedLegs)
     const reservedTake = take(reservedPool, keys, contracts)
     if (reservedTake) slices.push({ ...reservedTake, date: og.date })
@@ -577,6 +588,8 @@ export function buildJournalPositions(
       if (closable <= 1e-9) continue
       let closeNetCash = 0
       let closeFees = 0
+      let closeFifo = 0
+      let fifoKnown = true
       const legIds: string[] = []
       for (const k of keys) {
         let need = closable
@@ -587,10 +600,13 @@ export function buildJournalPositions(
           need -= got.qty
           closeNetCash += got.closeNetCash
           closeFees += got.closeFees
+          if (got.closeFifo == null) fifoKnown = false
+          else closeFifo += got.closeFifo
           legIds.push(...got.legIds)
         }
+        if (need > 1e-9) fifoKnown = false
       }
-      slices.push({ qty: closable, date, closeNetCash, closeFees, legIds })
+      slices.push({ qty: closable, date, closeNetCash, closeFees, closeFifo: fifoKnown ? closeFifo : null, legIds })
       left -= closable
     }
 
@@ -599,6 +615,12 @@ export function buildJournalPositions(
     if (slices.length > 0 && openQty <= 1e-6) {
       const closeNetCash = slices.reduce((s, sl) => s + sl.closeNetCash, 0)
       const closeFees = slices.reduce((s, sl) => s + sl.closeFees, 0)
+      // IBKR's fifoPnlRealized already includes the premium kept on expiry
+      // and is 0 when an equity assignment rolls the premium into the
+      // shares. Adding the opening credit on top of that double-counts.
+      // The cash formula stays only when a close leg omitted the field.
+      const fifoKnown = slices.every(sl => sl.closeFifo != null)
+      const fifoPnl = slices.reduce((s, sl) => s + (sl.closeFifo ?? 0), 0)
       const dateClosed = slices[slices.length - 1].date
       const closeIds = [...new Set(slices.flatMap(sl => sl.legIds))]
       return [{
@@ -606,7 +628,7 @@ export function buildJournalPositions(
         status: 'Closed' as const,
         dateClosed,
         closeFees,
-        pnl: openingNetCash + closeNetCash,
+        pnl: fifoKnown ? fifoPnl : openingNetCash + closeNetCash,
         holdDays: Math.max(0, daysBetween(og.date, dateClosed)),
         tradeIds: [...openTradeIds, ...closeIds],
       }]
@@ -624,7 +646,7 @@ export function buildJournalPositions(
         status: 'Closed' as const,
         dateClosed: sl.date,
         closeFees: sl.closeFees,
-        pnl: openingNetCash * frac + sl.closeNetCash,
+        pnl: sl.closeFifo != null ? sl.closeFifo : openingNetCash * frac + sl.closeNetCash,
         holdDays: Math.max(0, daysBetween(og.date, sl.date)),
         tradeIds: [...openTradeIds, ...sl.legIds],
       })

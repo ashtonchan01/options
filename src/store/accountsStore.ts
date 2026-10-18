@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { RawPosition, RawTrade } from '../types'
 import { syncFromXML, syncFromFlexAPI } from '../services/ibkr'
+import { replaceTradeWindow, uncoveredFlexRanges } from '../services/flexWindow'
 import { parseGenericCsvTrades } from '../services/genericCsvImport'
 import { parseXlsxTrades } from '../services/xlsxImport'
 import { parsePdfTrades } from '../services/pdfImport'
@@ -81,11 +82,14 @@ interface SyncResult {
  * later (`cost`, `fifoPnlRealized`, `closedLots` on trades; `openLots` on
  * positions). Portfolio data is one JSON document, not a column per field,
  * so there is no SQL migration — the next Flex sync writes them. Trades
- * older than the window keep whatever they were stored with.
+ * older than the window keep whatever they were stored with. A backfill
+ * also passes `toDate`: trades newer than that date stay, so loading an
+ * older stretch does not wipe the primary sync.
  */
-function mergeTrades(existing: RawTrade[], incoming: RawTrade[], fromDate?: string): RawTrade[] {
-  const before = fromDate ? existing.filter(t => t.tradeDate < fromDate) : existing
-  if (!fromDate) {
+function mergeTrades(existing: RawTrade[], incoming: RawTrade[], fromDate?: string, toDate?: string): RawTrade[] {
+  const replaced = replaceTradeWindow(existing, incoming, fromDate, toDate)
+  if (replaced) return replaced
+  {
     // No declared window — fall back to a straight union, deduped by key,
     // incoming wins on collision (a trade already cached can be missing a
     // field a later parser fix started populating).
@@ -113,7 +117,6 @@ function mergeTrades(existing: RawTrade[], incoming: RawTrade[], fromDate?: stri
     for (const t of incoming) byKey.set(keyed(t), t)
     return [...byKey.values()]
   }
-  return [...before, ...incoming]
 }
 
 function storageKey(sessionKey: string): string {
@@ -287,22 +290,40 @@ export function useAccounts(sessionKey: string | null) {
     setError(null)
     try {
       const result = await syncFromFlexAPI(token, queryId)
+      // The saved query is at most 365 days, which does not cover the start
+      // of FY2025-26. Older chunks are requested explicitly. A failed chunk
+      // keeps the primary result — the latest window is still saved.
+      const backfills: { fromDate: string; toDate: string; trades: RawTrade[] }[] = []
+      let backfillWarning: string | null = null
+      for (const range of uncoveredFlexRanges(result.fromDate)) {
+        try {
+          const older = await syncFromFlexAPI(token, queryId, range)
+          backfills.push({ fromDate: range.fromDate, toDate: range.toDate, trades: older.trades })
+        } catch (e) {
+          backfillWarning = e instanceof Error ? e.message : 'Flex backfill failed'
+          break
+        }
+      }
       setAccounts(prev => {
-        const next = prev.map(a => a.id === id
-          ? {
-              ...a,
-              trades: mergeTrades(a.trades, result.trades, result.fromDate),
-              positions: result.positions ?? a.positions,
-              cashBalance: result.cashBalance ?? a.cashBalance,
-              cashBalances: result.cashBalances ?? a.cashBalances,
-              netLiquidation: result.netLiquidation ?? a.netLiquidation,
-              equityHistory: result.equityHistory?.length ? result.equityHistory : a.equityHistory,
-              flexToken: token, flexQueryId: queryId, fileName: 'IBKR Flex sync', uploadedAt: Date.now(),
-            }
-          : a)
+        const next = prev.map(a => {
+          if (a.id !== id) return a
+          let trades = mergeTrades(a.trades, result.trades, result.fromDate)
+          for (const chunk of backfills) trades = mergeTrades(trades, chunk.trades, chunk.fromDate, chunk.toDate)
+          return {
+            ...a,
+            trades,
+            positions: result.positions ?? a.positions,
+            cashBalance: result.cashBalance ?? a.cashBalance,
+            cashBalances: result.cashBalances ?? a.cashBalances,
+            netLiquidation: result.netLiquidation ?? a.netLiquidation,
+            equityHistory: result.equityHistory?.length ? result.equityHistory : a.equityHistory,
+            flexToken: token, flexQueryId: queryId, fileName: 'IBKR Flex sync', uploadedAt: Date.now(),
+          }
+        })
         persist(next)
         return next
       })
+      if (backfillWarning) setError(`Synced the latest window. Older history did not load: ${backfillWarning}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Flex sync failed')
     } finally {

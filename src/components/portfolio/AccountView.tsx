@@ -39,8 +39,9 @@ const SECTION_TABS: { id: Section; label: string }[] = [
   { id: 'allocation', label: 'Allocation' },
 ]
 
-export default function AccountView({ account, loading, error, onUpload, onClear, onSyncFlex, tradeLabels, watchlistTickers, sessionKey }: {
+export default function AccountView({ account, accounts, loading, error, onUpload, onClear, onSyncFlex, tradeLabels, watchlistTickers, sessionKey, expand }: {
   account: Account
+  accounts?: Account[]
   loading: boolean
   error: string | null
   onUpload: (file: File) => void | Promise<void>
@@ -49,12 +50,17 @@ export default function AccountView({ account, loading, error, onUpload, onClear
   tradeLabels?: TradeLabels
   watchlistTickers: string[]
   sessionKey: string | null
+  /** Dev preview: let the page grow so a screenshot can capture the report. */
+  expand?: boolean
 }) {
-  const [section, setSection] = useState<Section>('overview')
+  const previewReports = import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('fypreview') === '1'
+  const [section, setSection] = useState<Section>(previewReports ? 'reports' : 'overview')
   const accountState = accountToAppState(account)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: '20px 24px' }}>
+    <div style={expand
+      ? { display: 'flex', flexDirection: 'column', minHeight: '100vh', padding: '20px 24px' }
+      : { display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: '20px 24px' }}>
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div className="ph-underline-tabs" style={{ flex: '0 0 auto' }}>
           {SECTION_TABS.map(t => (
@@ -68,7 +74,7 @@ export default function AccountView({ account, loading, error, onUpload, onClear
           ))}
         </div>
 
-        <div className={`av-section-body${section === 'calendar' ? ' av-section-calendar' : ''}`} style={{ flex: 1, minHeight: 0, overflow: section === 'reports' ? 'auto' : 'hidden' }}>
+        <div className={`av-section-body${section === 'calendar' ? ' av-section-calendar' : ''}`} style={{ flex: 1, minHeight: 0, overflow: expand ? 'visible' : section === 'reports' ? 'auto' : 'hidden' }}>
           {section === 'overview' && (
             <OverviewView
               state={accountState}
@@ -85,7 +91,13 @@ export default function AccountView({ account, loading, error, onUpload, onClear
           {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} sessionKey={sessionKey} />}
           {section === 'reports' && (
             <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>
-              <ReportsView state={accountState} tradeLabels={tradeLabels} accountId={account.id} sessionKey={sessionKey} />
+              <ReportsView
+                state={accountState}
+                tradeLabels={tradeLabels}
+                accountId={account.id}
+                sessionKey={sessionKey}
+                accounts={(accounts && accounts.length > 0 ? accounts : [account]).map(a => ({ id: a.id, name: a.name, trades: a.trades }))}
+              />
             </div>
           )}
         </div>

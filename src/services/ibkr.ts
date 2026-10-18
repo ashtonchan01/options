@@ -27,10 +27,21 @@ export interface FlexSnapshot {
   toDate?: string
 }
 
-export async function syncFromFlexAPI(token: string, queryId: string): Promise<FlexSnapshot> {
+export async function syncFromFlexAPI(
+  token: string,
+  queryId: string,
+  range?: { fromDate: string; toDate: string },
+): Promise<FlexSnapshot> {
   if (!token || !queryId) throw new Error('Token and Query ID are required')
 
-  const url = `${FLEX_PROXY}/api/flex-sync?token=${encodeURIComponent(token)}&query=${encodeURIComponent(queryId)}`
+  const params = new URLSearchParams({ token, query: queryId })
+  // fd and td together override the query's saved period. IBKR rejects them
+  // combined with `p`, and rejects a span longer than 365 days.
+  if (range?.fromDate && range?.toDate) {
+    params.set('fd', range.fromDate)
+    params.set('td', range.toDate)
+  }
+  const url = `${FLEX_PROXY}/api/flex-sync?${params}`
   const res = await fetch(url)
 
   const text = await res.text()
@@ -558,6 +569,8 @@ function parseOptionEAE(doc: Document, usedTradeIds: Set<string>): RawTrade[] {
     const rawQty         = Number(el.getAttribute('quantity') ?? 0)
     const proceeds        = Number(el.getAttribute('proceeds') ?? 0)
     const commissions     = Number(el.getAttribute('commisionsAndTax') ?? 0)
+    const fifoPnlRealized = optionalNumber(el, 'fifoPnlRealized', 'realizedPnl')
+    const cost            = optionalNumber(el, 'cost', 'costBasis')
 
     // STK leg (shares bought/delivered via assignment): sign matters for the
     // FIFO lot matcher — Buy opens a lot, Sell closes one.
@@ -572,7 +585,8 @@ function parseOptionEAE(doc: Document, usedTradeIds: Set<string>): RawTrade[] {
     return {
       accountId:        el.getAttribute('accountId') ?? undefined,
       execId:           el.getAttribute('tradeID') ?? undefined,
-      tradeDate:        el.getAttribute('date') ?? '',
+      tradeDate:        el.getAttribute('date') || flexDate(el.getAttribute('dateTime')) || '',
+      tradeTime:        el.getAttribute('tradeTime') ?? el.getAttribute('dateTime')?.split(';')[1] ?? undefined,
       symbol:           (el.getAttribute('symbol') ?? '').trim(),
       underlyingSymbol: el.getAttribute('underlyingSymbol') || undefined,
       assetClass,
@@ -583,16 +597,16 @@ function parseOptionEAE(doc: Document, usedTradeIds: Set<string>): RawTrade[] {
       tradePrice:       Number(el.getAttribute('tradePrice') ?? 0),
       proceeds,
       commissions,
-      // Regular <Trade> records carry IBKR's own netCash; OptionEAE doesn't
-      // have that attribute, so it's derived the same way IBKR derives it —
-      // proceeds minus commissions. For a plain assignment/exercise/expiration
-      // proceeds is 0 (the option itself changes no cash; the economics move
-      // into the resulting stock position's cost basis), correctly leaving the
-      // full original premium as the position's P&L. For an SPX/SPXW cash
-      // settlement, proceeds carries the actual settlement payment.
+      // OptionEAE has no netCash attribute. proceeds − |commission| matches
+      // the cash that moved. It is not the realised P&L: an equity assignment
+      // prints realised 0 on the option (the premium rolls into the stock's
+      // fifoPnlRealized), and a cash-settled SPX/SPXW exercise puts the full
+      // result in fifoPnlRealized while proceeds on that line can be 0.
       netCash:          proceeds - Math.abs(commissions),
       // Every OptionEAE event is terminal for that option — always a close.
       openClose:        assetClass === 'OPT' ? 'C' as const : undefined,
+      ...(cost != null ? { cost } : {}),
+      ...(fifoPnlRealized != null ? { fifoPnlRealized } : {}),
     }
   })
 }
