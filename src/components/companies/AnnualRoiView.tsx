@@ -209,8 +209,16 @@ export default function AnnualRoiView({ state, tradeLabels, accountId, sessionKe
         Type a deposit/withdrawal amount and pick its currency into a year's Manual Cash cell to convert
         it to USD and deduct it from that year's own P&L instead of counting it as a trading gain.
       </div>
-      <div className="cc-companies-table-scroll" style={{ overflow: 'auto' }}>
-        <table className="trade-table jr-companies-table" style={{ width: '100%', fontSize: 13 }}>
+      <div className="cc-fy-fixed-scroll">
+        <table className="trade-table jr-companies-table cc-fy-fixed cc-fy-annual" style={{ fontSize: 13 }}>
+          <colgroup>
+            <col className="cc-fy-col-fy" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-cash" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-roi" />
+          </colgroup>
           <thead>
             <tr>
               <th style={{ whiteSpace: 'nowrap' }}>Financial Year</th>

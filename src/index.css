@@ -164,6 +164,39 @@ body {
 /* Companies table scrolls within its own panel too — pin its header row the
    same way, so it stays readable while scrolling through the ticker list. */
 .jr-companies-table th { position: sticky; top: 0; z-index: 2; }
+/* Reports stacks a separate table per financial year (Monthly Income) and
+   per account (Realised). table-layout:fixed with the same pixel columns
+   on every table puts Month, Shares, Synthetic Long, and the rest on the
+   same x-position. Content-sized columns were shifting each year to fit
+   its own numbers. The min-width is the sum of those columns, and the
+   shared scroll container moves every year together instead of letting a
+   short header shrink. */
+.cc-fy-fixed-scroll { overflow-x: auto; }
+.cc-fy-fixed {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+}
+.cc-fy-fixed > colgroup > col.cc-fy-col-month { width: 148px; }
+.cc-fy-fixed > colgroup > col.cc-fy-col-money { width: 164px; }
+.cc-fy-fixed > colgroup > col.cc-fy-col-label { width: 228px; }
+.cc-fy-fixed > colgroup > col.cc-fy-col-symbol { width: 248px; }
+.cc-fy-fixed > colgroup > col.cc-fy-col-company { width: 168px; }
+.cc-fy-fixed > colgroup > col.cc-fy-col-fy { width: 168px; }
+.cc-fy-fixed > colgroup > col.cc-fy-col-cash { width: 220px; }
+.cc-fy-fixed > colgroup > col.cc-fy-col-roi { width: 112px; }
+.cc-fy-month-block { min-width: max(100%, calc(148px + var(--cc-fy-money-cols) * 164px)); }
+.cc-fy-fixed.cc-fy-cat { min-width: calc(228px + 5 * 164px); }
+.cc-fy-fixed.cc-fy-sym { min-width: calc(248px + 5 * 164px); }
+.cc-fy-fixed.cc-fy-company { min-width: calc(168px + 6 * 164px); }
+.cc-fy-fixed.cc-fy-annual { min-width: calc(168px + 3 * 164px + 220px + 112px); }
+.cc-fy-fixed > thead > tr > th,
+.cc-fy-fixed > tbody > tr > td:not([colspan]),
+.cc-fy-fixed > tfoot > tr > td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .trade-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-2); }
 .trade-table tr:hover td { background: var(--bg-elevated); color: var(--text-1); }
 
@@ -1477,8 +1510,9 @@ body {
      scroll on this one axis instead, same pattern as the Journal strategy
      table. */
   .cc-companies-table-scroll { overflow-x: auto !important; overflow-y: visible !important; }
-  .jr-companies-table { table-layout: auto !important; min-width: 600px; }
-  .jr-companies-table th, .jr-companies-table td { width: auto !important; white-space: nowrap; }
+  .jr-companies-table:not(.cc-fy-fixed) { table-layout: auto !important; min-width: 600px; }
+  .jr-companies-table:not(.cc-fy-fixed) th, .jr-companies-table:not(.cc-fy-fixed) td { width: auto !important; white-space: nowrap; }
+  .cc-fy-fixed { table-layout: fixed !important; }
   /* Same "just grow, let the page scroll" treatment for the grouped-by-
      strategy view's per-cell scroll — a small fixed-height cell with its own
      internal scroll is fine on desktop but cramped on a phone screen. */

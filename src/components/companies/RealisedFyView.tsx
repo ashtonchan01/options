@@ -98,8 +98,15 @@ function CategoryTable({ title, subtitle, lines }: { title: string; subtitle?: s
         <div style={{ fontWeight: 700, color: 'var(--text-1)' }}>{title}</div>
         {subtitle && <div style={{ fontSize: 11, color: 'var(--text-4)' }}>{subtitle}</div>}
       </div>
-      <div style={{ overflowX: 'auto' }}>
-        <table className="trade-table jr-companies-table" style={{ width: '100%', fontSize: 13, minWidth: 640 }}>
+        <table className="trade-table jr-companies-table cc-fy-fixed cc-fy-cat" style={{ fontSize: 13 }}>
+          <colgroup>
+            <col className="cc-fy-col-label" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-money" />
+          </colgroup>
           <thead>
             <tr>
               <th style={{ whiteSpace: 'nowrap' }}>Asset class</th>
@@ -117,7 +124,6 @@ function CategoryTable({ title, subtitle, lines }: { title: string; subtitle?: s
             <TotalsRow label="Total" totals={totals.all} strong />
           </tbody>
         </table>
-      </div>
     </section>
   )
 }
@@ -199,6 +205,7 @@ export default function RealisedFyView({ accounts, activeAccountId }: { accounts
         </div>
       )}
 
+      <div className="cc-fy-fixed-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       {blocks.map(block => (
         <CategoryTable
           key={block.id}
@@ -210,6 +217,7 @@ export default function RealisedFyView({ accounts, activeAccountId }: { accounts
       {blocks.length > 1 && (
         <CategoryTable title="Combined" subtitle="All accounts in this app" lines={combined} />
       )}
+      </div>
 
       <div className="jr-mini-strip">
         <div className="jr-mini"><span className="label">Combined realised</span><b style={{ color: pnlColor(combinedTotals.all.total) }} data-fy-total={combinedTotals.all.total.toFixed(2)}>{fmtDollar(combinedTotals.all.total)}</b></div>
@@ -238,8 +246,16 @@ export default function RealisedFyView({ accounts, activeAccountId }: { accounts
         </div>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table className="trade-table jr-companies-table" style={{ width: '100%', fontSize: 13, minWidth: 720 }}>
+      <div className="cc-fy-fixed-scroll">
+        <table className="trade-table jr-companies-table cc-fy-fixed cc-fy-sym" style={{ fontSize: 13 }}>
+          <colgroup>
+            <col className="cc-fy-col-symbol" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-money" />
+            <col className="cc-fy-col-money" />
+          </colgroup>
           <thead>
             <tr>
               <th style={{ whiteSpace: 'nowrap' }}>Symbol</th>

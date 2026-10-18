@@ -4,7 +4,7 @@
  * Reports sub-pages (the other is Company P&L) — both live under
  * ReportsView.tsx, which owns the shared FY filter and sub-tab nav.
  */
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import type { AppState, RawTrade } from '../../types'
 import type { TradeLabels } from '../../App'
 import { buildJournalPositions, buildStockPositions, type JournalPosition } from '../../engine/journal'
@@ -275,6 +275,16 @@ export default function MonthlyIncomeView({ state, tradeLabels, fy }: { state: A
   }, [state.sync.trades, tradeLabels?.labels])
 
   const monthlyStrategyBlocks = useMemo(() => buildMonthlyStrategyByFy(positions, fy), [positions, fy])
+  // One column list for every year on screen. A year that never traded a
+  // strategy still keeps that column, so Shares in FY2025-26 sits on the
+  // same x as Shares in FY2026-27.
+  const strategyColumns = useMemo(() => {
+    const seen = new Set<string>()
+    for (const block of monthlyStrategyBlocks) {
+      for (const strategy of block.strategyList) seen.add(strategy)
+    }
+    return [...seen].sort((a, b) => stratRank(a) - stratRank(b))
+  }, [monthlyStrategyBlocks])
 
   const hasData = state.sync.trades.length > 0
 
@@ -303,24 +313,35 @@ export default function MonthlyIncomeView({ state, tradeLabels, fy }: { state: A
         </div>
       )}
 
+      <div className="cc-fy-fixed-scroll">
       {monthlyStrategyBlocks.map(block => {
         const monthTotal = (m: string) => [...block.byMonth.get(m)!.values()].reduce((s, v) => s + v, 0)
         const stratTotal = (s: string) => block.months.reduce((sum, m) => sum + (block.byMonth.get(m)!.get(s) ?? 0), 0)
         const grandTotal = block.months.reduce((sum, m) => sum + monthTotal(m), 0)
         const monthFees = (m: string) => (block.positionsByMonth.get(m) ?? []).reduce((s, p) => s + p.openFees + (p.closeFees ?? 0), 0)
         const grandFees = block.months.reduce((sum, m) => sum + monthFees(m), 0)
+        const moneyCols = strategyColumns.length + 2
         return (
-          <div key={block.fy}>
+          <div
+            key={block.fy}
+            className="cc-fy-month-block"
+            style={{ marginBottom: 12, ['--cc-fy-money-cols' as string]: moneyCols }}
+          >
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.05em', margin: '2px 0' }}>
               {block.label.toUpperCase()}
             </div>
             <div className="cc-section cc-table-section" style={{ flex: '0 0 auto', minHeight: 'auto' }}>
-              <div className="cc-companies-table-scroll" style={{ overflow: 'auto' }}>
-                <table className="trade-table jr-companies-table" style={{ fontSize: 13 }}>
+                <table className="trade-table jr-companies-table cc-fy-fixed cc-fy-month" style={{ fontSize: 13 }}>
+                  <colgroup>
+                    <col className="cc-fy-col-month" />
+                    {strategyColumns.map(s => <col key={s} className="cc-fy-col-money" />)}
+                    <col className="cc-fy-col-money" />
+                    <col className="cc-fy-col-money" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Month</th>
-                      {block.strategyList.map(s => (
+                      {strategyColumns.map(s => (
                         <th key={s} style={{ textAlign: 'right' }}>{stratLabel(s)}</th>
                       ))}
                       <th style={{ textAlign: 'right' }}>Fees</th>
@@ -333,42 +354,48 @@ export default function MonthlyIncomeView({ state, tradeLabels, fy }: { state: A
                       const key = `${block.fy}|${m}`
                       const isOpen = expanded === key
                       return (
-                        <>
-                          <tr key={m} onClick={() => setExpanded(isOpen ? null : key)} style={{ cursor: 'pointer' }}>
-                            <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>
+                        <Fragment key={m}>
+                          <tr onClick={() => setExpanded(isOpen ? null : key)} style={{ cursor: 'pointer' }}>
+                            <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>
                               <span style={{ display: 'inline-block', width: 12, color: 'var(--text-4)', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.1s' }}>▸</span>
                               {fmtMonth(m)}
                             </td>
-                            {block.strategyList.map(s => {
+                            {strategyColumns.map(s => {
                               const v = row.get(s)
                               return (
-                                <td key={s} className="mono" style={{ textAlign: 'right', color: v != null ? pnlColor(v) : 'var(--text-5)', whiteSpace: 'nowrap' }}>
+                                <td key={s} className="mono" style={{ textAlign: 'right', color: v != null ? pnlColor(v) : 'var(--text-5)' }}>
                                   {v != null ? fmtDollar(v) : '—'}
                                 </td>
                               )
                             })}
-                            <td className="mono" style={{ textAlign: 'right', color: 'var(--text-4)', whiteSpace: 'nowrap' }}>{fmtDollar(monthFees(m))}</td>
-                            <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(monthTotal(m)), whiteSpace: 'nowrap' }}>{fmtDollar(monthTotal(m))}</td>
+                            <td className="mono" style={{ textAlign: 'right', color: 'var(--text-4)' }}>{fmtDollar(monthFees(m))}</td>
+                            <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(monthTotal(m)) }}>{fmtDollar(monthTotal(m))}</td>
                           </tr>
-                          {isOpen && <MonthPositionsTable positions={block.positionsByMonth.get(m) ?? []} trades={state.sync.trades} colSpan={block.strategyList.length + 3} />}
-                        </>
+                          {isOpen && <MonthPositionsTable positions={block.positionsByMonth.get(m) ?? []} trades={state.sync.trades} colSpan={moneyCols + 1} />}
+                        </Fragment>
                       )
                     })}
                     <tr style={{ borderTop: '2px solid var(--border)' }}>
-                      <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>Total</td>
-                      {block.strategyList.map(s => (
-                        <td key={s} className="mono" style={{ textAlign: 'right', fontWeight: 700, color: pnlColor(stratTotal(s)), whiteSpace: 'nowrap' }}>{fmtDollar(stratTotal(s))}</td>
-                      ))}
-                      <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{fmtDollar(grandFees)}</td>
+                      <td className="mono" style={{ fontWeight: 800, color: 'var(--text-1)' }}>Total</td>
+                      {strategyColumns.map(s => {
+                        const present = block.strategyList.includes(s)
+                        const v = stratTotal(s)
+                        return (
+                          <td key={s} className="mono" style={{ textAlign: 'right', fontWeight: 700, color: present ? pnlColor(v) : 'var(--text-5)' }}>
+                            {present ? fmtDollar(v) : '—'}
+                          </td>
+                        )
+                      })}
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-2)' }}>{fmtDollar(grandFees)}</td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 800, color: pnlColor(grandTotal) }}>{fmtDollar(grandTotal)}</td>
                     </tr>
                   </tbody>
                 </table>
-              </div>
             </div>
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

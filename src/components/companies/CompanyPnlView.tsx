@@ -285,8 +285,17 @@ export default function CompanyPnlView({ state, tradeLabels, fy }: { state: AppS
       </div>
 
       <div className="cc-section cc-table-section" style={{ flex: '0 0 auto', minHeight: 'auto' }}>
-        <div className="cc-companies-table-scroll" style={{ overflow: 'auto' }}>
-          <table className="trade-table jr-companies-table" style={{ fontSize: 13 }}>
+        <div className="cc-fy-fixed-scroll">
+          <table className="trade-table jr-companies-table cc-fy-fixed cc-fy-company" style={{ fontSize: 13 }}>
+            <colgroup>
+              <col className="cc-fy-col-company" />
+              <col className="cc-fy-col-money" />
+              <col className="cc-fy-col-money" />
+              <col className="cc-fy-col-money" />
+              <col className="cc-fy-col-money" />
+              <col className="cc-fy-col-money" />
+              <col className="cc-fy-col-money" />
+            </colgroup>
             <thead>
               <tr>
                 <CompanySortTh label="Company" sortKey="symbol" sortKeyState={sortKey} sortDir={sortDir} onSort={toggleSort} />
