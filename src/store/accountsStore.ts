@@ -76,6 +76,12 @@ interface SyncResult {
  * all (fromDate missing, e.g. a CSV/XLSX/PDF import) falls back to the old
  * pure-union behavior, since those sources can't say what they do or don't
  * cover.
+ *
+ * Replacing the window is also the backfill for fields the parser learned
+ * later (`cost`, `fifoPnlRealized`, `closedLots` on trades; `openLots` on
+ * positions). Portfolio data is one JSON document, not a column per field,
+ * so there is no SQL migration — the next Flex sync writes them. Trades
+ * older than the window keep whatever they were stored with.
  */
 function mergeTrades(existing: RawTrade[], incoming: RawTrade[], fromDate?: string): RawTrade[] {
   const before = fromDate ? existing.filter(t => t.tradeDate < fromDate) : existing

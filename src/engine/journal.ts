@@ -33,6 +33,20 @@ function legNetCash(l: RawTrade): number {
 
 export type PositionStatus = 'Active' | 'Closed' | 'Expired'
 
+/** One row of a share position's expanded history. */
+export interface ShareFill {
+  /** YYYYMMDD. Empty when IBKR didn't report the lot's open date. */
+  date: string
+  action: string
+  quantity: number
+  price: number
+  fees: number
+  /** Gross dollars — basis for an opening lot, price × qty for a sale. */
+  total: number
+  /** closed-lot = the opening lot a sale consumed; open = still held; sell = the closing fill. */
+  role: 'closed-lot' | 'open' | 'sell'
+}
+
 export interface JournalPosition {
   id: string                  // `${tradeDate}|${expiry}|${underlying}` — stable across syncs
   underlying: string
@@ -51,6 +65,10 @@ export interface JournalPosition {
   status: PositionStatus
   strategy?: TradeLabel | 'put_spread' | 'shares'   // resolved from trade labels, or auto-classified
   tradeIds: string[]
+  /** Share buy/sell rows for the journal expansion. Set for stock lots so a
+   * sale shows the lot IBKR closed (its open date and cost) rather than
+   * whichever buy the app would have paired on its own. */
+  shareFills?: ShareFill[]
   // Closed/Expired only
   dateClosed?: string         // close date, or expiry for expired positions
   closeFees?: number
@@ -668,11 +686,498 @@ export function foldPartialCloses(positions: JournalPosition[]): JournalPosition
 
 /** Stock-leg P&L (assignment outcomes, manual buys/sells) — kept entirely
  * separate from the option-position matcher above and merged in by the
- * caller, since shares have no expiry/strike and are matched by simple FIFO
- * lot accounting per ticker instead of the open/close-group logic options
- * use. Mirrors the "Stocks Assigned / Bought / Sold" ledger in a manual
- * journal: every sell closes the oldest open buy lot(s) first, splitting a
- * sell across multiple buy lots (and vice versa) when sizes don't line up. */
+ * caller, since shares have no expiry/strike.
+ *
+ * IBKR's Tax Optimizer picks the lot a sale closes (FIFO, LIFO, Highest
+ * Cost, specific lot, …). Replaying our own order does not. A real MSTR
+ * sale on 16 Oct 2026 was matched by IBKR to a $326.7901 lot (basis
+ * -$32,679.01, realized P&L -$19,179.53) while this code, taking the
+ * newest buy, booked the 20 Aug 2026 $104.25 assignment and showed
+ * +$3,074.48. Closing stock trades carry `cost` and `fifoPnlRealized`
+ * (the name says FIFO; the number follows the account's method), and
+ * Closed Lots name the opening lot. Those win. A statement with neither
+ * — a CSV import, or a Flex sync from before those fields were stored —
+ * still falls back to newest-lot first, which is what a previous TSLA
+ * account needed when IBKR itself wasn't in the file. */
+interface MutableLot {
+  trade: RawTrade
+  remaining: number
+  price: number
+  date: string
+}
+
+interface CloseSlice {
+  qty: number
+  openDate: string
+  openPrice: number
+  basis: number
+  pnl: number
+  openFees: number
+  closeFees: number
+  lotIndex: number | null
+  openTrade?: RawTrade
+}
+
+function pricesClose(a: number, b: number): boolean {
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false
+  const diff = Math.abs(a - b)
+  return diff <= 0.02 || diff <= Math.max(Math.abs(a), Math.abs(b)) * 0.001
+}
+
+function basisClose(got: number, want: number, qty: number): boolean {
+  return Math.abs(got - want) <= Math.max(0.05, 0.02 * Math.abs(qty))
+}
+
+function sameDay(a: string, b: string): boolean {
+  if (!a || !b) return false
+  return a.replace(/\D/g, '').slice(0, 8) === b.replace(/\D/g, '').slice(0, 8)
+}
+
+function signedCommission(raw: number | undefined): number {
+  const c = raw ?? 0
+  return c > 0 ? -c : c
+}
+
+function hasIbkrClose(t: RawTrade): boolean {
+  if (t.closedLots && t.closedLots.length > 0) return true
+  if (t.fifoPnlRealized != null && Number.isFinite(t.fifoPnlRealized)) return true
+  if (t.cost != null && Number.isFinite(t.cost) && t.cost !== 0) return true
+  return false
+}
+
+/** Positive dollars of basis IBKR removed. Recovered from realized P&L
+ * when the row has `fifoPnlRealized` but no `cost` attribute:
+ * basis = proceeds + signed commission − realized. */
+function closeBasis(t: RawTrade, sellQty: number): number | undefined {
+  if (t.cost != null && Number.isFinite(t.cost) && t.cost !== 0) return Math.abs(t.cost)
+  if (t.fifoPnlRealized == null || !Number.isFinite(t.fifoPnlRealized)) return undefined
+  const proceeds = t.proceeds !== 0 ? t.proceeds : t.tradePrice * sellQty
+  const basis = proceeds + signedCommission(t.commissions) - t.fifoPnlRealized
+  return Number.isFinite(basis) && basis > 0 ? basis : undefined
+}
+
+function tradeRealized(t: RawTrade, sellQty: number): number | undefined {
+  if (t.fifoPnlRealized != null && Number.isFinite(t.fifoPnlRealized)) return t.fifoPnlRealized
+  const basis = closeBasis(t, sellQty)
+  if (basis == null) return undefined
+  const proceeds = t.proceeds !== 0 ? t.proceeds : t.tradePrice * sellQty
+  return proceeds + signedCommission(t.commissions) - basis
+}
+
+function snapPnl(slices: CloseSlice[], total: number) {
+  if (slices.length === 0) return
+  const sum = slices.reduce((s, sl) => s + sl.pnl, 0)
+  slices[slices.length - 1].pnl += total - sum
+}
+
+interface LotTake { index: number; qty: number; basis: number }
+
+/** A sale of one whole lot: the lot whose per-share cost equals IBKR's
+ * basis per share. Highest Cost, FIFO, and LIFO all reduce to this when
+ * the sale doesn't span lots, and only the lot IBKR actually priced matches. */
+function singleLotMatch(lots: MutableLot[], qty: number, basis: number): LotTake[] | null {
+  let best: { index: number; diff: number } | null = null
+  for (let i = 0; i < lots.length; i++) {
+    if (lots[i].remaining + 1e-9 < qty) continue
+    const b = lots[i].price * qty
+    if (!basisClose(b, basis, qty)) continue
+    const diff = Math.abs(b - basis)
+    if (!best || diff < best.diff - 1e-9 || (Math.abs(diff - best.diff) <= 1e-9 && i < best.index)) {
+      best = { index: i, diff }
+    }
+  }
+  if (!best) return null
+  return [{ index: best.index, qty, basis: lots[best.index].price * qty }]
+}
+
+function relieveInOrder(lots: MutableLot[], order: number[], qty: number): LotTake[] | null {
+  let need = qty
+  const out: LotTake[] = []
+  for (const index of order) {
+    if (need <= 1e-9) break
+    const lot = lots[index]
+    if (lot.remaining <= 1e-9) continue
+    const take = Math.min(lot.remaining, need)
+    out.push({ index, qty: take, basis: lot.price * take })
+    need -= take
+  }
+  if (need > 1e-6) return null
+  return out
+}
+
+/** Specific-lot identification that isn't a prefix of FIFO/LIFO/highest/
+ * lowest cost: any subset of whole lots, plus at most one partial lot. */
+function searchSpecificLots(lots: MutableLot[], qty: number, basis: number): LotTake[] | null {
+  const n = lots.length
+  if (n === 0 || n > 16) return null
+  const tol = Math.max(0.05, 0.02 * qty)
+  let found: LotTake[] | null = null
+  const acc: LotTake[] = []
+  const dfs = (i: number, needQty: number, needBasis: number) => {
+    if (found) return
+    if (needQty <= 1e-9) {
+      if (Math.abs(needBasis) <= tol) found = acc.map(s => ({ ...s }))
+      return
+    }
+    if (i >= n) return
+    dfs(i + 1, needQty, needBasis)
+    const lot = lots[i]
+    if (lot.remaining <= 1e-9) return
+    if (lot.remaining <= needQty + 1e-9) {
+      const b = lot.price * lot.remaining
+      acc.push({ index: i, qty: lot.remaining, basis: b })
+      dfs(i + 1, needQty - lot.remaining, needBasis - b)
+      acc.pop()
+    } else {
+      const b = lot.price * needQty
+      acc.push({ index: i, qty: needQty, basis: b })
+      dfs(n, 0, needBasis - b)
+      acc.pop()
+    }
+  }
+  dfs(0, qty, basis)
+  return found
+}
+
+/** Which open lots' costs add up to the basis IBKR reported. The method
+ * isn't chosen up front — FIFO, LIFO, highest cost, and lowest cost are
+ * each tried, and the one whose relieved basis equals IBKR's figure is
+ * the one the account used. A single lot whose price matches wins before
+ * any of those orders. */
+function matchLotsToBasis(lots: MutableLot[], qty: number, basis: number): LotTake[] | null {
+  const single = singleLotMatch(lots, qty, basis)
+  if (single) return single
+  const fifo = lots.map((_, i) => i)
+  const orders = [
+    fifo,
+    [...fifo].reverse(),
+    [...fifo].sort((a, b) => lots[b].price - lots[a].price || a - b),
+    [...fifo].sort((a, b) => lots[a].price - lots[b].price || a - b),
+  ]
+  for (const order of orders) {
+    const slices = relieveInOrder(lots, order, qty)
+    if (!slices) continue
+    const total = slices.reduce((s, sl) => s + sl.basis, 0)
+    if (basisClose(total, basis, qty)) return slices
+  }
+  return searchSpecificLots(lots, qty, basis)
+}
+
+function findConsumable(lots: MutableLot[], date: string, price: number, qty: number, reserved: Map<number, number>): number | null {
+  const available = (i: number) => lots[i].remaining - (reserved.get(i) ?? 0)
+  const hits: number[] = []
+  for (let i = 0; i < lots.length; i++) {
+    if (available(i) + 1e-9 < qty) continue
+    if (!pricesClose(lots[i].price, price)) continue
+    hits.push(i)
+  }
+  if (hits.length === 0) return null
+  const dated = date ? hits.filter(i => sameDay(lots[i].date, date)) : []
+  if (dated.length >= 1) return dated[0]
+  return hits[0]
+}
+
+function dropEmpty(lots: MutableLot[]) {
+  for (let i = lots.length - 1; i >= 0; i--) {
+    if (lots[i].remaining <= 1e-6) lots.splice(i, 1)
+  }
+}
+
+function openBuyAction(trade: RawTrade): string {
+  const assigned = Math.abs(trade.commissions ?? 0) < 0.005 && !trade.isTransfer
+  return assigned ? 'Buy (assigned)' : 'Buy'
+}
+
+function slicesFromClosedLots(t: RawTrade, lots: MutableLot[], sellQty: number): CloseSlice[] {
+  const closed = t.closedLots ?? []
+  const reserved = new Map<number, number>()
+  const slices: CloseSlice[] = closed.map(lot => {
+    const qty = Math.abs(lot.quantity) > 1e-9 ? Math.abs(lot.quantity) : sellQty
+    const fromPrice = (lot.origTradePrice ?? 0) * qty
+    const basis = Math.abs(lot.cost) > 1e-9 ? Math.abs(lot.cost) : fromPrice
+    const openPrice = lot.origTradePrice && lot.origTradePrice > 0 ? lot.origTradePrice : (qty > 0 ? basis / qty : 0)
+    const openDate = lot.origTradeDate ?? ''
+    const lotIndex = findConsumable(lots, openDate, openPrice, qty, reserved)
+    if (lotIndex != null) reserved.set(lotIndex, (reserved.get(lotIndex) ?? 0) + qty)
+    const openTrade = lotIndex != null ? lots[lotIndex].trade : undefined
+    return {
+      qty,
+      openDate: openDate || openTrade?.tradeDate || '',
+      openPrice,
+      basis,
+      pnl: lot.fifoPnlRealized ?? Number.NaN,
+      openFees: 0,
+      closeFees: 0,
+      lotIndex,
+      openTrade,
+    }
+  })
+  const qtySum = slices.reduce((s, sl) => s + sl.qty, 0) || sellQty
+  const fee = Math.abs(t.commissions ?? 0)
+  for (const sl of slices) {
+    sl.closeFees = qtySum > 0 ? fee * (sl.qty / qtySum) : 0
+    if (sl.openTrade) {
+      const buyQty = Math.abs(sl.openTrade.quantity) || sl.qty
+      sl.openFees = Math.abs(sl.openTrade.commissions ?? 0) * (sl.qty / buyQty)
+    }
+    if (!Number.isFinite(sl.pnl)) {
+      const proceeds = t.proceeds !== 0 ? Math.abs(t.proceeds) * (sl.qty / qtySum) : t.tradePrice * sl.qty
+      sl.pnl = proceeds - sl.basis - sl.closeFees
+    }
+  }
+  const total = tradeRealized(t, sellQty)
+  if (total != null) snapPnl(slices, total)
+  for (const [index, qty] of reserved) lots[index].remaining -= qty
+  return slices
+}
+
+function slicesFromCost(t: RawTrade, lots: MutableLot[], sellQty: number): CloseSlice[] {
+  const basis = closeBasis(t, sellQty)
+  const matched = basis != null ? matchLotsToBasis(lots, sellQty, basis) : null
+  const fee = Math.abs(t.commissions ?? 0)
+  if (matched && matched.length > 0) {
+    const slices: CloseSlice[] = matched.map(m => {
+      const lot = lots[m.index]
+      const buyQty = Math.abs(lot.trade.quantity) || m.qty
+      return {
+        qty: m.qty,
+        openDate: lot.date,
+        openPrice: lot.price,
+        basis: m.basis,
+        pnl: t.tradePrice * m.qty - m.basis - fee * (m.qty / sellQty),
+        openFees: Math.abs(lot.trade.commissions ?? 0) * (m.qty / buyQty),
+        closeFees: fee * (m.qty / sellQty),
+        lotIndex: m.index,
+        openTrade: lot.trade,
+      }
+    })
+    const total = tradeRealized(t, sellQty)
+    if (total != null) snapPnl(slices, total)
+    for (const sl of slices) {
+      if (sl.lotIndex == null) continue
+      lots[sl.lotIndex].remaining -= sl.qty
+    }
+    return slices
+  }
+  // The lot IBKR closed isn't in this trade list (opened outside the Flex
+  // window). Book its basis and P&L, and leave every other lot open —
+  // consuming the newest buy here is what paired Ashton's sale with the
+  // $104.25 assignment.
+  const price = basis != null && sellQty > 0 ? basis / sellQty : 0
+  return [{
+    qty: sellQty,
+    openDate: '',
+    openPrice: price,
+    basis: basis ?? price * sellQty,
+    pnl: tradeRealized(t, sellQty) ?? 0,
+    openFees: 0,
+    closeFees: fee,
+    lotIndex: null,
+  }]
+}
+
+function closedSharePosition(
+  ticker: string,
+  sell: RawTrade,
+  slice: CloseSlice,
+  seq: number,
+  labels: Record<string, TradeLabel>,
+  ibkr: boolean,
+): JournalPosition {
+  const buyId = slice.openTrade ? tradeId(slice.openTrade) : null
+  const sellId = tradeId(sell)
+  const action = ibkr
+    ? 'Buy (closed lot)'
+    : (slice.openTrade ? openBuyAction(slice.openTrade) : 'Buy')
+  return {
+    id: `stk|${ticker}|${slice.openDate || sell.tradeDate}|${seq}`,
+    underlying: ticker,
+    contracts: slice.qty,
+    strikeDisplay: 'SHARES',
+    strikes: [],
+    putCall: '',
+    expiry: '',
+    dateOpen: slice.openDate,
+    initialDTE: 0,
+    openFees: slice.openFees,
+    netPremium: -slice.basis,
+    status: 'Closed',
+    strategy: (buyId ? labels[buyId] : undefined) ?? labels[sellId] ?? 'shares',
+    tradeIds: buyId ? [buyId, sellId] : [sellId],
+    dateClosed: sell.tradeDate,
+    closeFees: slice.closeFees,
+    pnl: slice.pnl,
+    holdDays: slice.openDate ? Math.max(0, daysBetween(slice.openDate, sell.tradeDate)) : 0,
+    shareFills: [
+      {
+        date: slice.openDate,
+        action,
+        role: 'closed-lot',
+        quantity: slice.qty,
+        price: slice.openPrice,
+        fees: slice.openFees,
+        total: slice.basis,
+      },
+      {
+        date: sell.tradeDate,
+        action: 'Sell',
+        role: 'sell',
+        quantity: slice.qty,
+        price: sell.tradePrice,
+        fees: slice.closeFees,
+        total: sell.tradePrice * slice.qty,
+      },
+    ],
+  }
+}
+
+function openSharePosition(ticker: string, lot: MutableLot, seq: number, labels: Record<string, TradeLabel>): JournalPosition {
+  const buy = lot.trade
+  const qty = lot.remaining
+  const buyQty = Math.abs(buy.quantity) || qty
+  const openFees = Math.abs(buy.commissions ?? 0) * (qty / buyQty)
+  const basis = buy.tradePrice * qty
+  return {
+    id: `stk|${ticker}|${buy.tradeDate}|open${seq}`,
+    underlying: ticker,
+    contracts: qty,
+    strikeDisplay: 'SHARES',
+    strikes: [],
+    putCall: '',
+    expiry: '',
+    dateOpen: buy.tradeDate,
+    initialDTE: 0,
+    openFees,
+    netPremium: -basis,
+    status: 'Active',
+    strategy: labels[tradeId(buy)] ?? 'shares',
+    tradeIds: [tradeId(buy)],
+    shareFills: [{
+      date: buy.tradeDate,
+      action: openBuyAction(buy),
+      role: 'open',
+      quantity: qty,
+      price: buy.tradePrice,
+      fees: openFees,
+      total: basis,
+    }],
+  }
+}
+
+function flexOpenPosition(symbol: string, lot: NonNullable<RawPosition['openLots']>[number], index: number, trades: RawTrade[]): JournalPosition {
+  const buy = trades.find(t =>
+    t.assetClass === 'STK' && t.symbol === symbol && t.quantity > 0
+    && sameDay(t.tradeDate, lot.openDate ?? '')
+    && pricesClose(t.tradePrice, lot.costBasisPrice))
+  const basis = lot.costBasisMoney !== 0 ? lot.costBasisMoney : lot.costBasisPrice * lot.quantity
+  const price = lot.costBasisPrice || (lot.quantity !== 0 ? Math.abs(basis) / Math.abs(lot.quantity) : 0)
+  const assigned = !!buy && Math.abs(buy.commissions ?? 0) < 0.005 && !buy.isTransfer
+  return {
+    id: `stk|${symbol}|flex|${lot.openDate ?? 'x'}|${index}`,
+    underlying: symbol,
+    contracts: lot.quantity,
+    strikeDisplay: 'SHARES',
+    strikes: [],
+    putCall: '',
+    expiry: '',
+    dateOpen: lot.openDate ?? buy?.tradeDate ?? '',
+    initialDTE: 0,
+    openFees: 0,
+    netPremium: -basis,
+    status: 'Active',
+    strategy: 'shares',
+    tradeIds: buy ? [tradeId(buy)] : [],
+    shareFills: [{
+      date: lot.openDate ?? buy?.tradeDate ?? '',
+      action: assigned ? 'Buy (assigned)' : 'Buy',
+      role: 'open',
+      quantity: lot.quantity,
+      price,
+      fees: 0,
+      total: Math.abs(basis),
+    }],
+  }
+}
+
+function residualOpenPosition(symbol: string, qty: number, basis: number): JournalPosition {
+  const price = qty !== 0 ? basis / qty : 0
+  return {
+    id: `stk|${symbol}|untracked`,
+    underlying: symbol,
+    contracts: qty,
+    strikeDisplay: 'SHARES',
+    strikes: [],
+    putCall: '',
+    expiry: '',
+    dateOpen: '',
+    initialDTE: 0,
+    openFees: 0,
+    netPremium: -basis,
+    status: 'Active',
+    strategy: 'shares',
+    tradeIds: [],
+    shareFills: [{
+      date: '',
+      action: 'Buy',
+      role: 'open',
+      quantity: qty,
+      price,
+      fees: 0,
+      total: Math.abs(basis),
+    }],
+  }
+}
+
+/** Replace reconstructed open lots with Flex Open Positions lots when the
+ * snapshot has them, and otherwise top up share count with the part of
+ * IBKR's basis the trade list never contained. */
+function reconcileOpenShares(positions: JournalPosition[], livePositions: RawPosition[] | undefined, trades: RawTrade[]): JournalPosition[] {
+  if (!livePositions || livePositions.length === 0) return positions
+  const bySymbol = new Map<string, RawPosition[]>()
+  for (const lp of livePositions) {
+    if (lp.assetClass !== 'STK') continue
+    const list = bySymbol.get(lp.symbol) ?? []
+    list.push(lp)
+    bySymbol.set(lp.symbol, list)
+  }
+  let out = positions
+  for (const [symbol, rows] of bySymbol) {
+    const liveQty = rows.reduce((s, r) => s + r.quantity, 0)
+    const lots = rows.flatMap(r => r.openLots ?? [])
+    if (Math.abs(liveQty) < 1e-6 && lots.length === 0) {
+      out = out.filter(p => !(p.underlying === symbol && p.status === 'Active' && p.strikeDisplay === 'SHARES'))
+      continue
+    }
+    if (lots.length > 0) {
+      out = out.filter(p => !(p.underlying === symbol && p.status === 'Active' && p.strikeDisplay === 'SHARES'))
+      lots.forEach((lot, i) => {
+        if (Math.abs(lot.quantity) < 1e-6) return
+        out.push(flexOpenPosition(symbol, lot, i, trades))
+      })
+      const lotQty = lots.reduce((s, l) => s + l.quantity, 0)
+      const lotBasis = lots.reduce((s, l) => s + l.costBasisMoney, 0)
+      const liveBasis = rows.reduce((s, r) => s + r.costBasisMoney, 0)
+      const residualQty = liveQty - lotQty
+      if (residualQty > 1e-4) out.push(residualOpenPosition(symbol, residualQty, liveBasis - lotBasis))
+      continue
+    }
+    const active = out.filter(p => p.underlying === symbol && p.status === 'Active' && p.strikeDisplay === 'SHARES')
+    const explainedQty = active.reduce((s, p) => s + p.contracts, 0)
+    const explainedBasis = active.reduce((s, p) => s + (-p.netPremium), 0)
+    const gap = liveQty - explainedQty
+    if (gap <= 1e-4) continue
+    const liveBasis = rows.reduce((s, r) => s + r.costBasisMoney, 0)
+    const residualBasis = liveBasis - explainedBasis
+    // Prefer the residual of IBKR's own basis. If the trades already
+    // account for more basis than IBKR reports (a lot we couldn't match),
+    // don't invent a negative-cost stub — the snapshot's average still
+    // beats a blank.
+    const basis = residualBasis > 0 ? residualBasis : (rows[0]?.costBasisPrice ?? 0) * gap
+    out.push(residualOpenPosition(symbol, gap, basis))
+  }
+  return out
+}
+
 export function buildStockPositions(
   trades: RawTrade[],
   labels: Record<string, TradeLabel>,
@@ -689,133 +1194,70 @@ export function buildStockPositions(
   const positions: JournalPosition[] = []
 
   for (const [ticker, tsRaw] of byTicker) {
-    const ts = [...tsRaw].sort((a, b) => a.tradeDate.localeCompare(b.tradeDate))
-    const openLots: Array<{ trade: RawTrade; remaining: number }> = []
+    const ts = [...tsRaw].sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || (a.tradeTime ?? '').localeCompare(b.tradeTime ?? ''))
+    const openLots: MutableLot[] = []
     let seq = 0
 
     for (const t of ts) {
       if (t.quantity > 0) {
-        openLots.push({ trade: t, remaining: t.quantity })
+        openLots.push({ trade: t, remaining: t.quantity, price: t.tradePrice, date: t.tradeDate })
         continue
       }
       if (t.quantity >= 0) continue
 
-      let sellRemaining = Math.abs(t.quantity)
-      const sellTotalQty = Math.abs(t.quantity)
-      const sellFeesTotal = Math.abs(t.commissions ?? 0)
+      const sellQty = Math.abs(t.quantity)
+      if (hasIbkrClose(t)) {
+        const slices = t.closedLots && t.closedLots.length > 0
+          ? slicesFromClosedLots(t, openLots, sellQty)
+          : slicesFromCost(t, openLots, sellQty)
+        for (const slice of slices) {
+          seq++
+          positions.push(closedSharePosition(ticker, t, slice, seq, labels, true))
+        }
+        dropEmpty(openLots)
+        continue
+      }
 
+      // No IBKR basis on this fill. Newest lot first — the previous
+      // fallback — so a same-day partial sale still realises against the
+      // lot it came out of when the file can't say which one IBKR used.
+      let sellRemaining = sellQty
+      const sellFeesTotal = Math.abs(t.commissions ?? 0)
       while (sellRemaining > 0 && openLots.length > 0) {
-        // IBKR's Tax Optimizer lets an account elect a cost-basis/lot-
-        // matching method other than FIFO — LIFO closes the most recently
-        // opened lot first instead of the oldest one. This was hardcoded to
-        // FIFO (openLots[0]) regardless of the account's actual election,
-        // which silently produced a different realized P&L than IBKR's own
-        // LIFO-based accounting for any ticker bought at multiple prices
-        // across multiple lots (verified case: TSLA, whose FIFO-matched
-        // closing lot showed a loss that didn't match the account's real,
-        // LIFO-matched result). Taking the newest lot (LIFO) matches IBKR's
-        // Tax Optimizer setting instead of assuming the broker default.
         const lotIndex = openLots.length - 1
         const lot = openLots[lotIndex]
         const matched = Math.min(lot.remaining, sellRemaining)
         const buyTrade = lot.trade
-        const buyFeesShare  = Math.abs(buyTrade.commissions ?? 0) * (matched / Math.abs(buyTrade.quantity))
-        const sellFeesShare = sellFeesTotal * (matched / sellTotalQty)
-        const buyCost      = buyTrade.tradePrice * matched
+        const buyFeesShare = Math.abs(buyTrade.commissions ?? 0) * (matched / Math.abs(buyTrade.quantity))
+        const sellFeesShare = sellFeesTotal * (matched / sellQty)
+        const buyCost = buyTrade.tradePrice * matched
         const sellProceeds = t.tradePrice * matched
         seq++
-        positions.push({
-          id: `stk|${ticker}|${buyTrade.tradeDate}|${seq}`,
-          underlying: ticker,
-          contracts: matched,
-          strikeDisplay: 'SHARES',
-        strikes: [],
-          putCall: '',
-          expiry: '',
-          dateOpen: buyTrade.tradeDate,
-          initialDTE: 0,
-          openFees: buyFeesShare,
-          netPremium: -buyCost,
-          status: 'Closed',
-          strategy: labels[tradeId(buyTrade)] ?? labels[tradeId(t)] ?? 'shares',
-          tradeIds: [tradeId(buyTrade), tradeId(t)],
-          dateClosed: t.tradeDate,
-          closeFees: sellFeesShare,
+        positions.push(closedSharePosition(ticker, t, {
+          qty: matched,
+          openDate: buyTrade.tradeDate,
+          openPrice: buyTrade.tradePrice,
+          basis: buyCost,
           pnl: sellProceeds - buyCost - buyFeesShare - sellFeesShare,
-          holdDays: Math.max(0, daysBetween(buyTrade.tradeDate, t.tradeDate)),
-        })
+          openFees: buyFeesShare,
+          closeFees: sellFeesShare,
+          lotIndex,
+          openTrade: buyTrade,
+        }, seq, labels, false))
         lot.remaining -= matched
         sellRemaining -= matched
-        if (lot.remaining <= 0) openLots.splice(lotIndex, 1)
+        if (lot.remaining <= 1e-6) openLots.splice(lotIndex, 1)
       }
-      // A sell with no matching buy lot (short sale) isn't modeled — skip.
     }
 
     for (const lot of openLots) {
-      if (lot.remaining <= 0) continue
+      if (lot.remaining <= 1e-6) continue
       seq++
-      const buyTrade = lot.trade
-      positions.push({
-        id: `stk|${ticker}|${buyTrade.tradeDate}|open${seq}`,
-        underlying: ticker,
-        contracts: lot.remaining,
-        strikeDisplay: 'SHARES',
-        strikes: [],
-        putCall: '',
-        expiry: '',
-        dateOpen: buyTrade.tradeDate,
-        initialDTE: 0,
-        openFees: Math.abs(buyTrade.commissions ?? 0) * (lot.remaining / Math.abs(buyTrade.quantity)),
-        netPremium: -(buyTrade.tradePrice * lot.remaining),
-        status: 'Active',
-        strategy: labels[tradeId(buyTrade)] ?? 'shares',
-        tradeIds: [tradeId(buyTrade)],
-      })
+      positions.push(openSharePosition(ticker, lot, seq, labels))
     }
   }
 
-  // Reconcile against the account's LIVE positions snapshot — a share
-  // position whose opening trade fell outside the Flex Query's own sync
-  // window (e.g. a transfer-in from another broker more than the query's
-  // "Last 365 Calendar Days" ago) is invisible to the lot-matching above
-  // entirely: there's no trade to build a lot from. The live snapshot
-  // (Open Positions, not period-bound) still reports the real share count,
-  // so a real, non-zero holding this pass never explained gets a synthetic
-  // Active row here instead of silently vanishing from the Journal while
-  // still correctly appearing on Overview/Allocation (both of which read
-  // live positions directly, not this trade-history reconstruction).
-  if (livePositions) {
-    const explainedByTicker = new Map<string, number>()
-    for (const p of positions) {
-      if (p.status === 'Active' && p.strikeDisplay === 'SHARES') {
-        explainedByTicker.set(p.underlying, (explainedByTicker.get(p.underlying) ?? 0) + p.contracts)
-      }
-    }
-    for (const lp of livePositions) {
-      if (lp.assetClass !== 'STK' || Math.abs(lp.quantity) < 1e-6) continue
-      const explained = explainedByTicker.get(lp.symbol) ?? 0
-      const untracked = lp.quantity - explained
-      if (Math.abs(untracked) < 1e-6) continue
-      positions.push({
-        id: `stk|${lp.symbol}|untracked`,
-        underlying: lp.symbol,
-        contracts: untracked,
-        strikeDisplay: 'SHARES',
-        strikes: [],
-        putCall: '',
-        expiry: '',
-        dateOpen: '',
-        initialDTE: 0,
-        openFees: 0,
-        netPremium: -(lp.costBasisPrice * untracked),
-        status: 'Active',
-        strategy: 'shares',
-        tradeIds: [],
-      })
-    }
-  }
-
-  return positions
+  return reconcileOpenShares(positions, livePositions, stockTrades)
 }
 
 // ─── KPI stats ────────────────────────────────────────────────────────────────

@@ -27,6 +27,49 @@ export interface RawPosition {
   // ("SUMMARY" vs per-lot "LOT") — used only to dedupe a report that has
   // both checked, so a multi-lot position doesn't get counted twice.
   levelOfDetail?: string
+  /** YYYYMMDD the lot was opened. Present on LOT rows; copied onto `openLots`. */
+  openDate?: string
+  /**
+   * Per-lot breakdown from the Flex Open Positions section, when the query
+   * included Lot detail. The position's own quantity and cost stay the
+   * summary (so portfolio totals are not double-counted). Share accounting
+   * uses these lots as the open cost basis instead of reconstructing one.
+   */
+  openLots?: OpenLot[]
+}
+
+/** One tax lot still open at IBKR. Cost is whatever lot method the account uses. */
+export interface OpenLot {
+  quantity: number
+  costBasisPrice: number
+  costBasisMoney: number
+  /** YYYYMMDD, when the Flex lot row included an open date. */
+  openDate?: string
+  unrealizedPnL?: number
+}
+
+/**
+ * One opening lot a closing Flex trade actually consumed. IBKR reports
+ * these as Trade rows with levelOfDetail CLOSED_LOT (and, on some
+ * templates, as ClosedLot elements). `cost` is the signed basis removed
+ * — negative when a long lot is sold — and `fifoPnlRealized` is IBKR's
+ * realized P&L for that lot under the account's lot method. The attribute
+ * is named "fifo" even when the account is set to Highest Cost, LIFO, or
+ * specific lot.
+ */
+export interface ClosedLot {
+  quantity: number
+  tradeDate: string
+  tradePrice: number
+  proceeds: number
+  commissions: number
+  cost: number
+  fifoPnlRealized?: number
+  /** YYYYMMDD the consumed lot was opened. */
+  origTradeDate?: string
+  /** Per-share cost of the consumed lot. */
+  origTradePrice?: number
+  origTradeId?: string
 }
 
 export interface RawTrade {
@@ -75,6 +118,29 @@ export interface RawTrade {
    * tradeTime and got merged into one fake mixed put/call "spread"). Used to
    * group trades into their real order instead of just date+time. */
   orderId?: string
+  /**
+   * Signed cost basis IBKR attached to this fill (`cost` on the Flex Trade).
+   * On a closing stock sale this is the basis removed, using the account's
+   * lot method — negative for a long close. Absent on statements that
+   * didn't include the column, and on trades synced before the parser
+   * stored it (the next Flex sync rewrites the report window and fills it in).
+   */
+  cost?: number
+  /**
+   * Realized P&L IBKR computed for this fill (`fifoPnlRealized`). Despite
+   * the name, the figure follows the account's Tax Optimizer lot method
+   * (FIFO, LIFO, Highest Cost, specific lot, …), not a FIFO assumption.
+   * Present only when the Flex row included the attribute.
+   */
+  fifoPnlRealized?: number
+  /** Flex Trade levelOfDetail (EXECUTION, ORDER, …). Closed-lot rows are not stored as their own trades. */
+  levelOfDetail?: string
+  /**
+   * Opening lots this closing fill consumed, when the Flex query included
+   * Closed Lots. Empty / absent when the query has executions only — the
+   * journal then falls back to `cost` and `fifoPnlRealized` on this fill.
+   */
+  closedLots?: ClosedLot[]
 }
 
 // ─── Classified Strategy ─────────────────────────────────────────────────────

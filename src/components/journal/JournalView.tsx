@@ -22,7 +22,13 @@ function fmt$(n: number, d = 0) {
 }
 
 function fmtDate(s: string) {
-  const d = new Date(s)
+  if (!s) return '—'
+  // Flex dates are YYYYMMDD. `new Date('20261016')` is invalid, and
+  // `new Date('2026-10-16')` is UTC midnight, which shifts a day west of
+  // Greenwich. Build the local calendar date from the digits instead.
+  const m = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(s)
+  if (!m) return s
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
   return isNaN(d.getTime()) ? s : d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: '2-digit' })
 }
 
@@ -230,6 +236,50 @@ function DetailTail() {
  * the side inlined under Ticker), Qty/Price/Fees/Total under Position, Avg
  * Price, Cost Basis and Breakeven. */
 function SharesTradesTable({ pos, tradesByKey }: { pos: JournalPosition; tradesByKey: Map<string, RawTrade> }): JournalDetail {
+  // IBKR's own closed lots (and the buys still held) are stored on the
+  // position. Prefer those over the raw trade list: the trade list pairs
+  // a sale with whichever buy this app walked to, which is how a highest-cost
+  // MSTR sale was shown against the $104.25 assignment.
+  const fills = pos.shareFills
+  if (fills && fills.length > 0) {
+    return {
+      kind: 'rows',
+      node: (
+        <>
+          <tr className="jr-detail-row jr-detail-head">
+            <td>Date</td>
+            <td className="jr-col-closed">Action</td>
+            <td className="jr-col-expiry">Expiry</td>
+            <td colSpan={2} />
+            <td className="jr-leg-num">Qty</td>
+            <td className="jr-leg-num">Price</td>
+            <td className="jr-leg-num">Fees</td>
+            <td className="jr-leg-num">Total</td>
+            <DetailTail />
+          </tr>
+          {fills.map((t, i) => {
+            const actionColor = t.role === 'sell' ? '#ef4444' : '#10b981'
+            return (
+              <tr key={`${t.date}|${t.role}|${i}`} className="jr-detail-row mono">
+                <td style={{ color: 'var(--text-3)' }}>{fmtDate(t.date)}</td>
+                <td className="jr-col-closed" style={{ color: actionColor, fontWeight: 600 }}>{t.action}</td>
+                <td className="jr-col-expiry" style={{ color: 'var(--text-4)' }}>—</td>
+                <td colSpan={2}>
+                  <span className="jr-leg-action-inline" style={{ color: actionColor }}>{t.action}</span>
+                </td>
+                <td className="jr-leg-num">{Math.abs(t.quantity)}</td>
+                <td className="jr-leg-num">{fmt$(t.price, 2)}</td>
+                <td className="jr-leg-num" style={{ color: 'var(--text-4)' }}>{fmt$(Math.abs(t.fees), 2)}</td>
+                <td className="jr-leg-num" style={{ color: 'var(--text-2)' }}>{fmt$(t.total, 2)}</td>
+                <DetailTail />
+              </tr>
+            )
+          })}
+        </>
+      ),
+    }
+  }
+
   const rows = pos.tradeIds
     .map(id => tradesByKey.get(id))
     .filter((t): t is RawTrade => t != null)
@@ -342,8 +392,8 @@ function OptionLegsTable({ pos, tradesByKey }: { pos: JournalPosition; tradesByK
  *
  * `livePositions`, when given, is IBKR's own current-holding snapshot (the
  * Flex report's <OpenPosition> rows) — the ground truth for how many shares
- * are actually held right now. The active share count is reconstructed
- * instead from the full trade history via FIFO/LIFO lot matching, which is
+ * are actually held right now. Realised P&L follows IBKR's closed lots, but
+ * the share count reconstructed from trade history is still
  * fragile against any historical data-quality issue (a duplicate, a missing,
  * or an out-of-window trade this account will never re-report) and can drift
  * from reality in a way no amount of resyncing fixes, since a resync only
@@ -371,7 +421,8 @@ function aggregateShares(positions: JournalPosition[], livePositions: RawPositio
     const closedLots = lots.filter(l => l.status !== 'Active')
     const anyActive = activeLots.length > 0
     const computedContracts = (anyActive ? activeLots : lots).reduce((s, l) => s + l.contracts, 0)
-    const liveQty = livePositions.find(lp => lp.assetClass === 'STK' && lp.symbol === ticker)?.quantity
+    const liveRows = livePositions.filter(lp => lp.assetClass === 'STK' && lp.symbol === ticker)
+    const liveQty = liveRows.length > 0 ? liveRows.reduce((s, lp) => s + lp.quantity, 0) : null
     const totalContracts = anyActive && liveQty != null ? liveQty : computedContracts
     // Cost basis scales by the same ratio the share count was corrected by,
     // since which specific lots are phantom (vs. real but out-of-window) is
@@ -380,6 +431,14 @@ function aggregateShares(positions: JournalPosition[], livePositions: RawPositio
     // otherwise.
     const costScale = computedContracts > 0 ? totalContracts / computedContracts : 1
     const hasClosedPnl = closedLots.some(l => l.pnl != null)
+    // While shares are still held, "Open" is the oldest lot still open.
+    // A sold lot's open date belongs on the expanded closed-lot row, not
+    // on the position that's left.
+    const dated = (anyActive ? activeLots : lots).map(l => l.dateOpen).filter(Boolean)
+    const dateOpen = dated.length > 0
+      ? dated.reduce((min, d) => (d < min ? d : min))
+      : lots.reduce((min, l) => (l.dateOpen < min ? l.dateOpen : min), lots[0].dateOpen)
+    const shareFills = [...closedLots, ...activeLots].flatMap(l => l.shareFills ?? [])
     merged.push({
       id: `shares-agg|${ticker}`,
       underlying: ticker,
@@ -388,7 +447,7 @@ function aggregateShares(positions: JournalPosition[], livePositions: RawPositio
       strikes: [],
       putCall: '',
       expiry: '',
-      dateOpen: lots.reduce((min, l) => (l.dateOpen < min ? l.dateOpen : min), lots[0].dateOpen),
+      dateOpen,
       initialDTE: 0,
       // Cost basis of a ticker still being held must reflect only the shares
       // still held — summing every lot's netPremium (including shares bought
@@ -403,6 +462,7 @@ function aggregateShares(positions: JournalPosition[], livePositions: RawPositio
       status: anyActive ? 'Active' : 'Closed',
       strategy: 'shares',
       tradeIds: lots.flatMap(l => l.tradeIds),
+      ...(shareFills.length > 0 ? { shareFills } : {}),
       dateClosed: anyActive ? undefined : closedLots.reduce((max, l) => (l.dateClosed && l.dateClosed > max ? l.dateClosed : max), closedLots[0]?.dateClosed ?? ''),
       closeFees: closedLots.reduce((s, l) => s + (l.closeFees ?? 0), 0),
       pnl: hasClosedPnl ? closedLots.reduce((s, l) => s + (l.pnl ?? 0), 0) : undefined,

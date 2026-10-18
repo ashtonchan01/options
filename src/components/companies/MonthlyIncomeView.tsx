@@ -79,7 +79,39 @@ function PositionTradesTable({ position, tradesByKey }: { position: JournalPosit
     .filter((t): t is RawTrade => t != null)
     .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || (a.tradeTime ?? '').localeCompare(b.tradeTime ?? '')),
     [position.tradeIds, tradesByKey])
-
+  const fills = position.shareFills
+  if (fills && fills.length > 0) {
+    return (
+      <div style={{ padding: '8px 16px 8px 32px', background: 'var(--bg-surface)' }}>
+        <table className="mono" style={{ width: '100%', fontSize: 11.5, borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ color: 'var(--text-5)', textAlign: 'left' }}>
+              <th style={{ fontWeight: 500, padding: '3px 8px 3px 0' }}>Date</th>
+              <th style={{ fontWeight: 500, padding: '3px 8px' }}>Description</th>
+              <th style={{ fontWeight: 500, padding: '3px 8px' }}>Action</th>
+              <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Qty</th>
+              <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Price</th>
+              <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Fees</th>
+              <th style={{ fontWeight: 500, padding: '3px 8px', textAlign: 'right' }}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fills.map((t, i) => (
+              <tr key={`${t.date}|${t.role}|${i}`} style={{ borderTop: '1px solid var(--border)' }}>
+                <td style={{ padding: '3px 8px 3px 0', color: 'var(--text-4)', whiteSpace: 'nowrap' }}>{fmtTradeDate(t.date)}</td>
+                <td style={{ padding: '3px 8px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{position.underlying}</td>
+                <td style={{ padding: '3px 8px', color: t.role === 'sell' ? '#ef4444' : '#10b981', fontWeight: 600, whiteSpace: 'nowrap' }}>{t.action}</td>
+                <td style={{ padding: '3px 8px', textAlign: 'right' }}>{Math.abs(t.quantity)}</td>
+                <td style={{ padding: '3px 8px', textAlign: 'right' }}>{fmtDollar(t.price)}</td>
+                <td style={{ padding: '3px 8px', textAlign: 'right', color: 'var(--text-5)' }}>{fmtDollar(Math.abs(t.fees))}</td>
+                <td style={{ padding: '3px 8px', textAlign: 'right', fontWeight: 600 }}>{fmtDollar(t.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
   if (rows.length === 0) {
     return <div style={{ padding: '8px 16px', color: 'var(--text-5)', fontSize: 11.5 }}>No trade history found for this position.</div>
   }
