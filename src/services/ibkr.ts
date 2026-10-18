@@ -1,4 +1,5 @@
 import type { ClosedLot, OpenLot, RawPosition, RawTrade } from '../types'
+import { isRetryableFlexFailure } from './flexPace'
 
 // Vercel serverless function uses AWS IPs — not blocked by IBKR like Cloudflare
 const FLEX_PROXY = 'https://options-jade.vercel.app'
@@ -47,11 +48,15 @@ export async function syncFromFlexAPI(
   const text = await res.text()
   if (!res.ok) {
     let msg = `HTTP ${res.status}`
+    let retryable = res.status === 503 || res.status === 504
     try {
-      const b = JSON.parse(text) as { error?: string; raw?: string }
-      if (b.error) msg = b.raw ? `${b.error} | raw: ${b.raw.slice(0, 120)}` : b.error
+      const b = JSON.parse(text) as { error?: string; retryable?: boolean; code?: string }
+      if (b.error) msg = b.error
+      if (b.retryable) retryable = true
     } catch { msg = text.slice(0, 200) }
-    throw new Error(msg)
+    const err = new Error(msg) as Error & { retryable?: boolean }
+    err.retryable = retryable || isRetryableFlexFailure(err)
+    throw err
   }
 
   const xml = text

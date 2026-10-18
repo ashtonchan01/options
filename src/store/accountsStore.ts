@@ -12,10 +12,11 @@
  * when both exist, since it's the one copy that's actually shared across
  * logins.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RawPosition, RawTrade } from '../types'
 import { syncFromXML, syncFromFlexAPI } from '../services/ibkr'
-import { replaceTradeWindow, uncoveredFlexRanges } from '../services/flexWindow'
+import { replaceTradeWindow } from '../services/flexWindow'
+import { addWindow, enqueueToken, isRetryableFlexFailure, runFlexBackfill, type BackfillState, type FlexWindow } from '../services/flexPace'
 import { parseGenericCsvTrades } from '../services/genericCsvImport'
 import { parseXlsxTrades } from '../services/xlsxImport'
 import { parsePdfTrades } from '../services/pdfImport'
@@ -43,6 +44,14 @@ export interface Account {
   /** Net liquidation on each Flex report date (YYYY-MM-DD), when the query
    * included an equity summary series. Absent for CSV/PDF imports. */
   equityHistory?: { date: string; netLiquidation: number }[]
+  /** Flex date windows already stored. Older than the live query these are
+   * closed history and are not requested again. */
+  flexStoredWindows?: FlexWindow[]
+  /** Older windows still to fetch after a round ran out of time or hit IBKR's rate limit. */
+  flexBackfillPending?: FlexWindow[]
+  flexBackfillCompleted?: number
+  flexBackfillTotal?: number
+  flexBackfillFailures?: number
 }
 
 interface SyncResult {
@@ -197,7 +206,25 @@ export function useAccounts(sessionKey: string | null) {
   const key = sessionKey ?? 'anon'
   const [accounts, setAccounts] = useState<Account[]>(() => load(key))
   const [loadingId, setLoadingId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [syncNote, setSyncNote] = useState<string | null>(null)
+  const [syncAccountId, setSyncAccountId] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadAccountId, setUploadAccountId] = useState<string | null>(null)
+  const accountsRef = useRef(accounts)
+  /** Windows saved during this session, updated before React re-renders so the next queued sync does not refetch them. */
+  const flexProgressRef = useRef(new Map<string, BackfillState>())
+  const resumeTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const runSyncRef = useRef<(id: string, token: string, queryId: string, mode: 'full' | 'resume') => Promise<void>>(async () => {})
+
+  useEffect(() => {
+    accountsRef.current = accounts
+  }, [accounts])
+
+  useEffect(() => () => {
+    for (const timer of resumeTimers.current.values()) clearTimeout(timer)
+    resumeTimers.current.clear()
+  }, [])
 
   // localStorage paints instantly on every key change (including right after
   // login, before the network round-trip below resolves) so there's no blank
@@ -205,11 +232,15 @@ export function useAccounts(sessionKey: string | null) {
   // copy is the one that's actually consistent across browsers/devices —
   // whichever this browser's localStorage happens to hold is not.
   useEffect(() => {
+    flexProgressRef.current.clear()
     setAccounts(load(key))
     if (!sessionKey) return
     let cancelled = false
     loadRemote().then(remote => {
       if (cancelled || remote === null) return
+      // The server snapshot is the source of truth when it arrives. Drop the
+      // in-memory window cache so a sync cannot skip history this response just replaced.
+      flexProgressRef.current.clear()
       setAccounts(remote)
       save(key, remote)
     })
@@ -232,9 +263,25 @@ export function useAccounts(sessionKey: string | null) {
   }, [persist])
 
   const clearTrades = useCallback((id: string) => {
+    flexProgressRef.current.delete(id)
     setAccounts(prev => {
       const next = prev.map(a => a.id === id
-        ? { ...a, trades: [], positions: undefined, cashBalance: undefined, cashBalances: undefined, netLiquidation: undefined, equityHistory: undefined, fileName: undefined, uploadedAt: undefined }
+        ? {
+            ...a,
+            trades: [],
+            positions: undefined,
+            cashBalance: undefined,
+            cashBalances: undefined,
+            netLiquidation: undefined,
+            equityHistory: undefined,
+            fileName: undefined,
+            uploadedAt: undefined,
+            flexStoredWindows: undefined,
+            flexBackfillPending: undefined,
+            flexBackfillCompleted: undefined,
+            flexBackfillTotal: undefined,
+            flexBackfillFailures: undefined,
+          }
         : a)
       persist(next)
       return next
@@ -251,7 +298,8 @@ export function useAccounts(sessionKey: string | null) {
 
   const uploadStatement = useCallback(async (id: string, file: File) => {
     setLoadingId(id)
-    setError(null)
+    setUploadAccountId(id)
+    setUploadError(null)
     try {
       const result = await parseStatementFile(file)
       setAccounts(prev => {
@@ -275,61 +323,161 @@ export function useAccounts(sessionKey: string | null) {
         return next
       })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to parse file')
+      setUploadError(e instanceof Error ? e.message : 'Failed to parse file')
     } finally {
       setLoadingId(null)
     }
   }, [persist])
+
+  const rememberBackfill = useCallback((id: string, backfill: BackfillState) => {
+    flexProgressRef.current.set(id, {
+      stored: backfill.stored,
+      pending: backfill.pending,
+      completed: backfill.completed,
+      total: backfill.total,
+      failedRounds: backfill.failedRounds,
+    })
+    setAccounts(prev => {
+      const next = prev.map(a => a.id === id
+        ? {
+            ...a,
+            flexStoredWindows: backfill.stored,
+            flexBackfillPending: backfill.pending.length > 0 ? backfill.pending : undefined,
+            flexBackfillCompleted: backfill.pending.length > 0 ? backfill.completed : undefined,
+            flexBackfillTotal: backfill.pending.length > 0 ? backfill.total : undefined,
+            flexBackfillFailures: backfill.pending.length > 0 ? backfill.failedRounds : undefined,
+          }
+        : a)
+      persist(next)
+      return next
+    })
+  }, [persist])
+
+  const scheduleResume = useCallback((id: string, token: string, queryId: string, delayMs: number) => {
+    const existing = resumeTimers.current.get(id)
+    if (existing) clearTimeout(existing)
+    const timer = setTimeout(() => {
+      resumeTimers.current.delete(id)
+      void runSyncRef.current(id, token, queryId, 'resume')
+    }, delayMs)
+    resumeTimers.current.set(id, timer)
+  }, [])
 
   /** Live sync via the IBKR Flex Web Service (token + query id), scoped to
-   * this one account instead of a single app-wide primary account — each
-   * account can have its own Flex report tied to it. Credentials are saved
-   * on the account on success so a later re-sync is a one-click action. */
-  const syncFlex = useCallback(async (id: string, token: string, queryId: string) => {
-    setLoadingId(id)
-    setError(null)
-    try {
-      const result = await syncFromFlexAPI(token, queryId)
-      // The saved query is at most 365 days, which does not cover the start
-      // of FY2025-26. Older chunks are requested explicitly. A failed chunk
-      // keeps the primary result — the latest window is still saved.
-      const backfills: { fromDate: string; toDate: string; trades: RawTrade[] }[] = []
-      let backfillWarning: string | null = null
-      for (const range of uncoveredFlexRanges(result.fromDate)) {
-        try {
-          const older = await syncFromFlexAPI(token, queryId, range)
-          backfills.push({ fromDate: range.fromDate, toDate: range.toDate, trades: older.trades })
-        } catch (e) {
-          backfillWarning = e instanceof Error ? e.message : 'Flex backfill failed'
-          break
-        }
-      }
-      setAccounts(prev => {
-        const next = prev.map(a => {
-          if (a.id !== id) return a
-          let trades = mergeTrades(a.trades, result.trades, result.fromDate)
-          for (const chunk of backfills) trades = mergeTrades(trades, chunk.trades, chunk.fromDate, chunk.toDate)
-          return {
-            ...a,
-            trades,
-            positions: result.positions ?? a.positions,
-            cashBalance: result.cashBalance ?? a.cashBalance,
-            cashBalances: result.cashBalances ?? a.cashBalances,
-            netLiquidation: result.netLiquidation ?? a.netLiquidation,
-            equityHistory: result.equityHistory?.length ? result.equityHistory : a.equityHistory,
-            flexToken: token, flexQueryId: queryId, fileName: 'IBKR Flex sync', uploadedAt: Date.now(),
-          }
-        })
-        persist(next)
-        return next
-      })
-      if (backfillWarning) setError(`Synced the latest window. Older history did not load: ${backfillWarning}`)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Flex sync failed')
-    } finally {
-      setLoadingId(null)
+   * this one account. Credentials are saved on success so a later re-sync is
+   * one click. Older windows are fetched one at a time; a window already
+   * stored is left alone. A rate limit pauses and resumes instead of failing
+   * the sync that just saved the latest window. */
+  const runSync = useCallback(async (id: string, token: string, queryId: string, mode: 'full' | 'resume') => {
+    const pendingTimer = resumeTimers.current.get(id)
+    if (pendingTimer) {
+      clearTimeout(pendingTimer)
+      resumeTimers.current.delete(id)
     }
-  }, [persist])
+    setLoadingId(id)
+    setSyncAccountId(id)
+    setSyncError(null)
+    try {
+      await enqueueToken(token, async () => {
+        const prior = accountsRef.current.find(a => a.id === id)
+        const saved = flexProgressRef.current.get(id)
+        let stored = saved?.stored ?? prior?.flexStoredWindows ?? []
+        if (mode === 'full') {
+          const result = await syncFromFlexAPI(token, queryId)
+          if (result.fromDate && result.toDate) stored = addWindow(stored, { fromDate: result.fromDate, toDate: result.toDate })
+          setAccounts(prev => {
+            const next = prev.map(a => {
+              if (a.id !== id) return a
+              return {
+                ...a,
+                trades: mergeTrades(a.trades, result.trades, result.fromDate),
+                positions: result.positions ?? a.positions,
+                cashBalance: result.cashBalance ?? a.cashBalance,
+                cashBalances: result.cashBalances ?? a.cashBalances,
+                netLiquidation: result.netLiquidation ?? a.netLiquidation,
+                equityHistory: result.equityHistory?.length ? result.equityHistory : a.equityHistory,
+                flexStoredWindows: stored,
+                flexToken: token,
+                flexQueryId: queryId,
+                fileName: 'IBKR Flex sync',
+                uploadedAt: Date.now(),
+              }
+            })
+            persist(next)
+            return next
+          })
+          const backfill = await runFlexBackfill({
+            state: { stored, pending: [], completed: 0, total: 0, failedRounds: 0 },
+            primaryFrom: result.fromDate,
+            onProgress: setSyncNote,
+            fetchWindow: async window => {
+              const older = await syncFromFlexAPI(token, queryId, window)
+              setAccounts(prev => {
+                const next = prev.map(a => a.id === id
+                  ? {
+                      ...a,
+                      trades: mergeTrades(a.trades, older.trades, window.fromDate, window.toDate),
+                      flexStoredWindows: addWindow(a.flexStoredWindows, window),
+                    }
+                  : a)
+                persist(next)
+                return next
+              })
+            },
+          })
+          rememberBackfill(id, backfill)
+          setSyncNote(backfill.note)
+          setSyncError(backfill.error)
+          if (backfill.retryAfterMs != null) scheduleResume(id, token, queryId, backfill.retryAfterMs)
+          return
+        }
 
-  return { accounts, addAccount, removeAccount, clearTrades, uploadStatement, syncFlex, loadingId, error }
+        const backfill = await runFlexBackfill({
+          state: {
+            stored,
+            pending: saved?.pending ?? prior?.flexBackfillPending ?? [],
+            completed: saved?.completed ?? prior?.flexBackfillCompleted ?? 0,
+            total: saved?.total ?? prior?.flexBackfillTotal ?? 0,
+            failedRounds: saved?.failedRounds ?? prior?.flexBackfillFailures ?? 0,
+          },
+          onProgress: setSyncNote,
+          fetchWindow: async window => {
+            const older = await syncFromFlexAPI(token, queryId, window)
+            setAccounts(prev => {
+              const next = prev.map(a => a.id === id
+                ? {
+                    ...a,
+                    trades: mergeTrades(a.trades, older.trades, window.fromDate, window.toDate),
+                    flexStoredWindows: addWindow(a.flexStoredWindows, window),
+                  }
+                : a)
+              persist(next)
+              return next
+            })
+          },
+        })
+        rememberBackfill(id, backfill)
+        setSyncNote(backfill.note)
+        setSyncError(backfill.error)
+        if (backfill.retryAfterMs != null) scheduleResume(id, token, queryId, backfill.retryAfterMs)
+      })
+    } catch (e) {
+      setSyncNote(null)
+      setSyncError(isRetryableFlexFailure(e)
+        ? 'IBKR is limiting requests for this token. The latest window was not updated. Try again in a minute.'
+        : (e instanceof Error ? e.message : 'Flex sync failed'))
+    } finally {
+      setLoadingId(curr => curr === id ? null : curr)
+    }
+  }, [persist, rememberBackfill, scheduleResume])
+
+  useEffect(() => {
+    runSyncRef.current = runSync
+  }, [runSync])
+
+  const syncFlex = useCallback((id: string, token: string, queryId: string) => {
+    return runSync(id, token, queryId, 'full')
+  }, [runSync])
+
+  return { accounts, addAccount, removeAccount, clearTrades, uploadStatement, syncFlex, loadingId, syncError, syncNote, syncAccountId, uploadError, uploadAccountId }
 }

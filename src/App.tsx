@@ -105,7 +105,9 @@ function SignedInApp() {
               account={activeAccount}
               accounts={accountsStore.accounts}
               loading={accountsStore.loadingId === activeAccount.id}
-              error={accountsStore.error}
+              error={accountsStore.syncAccountId === activeAccount.id ? accountsStore.syncError : null}
+              syncNote={accountsStore.syncAccountId === activeAccount.id ? accountsStore.syncNote : null}
+              uploadError={accountsStore.uploadAccountId === activeAccount.id ? accountsStore.uploadError : null}
               onUpload={file => accountsStore.uploadStatement(activeAccount.id, file)}
               onClear={() => accountsStore.clearTrades(activeAccount.id)}
               onSyncFlex={(token, queryId) => accountsStore.syncFlex(activeAccount.id, token, queryId)}

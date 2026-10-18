@@ -60,11 +60,13 @@ function SetupInstructions() {
   )
 }
 
-export default function FlexSyncBar({ savedToken, savedQueryId, loading, error, onSync }: {
+export default function FlexSyncBar({ savedToken, savedQueryId, loading, error, note, onSync }: {
   savedToken?: string
   savedQueryId?: string
   loading: boolean
   error: string | null
+  /** Progress that is not a failure, such as an older window still loading. */
+  note?: string | null
   onSync: (token: string, queryId: string) => void
 }) {
   const hasSaved = !!(savedToken && savedQueryId)
@@ -129,6 +131,7 @@ export default function FlexSyncBar({ savedToken, savedQueryId, loading, error, 
           </>
         )}
       </div>
+      {note && <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{note}</div>}
       {error && <div style={{ fontSize: 11, color: '#ef4444' }}>{error}</div>}
       {expanded && <SetupInstructions />}
     </div>
