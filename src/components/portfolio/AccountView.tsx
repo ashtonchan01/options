@@ -39,9 +39,8 @@ const SECTION_TABS: { id: Section; label: string }[] = [
   { id: 'allocation', label: 'Allocation' },
 ]
 
-export default function AccountView({ account, accounts, loading, error, syncNote, uploadError, onUpload, onClear, onSyncFlex, tradeLabels, watchlistTickers, sessionKey, expand }: {
+export default function AccountView({ account, loading, error, syncNote, uploadError, onUpload, onClear, onSyncFlex, tradeLabels, watchlistTickers, sessionKey, expand }: {
   account: Account
-  accounts?: Account[]
   loading: boolean
   error: string | null
   syncNote?: string | null
@@ -100,7 +99,6 @@ export default function AccountView({ account, accounts, loading, error, syncNot
                 tradeLabels={tradeLabels}
                 accountId={account.id}
                 sessionKey={sessionKey}
-                accounts={(accounts && accounts.length > 0 ? accounts : [account]).map(a => ({ id: a.id, name: a.name, trades: a.trades }))}
               />
             </div>
           )}
