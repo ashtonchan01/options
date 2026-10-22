@@ -1,10 +1,7 @@
 /**
- * Reports — Company P&L and Monthly Income by Strategy, as two sub-pages
- * under one shared FY filter instead of two separate top-level account
- * tabs (they used to be split that way; folded back under one "Reports"
- * tab per request, with an internal sub-nav instead). Owning the FY filter
- * here means both sub-pages always agree on which financial year is
- * selected — switching sub-tabs never resets or desyncs it.
+ * Reports — Company P&L, Monthly Income, and Annual ROI under one tab.
+ * Company P&L and Monthly Income share the FY filter here, so switching
+ * between them keeps the same year.
  */
 import { useMemo, useState } from 'react'
 import type { AppState } from '../../types'
@@ -14,26 +11,23 @@ import { fyOf, currentFyKey } from './reportsShared'
 import CompanyPnlView from './CompanyPnlView'
 import MonthlyIncomeView from './MonthlyIncomeView'
 import AnnualRoiView from './AnnualRoiView'
-import RealisedFyView, { type RealisedAccount } from './RealisedFyView'
 
 type FyFilter = 'all' | string
-type SubPage = 'realised' | 'company' | 'monthly' | 'annual'
+type SubPage = 'company' | 'monthly' | 'annual'
 
 const SUB_PAGES: { id: SubPage; label: string }[] = [
-  { id: 'realised', label: 'Realised' },
   { id: 'company', label: 'Company P&L' },
   { id: 'monthly', label: 'Monthly Income' },
   { id: 'annual', label: 'Annual ROI' },
 ]
 
-export default function ReportsView({ state, tradeLabels, accountId, sessionKey, accounts }: {
+export default function ReportsView({ state, tradeLabels, accountId, sessionKey }: {
   state: AppState
   tradeLabels?: TradeLabels
   accountId: string
   sessionKey?: string | null
-  accounts?: RealisedAccount[]
 }) {
-  const [sub, setSub] = useState<SubPage>('realised')
+  const [sub, setSub] = useState<SubPage>('company')
   const [fy, setFy] = useState<FyFilter>('all')
 
   const positions = useMemo(() => {
@@ -83,9 +77,9 @@ export default function ReportsView({ state, tradeLabels, accountId, sessionKey,
           ))}
         </div>
 
-        {/* Annual ROI and Realised own their own year navigation. This
-            filter narrows Company P&L and Monthly Income. */}
-        {sub !== 'annual' && sub !== 'realised' && (
+        {/* Annual ROI owns its own year navigation. This filter narrows
+            Company P&L and Monthly Income. */}
+        {sub !== 'annual' && (
           <div className="tl-filter-row" style={{ gap: 4 }}>
             <button className={`tl-filter-chip${fy === 'all' ? ' active' : ''}`} onClick={() => setFy('all')}>
               All Time
@@ -104,12 +98,6 @@ export default function ReportsView({ state, tradeLabels, accountId, sessionKey,
         )}
       </div>
 
-      {sub === 'realised' && (
-        <RealisedFyView
-          accounts={accounts && accounts.length > 0 ? accounts : [{ id: accountId, name: 'This account', trades: state.sync.trades }]}
-          activeAccountId={accountId}
-        />
-      )}
       {sub === 'company' && <CompanyPnlView state={state} tradeLabels={tradeLabels} fy={fy} />}
       {sub === 'monthly' && <MonthlyIncomeView state={state} tradeLabels={tradeLabels} fy={fy} />}
       {sub === 'annual' && <AnnualRoiView state={state} tradeLabels={tradeLabels} accountId={accountId} sessionKey={sessionKey} />}
