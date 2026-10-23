@@ -4,13 +4,19 @@
  * to sit above this (Journal Overview / Portfolio Summary panel) now lives
  * on the account's Overview tab instead.
  */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { AppState } from '../../types'
 import type { TradeLabels } from '../../App'
 import { JournalTab } from './JournalView'
 import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
 import { useJournalStore } from '../../store/journalStore'
 import { ActionsSidebar } from '../analytics/AnalyticsView'
+
+const ACTIONS_COLLAPSED_KEY = 'options:actions-collapsed'
+
+function readActionsCollapsed(): boolean {
+  try { return localStorage.getItem(ACTIONS_COLLAPSED_KEY) === '1' } catch { return false }
+}
 
 function NoTradeData() {
   return (
@@ -22,6 +28,15 @@ function NoTradeData() {
 
 export default function JournalPageView({ state, tradeLabels, sessionKey, accountId }: { state: AppState; tradeLabels?: TradeLabels; sessionKey: string | null; accountId: string }) {
   const { entries, updateEntry, setups, addSetup } = useJournalStore(sessionKey)
+  const [actionsCollapsed, setActionsCollapsed] = useState(readActionsCollapsed)
+
+  function toggleActionsCollapsed() {
+    setActionsCollapsed(collapsed => {
+      const next = !collapsed
+      try { localStorage.setItem(ACTIONS_COLLAPSED_KEY, next ? '1' : '0') } catch { /* ignore */ }
+      return next
+    })
+  }
 
   const positions = useMemo(() => {
     const labels = tradeLabels?.labels ?? {}
@@ -46,8 +61,8 @@ export default function JournalPageView({ state, tradeLabels, sessionKey, accoun
           )}
         </div>
       </div>
-      <div className="jr-page-actions">
-        <ActionsSidebar state={state} />
+      <div className={`jr-page-actions${actionsCollapsed ? ' collapsed' : ''}`}>
+        <ActionsSidebar state={state} collapsed={actionsCollapsed} onToggleCollapsed={toggleActionsCollapsed} />
       </div>
     </div>
   )
