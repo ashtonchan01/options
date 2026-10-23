@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { AppState, Action, UrgencyLevel, StrategyType, RawTrade } from '../../types'
 import { tradeId } from '../../store/tradeLabelsStore'
 import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
@@ -70,7 +71,11 @@ function fmtDollar(n: number): string {
 
 // ─── Actions Sidebar ──────────────────────────────────────────────────────────
 
-export function ActionsSidebar({ state }: { state: AppState }) {
+export function ActionsSidebar({ state, collapsed = false, onToggleCollapsed }: {
+  state: AppState
+  collapsed?: boolean
+  onToggleCollapsed?: () => void
+}) {
   // state.actions was generated with NO live prices at all (accountToAppState
   // calls generateActions(strategies, positions) with no third argument) —
   // its only price source is an IBKR STK position's own markPrice, which
@@ -104,10 +109,22 @@ export function ActionsSidebar({ state }: { state: AppState }) {
   }, {} as Record<UrgencyLevel, Action[]>)
 
   return (
-    <aside className="db-sidebar">
-      <div className="db-sidebar-header" style={{ flexWrap: 'wrap', rowGap: 6, paddingBottom: actions.length > 0 ? 10 : 12 }}>
-        <span>Actions &amp; To-Do</span>
-        <div style={{ display: 'flex', gap: 5, marginLeft: 'auto' }}>
+    <aside className="db-sidebar" aria-label="Actions and to-do">
+      <div className="db-sidebar-header">
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            className="db-sidebar-collapse"
+            onClick={onToggleCollapsed}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Expand actions' : 'Minimise actions'}
+            title={collapsed ? 'Expand actions' : 'Minimise actions'}
+          >
+            {collapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+          </button>
+        )}
+        <span className="db-sidebar-title">Actions &amp; To-Do</span>
+        <div className="db-sidebar-badges">
           {URGENCY_ORDER.map(u => {
             const n = byUrgency[u].length
             if (n === 0) return null
