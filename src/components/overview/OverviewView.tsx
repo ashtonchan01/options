@@ -3,19 +3,21 @@
  * from Journal Overview), the Flex Web Service sync + statement upload
  * controls (moved here from Reports), and a metrics/charts strip: the old
  * Journal KPI row (win rate, profit factor, avg win/loss, max drawdown,
- * streak, etc.), an equity curve, a monthly realized-P&L bar chart, and the
- * current portfolio allocation pie.
+ * streak, etc.), an equity curve beside monthly realized P&L, and the
+ * Ideas, Puts, and Calls cards.
  */
 import { useEffect, useMemo, useState } from 'react'
 import type { AppState } from '../../types'
 import type { Account } from '../../store/accountsStore'
 import { buildJournalPositions, buildStockPositions, closedByDate, computeStats, openPremiumTotal, equityCurve, type EquityPoint } from '../../engine/journal'
 import { PortfolioSummaryCard } from '../analytics/AnalyticsView'
-import { PortfolioPie, currentAllocationSlices, fmt$ as fmtAllocation } from '../allocation/PortfolioAllocationView'
 import { fyOf } from '../companies/reportsShared'
+import { resolvedNetLiquidation } from '../../income/incomeLive'
 import AccountUploadBar from '../shared/AccountUploadBar'
 import { CHART_THEME } from '../shared/chartTheme'
 import FlexSyncBar from '../shared/FlexSyncBar'
+import { useIncomePlan } from '../../store/incomePlanStore'
+import PlanCards from './PlanCards'
 
 function fmtDollar(n: number): string {
   const sign = n < 0 ? '-' : ''
@@ -106,8 +108,7 @@ function fmtMonthFull(ym: string) {
 // regardless of how big any chart's panel grows.
 // One single size for every label on every chart on this page — axis
 // labels, bar/line values, month labels, all of it — matching the KPI
-// strip's bold value spans directly above them. Shared with Income via
-// CHART_THEME so the two tabs cannot drift. Two different sizes (a smaller
+// strip's bold value spans directly above them, from CHART_THEME. Two different sizes (a smaller
 // one for axis text) kept reading as "still too small" next to the KPI
 // strip's uniform size, so there's just one constant now.
 const AXIS_LABEL_SIZE = CHART_THEME.fontSize
@@ -410,7 +411,7 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
   )
 }
 
-export default function OverviewView({ state, account, loading, error, syncNote, uploadError, onUpload, onClear, onSyncFlex }: {
+export default function OverviewView({ state, account, loading, error, syncNote, uploadError, onUpload, onClear, onSyncFlex, sessionKey }: {
   state: AppState
   account: Account
   loading: boolean
@@ -420,9 +421,11 @@ export default function OverviewView({ state, account, loading, error, syncNote,
   onUpload: (file: File) => void | Promise<void>
   onClear: () => void
   onSyncFlex: (token: string, queryId: string) => void
+  sessionKey: string | null
 }) {
   const hasData = state.sync.trades.length > 0
   const [monthlyFy, setMonthlyFy] = useState('all')
+  const { settings } = useIncomePlan(sessionKey)
 
   return (
     <div className="jr-root" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -446,7 +449,14 @@ export default function OverviewView({ state, account, loading, error, syncNote,
             onClear={onClear}
           />
         </div>
-        {hasData && <PortfolioSummaryCard state={state} />}
+        {hasData && (
+          <PortfolioSummaryCard
+            state={state}
+            netLiquidation={resolvedNetLiquidation(account)}
+            excessLiquidity={account.excessLiquidity}
+            elFloor={settings.elFloor}
+          />
+        )}
       </div>
 
       {!hasData ? (
@@ -456,8 +466,8 @@ export default function OverviewView({ state, account, loading, error, syncNote,
       ) : (
         <>
           <div style={{ flex: '0 0 auto' }}><KpiStrip state={state} /></div>
-          {/* minHeight (not 0) on these three panels — without a real floor,
-              flex-shrink happily squashes them down to nothing to keep
+          {/* minHeight (not 0) on the chart row — without a real floor,
+              flex-shrink happily squashes the charts down to nothing to keep
               everything inside the container's fixed height, instead of the
               container actually overflowing and letting .jr-root's
               overflow-y:auto do its job. Expanding the Flex setup
@@ -469,36 +479,24 @@ export default function OverviewView({ state, account, loading, error, syncNote,
               scales with the viewBox, so letting these panels grow to fill
               whatever vertical space the window actually has no longer
               inflates the text along with them. */}
-          <div className="dash-panel ov-equity-panel" style={{ flex: '1.3 1 0', minHeight: 260 }}>
-            <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Equity Curve</span></div>
-            <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
-              <EquityChart points={equityCurve(closedByDate([
-                ...buildJournalPositions(state.sync.trades, {}),
-                ...buildStockPositions(state.sync.trades, {}, state.sync.positions),
-              ]))} />
+          <div className="ov-charts-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'stretch', flex: '1.3 1 0', minHeight: 260 }}>
+            <div className="dash-panel ov-equity-panel" style={{ minHeight: 260, height: '100%' }}>
+              <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Equity Curve</span></div>
+              <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
+                <EquityChart points={equityCurve(closedByDate([
+                  ...buildJournalPositions(state.sync.trades, {}),
+                  ...buildStockPositions(state.sync.trades, {}, state.sync.positions),
+                ]))} />
+              </div>
             </div>
-          </div>
-          <div className="ov-bottom-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 10, flex: '1 1 0', minHeight: 260 }}>
-            <div className="dash-panel ov-monthly-panel" style={{ minHeight: 0 }}>
+            <div className="dash-panel ov-monthly-panel" style={{ minHeight: 260, height: '100%' }}>
               <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Monthly Realised P&amp;L</span></div>
               <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
                 <MonthlyPnlChart state={state} fy={monthlyFy} onFyChange={setMonthlyFy} />
               </div>
             </div>
-            <div className="dash-panel ov-pie-panel" style={{ minHeight: 0, overflow: 'hidden' }}>
-              <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Allocation by Position</span></div>
-              {/* PortfolioPie now measures this wrapper itself (ResizeObserver)
-                  and sizes its own ring + fixed-size labels to fill exactly
-                  this box — no more fixed-canvas-plus-maxWidth-cap leaving a
-                  gap around a small pie in a bigger cell. */}
-              <div style={{ flex: '1 1 0', minHeight: 0, width: '100%' }}>
-                {(() => {
-                  const { slices, total } = currentAllocationSlices(state, account.id)
-                  return <PortfolioPie slices={slices} centerLabel="Current" centerValue={fmtAllocation(total)} labelMode="pct" />
-                })()}
-              </div>
-            </div>
           </div>
+          <PlanCards account={account} settings={settings} />
         </>
       )}
     </div>

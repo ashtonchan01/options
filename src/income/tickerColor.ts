@@ -1,4 +1,4 @@
-/** One ticker → colour map for Income chips, the expiry timeline, and the crypto gauge. */
+/** One ticker → colour map for the Overview Ideas, Puts, and Calls chips. */
 const KNOWN: Record<string, string> = {
   BTC: '#f7931a',
   MSTR: '#a78bfa',

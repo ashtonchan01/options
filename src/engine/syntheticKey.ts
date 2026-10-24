@@ -1,7 +1,7 @@
 /**
- * Shared key for a long call + short put synthetic.
- * Allocation and Income both use this so a call booked as BABA and a put
- * booked as the Hong Kong board code 9988 (or BIDU / 9888) are one ticker.
+ * Shared key for a long call + short put booked under different symbols.
+ * Allocation uses this so a call booked as BABA and a put booked as the
+ * Hong Kong board code 9988 (or BIDU / 9888) are one ticker.
  * A blank underlying falls through to the OCC root, not the whole contract.
  */
 import type { RawPosition } from '../types'
@@ -36,9 +36,4 @@ export function rawOptionUnderlying(p: RawPosition): string {
 export function optionRight(p: RawPosition): 'C' | 'P' | undefined {
   if (p.putCall === 'C' || p.putCall === 'P') return p.putCall
   return occContract(p.symbol)?.putCall ?? (p.underlyingSymbol ? occContract(p.underlyingSymbol)?.putCall : undefined)
-}
-
-/** Letter ticker a synthetic is grouped under. 9988 → BABA, 9888 → BIDU. */
-export function canonicalUnderlying(p: RawPosition): string {
-  return adrTicker(rawOptionUnderlying(p))
 }

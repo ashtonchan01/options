@@ -103,7 +103,6 @@ function SignedInApp() {
             <AccountView
               key={activeAccount.id}
               account={activeAccount}
-              accounts={accountsStore.accounts}
               loading={accountsStore.loadingId === activeAccount.id}
               error={accountsStore.syncAccountId === activeAccount.id ? accountsStore.syncError : null}
               syncNote={accountsStore.syncAccountId === activeAccount.id ? accountsStore.syncNote : null}

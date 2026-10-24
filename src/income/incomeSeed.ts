@@ -6,7 +6,6 @@
  */
 
 export const SEED_MARK_DATE = '2026-10-24'
-export const SEED_CLOSE_LABEL = '23 Oct 2026 close'
 
 export type SplitMode = 'capital' | 'fixed'
 
@@ -156,85 +155,3 @@ export const SEED_CALLS: SeedCall[] = [
 ]
 
 export const SEED_CALL_NOTE = 'TSLA 400C (0.28 delta, 6.50 mid) pays 650 for more call-away risk. SKHY\'s spread is wide and no greeks came back. Diagonals against TSLA LEAPS (personal Dec28 330C/360C, business Jun28 380C x2) wait until their short puts close; ARM, AVGO, LRCX and MRVL calls wait until those pairs convert.'
-
-export interface SeedRepair {
-  account: 'personal' | 'business'
-  label: string
-  qty: string
-  mark: string
-  closeCost: string
-  spot: string
-  state: string
-  idea: string
-}
-
-export const SEED_PERSONAL_REPAIR: SeedRepair[] = [
-  { account: 'personal', label: 'AAOI Nov06 95P', qty: '-4', mark: '28.84', closeCost: '11,537', spot: 'not quoted', state: 'Deep', idea: 'Close or roll out; largest drag' },
-  { account: 'personal', label: 'ARM Oct30 240P', qty: '-2', mark: '31.93', closeCost: '6,387', spot: '208.50', state: '31.50', idea: 'Close before 4 Nov earnings, or roll' },
-  { account: 'personal', label: 'GOOGL Dec18 340P', qty: '-2', mark: '27.09', closeCost: '5,419', spot: '321.12', state: '18.88', idea: 'Decide before 28 Oct earnings' },
-  { account: 'personal', label: 'UMAC Feb19\'27 20P', qty: '-10', mark: '5.23', closeCost: '5,235', spot: '17.05', state: '2.95', idea: 'Close; 10 lots is oversized' },
-  { account: 'personal', label: 'MSTR Dec18 160P', qty: '-2', mark: '24.44', closeCost: '4,887', spot: '145.12', state: '14.88', idea: 'Close; BTC beta already in shares' },
-  { account: 'personal', label: 'SPCX Oct30 160P', qty: '-2', mark: '13.21', closeCost: '2,643', spot: '147.53', state: '12.47', idea: 'Take shares only if cash allows, else roll' },
-  { account: 'personal', label: 'SOFI Oct30 14.5P', qty: '-20', mark: '0.66', closeCost: '1,322', spot: '14.59', state: 'ATM', idea: 'Let expire, then exit SOFI' },
-  { account: 'personal', label: 'SPX Nov06 7575/7550 spread', qty: '-4/+4', mark: '66.49 / 59.47', closeCost: '2,808 net', spot: 'not quoted', state: 'Max loss 10,000', idea: 'Watch into 6 Nov' },
-]
-
-export const SEED_PERSONAL_REPAIR_NOTE = 'Cash 81,900, buying power 6,415, leverage 1.55; short puts carry about 267,000 of notional, about 38,000 to close the in-the-money ones. Also holds TSLA 100 sh, NVDA 10, MSTR 300 and TSLA Dec 2028 pairs (330C/340P, 360C/370P).'
-
-export interface SeedPair {
-  label: string
-  qty: string
-  spot: number
-  marks: string
-  net: string
-  shares: string
-  cash: string
-  /** When set, the cash column is the editable exit, not a conversion cost. */
-  exitSymbol?: string
-}
-
-export const SEED_PAIRS: SeedPair[] = [
-  { label: 'ARM Jun28 230C / 240P', qty: '1', spot: 208.5, marks: '65.74 / 78.96', net: '-13.22', shares: '100', cash: '20,850' },
-  { label: 'AVGO Jan29 340C / 360P', qty: '1', spot: 321.45, marks: '86.89 / 90.92', net: '-4.03', shares: '100', cash: '32,145' },
-  { label: 'BABA Jan29 110C / 120P', qty: '2', spot: 99.66, marks: '24.73 / 32.96', net: '-8.23', shares: 'Not converting', cash: '', exitSymbol: 'BABA' },
-  { label: 'BIDU Jan28 90C / 90P', qty: '2', spot: 77.22, marks: '12.51 / 21.09', net: '-8.58', shares: 'Not converting', cash: '', exitSymbol: 'BIDU' },
-  { label: 'LRCX Jun28 230C / 240P', qty: '1', spot: 229.9, marks: '68.41 / 60.81', net: '+7.60', shares: '100', cash: '22,990' },
-  { label: 'LRCX Jun28 260C / 270P', qty: '1', spot: 229.9, marks: '58.16 / 79.91', net: '-21.75', shares: '100', cash: '22,990' },
-  { label: 'MRVL Jun28 200C / 220P', qty: '1', spot: 226.63, marks: '87.86 / 58.16', net: '+29.70', shares: '100', cash: '22,663' },
-  { label: 'ALAB Jun28 250C / 260P', qty: '1', spot: 257.41, marks: '105.67 / 88.81', net: '+16.86', shares: '100', cash: '25,741' },
-  { label: 'SKHY Dec28 150C / 165P', qty: '1', spot: 136.1, marks: '45.02 / 58.05', net: '-13.03', shares: '100', cash: '13,610' },
-  { label: 'TSLA Jun28 380C / 400P', qty: '2', spot: 371.26, marks: '91.40 / 85.93', net: '+5.47', shares: '200', cash: '74,252' },
-  { label: 'UMAC Jan29 20C / 22.5P', qty: '10', spot: 17.05, marks: '8.51 / 11.66', net: '-3.15', shares: '1,000', cash: '17,045' },
-]
-
-export const SEED_BUSINESS_RISK: SeedRepair[] = [
-  { account: 'business', label: 'BSOL Nov20 16P', qty: '-10', mark: '2.18', closeCost: '2,180', spot: '14.17', state: 'ITM 1.83', idea: 'Close or roll; assignment means an ETF' },
-  { account: 'business', label: 'UMAC Jan27 20P', qty: '-10', mark: '4.81', closeCost: '4,806', spot: '17.05', state: 'ITM 2.95', idea: 'Close; UMAC already 1,000 sh via pair' },
-  { account: 'business', label: 'SPCX Oct28 157.5P', qty: '-1', mark: '10.61', closeCost: '1,061', spot: '147.53', state: 'ITM 9.97', idea: 'Assignment of 100 sh is fine at 15,750' },
-  { account: 'business', label: 'SPX Dec11 7650/7625 spread', qty: '-2/+2', mark: '158.97 / 149.82', closeCost: '1,830 net', spot: 'not quoted', state: 'Max loss 5,000', idea: 'Watch' },
-]
-
-export const SEED_BUSINESS_NOTE = 'Cash 128,823, buying power 39,892, leverage 1.85. Converting the nine pairs needs about 253,000, so rotate one or two a month: ARM, then MRVL, ALAB, LRCX 230. Shares held: MSTR 200, SKHY 100.'
-
-export const SEED_CALENDAR: { date: string; event: string }[] = [
-  { date: '28 Oct', event: 'GOOGL earnings; SPCX 157.5P expires (business)' },
-  { date: '30 Oct', event: 'Expiry: ARM, SPCX, SOFI puts (personal)' },
-  { date: '4 Nov', event: 'ARM earnings' },
-  { date: '6 Nov', event: 'Expiry: AAOI put, SPX spread (personal)' },
-  { date: '20 Nov', event: 'Monthly expiry: BSOL 16P; new cycle' },
-  { date: '11 Dec', event: 'Business SPX 7650/7625 put spread expires' },
-  { date: '18 Dec', event: 'GOOGL 340P and MSTR 160P expire (personal)' },
-  { date: '15 Jan 2027', event: 'UMAC 20P expires (business)' },
-  { date: '19 Feb 2027', event: 'UMAC 20P expires (personal)' },
-]
-
-export const SEED_SNAPSHOT_RULES: { rule: string; status: 'Yes' | 'No'; now: string }[] = [
-  { rule: 'Personal EL above 30,000', status: 'No', now: '11,940' },
-  { rule: 'Business EL above 30,000', status: 'Yes', now: '51,919' },
-  { rule: 'Every personal short put fully cash-covered', status: 'No', now: '267k notional vs 81.9k cash' },
-  { rule: 'Two or three personal positions at a time', status: 'No', now: '7 short puts open' },
-  { rule: 'BTC beta (MSTR, BSOL) under one cap; no new MSTR puts', status: 'No', now: 'MSTR 500 sh + 160P + BSOL 16P x10' },
-  { rule: 'No ETF holdings', status: 'No', now: 'BSOL 16P ITM risks assignment' },
-  { rule: 'No AMZN short puts; TSLA calls only against shares held', status: 'Yes', now: '' },
-  { rule: 'No short puts through GOOGL 28 Oct or ARM 4 Nov earnings unless intended', status: 'No', now: '' },
-]
