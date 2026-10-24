@@ -41,6 +41,8 @@ export interface Account {
    * syncs provide this (see cashBalance's own comment above). */
   cashBalances?: Record<string, number>
   netLiquidation?: number
+  /** From the Flex equity summary when the query includes it. */
+  excessLiquidity?: number
   /** Net liquidation on each Flex report date (YYYY-MM-DD), when the query
    * included an equity summary series. Absent for CSV/PDF imports. */
   equityHistory?: { date: string; netLiquidation: number }[]
@@ -60,6 +62,7 @@ interface SyncResult {
   cashBalance?: number
   cashBalances?: Record<string, number>
   netLiquidation?: number
+  excessLiquidity?: number
   equityHistory?: { date: string; netLiquidation: number }[]
   /** The Flex report's own "YYYYMMDD" reporting window, when the source
    * provided one (XML/Flex sync only — CSV/XLSX/PDF imports don't). */
@@ -273,6 +276,7 @@ export function useAccounts(sessionKey: string | null) {
             cashBalance: undefined,
             cashBalances: undefined,
             netLiquidation: undefined,
+            excessLiquidity: undefined,
             equityHistory: undefined,
             fileName: undefined,
             uploadedAt: undefined,
@@ -314,6 +318,7 @@ export function useAccounts(sessionKey: string | null) {
               cashBalance: result.cashBalance ?? a.cashBalance,
               cashBalances: result.cashBalances ?? a.cashBalances,
               netLiquidation: result.netLiquidation ?? a.netLiquidation,
+              excessLiquidity: result.excessLiquidity ?? a.excessLiquidity,
               equityHistory: result.equityHistory?.length ? result.equityHistory : a.equityHistory,
               fileName: file.name,
               uploadedAt: Date.now(),
@@ -395,6 +400,7 @@ export function useAccounts(sessionKey: string | null) {
                 cashBalance: result.cashBalance ?? a.cashBalance,
                 cashBalances: result.cashBalances ?? a.cashBalances,
                 netLiquidation: result.netLiquidation ?? a.netLiquidation,
+                excessLiquidity: result.excessLiquidity ?? a.excessLiquidity,
                 equityHistory: result.equityHistory?.length ? result.equityHistory : a.equityHistory,
                 flexStoredWindows: stored,
                 flexToken: token,

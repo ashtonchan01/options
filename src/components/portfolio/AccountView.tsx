@@ -1,5 +1,5 @@
 /**
- * Account content view — Overview / Calendar / Journal / Reports /
+ * Account content view — Overview / Calendar / Journal / Income / Reports /
  * Allocation for one user-created account. Trades come from either a
  * one-off statement upload or a per-account IBKR Flex Web Service sync
  * (its own Token/Query ID, not a single app-wide primary account) — both
@@ -27,20 +27,47 @@ import CalendarView from '../calendar/CalendarView'
 import JournalPageView from '../journal/JournalPageView'
 import PortfolioAllocationView from '../allocation/PortfolioAllocationView'
 import ReportsView from '../companies/ReportsView'
+import IncomeView from '../income/IncomeView'
+import type { IncomeSource } from '../../income/incomeLive'
 import { accountToAppState } from '../shared/syntheticAccountState'
 
-type Section = 'overview' | 'calendar' | 'journal' | 'reports' | 'allocation'
+type Section = 'overview' | 'calendar' | 'journal' | 'income' | 'reports' | 'allocation'
 
 const SECTION_TABS: { id: Section; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'journal', label: 'Journal' },
+  { id: 'income', label: 'Income' },
   { id: 'reports', label: 'Reports' },
   { id: 'allocation', label: 'Allocation' },
 ]
 
-export default function AccountView({ account, loading, error, syncNote, uploadError, onUpload, onClear, onSyncFlex, tradeLabels, watchlistTickers, sessionKey, expand }: {
+function incomeSources(list: Account[]): IncomeSource[] {
+  return list.map(entry => ({
+    name: entry.name,
+    positions: entry.positions ?? [],
+    trades: entry.trades,
+    cashBalance: entry.cashBalance,
+    netLiquidation: entry.netLiquidation,
+    excessLiquidity: entry.excessLiquidity,
+  }))
+}
+
+function initialSection(): Section {
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search)
+    const asked = params.get('section')
+    if (asked === 'overview' || asked === 'calendar' || asked === 'journal' || asked === 'income' || asked === 'reports' || asked === 'allocation') return asked
+    if (params.get('fypreview') === '1') return 'reports'
+  }
+  return 'overview'
+}
+
+export default function AccountView({ account, accounts, loading, error, syncNote, uploadError, onUpload, onClear, onSyncFlex, tradeLabels, watchlistTickers, sessionKey, expand }: {
   account: Account
+  /** Every account, so Income can read combined net liquidation and the
+   * BTC cap. Display names only — Flex tokens stay on Account and are not passed down. */
+  accounts?: Account[]
   loading: boolean
   error: string | null
   syncNote?: string | null
@@ -54,9 +81,9 @@ export default function AccountView({ account, loading, error, syncNote, uploadE
   /** Dev preview: let the page grow so a screenshot can capture the report. */
   expand?: boolean
 }) {
-  const previewReports = import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('fypreview') === '1'
-  const [section, setSection] = useState<Section>(previewReports ? 'reports' : 'overview')
+  const [section, setSection] = useState<Section>(initialSection)
   const accountState = accountToAppState(account)
+  const incomeAccounts = incomeSources(accounts && accounts.length > 0 ? accounts : [account])
 
   return (
     <div style={expand
@@ -75,7 +102,7 @@ export default function AccountView({ account, loading, error, syncNote, uploadE
           ))}
         </div>
 
-        <div className={`av-section-body${section === 'calendar' ? ' av-section-calendar' : ''}`} style={{ flex: 1, minHeight: 0, overflow: expand ? 'visible' : section === 'reports' ? 'auto' : 'hidden' }}>
+        <div className={`av-section-body${section === 'calendar' ? ' av-section-calendar' : ''}`} style={{ flex: 1, minHeight: 0, overflow: expand ? 'visible' : section === 'reports' || section === 'income' ? 'auto' : 'hidden' }}>
           {section === 'overview' && (
             <OverviewView
               state={accountState}
@@ -91,6 +118,13 @@ export default function AccountView({ account, loading, error, syncNote, uploadE
           )}
           {section === 'calendar' && <CalendarView state={accountState} watchlistTickers={watchlistTickers} tradeLabels={tradeLabels} />}
           {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} sessionKey={sessionKey} accountId={account.id} />}
+          {section === 'income' && (
+            <IncomeView
+              account={incomeSources([account])[0]}
+              accounts={incomeAccounts}
+              sessionKey={sessionKey}
+            />
+          )}
           {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} sessionKey={sessionKey} />}
           {section === 'reports' && (
             <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>

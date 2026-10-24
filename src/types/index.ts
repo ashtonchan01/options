@@ -307,6 +307,8 @@ export interface SyncState {
    * Flex sync provides this; undefined for a generic .csv/.xlsx/.pdf import. */
   cashBalances?: Record<string, number>
   netLiquidation?: number  // direct from IBKR EquitySummary
+  /** Present only when the Flex equity summary included excessLiquidity. */
+  excessLiquidity?: number
 }
 
 // ─── App State ────────────────────────────────────────────────────────────────

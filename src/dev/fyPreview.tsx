@@ -10,7 +10,7 @@ import { tradesFromFixture, type StatementFixture } from '../engine/statementFix
 import type { Account } from '../store/accountsStore'
 import AccountView from '../components/portfolio/AccountView'
 import type { TradeLabels } from '../App'
-import type { RawTrade } from '../types'
+import type { RawPosition, RawTrade } from '../types'
 
 const fy2526 = fy2526Json as StatementFixture
 const fy2627 = fy2627Json as StatementFixture
@@ -29,12 +29,61 @@ function stock(partial: Partial<RawTrade> & Pick<RawTrade, 'tradeDate' | 'symbol
   }
 }
 
+function stk(symbol: string, quantity: number, mark: number): RawPosition {
+  return {
+    accountId: '',
+    symbol,
+    description: symbol,
+    assetClass: 'STK',
+    quantity,
+    costBasisPrice: mark,
+    costBasisMoney: mark * quantity,
+    markPrice: mark,
+    positionValue: mark * quantity,
+    unrealizedPnL: 0,
+    currency: 'USD',
+    underlyingSymbol: symbol,
+    multiplier: 1,
+  }
+}
+
+function opt(symbol: string, putCall: 'P' | 'C', strike: number, expiry: string, quantity: number, mark: number): RawPosition {
+  const multiplier = 100
+  return {
+    accountId: '',
+    symbol,
+    description: `${symbol} ${strike}${putCall}`,
+    assetClass: 'OPT',
+    quantity,
+    costBasisPrice: mark,
+    costBasisMoney: mark * quantity * multiplier,
+    markPrice: mark,
+    positionValue: mark * quantity * multiplier,
+    unrealizedPnL: 0,
+    currency: 'USD',
+    putCall,
+    strike,
+    expiry,
+    multiplier,
+    underlyingSymbol: symbol,
+  }
+}
+
 function previewAccounts(): Account[] {
   return [
     {
       id: 'preview-personal',
       name: 'Personal',
       trades: [...tradesFromFixture(fy2526), ...tradesFromFixture(fy2627)],
+      cashBalance: 81_900,
+      netLiquidation: 134_982,
+      excessLiquidity: 11_940,
+      positions: [
+        stk('TSLA', 100, 372),
+        stk('MSTR', 300, 145.12),
+        opt('MSTR', 'P', 160, '20261218', -2, 24.44),
+        opt('TSLA', 'C', 410, '20261120', -1, 4.43),
+      ],
     },
     {
       id: 'preview-business',
@@ -49,10 +98,18 @@ function previewAccounts(): Account[] {
         commissions: -1,
         fifoPnlRealized: 100,
       })],
+      cashBalance: 128_823,
+      netLiquidation: 156_539,
+      excessLiquidity: 51_919,
+      positions: [
+        stk('MSTR', 200, 145.12),
+        stk('SKHY', 100, 136.1),
+        opt('BSOL', 'P', 16, '20261120', -10, 2.18),
+      ],
     },
     {
-      id: 'preview-u23020202',
-      name: 'U23020202',
+      id: 'preview-other',
+      name: 'Other',
       trades: [{
         accountId: 'U23020202',
         assetClass: 'OPT',
@@ -109,6 +166,7 @@ export function FyPreviewApp() {
         <main style={{ overflow: 'visible' }}>
           <AccountView
             account={active}
+            accounts={accounts}
             loading={false}
             error={null}
             onUpload={() => {}}

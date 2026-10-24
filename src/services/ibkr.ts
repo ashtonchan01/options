@@ -20,6 +20,10 @@ export interface FlexSnapshot {
   cashBalance: number
   cashBalances: Record<string, number>
   netLiquidation?: number
+  /** Excess liquidity from the latest equity-summary row, when that Flex
+   * section includes the attribute. Absent on many queries — callers must
+   * not invent a figure. */
+  excessLiquidity?: number
   /** One net-liquidation reading per report date, when the Flex query
    * included Equity Summary. Kept in full so the Milestone page can plot
    * the account's real value over time instead of only the latest row. */
@@ -69,7 +73,7 @@ export async function syncFromFlexAPI(
  * querySelector / querySelectorAll / getAttribute the same way. */
 export function parseFlexDocument(doc: Document): FlexSnapshot {
   const { positions, trades } = filterToPrimaryAccount(parsePositions(doc), allTrades(doc))
-  return { positions, trades, cashBalance: parseCash(doc), cashBalances: parseCashByCurrency(doc), netLiquidation: parseNetLiq(doc), equityHistory: parseEquityHistory(doc, primaryAccountId(positions, trades)), ...parseReportWindow(doc) }
+  return { positions, trades, cashBalance: parseCash(doc), cashBalances: parseCashByCurrency(doc), netLiquidation: parseNetLiq(doc), excessLiquidity: parseExcessLiquidity(doc), equityHistory: parseEquityHistory(doc, primaryAccountId(positions, trades)), ...parseReportWindow(doc) }
 }
 
 // ─── Ping ─────────────────────────────────────────────────────────────────────
@@ -319,6 +323,25 @@ function parseEquityHistory(doc: Document, accountId?: string): { date: string; 
   return [...byDate.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, netLiquidation]) => ({ date, netLiquidation }))
+}
+
+function equityNumber(el: Element | undefined, ...names: string[]): number | undefined {
+  if (!el) return undefined
+  for (const name of names) {
+    const raw = el.getAttribute(name)
+    if (raw == null || raw === '') continue
+    const n = Number(raw)
+    if (Number.isFinite(n)) return n
+  }
+  return undefined
+}
+
+/** Latest equity-summary excess liquidity. IBKR only includes the attribute
+ * when the Flex query selected it, so a missing value stays undefined. */
+function parseExcessLiquidity(doc: Document): number | undefined {
+  const fromBase = equityNumber(latestByReportDate(Array.from(doc.querySelectorAll('EquitySummaryInBase'))), 'excessLiquidity', 'ExcessLiquidity')
+  if (fromBase != null) return fromBase
+  return equityNumber(latestByReportDate(Array.from(doc.querySelectorAll('EquitySummaryByReportDateInBase'))), 'excessLiquidity', 'ExcessLiquidity')
 }
 
 function parseNetLiq(doc: Document): number | undefined {

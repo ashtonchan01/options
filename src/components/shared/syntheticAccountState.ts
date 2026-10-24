@@ -32,6 +32,7 @@ export function accountToAppState(account: {
   cashBalance?: number
   cashBalances?: Record<string, number>
   netLiquidation?: number
+  excessLiquidity?: number
 }): AppState {
   const base = emptyAppState()
   const positions = account.positions ?? []
@@ -50,6 +51,7 @@ export function accountToAppState(account: {
       cashBalance: account.cashBalance ?? 0,
       cashBalances: account.cashBalances,
       netLiquidation: account.netLiquidation,
+      excessLiquidity: account.excessLiquidity,
     },
     strategies,
     actions,
