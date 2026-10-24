@@ -49,6 +49,7 @@ import {
   type MilestoneIncome,
 } from '../../income/incomeLive'
 import { tickerColor } from '../../income/tickerColor'
+import SlimGauge from './SlimGauge'
 import { fetchQuotes, type Quote } from '../../services/quotes'
 import { useIncomePlan } from '../../store/incomePlanStore'
 import type { RawPosition } from '../../types'
@@ -375,12 +376,19 @@ function IncomePair({ children, single }: { children: ReactNode; single?: boolea
   )
 }
 
+const BREAKDOWN_COLOR = { base: '#10b981', tax: '#f59e0b', interest: 'var(--text-3)' } as const
+
 function Meter({ ratio }: { ratio: number | null }) {
-  const clamped = ratio == null || !Number.isFinite(ratio) ? 0 : Math.max(0, Math.min(1, ratio))
+  const known = ratio != null && Number.isFinite(ratio)
+  const clamped = known ? Math.max(0, Math.min(1, ratio as number)) : 0
+  const label = known ? `${Math.round((ratio as number) * 100)}%` : null
   return (
-    <div className="income-meter" role="img" aria-label="Realised versus monthly target">
-      <span style={{ width: `${clamped * 100}%` }} />
-    </div>
+    <SlimGauge
+      ariaLabel={label ? `Realised versus monthly target, ${label}` : 'Realised versus monthly target'}
+      total={1}
+      segments={clamped > 0 ? [{ key: 'realised', value: clamped, color: '#10b981', labelKey: 'realised' }] : []}
+      labels={label ? [{ key: 'realised', text: label }] : []}
+    />
   )
 }
 
@@ -389,12 +397,16 @@ function StackedBar({ parts }: { parts: { label: string; value: number | null; t
   const total = known.reduce((sum, part) => sum + part.value, 0)
   const title = parts.map(part => `${part.label} ${moneyOrDash(part.value)}`).join(' · ')
   return (
-    <div>
-      <div className="income-stack" title={title}>
-        {total > 0 ? known.map(part => (
-          <span key={part.label} className={part.tone} style={{ width: `${(part.value / total) * 100}%` }} />
-        )) : <span className="empty" />}
-      </div>
+    <div className="income-breakdown">
+      <SlimGauge
+        ariaLabel={title}
+        segments={known.map(part => ({ key: part.label, value: part.value, color: BREAKDOWN_COLOR[part.tone], labelKey: part.label }))}
+        labels={total > 0 ? known.map(part => ({
+          key: part.label,
+          text: `${part.label} ${shareText(part.value / total)}`,
+          abbrev: [part.label, shareText(part.value / total)],
+        })) : []}
+      />
       <div className="income-chips income-legend" style={{ fontFamily: CHART_THEME.fontFamily, fontSize: CHART_THEME.fontSize }}>
         {parts.map(part => <Chip key={part.label}>{`${part.label} ${moneyOrDash(part.value)}`}</Chip>)}
       </div>
@@ -698,16 +710,6 @@ function cryptoBook(accounts: IncomeSource[], extraSymbols: string[] = []): { sy
   return order.filter(symbol => map.has(symbol)).map(symbol => ({ symbol, ...map.get(symbol)! }))
 }
 
-function inkFor(color: string): string {
-  if (color.startsWith('hsl')) return '#1c1917'
-  const hex = color.replace('#', '')
-  if (hex.length < 6) return '#1c1917'
-  const r = Number.parseInt(hex.slice(0, 2), 16)
-  const g = Number.parseInt(hex.slice(2, 4), 16)
-  const b = Number.parseInt(hex.slice(4, 6), 16)
-  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#1c1917' : '#fff'
-}
-
 function shareText(share: number): string {
   const rounded = Math.round(share * 100)
   return rounded === 0 ? `${(share * 100).toFixed(1)}%` : `${rounded}%`
@@ -746,85 +748,6 @@ function gaugePieces(segments: { symbol: string; allowed: number; breach: number
   return [...allowed, ...breach]
 }
 
-function GaugeLabels({ segments, total, width }: { segments: { symbol: string; allowed: number; breach: number }[]; total: number; width: number }) {
-  if (width <= 0 || total <= 0) return null
-  const labelH = 16
-  const barTop = 36
-  const barH = 28
-  const charW = CHART_THEME.fontSize * 0.62
-  const placed: { left: number; right: number; top: number; bottom: number }[] = []
-  const nodes: ReactNode[] = []
-  const pieces = gaugePieces(segments)
-  let cursor = 0
-  const spans = new Map<string, { left: number; width: number; dollars: number }>()
-  for (const piece of pieces) {
-    const pieceW = (piece.dollars / total) * width
-    const prev = spans.get(piece.symbol)
-    if (prev && Math.abs(prev.left + prev.width - cursor) < 1) {
-      prev.width += pieceW
-      prev.dollars += piece.dollars
-    } else if (!prev || pieceW > prev.width) {
-      spans.set(piece.symbol, { left: cursor, width: pieceW, dollars: piece.dollars })
-    }
-    cursor += pieceW
-  }
-  for (const [symbol, span] of spans) {
-    const share = segments.find(seg => seg.symbol === symbol)
-    const dollars = share ? share.allowed + share.breach : span.dollars
-    const full = `${symbol} ${shareText(dollars / total)}`
-    const options = [full, symbol, shareText(dollars / total)]
-    const fullW = Math.ceil(full.length * charW)
-    let text = full
-    let textW = fullW
-    const fitsInside = (value: string) => Math.ceil(value.length * charW) + 8 <= span.width && barH >= labelH
-    const insideChoice = options.find(fitsInside)
-    if (insideChoice) {
-      text = insideChoice
-      textW = Math.ceil(text.length * charW)
-      nodes.push(
-        <span key={symbol} className="income-seg-label" style={{
-          left: span.left + (span.width - textW) / 2,
-          top: barTop + (barH - labelH) / 2,
-          width: textW,
-          color: inkFor(tickerColor(symbol)),
-        }}>{text}</span>,
-      )
-      continue
-    }
-    text = options[0]
-    textW = Math.ceil(text.length * charW)
-    let left = Math.max(0, Math.min(width - textW, span.left + span.width / 2 - textW / 2))
-    let top = barTop - labelH - 2
-    let guard = 0
-    const hits = () => placed.some(box => left < box.right + 4 && left + textW > box.left - 4 && top < box.bottom && top + labelH > box.top)
-    while (hits() && guard < 4) {
-      const next = options[Math.min(guard + 1, options.length - 1)]
-      if (guard < 2 && next !== text) {
-        text = next
-        textW = Math.ceil(text.length * charW)
-        left = Math.max(0, Math.min(width - textW, span.left + span.width / 2 - textW / 2))
-      } else top = Math.max(0, top - labelH - 2)
-      guard += 1
-    }
-    placed.push({ left, right: left + textW, top, bottom: top + labelH })
-    nodes.push(
-      <span key={symbol} className="income-seg-label" style={{ left, top, width: textW, color: 'var(--text-1)' }}>{text}</span>,
-    )
-  }
-  const allowed = segments.reduce((sum, seg) => sum + seg.allowed, 0)
-  if (allowed > 0 && allowed < total) {
-    const mark = (allowed / total) * width
-    const capW = Math.ceil(3 * charW)
-    let left = Math.max(0, Math.min(width - capW, mark - capW / 2))
-    let top = 0
-    if (placed.some(box => left < box.right + 2 && left + capW > box.left - 2 && top < box.bottom && top + labelH > box.top)) {
-      left = Math.max(0, Math.min(width - capW, mark + 4))
-    }
-    nodes.push(<span key="cap" className="income-seg-label income-cap-label" style={{ left, top, width: capW }}>cap</span>)
-  }
-  return <>{nodes}</>
-}
-
 function ExpiryTimeline() {
   const items = SEED_CALENDAR.map(row => ({ ...row, tickers: eventTickers(row.event) }))
   const legend: string[] = []
@@ -861,24 +784,23 @@ function ExpiryTimeline() {
 }
 
 function BtcGauge({ cap, segments, nlv }: { cap: BtcCap; segments: { symbol: string; allowed: number; breach: number }[]; nlv: number | null }) {
-  const { ref, width } = usePlotWidth()
   const total = segments.reduce((sum, seg) => sum + seg.allowed + seg.breach, 0)
   const breach = segments.reduce((sum, seg) => sum + seg.breach, 0)
   const allowed = Math.max(0, total - breach)
   const summary = capSummary(cap, total, breach, nlv)
-  const capAt = total > 0 ? (allowed / total) * 100 : null
+  const pieces = gaugePieces(segments)
   return (
     <IncomePanel emoji="₿" title="Crypto gauge">
       <div className="income-gauge" data-testid="income-btc" title={cap.detail}>
-        <div ref={ref} className="income-gauge-plot">
-          <GaugeLabels segments={segments} total={total} width={width} />
-          <div className="income-gauge-stack" aria-hidden="true">
-            {total > 0 ? gaugePieces(segments).map(piece => (
-              <span key={piece.key} style={{ flex: `0 0 ${(piece.dollars / total) * 100}%`, background: tickerColor(piece.symbol) }} />
-            )) : <span className="income-gauge-empty" />}
-            {capAt != null && capAt > 0 && capAt < 100 && <i className="income-gauge-cap" style={{ left: `${capAt}%` }} />}
-          </div>
-        </div>
+        <SlimGauge
+          ariaLabel={summary.text}
+          segments={pieces.map(piece => ({ key: piece.key, value: piece.dollars, color: tickerColor(piece.symbol), labelKey: piece.symbol }))}
+          labels={total > 0 ? segments.filter(seg => seg.allowed + seg.breach > 0).map(seg => {
+            const share = shareText((seg.allowed + seg.breach) / total)
+            return { key: seg.symbol, text: `${seg.symbol} ${share}`, abbrev: [seg.symbol, share] }
+          }) : []}
+          marker={allowed > 0 && allowed < total ? { at: allowed / total, text: 'cap' } : null}
+        />
         <div className={`income-gauge-summary ${summary.tone}`}>{summary.text}</div>
         <div className="income-chips">
           <Chip kind={cap.noBooks ? undefined : cap.over ? 'bad' : 'ok'}>{cap.noBooks ? 'Unknown' : cap.over ? 'Over' : 'Inside'}</Chip>
