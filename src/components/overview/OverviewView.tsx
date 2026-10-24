@@ -14,6 +14,7 @@ import { PortfolioSummaryCard } from '../analytics/AnalyticsView'
 import { PortfolioPie, currentAllocationSlices, fmt$ as fmtAllocation } from '../allocation/PortfolioAllocationView'
 import { fyOf } from '../companies/reportsShared'
 import AccountUploadBar from '../shared/AccountUploadBar'
+import { CHART_THEME } from '../shared/chartTheme'
 import FlexSyncBar from '../shared/FlexSyncBar'
 
 function fmtDollar(n: number): string {
@@ -105,11 +106,12 @@ function fmtMonthFull(ym: string) {
 // regardless of how big any chart's panel grows.
 // One single size for every label on every chart on this page — axis
 // labels, bar/line values, month labels, all of it — matching the KPI
-// strip's bold value spans (12.5px) directly above them. Two different
-// sizes (a smaller one for axis text) kept reading as "still too small"
-// next to the KPI strip's uniform size, so there's just one constant now.
-const AXIS_LABEL_SIZE = 12.5
-const VALUE_LABEL_SIZE = 12.5
+// strip's bold value spans directly above them. Shared with Income via
+// CHART_THEME so the two tabs cannot drift. Two different sizes (a smaller
+// one for axis text) kept reading as "still too small" next to the KPI
+// strip's uniform size, so there's just one constant now.
+const AXIS_LABEL_SIZE = CHART_THEME.fontSize
+const VALUE_LABEL_SIZE = CHART_THEME.fontSize
 
 /** Realized P&L by close month, most recent 8 months — same bar-chart shape
  * as the old Monthly Cash Flow chart, but driven off actual closed-position
@@ -171,14 +173,14 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px 2px', fontFamily: 'Inter, sans-serif', flex: '0 0 auto', gap: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px 2px', fontFamily: CHART_THEME.fontFamily, flex: '0 0 auto', gap: 8 }}>
         <div style={{ display: 'flex', gap: 4 }}>
           {[{ key: 'all', label: 'All' }, ...fyOptions.map(o => ({ key: o.key, label: o.label.replace('FY ', '') }))].map(o => (
             <button
               key={o.key}
               onClick={() => onFyChange(o.key)}
               style={{
-                fontSize: AXIS_LABEL_SIZE, fontFamily: 'Inter, sans-serif', cursor: 'pointer',
+                fontSize: AXIS_LABEL_SIZE, fontFamily: CHART_THEME.fontFamily, cursor: 'pointer',
                 border: 'none', borderRadius: 4, padding: '2px 7px',
                 background: fy === o.key ? 'var(--accent, #10b981)' : 'transparent',
                 color: fy === o.key ? '#fff' : 'var(--text-4)',
@@ -209,7 +211,7 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
             )
           })}
         </svg>
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: 'Inter, sans-serif' }}>
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: CHART_THEME.fontFamily }}>
           <span style={{ position: 'absolute', left: 6, top: `${(PT / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>{fmtDollar(maxAbs)}</span>
           <span style={{ position: 'absolute', left: 6, top: `${(y0 / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>$0</span>
           <span style={{ position: 'absolute', left: 6, top: `${((H - PB) / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>-{fmtDollar(maxAbs)}</span>
@@ -287,7 +289,7 @@ function KpiStrip({ state }: { state: AppState }) {
       {stats.map(c => (
         <div key={c.label} className="jr-mini">
           <span className="label">{c.label}</span>
-          <b style={{ fontSize: 12.5, color: c.color }}>{c.value}</b>
+          <b style={{ fontSize: CHART_THEME.fontSize, color: c.color }}>{c.value}</b>
         </div>
       ))}
     </div>
@@ -359,7 +361,7 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
         <path d={area} fill="url(#ov-eq-fill)" />
         <path d={line} fill="none" stroke="#10b981" strokeWidth="1" vectorEffect="non-scaling-stroke" style={{ filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.45))' }} />
       </svg>
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: CHART_THEME.fontFamily }}>
         {gridVals.map((v, i) => (
           <span key={i} style={{ position: 'absolute', left: 6, top: `${(y(v) / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>
             {fmtDollar(v)}

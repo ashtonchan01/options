@@ -4,9 +4,9 @@
  * Account ids and Flex tokens are not part of the props.
  * Charts are inline SVG, the same approach as the Milestone page.
  */
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
-import { Activity, Banknote, CircleDollarSign, ShieldAlert, Target, Wallet } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { loadMilestoneConfig } from '../dashboard/milestoneYears'
+import { CHART_THEME } from '../shared/chartTheme'
 import {
   SEED_BUSINESS_NOTE,
   SEED_BUSINESS_RISK,
@@ -50,23 +50,12 @@ import {
 import { fetchQuotes, type Quote } from '../../services/quotes'
 import { useIncomePlan } from '../../store/incomePlanStore'
 
-/** Shared by every Income chart: axis ticks, legends, and data labels. */
-const CHART_THEME = {
-  fontFamily: 'Inter, sans-serif',
-  fontSize: 11,
-  width: 360,
-  height: 168,
-  padL: 64,
-  padR: 12,
-  padT: 18,
-  padB: 28,
-} as const
-
-const chartText = (anchor: 'start' | 'middle' | 'end'): CSSProperties => ({
+const labelStyle = (extra?: CSSProperties): CSSProperties => ({
   fontFamily: CHART_THEME.fontFamily,
   fontSize: CHART_THEME.fontSize,
-  fill: 'var(--text-4)',
-  textAnchor: anchor,
+  color: 'var(--text-4)',
+  lineHeight: 1.2,
+  ...extra,
 })
 
 function axisLabel(value: number, aud: boolean): string {
@@ -151,17 +140,33 @@ function NumField({ label, value, onCommit, testId }: { label: string; value: nu
   )
 }
 
-function ProgressRing({ ratio }: { ratio: number | null }) {
-  const r = 15
-  const c = 2 * Math.PI * r
-  const clamped = ratio == null || !Number.isFinite(ratio) ? 0 : Math.max(0, Math.min(1, ratio))
-  const label = ratio == null || !Number.isFinite(ratio) ? '—' : `${Math.round(ratio * 100)}%`
+function progressLabel(ratio: number | null): string {
+  return ratio == null || !Number.isFinite(ratio) ? '—' : `${Math.round(ratio * 100)}%`
+}
+
+function EmojiTitle({ emoji, children }: { emoji: string; children: ReactNode }) {
   return (
-    <svg className="income-ring" viewBox="0 0 40 40" role="img" aria-label={`Progress ${label}`}>
-      <circle className="track" cx="20" cy="20" r={r} />
-      <circle className="value" cx="20" cy="20" r={r} strokeDasharray={`${c * clamped} ${c}`} />
-      <text x="20" y="20" dominantBaseline="middle" style={chartText('middle')}>{label}</text>
-    </svg>
+    <span className="income-title">
+      <span className="income-emoji" aria-hidden="true">{emoji}</span>
+      <span>{children}</span>
+    </span>
+  )
+}
+
+function IncomePanel({ emoji, title, children }: { emoji: string; title: string; children: ReactNode }) {
+  return (
+    <section className="dash-panel income-panel">
+      <div className="dash-panel-header"><EmojiTitle emoji={emoji}>{title}</EmojiTitle></div>
+      {children}
+    </section>
+  )
+}
+
+function IncomePair({ children, single }: { children: ReactNode; single?: boolean }) {
+  return (
+    <div className="ov-top-grid" style={{ display: 'grid', gridTemplateColumns: single ? '1fr' : '1fr 1fr', gap: 10, alignItems: 'stretch' }}>
+      {children}
+    </div>
   )
 }
 
@@ -192,48 +197,95 @@ function StackedBar({ parts }: { parts: { label: string; value: number | null; t
   )
 }
 
-const plotW = CHART_THEME.width - CHART_THEME.padL - CHART_THEME.padR
-const plotH = CHART_THEME.height - CHART_THEME.padT - CHART_THEME.padB
+/** ViewBox is 0–100 so an HTML label's percentage matches the stretched SVG. */
+const PLOT = { l: 22, r: 3, t: 28, b: 18 }
 
 function plotX(index: number, count: number): number {
-  if (count <= 1) return CHART_THEME.padL + plotW / 2
-  return CHART_THEME.padL + (index / (count - 1)) * plotW
+  const right = 100 - PLOT.r
+  if (count <= 1) return (PLOT.l + right) / 2
+  return PLOT.l + (index / (count - 1)) * (right - PLOT.l)
 }
 
 function plotY(value: number, max: number): number {
-  return CHART_THEME.padT + plotH - (value / (max || 1)) * plotH
+  const bottom = 100 - PLOT.b
+  return PLOT.t + (1 - value / (max || 1)) * (bottom - PLOT.t)
 }
 
 function seriesPoints(values: number[], max: number): string {
   return values.map((value, index) => `${plotX(index, values.length).toFixed(1)},${plotY(value, max).toFixed(1)}`).join(' ')
 }
 
-function spacedIndexes(count: number, xAt: (index: number) => number): number[] {
+function usePlotWidth() {
+  const ref = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const update = () => setWidth(el.clientWidth)
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+  return { ref, width }
+}
+
+function yearIndexes(count: number, width: number): number[] {
+  if (count <= 0) return []
+  const plotPx = Math.max(80, width) * (100 - PLOT.l - PLOT.r) / 100
+  const fit = Math.max(2, Math.floor(plotPx / 40))
+  const step = Math.max(1, Math.ceil((count - 1) / (fit - 1)))
   const shown: number[] = []
-  let lastX = -Infinity
-  for (let index = 0; index < count; index++) {
-    if (index !== 0 && index !== count - 1 && index % 4 !== 0) continue
-    const x = xAt(index)
-    if (x - lastX < 36) {
-      if (index !== count - 1) continue
-      shown.pop()
-    }
-    shown.push(index)
-    lastX = x
+  for (let index = 0; index < count; index += step) shown.push(index)
+  if (shown[shown.length - 1] !== count - 1) {
+    if (shown.length > 1 && count - 1 - shown[shown.length - 1] < step) shown.pop()
+    shown.push(count - 1)
   }
   return shown
 }
 
-function YAxis({ max, aud }: { max: number; aud: boolean }) {
+function ChartFrame({ label, children, labels }: { label: string; children: ReactNode; labels: (width: number) => ReactNode }) {
+  const { ref, width } = usePlotWidth()
+  return (
+    <div ref={ref} className="income-plot" style={{ height: CHART_THEME.plotHeight }}>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={label}>
+        {children}
+      </svg>
+      <div className="income-plot-labels">{labels(width)}</div>
+    </div>
+  )
+}
+
+function YLabels({ max, aud }: { max: number; aud: boolean }) {
   return (
     <>
-      {[max, max / 2, 0].map(tick => {
-        const y = plotY(tick, max)
+      {[max, max / 2, 0].map(tick => (
+        <span key={tick} style={labelStyle({ position: 'absolute', left: 4, top: `${plotY(tick, max)}%`, transform: 'translateY(-50%)' })}>
+          {axisLabel(tick, aud)}
+        </span>
+      ))}
+    </>
+  )
+}
+
+function YearLabels({ rows, xAt, width }: { rows: { year: number }[]; xAt: (index: number) => number; width: number }) {
+  const indexes = yearIndexes(rows.length, width)
+  return (
+    <>
+      {indexes.map(index => {
+        const first = index === 0
+        const last = index === rows.length - 1
         return (
-          <g key={tick}>
-            {tick !== 0 && <line className="grid" x1={CHART_THEME.padL} x2={CHART_THEME.padL + plotW} y1={y} y2={y} />}
-            <text x={CHART_THEME.padL - 8} y={y} dominantBaseline="middle" style={chartText('end')}>{axisLabel(tick, aud)}</text>
-          </g>
+          <span key={rows[index].year} style={labelStyle({
+            position: 'absolute',
+            left: last ? undefined : `${xAt(index)}%`,
+            right: last ? 4 : undefined,
+            top: `${100 - PLOT.b + 3}%`,
+            transform: first || last ? undefined : 'translateX(-50%)',
+            whiteSpace: 'nowrap',
+          })}>
+            {String(rows[index].year).slice(2)}
+          </span>
         )
       })}
     </>
@@ -251,74 +303,84 @@ function MilestoneChart({ rows, combinedNlv, audUsd }: { rows: MilestoneIncome['
   const capital = usd ? combinedNlv : null
   const max = Math.max(1, ...dec, ...fy, capital ?? 0)
   const capitalY = capital == null ? null : plotY(capital, max)
-  const endY = dec.length > 0 ? plotY(dec[dec.length - 1], max) : null
-  const capitalLabelY = capitalY == null || endY == null || Math.abs(capitalY - endY) >= 16 ? capitalY : capitalY + (capitalY < endY ? -16 : 16)
+  const right = 100 - PLOT.r
   return (
-    <svg className="income-svg" viewBox={`0 0 ${CHART_THEME.width} ${CHART_THEME.height}`} role="img" aria-label="31 Dec milestone path versus current capital">
-      <YAxis max={max} aud={!usd} />
-      {capitalY != null && <line className="capital" x1={CHART_THEME.padL} x2={CHART_THEME.padL + plotW} y1={capitalY} y2={capitalY} />}
-      <polyline className="fy" points={seriesPoints(fy, max)} />
-      <polyline className="dec" points={seriesPoints(dec, max)} />
-      {capital != null && capitalLabelY != null && (
-        <text x={CHART_THEME.padL + plotW} y={capitalLabelY - 6} style={chartText('end')}>{axisLabel(capital, false)}</text>
-      )}
-      {dec.length > 0 && (
-        <text x={plotX(dec.length - 1, dec.length)} y={Math.max(CHART_THEME.fontSize, plotY(dec[dec.length - 1], max) - 6)} style={chartText('end')}>{axisLabel(dec[dec.length - 1], !usd)}</text>
-      )}
-      {spacedIndexes(rows.length, index => plotX(index, rows.length)).map(index => (
-        <text key={rows[index].year} x={plotX(index, rows.length)} y={CHART_THEME.height - 6} style={chartText(index === 0 ? 'start' : 'middle')}>{String(rows[index].year).slice(2)}</text>
+    <ChartFrame label="31 Dec milestone path versus current capital" labels={width => (
+      <>
+        <YLabels max={max} aud={!usd} />
+        <YearLabels rows={rows} width={width} xAt={index => plotX(index, rows.length)} />
+        {dec.length > 0 && (
+          <span style={labelStyle({ position: 'absolute', top: 2, right: 6, fontWeight: 700, color: '#10b981' })}>
+            {axisLabel(dec[dec.length - 1], !usd)}
+          </span>
+        )}
+        {capital != null && (
+          <span style={labelStyle({ position: 'absolute', top: 18, right: 6, fontWeight: 600 })}>
+            {axisLabel(capital, false)}
+          </span>
+        )}
+      </>
+    )}>
+      {[max, max / 2, 0].map(tick => (
+        tick !== 0 && <line key={tick} x1={PLOT.l} x2={right} y1={plotY(tick, max)} y2={plotY(tick, max)} stroke="rgba(16,185,129,0.18)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
       ))}
-    </svg>
+      {capitalY != null && <line x1={PLOT.l} x2={right} y1={capitalY} y2={capitalY} stroke="var(--text-3)" strokeWidth="1" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />}
+      <polyline points={seriesPoints(fy, max)} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+      <polyline points={seriesPoints(dec, max)} fill="none" stroke="#10b981" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    </ChartFrame>
   )
 }
 
 function YearBars({ rows, role }: { rows: MilestoneIncome['rows']; role: AccountRole }) {
   const values = rows.map(row => legTarget(role, row.personalTarget, row.businessTarget))
   const max = Math.max(1, ...values.flatMap(value => (value != null && value > 0 ? [value] : [])))
-  const slot = rows.length > 0 ? plotW / rows.length : plotW
-  const slotX = (index: number) => CHART_THEME.padL + index * slot + slot / 2
+  const slot = rows.length > 0 ? (100 - PLOT.l - PLOT.r) / rows.length : 100 - PLOT.l - PLOT.r
+  const slotX = (index: number) => PLOT.l + index * slot + slot / 2
   const first = values[0]
-  const firstTop = first != null && first > 0 ? plotY(first, max) : null
+  const right = 100 - PLOT.r
   return (
-    <svg className="income-svg" viewBox={`0 0 ${CHART_THEME.width} ${CHART_THEME.height}`} role="img" aria-label="Monthly target by year">
-      <YAxis max={max} aud={false} />
+    <ChartFrame label="Monthly target by year" labels={width => (
+      <>
+        <YLabels max={max} aud={false} />
+        <YearLabels rows={rows} width={width} xAt={slotX} />
+        {first != null && first > 0 && (
+          <span style={labelStyle({ position: 'absolute', top: 2, right: 6, fontWeight: 700, color: '#10b981' })}>
+            {axisLabel(first, false)}
+          </span>
+        )}
+      </>
+    )}>
+      {[max, max / 2, 0].map(tick => (
+        tick !== 0 && <line key={tick} x1={PLOT.l} x2={right} y1={plotY(tick, max)} y2={plotY(tick, max)} stroke="rgba(16,185,129,0.18)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+      ))}
       {rows.map((row, index) => {
         const value = values[index]
         const top = value != null && value > 0 ? plotY(value, max) : plotY(0, max)
         const barH = Math.max(0, plotY(0, max) - top)
-        const x = CHART_THEME.padL + index * slot + slot * 0.2
-        return <rect key={row.year} className={index === 0 ? 'now' : 'later'} x={x} y={top} width={slot * 0.6} height={barH}><title>{`${row.year} ${moneyOrDash(value)}`}</title></rect>
+        const x = PLOT.l + index * slot + slot * 0.2
+        return <rect key={row.year} x={x} y={top} width={slot * 0.6} height={barH} fill={index === 0 ? '#10b981' : '#f59e0b'} opacity={index === 0 ? 1 : 0.85}><title>{`${row.year} ${moneyOrDash(value)}`}</title></rect>
       })}
-      {firstTop != null && first != null && (
-        <text x={slotX(0)} y={Math.max(CHART_THEME.fontSize, firstTop - 6)} style={chartText('middle')}>{axisLabel(first, false)}</text>
-      )}
-      {spacedIndexes(rows.length, slotX).map(index => (
-        <text key={rows[index].year} x={slotX(index)} y={CHART_THEME.height - 6} style={chartText('middle')}>{String(rows[index].year).slice(2)}</text>
-      ))}
-    </svg>
+    </ChartFrame>
   )
 }
 
 function BtcGauge({ cap }: { cap: BtcCap }) {
   const width = cap.noBooks ? '0%' : cap.over ? '100%' : '6%'
   return (
-    <section className="income-panel">
-      <h2>BTC cap</h2>
-      <div className="income-body">
-        <div className="income-gauge" data-testid="income-btc" title={cap.detail}>
-          <div className="income-gauge-track">
-            <span className={cap.noBooks ? 'unknown' : cap.over ? 'over' : 'ok'} style={{ width }} />
-          </div>
-          <div className="income-chips">
-            <Chip kind={cap.noBooks ? undefined : cap.over ? 'bad' : 'ok'}>{cap.noBooks ? 'Unknown' : cap.over ? 'Over' : 'Inside'}</Chip>
-            <Chip>{`MSTR ${Math.round(cap.mstrShares).toLocaleString('en-US')} sh`}</Chip>
-            <Chip>{`MSTR puts ${cap.mstrPutContracts}`}</Chip>
-            <Chip>{`BSOL puts ${cap.bsolPutContracts}`}</Chip>
-            {cap.bsolShares !== 0 && <Chip kind="bad">{`BSOL ${Math.round(cap.bsolShares).toLocaleString('en-US')} sh`}</Chip>}
-          </div>
+    <IncomePanel emoji="₿" title="BTC gauge">
+      <div className="income-gauge" data-testid="income-btc" title={cap.detail}>
+        <div className="income-gauge-track">
+          <span className={cap.noBooks ? 'unknown' : cap.over ? 'over' : 'ok'} style={{ width }} />
+        </div>
+        <div className="income-chips">
+          <Chip kind={cap.noBooks ? undefined : cap.over ? 'bad' : 'ok'}>{cap.noBooks ? 'Unknown' : cap.over ? 'Over' : 'Inside'}</Chip>
+          <Chip>{`MSTR ${Math.round(cap.mstrShares).toLocaleString('en-US')} sh`}</Chip>
+          <Chip>{`MSTR puts ${cap.mstrPutContracts}`}</Chip>
+          <Chip>{`BSOL puts ${cap.bsolPutContracts}`}</Chip>
+          {cap.bsolShares !== 0 && <Chip kind="bad">{`BSOL ${Math.round(cap.bsolShares).toLocaleString('en-US')} sh`}</Chip>}
         </div>
       </div>
-    </section>
+    </IncomePanel>
   )
 }
 
@@ -369,60 +431,63 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
   const usdSeries = plan.rows.length > 0 && plan.rows.every(row => row.decEndUsd != null)
 
   return (
-    <div className="income-root" data-testid="income-root">
-      <header className="income-panel income-head">
-        <h1>Income · {focus.name}</h1>
-        <div className="income-chips">
-          <Chip kind="snapshot">{SEED_CLOSE_LABEL}</Chip>
-          {quotes.stale && <span data-testid="income-stale"><Chip kind="stale">{quotes.label}</Chip></span>}
-          {focus.role === 'other' && <Chip kind="warn">Outside split</Chip>}
-          {plan.nlvNote && <Chip kind="warn">NLV missing</Chip>}
-          {plan.fxNote && <Chip kind="warn">FX missing</Chip>}
-          {plan.splitNote && <Chip kind="warn">Split unavailable</Chip>}
-          {plan.taxNote && <Chip kind="warn">Tax rate</Chip>}
+    <div className="jr-root income-root" data-testid="income-root" style={{ height: 'auto', overflow: 'visible', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <section className="dash-panel income-panel">
+        <div className="dash-panel-header">
+          <EmojiTitle emoji="💸">Income · {focus.name}</EmojiTitle>
+          <div className="income-chips">
+            <Chip kind="snapshot">{SEED_CLOSE_LABEL}</Chip>
+            {quotes.stale && <span data-testid="income-stale"><Chip kind="stale">{quotes.label}</Chip></span>}
+            {focus.role === 'other' && <Chip kind="warn">Outside split</Chip>}
+            {plan.nlvNote && <Chip kind="warn">NLV missing</Chip>}
+            {plan.fxNote && <Chip kind="warn">FX missing</Chip>}
+            {plan.splitNote && <Chip kind="warn">Split unavailable</Chip>}
+            {plan.taxNote && <Chip kind="warn">Tax rate</Chip>}
+          </div>
         </div>
-      </header>
+      </section>
 
-      <div className="income-kpis" data-testid={`income-account-${focus.role}`}>
-        <article className="income-kpi">
-          <header><Target size={13} /> Monthly target</header>
-          <strong data-testid="income-needed">{moneyOrDash(needed)}</strong>
-          <span>US$ this year</span>
-        </article>
-        <article className="income-kpi">
-          <header><Activity size={13} /> Realised</header>
-          <strong className={focus.realisedThisMonth < 0 ? 'neg' : undefined}>{usd0(focus.realisedThisMonth)}</strong>
-          <span>This month</span>
-        </article>
-        <article className="income-kpi ring">
-          <header>Progress</header>
-          <ProgressRing ratio={progress} />
-          <span>Realised / target</span>
-        </article>
-        <article className="income-kpi">
-          <header><Wallet size={13} /> Net liq</header>
-          <strong>{moneyOrDash(focus.netLiquidation)}</strong>
-          <span>US$</span>
-        </article>
-        <article className="income-kpi">
-          <header><Banknote size={13} /> Cash</header>
-          <strong>{moneyOrDash(focus.cash)}</strong>
-          <span>US$</span>
-        </article>
-        <article className={`income-kpi income-account${el === 'below' ? ' short' : ''}`}>
-          <header><ShieldAlert size={13} /> Excess liquidity</header>
-          <strong data-testid={`income-el-${focus.role}`}>{el === 'unknown' ? '—' : usd0(focus.excessLiquidity ?? 0)}</strong>
-          <span className={el === 'below' ? 'bad' : el === 'ok' ? 'good' : undefined}>
-            {el === 'unknown' && 'Not in snapshot'}
-            {el === 'below' && `${usd0(elGap ?? 0)} below ${usd0(settings.elFloor)}`}
-            {el === 'ok' && `${usd0(elGap ?? 0)} above ${usd0(settings.elFloor)}`}
-          </span>
-        </article>
-      </div>
+      <section className="dash-panel income-panel" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="income-kpis" data-testid={`income-account-${focus.role}`}>
+          <article className="income-kpi">
+            <div className="income-kpi-label"><EmojiTitle emoji="🎯">Target</EmojiTitle></div>
+            <div className="income-kpi-value" data-testid="income-needed">{moneyOrDash(needed)}</div>
+            <div className="income-kpi-sub">US$ this year</div>
+          </article>
+          <article className="income-kpi">
+            <div className="income-kpi-label"><EmojiTitle emoji="💵">Realised</EmojiTitle></div>
+            <div className={`income-kpi-value${focus.realisedThisMonth < 0 ? ' neg' : ''}`}>{usd0(focus.realisedThisMonth)}</div>
+            <div className="income-kpi-sub">This month</div>
+          </article>
+          <article className="income-kpi">
+            <div className="income-kpi-label"><EmojiTitle emoji="📈">Progress</EmojiTitle></div>
+            <div className="income-kpi-value">{progressLabel(progress)}</div>
+            <div className="income-kpi-sub">Realised / target</div>
+          </article>
+          <article className="income-kpi">
+            <div className="income-kpi-label"><EmojiTitle emoji="💼">Net liq</EmojiTitle></div>
+            <div className="income-kpi-value">{moneyOrDash(focus.netLiquidation)}</div>
+            <div className="income-kpi-sub">US$</div>
+          </article>
+          <article className="income-kpi">
+            <div className="income-kpi-label"><EmojiTitle emoji="🪙">Cash</EmojiTitle></div>
+            <div className="income-kpi-value">{moneyOrDash(focus.cash)}</div>
+            <div className="income-kpi-sub">US$</div>
+          </article>
+          <article className={`income-kpi income-account${el === 'below' ? ' short' : ''}`}>
+            <div className="income-kpi-label"><EmojiTitle emoji="🛡️">Excess liquidity</EmojiTitle></div>
+            <div className="income-kpi-value" data-testid={`income-el-${focus.role}`}>{el === 'unknown' ? '—' : usd0(focus.excessLiquidity ?? 0)}</div>
+            <div className={`income-kpi-sub${el === 'below' ? ' bad' : el === 'ok' ? ' good' : ''}`}>
+              {el === 'unknown' && 'Not in snapshot'}
+              {el === 'below' && `${usd0(elGap ?? 0)} below ${usd0(settings.elFloor)}`}
+              {el === 'ok' && `${usd0(elGap ?? 0)} above ${usd0(settings.elFloor)}`}
+            </div>
+          </article>
+        </div>
+      </section>
 
-      <div className="income-row">
-        <section className="income-panel">
-          <h2>This month</h2>
+      <IncomePair>
+        <IncomePanel emoji="📊" title="This month">
           <Meter ratio={progress} />
           <div className="income-chips">
             <Chip>{`Plan now ${moneyOrDash(planNow)}`}</Chip>
@@ -431,16 +496,16 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
             <Chip>{`Open short ${usd0(focus.openShortCloseCost)}`}</Chip>
             {quotes.stale && <Chip kind="stale">{`${quotes.label} · statement mark`}</Chip>}
           </div>
-        </section>
-        <section className="income-panel">
-          <h2><CircleDollarSign size={13} /> Target build</h2>
+        </IncomePanel>
+        <IncomePanel emoji="🧮" title="Target breakdown">
+        <div className="dash-panel-sub"><EmojiTitle emoji="🏦">Interest {aud0(interestAud)}{interestUsd != null ? ` · US$${usd0(interestUsd)}` : ''}</EmojiTitle></div>
         <StackedBar parts={[
           { label: 'Base', value: baseShare, tone: 'base' },
           { label: 'Tax', value: grossUp, tone: 'tax' },
           { label: 'Interest', value: interestUsd, tone: 'interest' },
         ]} />
         <details className="income-fold">
-          <summary>How this is calculated</summary>
+          <summary><EmojiTitle emoji="ℹ️">How this is calculated</EmojiTitle></summary>
           <ul className="income-actions">
             <li>Milestone start {aud0(milestone.startCapital)} at {milestone.targetPct}% a year. Income reads that curve.</li>
             <li>Monthly base = max(0, 31 Dec target − combined net liq) / months left. Later years: gap between 31 Dec targets / 12.</li>
@@ -485,12 +550,11 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
             </table>
           )}
         </details>
-        </section>
-      </div>
+        </IncomePanel>
+      </IncomePair>
 
-      <div className="income-row">
-        <section className="income-panel">
-          <h2>Milestone path</h2>
+      <IncomePair>
+        <IncomePanel emoji="🗺️" title="Milestone path">
           {plan.rows.length > 0 ? <MilestoneChart rows={plan.rows} combinedNlv={plan.combinedNlv} audUsd={plan.audUsd} /> : <span className="income-hint">No 31 Dec ahead</span>}
           <ChartLegend>
             <Chip kind="live">{usdSeries ? '31 Dec US$' : '31 Dec A$'}</Chip>
@@ -498,22 +562,20 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
             {usdSeries && plan.combinedNlv != null && <Chip>Capital</Chip>}
             {plan.audUsd != null && <Chip kind={quotes.fxFresh?.stale ? 'stale' : 'live'}>{`AUDUSD ${fxText(plan.audUsd)}`}</Chip>}
           </ChartLegend>
-        </section>
-        <section className="income-panel">
-          <h2>Monthly target</h2>
+        </IncomePanel>
+        <IncomePanel emoji="📅" title="Yearly targets">
           {plan.rows.length > 0 ? <YearBars rows={plan.rows} role={focus.role} /> : <span className="income-hint">—</span>}
           <ChartLegend>
             <Chip kind="live">This year</Chip>
             <Chip>Later years</Chip>
           </ChartLegend>
-        </section>
-      </div>
+        </IncomePanel>
+      </IncomePair>
 
       {(focus.shortOptions.length > 0 || role) && (
-        <div className="income-row">
+        <IncomePair single={!(focus.shortOptions.length > 0 && role)}>
           {focus.shortOptions.length > 0 && (
-            <section className="income-panel">
-              <h2>Open shorts</h2>
+            <IncomePanel emoji="💰" title="Open shorts">
               <div className="income-board">
                 {focus.shortOptions.map(option => (
                   <article key={`${option.underlying}-${option.putCall}-${option.strike}-${option.expiry}`} className="income-mini">
@@ -529,11 +591,10 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
                   </article>
                 ))}
               </div>
-            </section>
+            </IncomePanel>
           )}
           {role && (
-            <section className="income-panel">
-              <h2>Ideas</h2>
+            <IncomePanel emoji="💡" title="Ideas">
               <ul className="income-actions">
                 {SEED_NEXT_ACTIONS[role].map(step => <li key={step}>{step}</li>)}
               </ul>
@@ -549,13 +610,12 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
                   </article>
                 ))}
               </div>
-            </section>
+            </IncomePanel>
           )}
-        </div>
+        </IncomePair>
       )}
 
-      <section className="income-panel">
-        <h2>Puts · {formatExpiry(settings.screenExpiry)}</h2>
+      <IncomePanel emoji="📉" title={`Puts · ${formatExpiry(settings.screenExpiry)}`}>
         <div className="income-chips">
           <Chip>{`Δ ${settings.deltaMin.toFixed(2)}–${settings.deltaMax.toFixed(2)}`}</Chip>
           <Chip>Premium / cash</Chip>
@@ -587,17 +647,16 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
           ))}
         </div>
         <details className="income-fold">
-          <summary>How this is calculated</summary>
+          <summary><EmojiTitle emoji="📝">How this is calculated</EmojiTitle></summary>
           <ul className="income-actions">
             <li>{SEED_PUT_NOTE}</li>
             <li>Rank is premium / cash secured, {days} days from {SEED_MARK_DATE} to {formatExpiry(settings.screenExpiry)}.</li>
           </ul>
         </details>
-      </section>
+      </IncomePanel>
 
       {calls.length > 0 && (
-        <section className="income-panel">
-          <h2>Calls</h2>
+        <IncomePanel emoji="📞" title="Calls">
           <div className="income-board">
             {calls.map(row => {
               const cover = row.symbol === 'TSLA' && settings.tslaCallsCoveredOnly ? callCover(focus, 'TSLA', row.contracts) : null
@@ -621,15 +680,14 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
             })}
           </div>
           <details className="income-fold">
-            <summary>How this is calculated</summary>
+            <summary><EmojiTitle emoji="🗒️">How this is calculated</EmojiTitle></summary>
             <ul className="income-actions"><li>{SEED_CALL_NOTE}</li></ul>
           </details>
-        </section>
+        </IncomePanel>
       )}
 
       {focus.role === 'personal' && (
-        <section className="income-panel">
-          <h2>Repair</h2>
+        <IncomePanel emoji="🔧" title="Repair">
           <div className="income-board">
             {SEED_PERSONAL_REPAIR.map(row => (
               <article key={row.label} className="income-mini">
@@ -647,18 +705,17 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
             ))}
           </div>
           <details className="income-fold">
-            <summary>How this is calculated</summary>
+            <summary><EmojiTitle emoji="📄">How this is calculated</EmojiTitle></summary>
             <ul className="income-actions">
               <li>{SEED_PERSONAL_REPAIR_NOTE}</li>
               <li>Buying power and leverage are from this snapshot only.</li>
             </ul>
           </details>
-        </section>
+        </IncomePanel>
       )}
 
       {focus.role === 'business' && (
-        <section className="income-panel">
-          <h2>Pairs and exits</h2>
+        <IncomePanel emoji="⚖️" title="Pairs and exits">
           <div className="income-board">
             {SEED_PAIRS.map(row => {
               const exit = row.exitSymbol ? exitPrice(row.exitSymbol) : undefined
@@ -694,15 +751,14 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
             ))}
           </div>
           <details className="income-fold">
-            <summary>How this is calculated</summary>
+            <summary><EmojiTitle emoji="📃">How this is calculated</EmojiTitle></summary>
             <ul className="income-actions"><li>{SEED_BUSINESS_NOTE}</li></ul>
           </details>
-        </section>
+        </IncomePanel>
       )}
 
-      <div className="income-row">
-        <section className="income-panel">
-          <h2>Expiries</h2>
+      <IncomePair>
+        <IncomePanel emoji="⏳" title="Expiry timeline">
           <ol className="income-timeline">
             {SEED_CALENDAR.map(row => (
               <li key={row.date}>
@@ -711,12 +767,11 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
               </li>
             ))}
           </ol>
-        </section>
+        </IncomePanel>
         <BtcGauge cap={cap} />
-      </div>
+      </IncomePair>
 
-      <section className="income-panel">
-        <h2>Rules</h2>
+      <IncomePanel emoji="📏" title="Rules">
         <div className="income-rules">
           {rules.map(rule => (
             <div key={rule.id} className="income-rule" title={rule.detail}>
@@ -732,10 +787,10 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
             </div>
           ))}
         </div>
-      </section>
+      </IncomePanel>
 
-      <details className="income-panel income-fold">
-        <summary>Settings</summary>
+      <details className="dash-panel income-panel income-fold">
+        <summary className="dash-panel-header"><EmojiTitle emoji="⚙️">Settings</EmojiTitle></summary>
         <div className="income-settings">
           <NumField label="EL floor (US$)" value={settings.elFloor} testId="income-el-floor" onCommit={elFloor => update({ elFloor })} />
           <label className="income-field">
