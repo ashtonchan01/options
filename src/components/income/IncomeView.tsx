@@ -4,7 +4,7 @@
  * Account ids and Flex tokens are not part of the props.
  * Charts are inline SVG, the same approach as the Milestone page.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Activity, Banknote, CircleDollarSign, ShieldAlert, Target, Wallet } from 'lucide-react'
 import { loadMilestoneConfig } from '../dashboard/milestoneYears'
 import {
@@ -49,6 +49,36 @@ import {
 } from '../../income/incomeLive'
 import { fetchQuotes, type Quote } from '../../services/quotes'
 import { useIncomePlan } from '../../store/incomePlanStore'
+
+/** Shared by every Income chart: axis ticks, legends, and data labels. */
+const CHART_THEME = {
+  fontFamily: 'Inter, sans-serif',
+  fontSize: 11,
+  width: 360,
+  height: 168,
+  padL: 64,
+  padR: 12,
+  padT: 18,
+  padB: 28,
+} as const
+
+const chartText = (anchor: 'start' | 'middle' | 'end'): CSSProperties => ({
+  fontFamily: CHART_THEME.fontFamily,
+  fontSize: CHART_THEME.fontSize,
+  fill: 'var(--text-4)',
+  textAnchor: anchor,
+})
+
+function axisLabel(value: number, aud: boolean): string {
+  const sign = value < 0 ? '-' : ''
+  const abs = Math.abs(value)
+  const body = abs >= 1_000_000
+    ? `${(abs / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+    : abs >= 1_000
+      ? `${(abs / 1_000).toFixed(abs >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k`
+      : String(Math.round(abs))
+  return aud ? `${sign}A$${body}` : `${sign}${body}`
+}
 
 function formatExpiry(iso: string): string {
   const date = new Date(`${iso}T00:00:00Z`)
@@ -130,7 +160,7 @@ function ProgressRing({ ratio }: { ratio: number | null }) {
     <svg className="income-ring" viewBox="0 0 40 40" role="img" aria-label={`Progress ${label}`}>
       <circle className="track" cx="20" cy="20" r={r} />
       <circle className="value" cx="20" cy="20" r={r} strokeDasharray={`${c * clamped} ${c}`} />
-      <text x="20" y="21.5">{label}</text>
+      <text x="20" y="20" dominantBaseline="middle" style={chartText('middle')}>{label}</text>
     </svg>
   )
 }
@@ -155,20 +185,63 @@ function StackedBar({ parts }: { parts: { label: string; value: number | null; t
           <span key={part.label} className={part.tone} style={{ width: `${(part.value / total) * 100}%` }} />
         )) : <span className="empty" />}
       </div>
-      <div className="income-chips">
+      <div className="income-chips income-legend" style={{ fontFamily: CHART_THEME.fontFamily, fontSize: CHART_THEME.fontSize }}>
         {parts.map(part => <Chip key={part.label}>{`${part.label} ${moneyOrDash(part.value)}`}</Chip>)}
       </div>
     </div>
   )
 }
 
-function seriesPoints(values: number[], width: number, height: number, max: number): string {
-  const span = max || 1
-  return values.map((value, index) => {
-    const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width
-    const y = height - (value / span) * height
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
+const plotW = CHART_THEME.width - CHART_THEME.padL - CHART_THEME.padR
+const plotH = CHART_THEME.height - CHART_THEME.padT - CHART_THEME.padB
+
+function plotX(index: number, count: number): number {
+  if (count <= 1) return CHART_THEME.padL + plotW / 2
+  return CHART_THEME.padL + (index / (count - 1)) * plotW
+}
+
+function plotY(value: number, max: number): number {
+  return CHART_THEME.padT + plotH - (value / (max || 1)) * plotH
+}
+
+function seriesPoints(values: number[], max: number): string {
+  return values.map((value, index) => `${plotX(index, values.length).toFixed(1)},${plotY(value, max).toFixed(1)}`).join(' ')
+}
+
+function spacedIndexes(count: number, xAt: (index: number) => number): number[] {
+  const shown: number[] = []
+  let lastX = -Infinity
+  for (let index = 0; index < count; index++) {
+    if (index !== 0 && index !== count - 1 && index % 4 !== 0) continue
+    const x = xAt(index)
+    if (x - lastX < 36) {
+      if (index !== count - 1) continue
+      shown.pop()
+    }
+    shown.push(index)
+    lastX = x
+  }
+  return shown
+}
+
+function YAxis({ max, aud }: { max: number; aud: boolean }) {
+  return (
+    <>
+      {[max, max / 2, 0].map(tick => {
+        const y = plotY(tick, max)
+        return (
+          <g key={tick}>
+            {tick !== 0 && <line className="grid" x1={CHART_THEME.padL} x2={CHART_THEME.padL + plotW} y1={y} y2={y} />}
+            <text x={CHART_THEME.padL - 8} y={y} dominantBaseline="middle" style={chartText('end')}>{axisLabel(tick, aud)}</text>
+          </g>
+        )
+      })}
+    </>
+  )
+}
+
+function ChartLegend({ children }: { children: ReactNode }) {
+  return <div className="income-chips income-legend" style={{ fontFamily: CHART_THEME.fontFamily, fontSize: CHART_THEME.fontSize }}>{children}</div>
 }
 
 function MilestoneChart({ rows, combinedNlv, audUsd }: { rows: MilestoneIncome['rows']; combinedNlv: number | null; audUsd: number | null }) {
@@ -177,19 +250,24 @@ function MilestoneChart({ rows, combinedNlv, audUsd }: { rows: MilestoneIncome['
   const fy = rows.map(row => (usd ? row.fyEndAud * audUsd : row.fyEndAud))
   const capital = usd ? combinedNlv : null
   const max = Math.max(1, ...dec, ...fy, capital ?? 0)
-  const w = 300
-  const h = 108
-  const capitalY = capital == null ? null : h - (capital / max) * h
+  const capitalY = capital == null ? null : plotY(capital, max)
+  const endY = dec.length > 0 ? plotY(dec[dec.length - 1], max) : null
+  const capitalLabelY = capitalY == null || endY == null || Math.abs(capitalY - endY) >= 16 ? capitalY : capitalY + (capitalY < endY ? -16 : 16)
   return (
-    <svg className="income-svg" viewBox={`0 0 ${w} ${h + 16}`} role="img" aria-label="31 Dec milestone path versus current capital">
-      {capitalY != null && <line className="capital" x1="0" x2={w} y1={capitalY} y2={capitalY} />}
-      <polyline className="fy" points={seriesPoints(fy, w, h, max)} />
-      <polyline className="dec" points={seriesPoints(dec, w, h, max)} />
-      {rows.map((row, index) => {
-        const x = rows.length === 1 ? w / 2 : (index / (rows.length - 1)) * w
-        if (index !== 0 && index !== rows.length - 1 && index % 3 !== 0) return null
-        return <text key={row.year} x={x} y={h + 12} textAnchor={index === 0 ? 'start' : index === rows.length - 1 ? 'end' : 'middle'}>{String(row.year).slice(2)}</text>
-      })}
+    <svg className="income-svg" viewBox={`0 0 ${CHART_THEME.width} ${CHART_THEME.height}`} role="img" aria-label="31 Dec milestone path versus current capital">
+      <YAxis max={max} aud={!usd} />
+      {capitalY != null && <line className="capital" x1={CHART_THEME.padL} x2={CHART_THEME.padL + plotW} y1={capitalY} y2={capitalY} />}
+      <polyline className="fy" points={seriesPoints(fy, max)} />
+      <polyline className="dec" points={seriesPoints(dec, max)} />
+      {capital != null && capitalLabelY != null && (
+        <text x={CHART_THEME.padL + plotW} y={capitalLabelY - 6} style={chartText('end')}>{axisLabel(capital, false)}</text>
+      )}
+      {dec.length > 0 && (
+        <text x={plotX(dec.length - 1, dec.length)} y={Math.max(CHART_THEME.fontSize, plotY(dec[dec.length - 1], max) - 6)} style={chartText('end')}>{axisLabel(dec[dec.length - 1], !usd)}</text>
+      )}
+      {spacedIndexes(rows.length, index => plotX(index, rows.length)).map(index => (
+        <text key={rows[index].year} x={plotX(index, rows.length)} y={CHART_THEME.height - 6} style={chartText(index === 0 ? 'start' : 'middle')}>{String(rows[index].year).slice(2)}</text>
+      ))}
     </svg>
   )
 }
@@ -197,22 +275,26 @@ function MilestoneChart({ rows, combinedNlv, audUsd }: { rows: MilestoneIncome['
 function YearBars({ rows, role }: { rows: MilestoneIncome['rows']; role: AccountRole }) {
   const values = rows.map(row => legTarget(role, row.personalTarget, row.businessTarget))
   const max = Math.max(1, ...values.flatMap(value => (value != null && value > 0 ? [value] : [])))
-  const w = 300
-  const h = 108
-  const slot = rows.length > 0 ? w / rows.length : w
+  const slot = rows.length > 0 ? plotW / rows.length : plotW
+  const slotX = (index: number) => CHART_THEME.padL + index * slot + slot / 2
+  const first = values[0]
+  const firstTop = first != null && first > 0 ? plotY(first, max) : null
   return (
-    <svg className="income-svg" viewBox={`0 0 ${w} ${h + 16}`} role="img" aria-label="Monthly target by year">
+    <svg className="income-svg" viewBox={`0 0 ${CHART_THEME.width} ${CHART_THEME.height}`} role="img" aria-label="Monthly target by year">
+      <YAxis max={max} aud={false} />
       {rows.map((row, index) => {
         const value = values[index]
-        const bar = value != null && value > 0 ? (value / max) * h : 0
-        const x = index * slot + slot * 0.18
-        return <rect key={row.year} className={index === 0 ? 'now' : 'later'} x={x} y={h - bar} width={slot * 0.64} height={bar}><title>{`${row.year} ${moneyOrDash(value)}`}</title></rect>
+        const top = value != null && value > 0 ? plotY(value, max) : plotY(0, max)
+        const barH = Math.max(0, plotY(0, max) - top)
+        const x = CHART_THEME.padL + index * slot + slot * 0.2
+        return <rect key={row.year} className={index === 0 ? 'now' : 'later'} x={x} y={top} width={slot * 0.6} height={barH}><title>{`${row.year} ${moneyOrDash(value)}`}</title></rect>
       })}
-      {rows.map((row, index) => {
-        if (index !== 0 && index !== rows.length - 1 && index % 3 !== 0) return null
-        const x = index * slot + slot / 2
-        return <text key={row.year} x={x} y={h + 12} textAnchor="middle">{String(row.year).slice(2)}</text>
-      })}
+      {firstTop != null && first != null && (
+        <text x={slotX(0)} y={Math.max(CHART_THEME.fontSize, firstTop - 6)} style={chartText('middle')}>{axisLabel(first, false)}</text>
+      )}
+      {spacedIndexes(rows.length, slotX).map(index => (
+        <text key={rows[index].year} x={slotX(index)} y={CHART_THEME.height - 6} style={chartText('middle')}>{String(rows[index].year).slice(2)}</text>
+      ))}
     </svg>
   )
 }
@@ -222,16 +304,18 @@ function BtcGauge({ cap }: { cap: BtcCap }) {
   return (
     <section className="income-panel">
       <h2>BTC cap</h2>
-      <div className="income-gauge" data-testid="income-btc" title={cap.detail}>
-        <div className="income-gauge-track">
-          <span className={cap.noBooks ? 'unknown' : cap.over ? 'over' : 'ok'} style={{ width }} />
-        </div>
-        <div className="income-chips">
-          <Chip kind={cap.noBooks ? undefined : cap.over ? 'bad' : 'ok'}>{cap.noBooks ? 'Unknown' : cap.over ? 'Over' : 'Inside'}</Chip>
-          <Chip>{`MSTR ${Math.round(cap.mstrShares).toLocaleString('en-US')} sh`}</Chip>
-          <Chip>{`MSTR puts ${cap.mstrPutContracts}`}</Chip>
-          <Chip>{`BSOL puts ${cap.bsolPutContracts}`}</Chip>
-          {cap.bsolShares !== 0 && <Chip kind="bad">{`BSOL ${Math.round(cap.bsolShares).toLocaleString('en-US')} sh`}</Chip>}
+      <div className="income-body">
+        <div className="income-gauge" data-testid="income-btc" title={cap.detail}>
+          <div className="income-gauge-track">
+            <span className={cap.noBooks ? 'unknown' : cap.over ? 'over' : 'ok'} style={{ width }} />
+          </div>
+          <div className="income-chips">
+            <Chip kind={cap.noBooks ? undefined : cap.over ? 'bad' : 'ok'}>{cap.noBooks ? 'Unknown' : cap.over ? 'Over' : 'Inside'}</Chip>
+            <Chip>{`MSTR ${Math.round(cap.mstrShares).toLocaleString('en-US')} sh`}</Chip>
+            <Chip>{`MSTR puts ${cap.mstrPutContracts}`}</Chip>
+            <Chip>{`BSOL puts ${cap.bsolPutContracts}`}</Chip>
+            {cap.bsolShares !== 0 && <Chip kind="bad">{`BSOL ${Math.round(cap.bsolShares).toLocaleString('en-US')} sh`}</Chip>}
+          </div>
         </div>
       </div>
     </section>
@@ -286,89 +370,70 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
 
   return (
     <div className="income-root" data-testid="income-root">
-      <header className="income-head">
+      <header className="income-panel income-head">
         <h1>Income · {focus.name}</h1>
         <div className="income-chips">
           <Chip kind="snapshot">{SEED_CLOSE_LABEL}</Chip>
           {quotes.stale && <span data-testid="income-stale"><Chip kind="stale">{quotes.label}</Chip></span>}
           {focus.role === 'other' && <Chip kind="warn">Outside split</Chip>}
-          {plan.nlvNote && <Chip kind="warn" >NLV missing</Chip>}
+          {plan.nlvNote && <Chip kind="warn">NLV missing</Chip>}
           {plan.fxNote && <Chip kind="warn">FX missing</Chip>}
           {plan.splitNote && <Chip kind="warn">Split unavailable</Chip>}
           {plan.taxNote && <Chip kind="warn">Tax rate</Chip>}
         </div>
       </header>
 
-      <section className={`income-account${el === 'below' ? ' short' : ''}`} data-testid={`income-account-${focus.role}`}>
-        <div className="income-kpis">
-          <article className="income-kpi">
-            <header><Target size={13} /> Monthly target</header>
-            <strong data-testid="income-needed">{moneyOrDash(needed)}</strong>
-            <span>US$ this year</span>
-          </article>
-          <article className="income-kpi">
-            <header><Activity size={13} /> Realised</header>
-            <strong className={focus.realisedThisMonth < 0 ? 'neg' : undefined}>{usd0(focus.realisedThisMonth)}</strong>
-            <span>This month</span>
-          </article>
-          <article className="income-kpi ring">
-            <header>Progress</header>
-            <ProgressRing ratio={progress} />
-            <span>Realised / target</span>
-          </article>
-          <article className="income-kpi">
-            <header><Wallet size={13} /> Net liq</header>
-            <strong>{moneyOrDash(focus.netLiquidation)}</strong>
-            <span>US$</span>
-          </article>
-          <article className="income-kpi">
-            <header><Banknote size={13} /> Cash</header>
-            <strong>{moneyOrDash(focus.cash)}</strong>
-            <span>US$</span>
-          </article>
-          <article className={`income-kpi${el === 'below' ? ' short' : ''}`}>
-            <header><ShieldAlert size={13} /> Excess liquidity</header>
-            <strong data-testid={`income-el-${focus.role}`}>{el === 'unknown' ? '—' : usd0(focus.excessLiquidity ?? 0)}</strong>
-            <span className={el === 'below' ? 'bad' : el === 'ok' ? 'good' : undefined}>
-              {el === 'unknown' && 'Not in snapshot'}
-              {el === 'below' && `${usd0(elGap ?? 0)} below ${usd0(settings.elFloor)}`}
-              {el === 'ok' && `${usd0(elGap ?? 0)} above ${usd0(settings.elFloor)}`}
-            </span>
-          </article>
-        </div>
-        <Meter ratio={progress} />
-        <div className="income-chips">
-          <Chip>{`Plan now ${moneyOrDash(planNow)}`}</Chip>
-          <Chip>{`After repair ${moneyOrDash(planAfter)}`}</Chip>
-          <Chip kind="warn">{`Gap ${moneyOrDash(gap)}`}</Chip>
-          <Chip>{`Open short ${usd0(focus.openShortCloseCost)}`}</Chip>
-          {quotes.stale && <Chip kind="stale">{`${quotes.label} · statement mark`}</Chip>}
-        </div>
-      </section>
-
-      <div className="income-charts">
-        <section className="income-panel">
-          <h2>Milestone path</h2>
-          {plan.rows.length > 0 ? <MilestoneChart rows={plan.rows} combinedNlv={plan.combinedNlv} audUsd={plan.audUsd} /> : <span className="income-hint">No 31 Dec ahead</span>}
-          <div className="income-chips">
-            <Chip kind="live">{usdSeries ? '31 Dec US$' : '31 Dec A$'}</Chip>
-            <Chip>FY end</Chip>
-            {usdSeries && plan.combinedNlv != null && <Chip>Capital</Chip>}
-            {plan.audUsd != null && <Chip kind={quotes.fxFresh?.stale ? 'stale' : 'live'}>{`AUDUSD ${fxText(plan.audUsd)}`}</Chip>}
-          </div>
-        </section>
-        <section className="income-panel">
-          <h2>Monthly target</h2>
-          {plan.rows.length > 0 ? <YearBars rows={plan.rows} role={focus.role} /> : <span className="income-hint">—</span>}
-          <div className="income-chips">
-            <Chip kind="live">This year</Chip>
-            <Chip>Later years</Chip>
-          </div>
-        </section>
+      <div className="income-kpis" data-testid={`income-account-${focus.role}`}>
+        <article className="income-kpi">
+          <header><Target size={13} /> Monthly target</header>
+          <strong data-testid="income-needed">{moneyOrDash(needed)}</strong>
+          <span>US$ this year</span>
+        </article>
+        <article className="income-kpi">
+          <header><Activity size={13} /> Realised</header>
+          <strong className={focus.realisedThisMonth < 0 ? 'neg' : undefined}>{usd0(focus.realisedThisMonth)}</strong>
+          <span>This month</span>
+        </article>
+        <article className="income-kpi ring">
+          <header>Progress</header>
+          <ProgressRing ratio={progress} />
+          <span>Realised / target</span>
+        </article>
+        <article className="income-kpi">
+          <header><Wallet size={13} /> Net liq</header>
+          <strong>{moneyOrDash(focus.netLiquidation)}</strong>
+          <span>US$</span>
+        </article>
+        <article className="income-kpi">
+          <header><Banknote size={13} /> Cash</header>
+          <strong>{moneyOrDash(focus.cash)}</strong>
+          <span>US$</span>
+        </article>
+        <article className={`income-kpi income-account${el === 'below' ? ' short' : ''}`}>
+          <header><ShieldAlert size={13} /> Excess liquidity</header>
+          <strong data-testid={`income-el-${focus.role}`}>{el === 'unknown' ? '—' : usd0(focus.excessLiquidity ?? 0)}</strong>
+          <span className={el === 'below' ? 'bad' : el === 'ok' ? 'good' : undefined}>
+            {el === 'unknown' && 'Not in snapshot'}
+            {el === 'below' && `${usd0(elGap ?? 0)} below ${usd0(settings.elFloor)}`}
+            {el === 'ok' && `${usd0(elGap ?? 0)} above ${usd0(settings.elFloor)}`}
+          </span>
+        </article>
       </div>
 
-      <section className="income-panel">
-        <h2><CircleDollarSign size={13} /> Target build</h2>
+      <div className="income-row">
+        <section className="income-panel">
+          <h2>This month</h2>
+          <Meter ratio={progress} />
+          <div className="income-chips">
+            <Chip>{`Plan now ${moneyOrDash(planNow)}`}</Chip>
+            <Chip>{`After repair ${moneyOrDash(planAfter)}`}</Chip>
+            <Chip kind="warn">{`Gap ${moneyOrDash(gap)}`}</Chip>
+            <Chip>{`Open short ${usd0(focus.openShortCloseCost)}`}</Chip>
+            {quotes.stale && <Chip kind="stale">{`${quotes.label} · statement mark`}</Chip>}
+          </div>
+        </section>
+        <section className="income-panel">
+          <h2><CircleDollarSign size={13} /> Target build</h2>
         <StackedBar parts={[
           { label: 'Base', value: baseShare, tone: 'base' },
           { label: 'Tax', value: grossUp, tone: 'tax' },
@@ -420,50 +485,73 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
             </table>
           )}
         </details>
-      </section>
-
-      <BtcGauge cap={cap} />
-
-      {role && (
-        <section className="income-panel">
-          <h2>Ideas</h2>
-          <ul className="income-actions">
-            {SEED_NEXT_ACTIONS[role].map(step => <li key={step}>{step}</li>)}
-          </ul>
-          <div className="income-board">
-            {sells.map(sell => (
-              <article key={sell.label} className="income-mini">
-                <strong>{sell.label}</strong>
-                <div className="income-chips">
-                  <Chip>{usd0(sell.premium)}</Chip>
-                  <Chip>{sell.phase === 'now' ? 'Now' : 'After repair'}</Chip>
-                  <Chip kind="snapshot">{sell.cover}</Chip>
-                </div>
-              </article>
-            ))}
-          </div>
         </section>
-      )}
+      </div>
 
-      {focus.shortOptions.length > 0 && (
+      <div className="income-row">
         <section className="income-panel">
-          <h2>Open shorts</h2>
-          <div className="income-board">
-            {focus.shortOptions.map(option => (
-              <article key={`${option.underlying}-${option.putCall}-${option.strike}-${option.expiry}`} className="income-mini">
-                <strong>{option.underlying}</strong>
-                <div className="income-chips">
-                  <Chip>{`${option.strike}${option.putCall}`}</Chip>
-                  <Chip>{option.expiry || '—'}</Chip>
-                  <Chip>{`Qty ${option.quantity}`}</Chip>
-                  <Chip>{`Mark ${option.mark.toFixed(2)}`}</Chip>
-                  <Chip>{`Close ${usd0(option.closeCost)}`}</Chip>
-                  <Chip kind="stale">{quotes.stale ? quotes.label : 'Statement mark'}</Chip>
-                </div>
-              </article>
-            ))}
-          </div>
+          <h2>Milestone path</h2>
+          {plan.rows.length > 0 ? <MilestoneChart rows={plan.rows} combinedNlv={plan.combinedNlv} audUsd={plan.audUsd} /> : <span className="income-hint">No 31 Dec ahead</span>}
+          <ChartLegend>
+            <Chip kind="live">{usdSeries ? '31 Dec US$' : '31 Dec A$'}</Chip>
+            <Chip>FY end</Chip>
+            {usdSeries && plan.combinedNlv != null && <Chip>Capital</Chip>}
+            {plan.audUsd != null && <Chip kind={quotes.fxFresh?.stale ? 'stale' : 'live'}>{`AUDUSD ${fxText(plan.audUsd)}`}</Chip>}
+          </ChartLegend>
         </section>
+        <section className="income-panel">
+          <h2>Monthly target</h2>
+          {plan.rows.length > 0 ? <YearBars rows={plan.rows} role={focus.role} /> : <span className="income-hint">—</span>}
+          <ChartLegend>
+            <Chip kind="live">This year</Chip>
+            <Chip>Later years</Chip>
+          </ChartLegend>
+        </section>
+      </div>
+
+      {(focus.shortOptions.length > 0 || role) && (
+        <div className="income-row">
+          {focus.shortOptions.length > 0 && (
+            <section className="income-panel">
+              <h2>Open shorts</h2>
+              <div className="income-board">
+                {focus.shortOptions.map(option => (
+                  <article key={`${option.underlying}-${option.putCall}-${option.strike}-${option.expiry}`} className="income-mini">
+                    <strong>{option.underlying}</strong>
+                    <div className="income-chips">
+                      <Chip>{`${option.strike}${option.putCall}`}</Chip>
+                      <Chip>{option.expiry || '—'}</Chip>
+                      <Chip>{`Qty ${option.quantity}`}</Chip>
+                      <Chip>{`Mark ${option.mark.toFixed(2)}`}</Chip>
+                      <Chip>{`Close ${usd0(option.closeCost)}`}</Chip>
+                      <Chip kind="stale">{quotes.stale ? quotes.label : 'Statement mark'}</Chip>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+          {role && (
+            <section className="income-panel">
+              <h2>Ideas</h2>
+              <ul className="income-actions">
+                {SEED_NEXT_ACTIONS[role].map(step => <li key={step}>{step}</li>)}
+              </ul>
+              <div className="income-board">
+                {sells.map(sell => (
+                  <article key={sell.label} className="income-mini">
+                    <strong>{sell.label}</strong>
+                    <div className="income-chips">
+                      <Chip>{usd0(sell.premium)}</Chip>
+                      <Chip>{sell.phase === 'now' ? 'Now' : 'After repair'}</Chip>
+                      <Chip kind="snapshot">{sell.cover}</Chip>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
       )}
 
       <section className="income-panel">
@@ -612,17 +700,20 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
         </section>
       )}
 
-      <section className="income-panel">
-        <h2>Calendar</h2>
-        <ol className="income-timeline">
-          {SEED_CALENDAR.map(row => (
-            <li key={row.date}>
-              <strong>{row.date}</strong>
-              <span>{row.event}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
+      <div className="income-row">
+        <section className="income-panel">
+          <h2>Expiries</h2>
+          <ol className="income-timeline">
+            {SEED_CALENDAR.map(row => (
+              <li key={row.date}>
+                <strong>{row.date}</strong>
+                <span>{row.event}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+        <BtcGauge cap={cap} />
+      </div>
 
       <section className="income-panel">
         <h2>Rules</h2>
@@ -643,7 +734,7 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
         </div>
       </section>
 
-      <details className="income-fold">
+      <details className="income-panel income-fold">
         <summary>Settings</summary>
         <div className="income-settings">
           <NumField label="EL floor (US$)" value={settings.elFloor} testId="income-el-floor" onCommit={elFloor => update({ elFloor })} />
