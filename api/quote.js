@@ -95,6 +95,8 @@ export default async function handler(req) {
       high52 = fallback.high52
       if (typeof low52 !== 'number' || low52 <= 0) low52 = fallback.low52
     }
+    const marketState = typeof meta?.marketState === 'string' ? meta.marketState : null
+    const marketTime = typeof meta?.regularMarketTime === 'number' ? meta.regularMarketTime : null
     return {
       price,
       high52: typeof high52 === 'number' && high52 > 0 ? high52 : null,
@@ -102,6 +104,8 @@ export default async function handler(req) {
       prevClose: typeof prevClose === 'number' && prevClose > 0 ? prevClose : null,
       volume: typeof volume === 'number' ? volume : null,
       avgVolume: typeof avgVolume === 'number' ? avgVolume : null,
+      marketState,
+      marketTime,
     }
   }
 

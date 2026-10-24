@@ -15,6 +15,10 @@ export interface Quote {
   prevClose: number | null
   volume: number | null
   avgVolume: number | null
+  /** Yahoo marketState when the quote proxy sends it. REGULAR is the cash session. */
+  marketState?: string | null
+  /** Yahoo regularMarketTime, unix seconds. */
+  marketTime?: number | null
 }
 
 // /api/quote caps each request at 25 symbols and silently drops the rest —
