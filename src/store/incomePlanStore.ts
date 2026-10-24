@@ -4,7 +4,7 @@
  * it when a session is present. This blob is settings only — no Flex token.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { DEFAULT_INCOME_SETTINGS, type IncomeSettings, type SplitMode } from '../income/incomeSeed'
+import { DEFAULT_INCOME_SETTINGS, INCOME_RULE_TYPES, type IncomeRule, type IncomeRuleType, type IncomeSettings, type SplitMode } from '../income/incomeSeed'
 import { loadUserData, saveUserData } from '../services/userData'
 
 const LS_KEY = 'options:incomePlan'
@@ -34,27 +34,71 @@ function asSplitMode(value: unknown, fallback: SplitMode): SplitMode {
   return value === 'capital' || value === 'fixed' ? value : fallback
 }
 
-export function normalizeSettings(raw: unknown): IncomeSettings {
+const RULE_TYPES = new Set<string>(INCOME_RULE_TYPES.map(row => row.type))
+
+function copyRules(rules: IncomeRule[]): IncomeRule[] {
+  return rules.map(rule => ({ ...rule }))
+}
+
+function freshSettings(): IncomeSettings {
   const base = DEFAULT_INCOME_SETTINGS
-  if (typeof raw !== 'object' || raw === null) return { ...base, exits: base.exits.map(e => ({ ...e })), earningsBlackouts: base.earningsBlackouts.map(e => ({ ...e })), excludeSymbols: [...base.excludeSymbols], etfSymbols: [...base.etfSymbols] }
-  const row = raw as Record<string, unknown>
+  return { ...base, rules: copyRules(base.rules), excludeSymbols: [...base.excludeSymbols], etfSymbols: [...base.etfSymbols] }
+}
+
+function asRule(item: unknown): IncomeRule | null {
+  if (typeof item !== 'object' || item === null) return null
+  const rec = item as { symbol?: unknown; type?: unknown; value?: unknown; date?: unknown }
+  if (typeof rec.type !== 'string' || !RULE_TYPES.has(rec.type)) return null
+  const symbol = typeof rec.symbol === 'string' ? rec.symbol.trim().toUpperCase() : ''
+  const value = typeof rec.value === 'number' && Number.isFinite(rec.value) ? rec.value : null
+  const date = typeof rec.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rec.date.trim()) ? rec.date.trim() : null
+  return { symbol, type: rec.type as IncomeRuleType, value, date }
+}
+
+/** Old blobs stored BIDU/BABA prices, two booleans, and earnings dates. */
+function legacyRules(row: Record<string, unknown>): IncomeRule[] {
+  const rules: IncomeRule[] = []
+  const defaults = DEFAULT_INCOME_SETTINGS.rules.filter(rule => rule.type === 'exit')
   const exitInput = Array.isArray(row.exits) ? row.exits : null
-  const exits = base.exits.map(exit => {
-    const found = exitInput?.find(item => typeof item === 'object' && item !== null && String((item as { symbol?: unknown }).symbol).toUpperCase() === exit.symbol)
-    const price = found && typeof found === 'object' ? asNumber((found as { price?: unknown }).price, exit.price) : exit.price
-    return { symbol: exit.symbol, price }
-  })
-  const earningsBlackouts = Array.isArray(row.earningsBlackouts) && row.earningsBlackouts.length > 0
-    ? row.earningsBlackouts.flatMap(item => {
-        if (typeof item !== 'object' || item === null) return []
-        const rec = item as { symbol?: unknown; date?: unknown; label?: unknown }
-        const symbol = typeof rec.symbol === 'string' ? rec.symbol.trim().toUpperCase() : ''
-        const date = typeof rec.date === 'string' ? rec.date.trim() : ''
-        if (!symbol || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return []
-        const label = typeof rec.label === 'string' && rec.label.trim() ? rec.label.trim() : `${symbol} earnings`
-        return [{ symbol, date, label }]
-      })
-    : base.earningsBlackouts.map(e => ({ ...e }))
+  const seen = new Set<string>()
+  for (const exit of defaults) {
+    const found = exitInput?.find(item => typeof item === 'object' && item !== null && String((item as { symbol?: unknown }).symbol ?? '').trim().toUpperCase() === exit.symbol)
+    const rawPrice = found && typeof found === 'object' ? (found as { price?: unknown }).price : undefined
+    const price = typeof rawPrice === 'number' && Number.isFinite(rawPrice) ? rawPrice : exit.value
+    rules.push({ symbol: exit.symbol, type: 'exit', value: price, date: null })
+    seen.add(exit.symbol)
+  }
+  for (const item of exitInput ?? []) {
+    if (typeof item !== 'object' || item === null) continue
+    const symbol = String((item as { symbol?: unknown }).symbol ?? '').trim().toUpperCase()
+    const price = (item as { price?: unknown }).price
+    if (!symbol || seen.has(symbol) || typeof price !== 'number' || !Number.isFinite(price)) continue
+    rules.push({ symbol, type: 'exit', value: price, date: null })
+    seen.add(symbol)
+  }
+  if (row.noNewMstrPuts !== false) rules.push({ symbol: 'MSTR', type: 'noNewPuts', value: null, date: null })
+  if (row.tslaCallsCoveredOnly !== false) rules.push({ symbol: 'TSLA', type: 'coveredCalls', value: null, date: null })
+  const blackoutInput = Array.isArray(row.earningsBlackouts) && row.earningsBlackouts.length > 0 ? row.earningsBlackouts : null
+  const blackouts = blackoutInput ?? DEFAULT_INCOME_SETTINGS.rules.filter(rule => rule.type === 'noNewPuts' && rule.date)
+  for (const item of blackouts) {
+    if (typeof item !== 'object' || item === null) continue
+    const rec = item as { symbol?: unknown; date?: unknown }
+    const symbol = typeof rec.symbol === 'string' ? rec.symbol.trim().toUpperCase() : ''
+    const date = typeof rec.date === 'string' ? rec.date.trim() : ''
+    if (!symbol || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
+    rules.push({ symbol, type: 'noNewPuts', value: null, date })
+  }
+  return rules
+}
+
+export function normalizeSettings(raw: unknown): IncomeSettings {
+  if (typeof raw !== 'object' || raw === null) return freshSettings()
+  const row = raw as Record<string, unknown>
+  const base = DEFAULT_INCOME_SETTINGS
+  const rules = Array.isArray(row.rules) ? row.rules.flatMap(item => {
+    const rule = asRule(item)
+    return rule ? [rule] : []
+  }) : legacyRules(row)
   return {
     elFloor: asNumber(row.elFloor, base.elFloor),
     targetNote: asString(row.targetNote, base.targetNote),
@@ -70,10 +114,7 @@ export function normalizeSettings(raw: unknown): IncomeSettings {
     rankBy: 'premiumOverCash',
     excludeSymbols: asSymbols(row.excludeSymbols, [...base.excludeSymbols]),
     etfSymbols: asSymbols(row.etfSymbols, [...base.etfSymbols]),
-    noNewMstrPuts: typeof row.noNewMstrPuts === 'boolean' ? row.noNewMstrPuts : base.noNewMstrPuts,
-    tslaCallsCoveredOnly: typeof row.tslaCallsCoveredOnly === 'boolean' ? row.tslaCallsCoveredOnly : base.tslaCallsCoveredOnly,
-    exits,
-    earningsBlackouts: earningsBlackouts.length > 0 ? earningsBlackouts : base.earningsBlackouts.map(e => ({ ...e })),
+    rules,
   }
 }
 

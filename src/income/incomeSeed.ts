@@ -31,11 +31,28 @@ export interface IncomeSettings {
   excludeSymbols: string[]
   /** Option underlyings Flex does not label as ETFs. */
   etfSymbols: string[]
-  noNewMstrPuts: boolean
-  tslaCallsCoveredOnly: boolean
-  exits: { symbol: string; price: number }[]
-  earningsBlackouts: { symbol: string; date: string; label: string }[]
+  /** Ticker-agnostic rules. Exit price, put/call blocks, covered calls, and caps. */
+  rules: IncomeRule[]
 }
+
+export type IncomeRuleType = 'exit' | 'noNewPuts' | 'noNewCalls' | 'capExposure' | 'coveredCalls'
+
+export interface IncomeRule {
+  symbol: string
+  type: IncomeRuleType
+  /** Exit price, or a cap percent. Empty when the rule type does not use it. */
+  value: number | null
+  /** YYYY-MM-DD. A no-new-puts rule with a date blocks puts through that date. */
+  date: string | null
+}
+
+export const INCOME_RULE_TYPES: { type: IncomeRuleType; label: string }[] = [
+  { type: 'exit', label: 'Exit/close synthetic' },
+  { type: 'noNewPuts', label: 'No new puts' },
+  { type: 'noNewCalls', label: 'No new calls' },
+  { type: 'capExposure', label: 'Cap exposure' },
+  { type: 'coveredCalls', label: 'Covered calls only' },
+]
 
 export const DEFAULT_INCOME_SETTINGS: IncomeSettings = {
   elFloor: 30_000,
@@ -52,15 +69,13 @@ export const DEFAULT_INCOME_SETTINGS: IncomeSettings = {
   rankBy: 'premiumOverCash',
   excludeSymbols: ['AAOI', 'UMAC', 'SOFI', 'AMZN', 'IBIT', 'BIDU', 'BABA'],
   etfSymbols: ['IBIT', 'BSOL', 'SPY', 'QQQ', 'IWM', 'DIA', 'TLT', 'GLD', 'SLV', 'BITO', 'GBTC', 'ETHA', 'EEM', 'VTI', 'VOO', 'VXX', 'UVXY', 'TQQQ', 'SQQQ', 'ARKK', 'XLF', 'XLE', 'SMH'],
-  noNewMstrPuts: true,
-  tslaCallsCoveredOnly: true,
-  exits: [
-    { symbol: 'BIDU', price: 160 },
-    { symbol: 'BABA', price: 190 },
-  ],
-  earningsBlackouts: [
-    { symbol: 'GOOGL', date: '2026-10-28', label: 'GOOGL earnings' },
-    { symbol: 'ARM', date: '2026-11-04', label: 'ARM earnings' },
+  rules: [
+    { symbol: 'BIDU', type: 'exit', value: 160, date: null },
+    { symbol: 'BABA', type: 'exit', value: 190, date: null },
+    { symbol: 'MSTR', type: 'noNewPuts', value: null, date: null },
+    { symbol: 'TSLA', type: 'coveredCalls', value: null, date: null },
+    { symbol: 'GOOGL', type: 'noNewPuts', value: null, date: '2026-10-28' },
+    { symbol: 'ARM', type: 'noNewPuts', value: null, date: '2026-11-04' },
   ],
 }
 

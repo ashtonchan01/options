@@ -273,14 +273,6 @@ export function accountRules(book: LiveBook, settings: IncomeSettings): LiveRule
     }
   }
 
-  const mstrPuts = book.shortOptions.filter(option => option.underlying === 'MSTR' && option.putCall === 'P')
-  rules.push({
-    id: 'mstr-puts',
-    rule: 'No new MSTR puts on this account',
-    status: !settings.noNewMstrPuts ? 'unknown' : mstrPuts.length === 0 ? 'yes' : 'no',
-    detail: !settings.noNewMstrPuts ? 'Rule turned off' : mstrPuts.length === 0 ? 'None open' : `${mstrPuts.reduce((sum, option) => sum + Math.abs(option.quantity), 0)} contracts`,
-  })
-
   const etfShorts = book.shortOptions.filter(option => etfs.has(option.underlying))
   const etfShares = book.shares.filter(row => etfs.has(row.symbol) && row.quantity !== 0)
   rules.push({
@@ -307,28 +299,63 @@ export function accountRules(book: LiveBook, settings: IncomeSettings): LiveRule
     detail: amznPuts.length === 0 ? 'None open' : `${amznPuts.length} open`,
   })
 
-  if (settings.tslaCallsCoveredOnly) {
-    const contracts = book.shortOptions.filter(option => option.underlying === 'TSLA' && option.putCall === 'C').reduce((sum, option) => sum + Math.abs(option.quantity), 0)
-    const cover = contracts === 0 ? 'covered' : callCover(book, 'TSLA', contracts)
-    rules.push({
-      id: 'tsla-calls',
-      rule: 'TSLA calls only covered by held shares',
-      status: cover === 'unknown' ? 'unknown' : cover === 'covered' ? 'yes' : 'no',
-      detail: contracts === 0 ? 'No TSLA calls' : cover === 'covered' ? `${contracts} contract${contracts === 1 ? '' : 's'} covered` : `${contracts} contracts are not covered`,
-    })
-  }
-
-  for (const blackout of settings.earningsBlackouts) {
-    const symbol = blackout.symbol.toUpperCase()
-    const open = book.shortOptions.filter(option => option.underlying === symbol && option.putCall === 'P' && (!option.expiry || option.expiry >= blackout.date))
-    rules.push({
-      id: `earn-${symbol}`,
-      rule: `No short ${symbol} puts through ${blackout.label}`,
-      status: open.length === 0 ? 'yes' : 'no',
-      detail: open.length === 0 ? 'None open' : open.map(option => `${option.quantity} ${option.strike}P ${option.expiry}`).join('; '),
-    })
+  for (const rule of settings.rules) {
+    const symbol = rule.symbol.trim().toUpperCase()
+    if (!symbol) continue
+    if (rule.type === 'noNewPuts' && !rule.date) {
+      const contracts = shortContracts(book, symbol, 'P')
+      rules.push({
+        id: symbol === 'MSTR' ? 'mstr-puts' : `no-puts-${symbol}`,
+        rule: `No new ${symbol} puts on this account`,
+        status: contracts === 0 ? 'yes' : 'no',
+        detail: contracts === 0 ? 'None open' : `${contracts} contracts`,
+      })
+    }
+    if (rule.type === 'noNewPuts' && rule.date) {
+      const open = book.shortOptions.filter(option => option.underlying === symbol && option.putCall === 'P' && (!option.expiry || option.expiry >= rule.date!))
+      rules.push({
+        id: `earn-${symbol}`,
+        rule: `No short ${symbol} puts through ${rule.date}`,
+        status: open.length === 0 ? 'yes' : 'no',
+        detail: open.length === 0 ? 'None open' : open.map(option => `${option.quantity} ${option.strike}P ${option.expiry}`).join('; '),
+      })
+    }
+    if (rule.type === 'noNewCalls') {
+      const contracts = shortContracts(book, symbol, 'C')
+      rules.push({
+        id: `no-calls-${symbol}`,
+        rule: `No new ${symbol} calls on this account`,
+        status: contracts === 0 ? 'yes' : 'no',
+        detail: contracts === 0 ? 'None open' : `${contracts} contracts`,
+      })
+    }
+    if (rule.type === 'coveredCalls') {
+      const contracts = shortContracts(book, symbol, 'C')
+      const cover = contracts === 0 ? 'covered' : callCover(book, symbol, contracts)
+      rules.push({
+        id: symbol === 'TSLA' ? 'tsla-calls' : `covered-${symbol}`,
+        rule: `${symbol} calls only covered by held shares`,
+        status: cover === 'unknown' ? 'unknown' : cover === 'covered' ? 'yes' : 'no',
+        detail: contracts === 0 ? `No ${symbol} calls` : cover === 'covered' ? `${contracts} contract${contracts === 1 ? '' : 's'} covered` : `${contracts} contracts are not covered`,
+      })
+    }
+    if (rule.type === 'capExposure') {
+      const capText = rule.value != null ? ` ${rule.value}%` : ''
+      rules.push({
+        id: `cap-${symbol}`,
+        rule: `${symbol} exposure cap${capText}`,
+        status: 'unknown',
+        detail: 'Shown on the crypto gauge',
+      })
+    }
   }
   return rules
+}
+
+function shortContracts(book: LiveBook, symbol: string, right: 'P' | 'C'): number {
+  return book.shortOptions
+    .filter(option => option.underlying === symbol && option.putCall === right)
+    .reduce((sum, option) => sum + Math.abs(option.quantity), 0)
 }
 
 export interface BtcCap {
@@ -421,7 +448,7 @@ export function putScreenRows(rows: SeedPut[], settings: IncomeSettings): Ranked
   const ranked = rankByPremiumOverCash(rows).map(row => ({
     ...row,
     excluded: excluded.has(row.symbol) || etfs.has(row.symbol),
-    blockedMstr: settings.noNewMstrPuts && row.symbol === 'MSTR',
+    blockedMstr: settings.rules.some(rule => rule.type === 'noNewPuts' && !rule.date && rule.symbol.trim().toUpperCase() === row.symbol),
     band: deltaInBand(row.delta, settings.deltaMin, settings.deltaMax),
     ratio: premiumOverCash(row.premium, row.cash),
   }))
@@ -560,7 +587,7 @@ function stockSpot(positions: RawPosition[], underlying: string): number | null 
  * alias, both more than a year out. Quantity is matched to the smaller leg,
  * closest expiry first, so two strikes on one name stay two rows. A short
  * put left over on a ticker that already has a pair is marked close.
- * BIDU and BABA keep their editable exit price instead of a conversion cost.
+ * An exit rule replaces cash to convert with that price.
  */
 export function livePairExits(positions: RawPosition[], args: {
   today: Date
