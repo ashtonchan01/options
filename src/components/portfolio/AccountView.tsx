@@ -28,7 +28,7 @@ import JournalPageView from '../journal/JournalPageView'
 import PortfolioAllocationView from '../allocation/PortfolioAllocationView'
 import ReportsView from '../companies/ReportsView'
 import IncomeView from '../income/IncomeView'
-import type { IncomeSource } from '../../income/incomeLive'
+import { resolvedNetLiquidation, type IncomeSource } from '../../income/incomeLive'
 import { accountToAppState } from '../shared/syntheticAccountState'
 
 type Section = 'overview' | 'calendar' | 'journal' | 'income' | 'reports' | 'allocation'
@@ -48,7 +48,7 @@ function incomeSources(list: Account[]): IncomeSource[] {
     positions: entry.positions ?? [],
     trades: entry.trades,
     cashBalance: entry.cashBalance,
-    netLiquidation: entry.netLiquidation,
+    netLiquidation: resolvedNetLiquidation(entry),
     excessLiquidity: entry.excessLiquidity,
   }))
 }

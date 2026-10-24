@@ -23,6 +23,7 @@ import {
   putScreenRows,
   quoteFreshness,
   realisedInMonth,
+  resolvedNetLiquidation,
   screenDays,
   toLiveBook,
   type IncomeSource,
@@ -211,6 +212,30 @@ const withoutEl = parseFlexDocument(flexDoc([
   { tag: 'EquitySummaryInBase', attrs: { reportDate: '20261023', netLiquidation: '10' } },
 ]) as unknown as Document)
 check('a summary without excess liquidity does not invent one', withoutEl.excessLiquidity === undefined && withoutEl.netLiquidation === 10)
+const totalOnly = parseFlexDocument(flexDoc([
+  { tag: 'EquitySummaryInBase', attrs: { reportDate: '20261023', total: '250000' } },
+]) as unknown as Document)
+check('equity summary total is net liquidation when the named attribute is absent', totalOnly.netLiquidation === 250_000)
+const namedWins = parseFlexDocument(flexDoc([
+  { tag: 'EquitySummaryInBase', attrs: { reportDate: '20261023', netLiquidation: '11', total: '250000' } },
+]) as unknown as Document)
+check('an explicit netLiquidation wins over total', namedWins.netLiquidation === 11)
+const historyTotal = parseFlexDocument(flexDoc([
+  { tag: 'EquitySummaryByReportDateInBase', attrs: { reportDate: '20261022', total: '240000' } },
+  { tag: 'EquitySummaryByReportDateInBase', attrs: { reportDate: '20261023', Total: '250000' } },
+]) as unknown as Document)
+check('equity history reads total and keeps the latest row', historyTotal.netLiquidation === 250_000 && historyTotal.equityHistory?.at(-1)?.netLiquidation === 250_000 && historyTotal.equityHistory?.[0]?.netLiquidation === 240_000)
+check('stock and option market value plus cash fills a missing net liquidation', resolvedNetLiquidation({
+  cashBalance: 100,
+  positions: [
+    { assetClass: 'STK', positionValue: 50 },
+    { assetClass: 'OPT', positionValue: -10 },
+    { assetClass: 'CASH', positionValue: 999 },
+  ],
+}) === 140)
+check('an explicit net liquidation is kept, including zero', resolvedNetLiquidation({ netLiquidation: 0, cashBalance: 100, positions: [{ assetClass: 'STK', positionValue: 50 }] }) === 0 && resolvedNetLiquidation({ netLiquidation: 5, cashBalance: 100 }) === 5)
+check('the latest equity history point fills a missing net liquidation', resolvedNetLiquidation({ equityHistory: [{ netLiquidation: 1 }, { netLiquidation: 9 }], cashBalance: 100 }) === 9)
+check('no snapshot stays undefined', resolvedNetLiquidation({}) === undefined)
 
 const view = readFileSync(new URL('../src/components/income/IncomeView.tsx', import.meta.url), 'utf8')
 check('income page has no order button', !view.includes('<button'))

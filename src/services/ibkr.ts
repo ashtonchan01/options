@@ -311,11 +311,9 @@ function parseEquityHistory(doc: Document, accountId?: string): { date: string; 
       const id = el.getAttribute('accountId') ?? ''
       if (accountId && id && id !== accountId) continue
       const date = isoReportDate(el.getAttribute('reportDate') ?? '')
-      const nl = el.getAttribute('netLiquidation')
-      if (!date || nl == null || nl === '') continue
-      const n = Number(nl)
-      if (!Number.isFinite(n)) continue
-      byDate.set(date, n)
+      const nl = equityNumber(el, ...NLV_ATTRS)
+      if (!date || nl == null) continue
+      byDate.set(date, nl)
     }
   }
   take('EquitySummaryInBase')
@@ -324,6 +322,10 @@ function parseEquityHistory(doc: Document, accountId?: string): { date: string; 
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, netLiquidation]) => ({ date, netLiquidation }))
 }
+
+/** Flex EquitySummaryInBase stores net liquidation as `total` unless the
+ * query also selected the netLiquidation column. Prefer the explicit name. */
+const NLV_ATTRS = ['netLiquidation', 'NetLiquidation', 'total', 'Total'] as const
 
 function equityNumber(el: Element | undefined, ...names: string[]): number | undefined {
   if (!el) return undefined
@@ -345,19 +347,9 @@ function parseExcessLiquidity(doc: Document): number | undefined {
 }
 
 function parseNetLiq(doc: Document): number | undefined {
-  // IBKR Flex reports include EquitySummaryInBase with exact netLiquidation
-  const eqBase = latestByReportDate(Array.from(doc.querySelectorAll('EquitySummaryInBase')))
-  if (eqBase) {
-    const nl = eqBase.getAttribute('netLiquidation')
-    if (nl) return Number(nl)
-  }
-  // Also try EquitySummaryByReportDateInBase
-  const eqDate = latestByReportDate(Array.from(doc.querySelectorAll('EquitySummaryByReportDateInBase')))
-  if (eqDate) {
-    const nl = eqDate.getAttribute('netLiquidation')
-    if (nl) return Number(nl)
-  }
-  return undefined
+  const fromBase = equityNumber(latestByReportDate(Array.from(doc.querySelectorAll('EquitySummaryInBase'))), ...NLV_ATTRS)
+  if (fromBase != null) return fromBase
+  return equityNumber(latestByReportDate(Array.from(doc.querySelectorAll('EquitySummaryByReportDateInBase'))), ...NLV_ATTRS)
 }
 
 /** First YYYYMMDD in an IBKR date or dateTime ("20261016", "20261016;060248", "2026-10-16"). */

@@ -22,10 +22,8 @@ import {
   SEED_PUTS,
   SEED_PUT_NOTE,
   SEED_SELLS,
-  SEED_SNAPSHOT_RULES,
 } from '../../income/incomeSeed'
 import {
-  accountRules,
   annualizedReturn,
   booksFor,
   btcCap,
@@ -95,6 +93,14 @@ function Chip({ children, kind }: { children: string; kind?: 'live' | 'snapshot'
   return <span className={kind ? `income-flag ${kind}` : 'income-chip'}>{children}</span>
 }
 
+function Lines({ children }: { children: ReactNode }) {
+  return <div className="income-lines">{children}</div>
+}
+
+function Line({ children, muted, title }: { children: ReactNode; muted?: boolean; title?: string }) {
+  return <div className={`income-line${muted ? ' muted' : ''}`} title={title}>{children}</div>
+}
+
 function nlvFor(books: LiveBook[], role: 'personal' | 'business'): number | undefined {
   const rows = books.filter(book => book.role === role)
   if (rows.length === 0) return undefined
@@ -104,16 +110,6 @@ function nlvFor(books: LiveBook[], role: 'personal' | 'business'): number | unde
     sum += book.netLiquidation
   }
   return sum
-}
-
-function snapshotFor(role: AccountRole) {
-  if (role === 'other') return []
-  return SEED_SNAPSHOT_RULES.filter(rule => {
-    if (rule.rule.startsWith('BTC beta')) return false
-    if (role === 'personal' && (rule.rule.startsWith('Business') || rule.rule.startsWith('No ETF'))) return false
-    if (role === 'business' && (rule.rule.startsWith('Personal') || rule.rule.startsWith('Every personal') || rule.rule.startsWith('Two or three personal'))) return false
-    return true
-  })
 }
 
 function legTarget(role: AccountRole, personal: number | null, business: number | null): number | null {
@@ -331,18 +327,53 @@ function MilestoneChart({ rows, combinedNlv, audUsd }: { rows: MilestoneIncome['
   )
 }
 
-function YearBars({ rows, role }: { rows: MilestoneIncome['rows']; role: AccountRole }) {
-  const values = rows.map(row => legTarget(role, row.personalTarget, row.businessTarget))
-  const max = Math.max(1, ...values.flatMap(value => (value != null && value > 0 ? [value] : [])))
-  const slot = rows.length > 0 ? (100 - PLOT.l - PLOT.r) / rows.length : 100 - PLOT.l - PLOT.r
+function MonthLabels({ labels, years, xAt, width }: { labels: string[]; years: number[]; xAt: (index: number) => number; width: number }) {
+  const indexes = yearIndexes(labels.length, width)
+  return (
+    <>
+      {indexes.map((index, shown) => {
+        const first = index === 0
+        const last = index === labels.length - 1
+        const yearChanged = shown === 0 || years[index] !== years[indexes[shown - 1]]
+        const text = yearChanged ? `${labels[index]} '${String(years[index]).slice(2)}` : labels[index]
+        return (
+          <span key={`${years[index]}-${labels[index]}-${index}`} style={labelStyle({
+            position: 'absolute',
+            left: last ? undefined : `${xAt(index)}%`,
+            right: last ? 4 : undefined,
+            top: `${100 - PLOT.b + 3}%`,
+            transform: first || last ? undefined : 'translateX(-50%)',
+            whiteSpace: 'nowrap',
+          })}>
+            {text}
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
+/** Next twelve calendar months. Each month uses that calendar year's monthly
+ * target from the milestone path — the same leg target the year table shows. */
+function MonthlyBars({ rows, role, today }: { rows: MilestoneIncome['rows']; role: AccountRole; today: Date }) {
+  const byYear = new Map(rows.map(row => [row.year, row]))
+  const months = Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(today.getFullYear(), today.getMonth() + index, 1)
+    const row = byYear.get(date.getFullYear())
+    const value = row ? legTarget(role, row.personalTarget, row.businessTarget) : null
+    const label = date.toLocaleDateString('en-US', { month: 'short' })
+    return { key: `${date.getFullYear()}-${date.getMonth()}`, label, year: date.getFullYear(), value, current: index === 0 }
+  })
+  const max = Math.max(1, ...months.flatMap(month => (month.value != null && month.value > 0 ? [month.value] : [])))
+  const slot = (100 - PLOT.l - PLOT.r) / months.length
   const slotX = (index: number) => PLOT.l + index * slot + slot / 2
-  const first = values[0]
+  const first = months[0]?.value
   const right = 100 - PLOT.r
   return (
-    <ChartFrame label="Monthly target by year" labels={width => (
+    <ChartFrame label="Monthly target for the next twelve months" labels={width => (
       <>
         <YLabels max={max} aud={false} />
-        <YearLabels rows={rows} width={width} xAt={slotX} />
+        <MonthLabels labels={months.map(month => month.label)} years={months.map(month => month.year)} width={width} xAt={slotX} />
         {first != null && first > 0 && (
           <span style={labelStyle({ position: 'absolute', top: 2, right: 6, fontWeight: 700, color: '#10b981' })}>
             {axisLabel(first, false)}
@@ -353,31 +384,50 @@ function YearBars({ rows, role }: { rows: MilestoneIncome['rows']; role: Account
       {[max, max / 2, 0].map(tick => (
         tick !== 0 && <line key={tick} x1={PLOT.l} x2={right} y1={plotY(tick, max)} y2={plotY(tick, max)} stroke="rgba(16,185,129,0.18)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
       ))}
-      {rows.map((row, index) => {
-        const value = values[index]
-        const top = value != null && value > 0 ? plotY(value, max) : plotY(0, max)
+      {months.map((month, index) => {
+        const top = month.value != null && month.value > 0 ? plotY(month.value, max) : plotY(0, max)
         const barH = Math.max(0, plotY(0, max) - top)
-        const x = PLOT.l + index * slot + slot * 0.2
-        return <rect key={row.year} x={x} y={top} width={slot * 0.6} height={barH} fill={index === 0 ? '#10b981' : '#f59e0b'} opacity={index === 0 ? 1 : 0.85}><title>{`${row.year} ${moneyOrDash(value)}`}</title></rect>
+        const x = PLOT.l + index * slot + slot * 0.22
+        return <rect key={month.key} x={x} y={top} width={slot * 0.56} height={barH} fill={month.current ? '#10b981' : '#f59e0b'} opacity={month.current ? 1 : 0.85}><title>{`${month.label} ${month.year} ${moneyOrDash(month.value)}`}</title></rect>
       })}
     </ChartFrame>
+  )
+}
+
+const CRYPTO_COLOR = {
+  BTC: '#f7931a',
+  MSTR: '#a78bfa',
+  BSOL: '#14f195',
+} as const
+
+function CryptoChip({ color, children, kind }: { color: string; children: string; kind?: 'live' | 'snapshot' | 'stale' | 'ok' | 'bad' | 'warn' }) {
+  return (
+    <span className="income-crypto">
+      <span className="income-swatch" style={{ background: color }} aria-hidden="true" />
+      <Chip kind={kind}>{children}</Chip>
+    </span>
   )
 }
 
 function BtcGauge({ cap }: { cap: BtcCap }) {
   const width = cap.noBooks ? '0%' : cap.over ? '100%' : '6%'
   return (
-    <IncomePanel emoji="₿" title="BTC gauge">
+    <IncomePanel emoji="₿" title="Crypto gauge">
       <div className="income-gauge" data-testid="income-btc" title={cap.detail}>
         <div className="income-gauge-track">
           <span className={cap.noBooks ? 'unknown' : cap.over ? 'over' : 'ok'} style={{ width }} />
         </div>
         <div className="income-chips">
           <Chip kind={cap.noBooks ? undefined : cap.over ? 'bad' : 'ok'}>{cap.noBooks ? 'Unknown' : cap.over ? 'Over' : 'Inside'}</Chip>
-          <Chip>{`MSTR ${Math.round(cap.mstrShares).toLocaleString('en-US')} sh`}</Chip>
-          <Chip>{`MSTR puts ${cap.mstrPutContracts}`}</Chip>
-          <Chip>{`BSOL puts ${cap.bsolPutContracts}`}</Chip>
-          {cap.bsolShares !== 0 && <Chip kind="bad">{`BSOL ${Math.round(cap.bsolShares).toLocaleString('en-US')} sh`}</Chip>}
+          <CryptoChip color={CRYPTO_COLOR.MSTR}>{`MSTR ${Math.round(cap.mstrShares).toLocaleString('en-US')} sh`}</CryptoChip>
+          <CryptoChip color={CRYPTO_COLOR.MSTR}>{`MSTR puts ${cap.mstrPutContracts}`}</CryptoChip>
+          <CryptoChip color={CRYPTO_COLOR.BSOL}>{`BSOL puts ${cap.bsolPutContracts}`}</CryptoChip>
+          {cap.bsolShares !== 0 && <CryptoChip color={CRYPTO_COLOR.BSOL} kind="bad">{`BSOL ${Math.round(cap.bsolShares).toLocaleString('en-US')} sh`}</CryptoChip>}
+        </div>
+        <div className="income-chips income-legend" aria-label="Crypto colours">
+          <CryptoChip color={CRYPTO_COLOR.BTC}>BTC</CryptoChip>
+          <CryptoChip color={CRYPTO_COLOR.MSTR}>MSTR</CryptoChip>
+          <CryptoChip color={CRYPTO_COLOR.BSOL}>BSOL</CryptoChip>
         </div>
       </div>
     </IncomePanel>
@@ -407,7 +457,6 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
     businessInterestAud: settings.businessInterestAud,
   }), [milestone, now, books, quotes.audUsd, settings])
   const cap = useMemo(() => btcCap(books), [books])
-  const rules = useMemo(() => accountRules(focus, settings), [focus, settings])
   const needed = role === 'personal' ? plan.current?.personalTarget ?? null : role === 'business' ? plan.current?.businessTarget ?? null : null
   const planNow = role ? planPremium(SEED_SELLS, role, 'now') : null
   const planAfter = role ? planPremium(SEED_SELLS, role, 'after') : null
@@ -417,7 +466,6 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
   const puts = putScreenRows(SEED_PUTS, settings)
   const calls = role ? SEED_CALLS.filter(row => row.account === role) : []
   const sells = role ? SEED_SELLS.filter(sell => sell.account === role) : []
-  const snapshotRules = snapshotFor(focus.role)
   const el = elState(focus.excessLiquidity, settings.elFloor)
   const elGap = focus.excessLiquidity == null ? null : Math.abs(focus.excessLiquidity - settings.elFloor)
   const share = focus.role === 'business' ? plan.businessShare : focus.role === 'personal' ? plan.personalShare : null
@@ -445,6 +493,62 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
             {plan.taxNote && <Chip kind="warn">Tax rate</Chip>}
           </div>
         </div>
+        <details className="income-fold income-settings-fold">
+          <summary><EmojiTitle emoji="⚙️">Settings</EmojiTitle></summary>
+          <div className="income-settings">
+            <NumField label="EL floor (US$)" value={settings.elFloor} testId="income-el-floor" onCommit={elFloor => update({ elFloor })} />
+            <label className="income-field">
+              <span>Split</span>
+              <select value={settings.splitMode} onChange={e => update({ splitMode: e.target.value === 'fixed' ? 'fixed' : 'capital' })}>
+                <option value="capital">By capital (live NLV)</option>
+                <option value="fixed">Fixed %</option>
+              </select>
+            </label>
+            <NumField label="Personal share % (fixed split)" value={settings.personalSplitPct} onCommit={personalSplitPct => update({ personalSplitPct })} />
+            <NumField label="Personal tax %" value={Math.round(settings.personalTaxRate * 1000) / 10} onCommit={personalTaxRate => update({ personalTaxRate })} />
+            <NumField label="Business tax %" value={Math.round(settings.businessTaxRate * 1000) / 10} onCommit={businessTaxRate => update({ businessTaxRate })} />
+            <NumField label="Personal interest (A$/mo)" value={settings.personalInterestAud} onCommit={personalInterestAud => update({ personalInterestAud })} />
+            <NumField label="Business interest (A$/mo)" value={settings.businessInterestAud} onCommit={businessInterestAud => update({ businessInterestAud })} />
+            <label className="income-field">
+              <span>Put expiry</span>
+              <input type="date" value={settings.screenExpiry} onChange={e => update({ screenExpiry: e.target.value })} />
+            </label>
+            <NumField label="Delta min" value={settings.deltaMin} onCommit={deltaMin => update({ deltaMin })} />
+            <NumField label="Delta max" value={settings.deltaMax} onCommit={deltaMax => update({ deltaMax })} />
+            <label className="income-field wide">
+              <span>Exclude symbols</span>
+              <input
+                defaultValue={settings.excludeSymbols.join(', ')}
+                key={settings.excludeSymbols.join(',')}
+                onBlur={e => update({ excludeSymbols: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+              />
+            </label>
+            <label className="income-field wide">
+              <span>ETF symbols</span>
+              <input
+                defaultValue={settings.etfSymbols.join(', ')}
+                key={settings.etfSymbols.join(',')}
+                onBlur={e => update({ etfSymbols: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+              />
+            </label>
+            {focus.role === 'business' && settings.exits.map(exit => (
+              <NumField
+                key={exit.symbol}
+                label={`${exit.symbol} exit`}
+                value={exit.price}
+                onCommit={price => update({ exits: settings.exits.map(row => row.symbol === exit.symbol ? { ...row, price } : row) })}
+              />
+            ))}
+            <label className="income-check">
+              <input type="checkbox" checked={settings.noNewMstrPuts} onChange={e => update({ noNewMstrPuts: e.target.checked })} />
+              No new MSTR puts
+            </label>
+            <label className="income-check">
+              <input type="checkbox" checked={settings.tslaCallsCoveredOnly} onChange={e => update({ tslaCallsCoveredOnly: e.target.checked })} />
+              TSLA calls covered by shares
+            </label>
+          </div>
+        </details>
       </section>
 
       <section className="dash-panel income-panel" style={{ padding: 0, overflow: 'hidden' }}>
@@ -563,11 +667,11 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
             {plan.audUsd != null && <Chip kind={quotes.fxFresh?.stale ? 'stale' : 'live'}>{`AUDUSD ${fxText(plan.audUsd)}`}</Chip>}
           </ChartLegend>
         </IncomePanel>
-        <IncomePanel emoji="📅" title="Yearly targets">
-          {plan.rows.length > 0 ? <YearBars rows={plan.rows} role={focus.role} /> : <span className="income-hint">—</span>}
+        <IncomePanel emoji="📅" title="Monthly targets">
+          {plan.rows.length > 0 ? <MonthlyBars rows={plan.rows} role={focus.role} today={now} /> : <span className="income-hint">—</span>}
           <ChartLegend>
-            <Chip kind="live">This year</Chip>
-            <Chip>Later years</Chip>
+            <Chip kind="live">This month</Chip>
+            <Chip>Later months</Chip>
           </ChartLegend>
         </IncomePanel>
       </IncomePair>
@@ -576,45 +680,42 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
         <IncomePair single={!(focus.shortOptions.length > 0 && role)}>
           {focus.shortOptions.length > 0 && (
             <IncomePanel emoji="💰" title="Open shorts">
-              <div className="income-board">
+              <Lines>
                 {focus.shortOptions.map(option => (
-                  <article key={`${option.underlying}-${option.putCall}-${option.strike}-${option.expiry}`} className="income-mini">
+                  <Line key={`${option.underlying}-${option.putCall}-${option.strike}-${option.expiry}`}>
                     <strong>{option.underlying}</strong>
-                    <div className="income-chips">
-                      <Chip>{`${option.strike}${option.putCall}`}</Chip>
-                      <Chip>{option.expiry || '—'}</Chip>
-                      <Chip>{`Qty ${option.quantity}`}</Chip>
-                      <Chip>{`Mark ${option.mark.toFixed(2)}`}</Chip>
-                      <Chip>{`Close ${usd0(option.closeCost)}`}</Chip>
-                      <Chip kind="stale">{quotes.stale ? quotes.label : 'Statement mark'}</Chip>
-                    </div>
-                  </article>
+                    <span>{`${option.strike}${option.putCall}`}</span>
+                    <span>{option.expiry || '—'}</span>
+                    <span>{`Qty ${option.quantity}`}</span>
+                    <span>{`Mark ${option.mark.toFixed(2)}`}</span>
+                    <span>{`Close ${usd0(option.closeCost)}`}</span>
+                    <span className="income-hint">{quotes.stale ? quotes.label : 'Statement mark'}</span>
+                  </Line>
                 ))}
-              </div>
+              </Lines>
             </IncomePanel>
           )}
           {role && (
             <IncomePanel emoji="💡" title="Ideas">
-              <ul className="income-actions">
-                {SEED_NEXT_ACTIONS[role].map(step => <li key={step}>{step}</li>)}
-              </ul>
-              <div className="income-board">
-                {sells.map(sell => (
-                  <article key={sell.label} className="income-mini">
-                    <strong>{sell.label}</strong>
-                    <div className="income-chips">
-                      <Chip>{usd0(sell.premium)}</Chip>
-                      <Chip>{sell.phase === 'now' ? 'Now' : 'After repair'}</Chip>
-                      <Chip kind="snapshot">{sell.cover}</Chip>
-                    </div>
-                  </article>
+              <Lines>
+                {SEED_NEXT_ACTIONS[role].map(step => (
+                  <Line key={step} title={step}>{step}</Line>
                 ))}
-              </div>
+                {sells.map(sell => (
+                  <Line key={sell.label} title={sell.cover}>
+                    <strong>{sell.label}</strong>
+                    <span>{usd0(sell.premium)}</span>
+                    <span>{sell.phase === 'now' ? 'Now' : 'After repair'}</span>
+                    <span>{sell.cover}</span>
+                  </Line>
+                ))}
+              </Lines>
             </IncomePanel>
           )}
         </IncomePair>
       )}
 
+      <div className="income-trio">
       <IncomePanel emoji="📉" title={`Puts · ${formatExpiry(settings.screenExpiry)}`}>
         <div className="income-chips">
           <Chip>{`Δ ${settings.deltaMin.toFixed(2)}–${settings.deltaMax.toFixed(2)}`}</Chip>
@@ -622,30 +723,27 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
           <Chip>{`${days}d`}</Chip>
           {quotes.stale && <Chip kind="stale">{quotes.label}</Chip>}
         </div>
-        <div className="income-board">
+        <Lines>
           {puts.map(row => (
-            <article key={`${row.symbol}-${row.strike}`} className={`income-mini${row.excluded || row.blockedMstr ? ' muted' : ''}`}>
+            <Line key={`${row.symbol}-${row.strike}`} muted={row.excluded || row.blockedMstr} title={row.note}>
               <strong>{row.symbol}</strong>
-              <div className="income-chips">
-                <Chip>{`${row.strike}P`}</Chip>
-                <Chip>{formatExpiry(settings.screenExpiry)}</Chip>
-                <Chip kind={row.band === 'out' ? 'warn' : undefined}>{row.delta == null ? 'Δ n/a' : `Δ ${row.delta.toFixed(2)}`}</Chip>
-                <Chip>{usd0(row.premium)}</Chip>
-                <Chip>{pct(annualizedReturn(row.ratio, days))}</Chip>
-                <Chip>{`Spot ${row.spot.toFixed(2)}`}</Chip>
-                {quotes.quotes[row.symbol] && <Chip kind="stale">{quotes.quotes[row.symbol].price.toFixed(2)}</Chip>}
-                <Chip kind="snapshot">{`${row.mid.toFixed(2)} (${row.bid.toFixed(2)}/${row.ask.toFixed(2)})`}</Chip>
-                <Chip>{row.iv == null ? 'IV n/a' : `IV ${pct(row.iv)}`}</Chip>
-                <Chip>{`Cash ${usd0(row.cash)}`}</Chip>
-                <Chip>{pct(row.ratio)}</Chip>
-                {row.excluded && <Chip kind="bad">Excluded</Chip>}
-                {row.blockedMstr && <Chip kind="bad">No new MSTR puts</Chip>}
-                {row.band === 'out' && <Chip kind="warn">Outside band</Chip>}
-              </div>
-              <span className="income-hint">{row.note}</span>
-            </article>
+              <span>{`${row.strike}P`}</span>
+              <span>{formatExpiry(settings.screenExpiry)}</span>
+              <span>{row.delta == null ? 'Δ n/a' : `Δ ${row.delta.toFixed(2)}`}</span>
+              <span>{usd0(row.premium)}</span>
+              <span>{pct(annualizedReturn(row.ratio, days))}</span>
+              <span>{`Spot ${row.spot.toFixed(2)}`}</span>
+              {quotes.quotes[row.symbol] && <span>{quotes.quotes[row.symbol].price.toFixed(2)}</span>}
+              <span>{`${row.mid.toFixed(2)} (${row.bid.toFixed(2)}/${row.ask.toFixed(2)})`}</span>
+              <span>{row.iv == null ? 'IV n/a' : `IV ${pct(row.iv)}`}</span>
+              <span>{`Cash ${usd0(row.cash)}`}</span>
+              <span>{pct(row.ratio)}</span>
+              {row.excluded && <span>Excluded</span>}
+              {row.blockedMstr && <span>No new MSTR puts</span>}
+              {row.band === 'out' && <span>Outside band</span>}
+            </Line>
           ))}
-        </div>
+        </Lines>
         <details className="income-fold">
           <summary><EmojiTitle emoji="📝">How this is calculated</EmojiTitle></summary>
           <ul className="income-actions">
@@ -657,28 +755,26 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
 
       {calls.length > 0 && (
         <IncomePanel emoji="📞" title="Calls">
-          <div className="income-board">
+          <Lines>
             {calls.map(row => {
               const cover = row.symbol === 'TSLA' && settings.tslaCallsCoveredOnly ? callCover(focus, 'TSLA', row.contracts) : null
               const shares = focus.shares.find(holding => holding.symbol === row.symbol)?.quantity
               return (
-                <article key={row.label} className="income-mini">
+                <Line key={row.label}>
                   <strong>{row.label}</strong>
-                  <div className="income-chips">
-                    <Chip>{row.delta == null ? 'Δ n/a' : `Δ ${row.delta.toFixed(2)}`}</Chip>
-                    <Chip>{usd0(row.premium)}</Chip>
-                    <Chip>{pct(callYield(row.premium, row.spot, row.contracts))}</Chip>
-                    <Chip>{`Spot ${row.spot.toFixed(2)}`}</Chip>
-                    <Chip kind="snapshot">{`${row.mid.toFixed(2)} (${row.bid.toFixed(2)}/${row.ask.toFixed(2)})`}</Chip>
-                    {cover === 'covered' && <Chip kind="ok">{`Covered · ${usd0(shares ?? 0)} sh`}</Chip>}
-                    {cover === 'short' && <Chip kind="bad">{`Uncovered · ${usd0(shares ?? 0)} sh`}</Chip>}
-                    {cover === 'unknown' && <Chip kind="warn">Cover unknown</Chip>}
-                    {cover == null && shares != null && <Chip>{`${usd0(shares)} sh`}</Chip>}
-                  </div>
-                </article>
+                  <span>{row.delta == null ? 'Δ n/a' : `Δ ${row.delta.toFixed(2)}`}</span>
+                  <span>{usd0(row.premium)}</span>
+                  <span>{pct(callYield(row.premium, row.spot, row.contracts))}</span>
+                  <span>{`Spot ${row.spot.toFixed(2)}`}</span>
+                  <span>{`${row.mid.toFixed(2)} (${row.bid.toFixed(2)}/${row.ask.toFixed(2)})`}</span>
+                  {cover === 'covered' && <span>{`Covered · ${usd0(shares ?? 0)} sh`}</span>}
+                  {cover === 'short' && <span>{`Uncovered · ${usd0(shares ?? 0)} sh`}</span>}
+                  {cover === 'unknown' && <span>Cover unknown</span>}
+                  {cover == null && shares != null && <span>{`${usd0(shares)} sh`}</span>}
+                </Line>
               )
             })}
-          </div>
+          </Lines>
           <details className="income-fold">
             <summary><EmojiTitle emoji="🗒️">How this is calculated</EmojiTitle></summary>
             <ul className="income-actions"><li>{SEED_CALL_NOTE}</li></ul>
@@ -686,73 +782,67 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
         </IncomePanel>
       )}
 
+      {focus.role === 'business' && (
+        <IncomePanel emoji="⚖️" title="Pair exits">
+          <Lines>
+            {SEED_PAIRS.map(row => {
+              const exit = row.exitSymbol ? exitPrice(row.exitSymbol) : undefined
+              return (
+                <Line key={row.label}>
+                  <strong>{row.label}</strong>
+                  <span>{`Qty ${row.qty}`}</span>
+                  <span>{`Spot ${row.spot.toFixed(2)}`}</span>
+                  <span>{row.marks}</span>
+                  <span>{row.net}</span>
+                  <span>{row.shares}</span>
+                  {exit != null
+                    ? <span>{`Exit ${usd0(exit)} · ${pct(exitUpside(row.spot, exit))}`}</span>
+                    : row.cash ? <span>{`Cash ${row.cash}`}</span> : null}
+                  <span className="income-hint">{SEED_CLOSE_LABEL}</span>
+                </Line>
+              )
+            })}
+            {SEED_BUSINESS_RISK.map(row => (
+              <Line key={row.label} title={row.idea}>
+                <strong>{row.label}</strong>
+                <span>{`Qty ${row.qty}`}</span>
+                <span>{`Mark ${row.mark}`}</span>
+                <span>{`Close ${row.closeCost}`}</span>
+                <span>{`Spot ${row.spot}`}</span>
+                <span>{row.state}</span>
+                <span>{row.idea}</span>
+              </Line>
+            ))}
+          </Lines>
+          <details className="income-fold">
+            <summary><EmojiTitle emoji="📃">How this is calculated</EmojiTitle></summary>
+            <ul className="income-actions"><li>{SEED_BUSINESS_NOTE}</li></ul>
+          </details>
+        </IncomePanel>
+      )}
+      </div>
+
       {focus.role === 'personal' && (
         <IncomePanel emoji="🔧" title="Repair">
-          <div className="income-board">
+          <Lines>
             {SEED_PERSONAL_REPAIR.map(row => (
-              <article key={row.label} className="income-mini">
+              <Line key={row.label} title={row.idea}>
                 <strong>{row.label}</strong>
-                <div className="income-chips">
-                  <Chip>{`Qty ${row.qty}`}</Chip>
-                  <Chip>{`Mark ${row.mark}`}</Chip>
-                  <Chip>{`Close ${row.closeCost}`}</Chip>
-                  <Chip>{`Spot ${row.spot}`}</Chip>
-                  <Chip>{row.state}</Chip>
-                  <Chip kind="stale">{SEED_CLOSE_LABEL}</Chip>
-                </div>
-                <span className="income-hint">{row.idea}</span>
-              </article>
+                <span>{`Qty ${row.qty}`}</span>
+                <span>{`Mark ${row.mark}`}</span>
+                <span>{`Close ${row.closeCost}`}</span>
+                <span>{`Spot ${row.spot}`}</span>
+                <span>{row.state}</span>
+                <span>{row.idea}</span>
+              </Line>
             ))}
-          </div>
+          </Lines>
           <details className="income-fold">
             <summary><EmojiTitle emoji="📄">How this is calculated</EmojiTitle></summary>
             <ul className="income-actions">
               <li>{SEED_PERSONAL_REPAIR_NOTE}</li>
               <li>Buying power and leverage are from this snapshot only.</li>
             </ul>
-          </details>
-        </IncomePanel>
-      )}
-
-      {focus.role === 'business' && (
-        <IncomePanel emoji="⚖️" title="Pairs and exits">
-          <div className="income-board">
-            {SEED_PAIRS.map(row => {
-              const exit = row.exitSymbol ? exitPrice(row.exitSymbol) : undefined
-              return (
-                <article key={row.label} className="income-mini">
-                  <strong>{row.label}</strong>
-                  <div className="income-chips">
-                    <Chip>{`Qty ${row.qty}`}</Chip>
-                    <Chip>{`Spot ${row.spot.toFixed(2)}`}</Chip>
-                    <Chip>{row.marks}</Chip>
-                    <Chip kind={row.net.startsWith('-') ? 'warn' : 'ok'}>{row.net}</Chip>
-                    <Chip>{row.shares}</Chip>
-                    {exit != null
-                      ? <Chip kind="warn">{`Exit ${usd0(exit)} · ${pct(exitUpside(row.spot, exit))}`}</Chip>
-                      : row.cash ? <Chip>{`Cash ${row.cash}`}</Chip> : null}
-                    <Chip kind="stale">{SEED_CLOSE_LABEL}</Chip>
-                  </div>
-                </article>
-              )
-            })}
-            {SEED_BUSINESS_RISK.map(row => (
-              <article key={row.label} className="income-mini">
-                <strong>{row.label}</strong>
-                <div className="income-chips">
-                  <Chip>{`Qty ${row.qty}`}</Chip>
-                  <Chip>{`Mark ${row.mark}`}</Chip>
-                  <Chip>{`Close ${row.closeCost}`}</Chip>
-                  <Chip>{`Spot ${row.spot}`}</Chip>
-                  <Chip>{row.state}</Chip>
-                </div>
-                <span className="income-hint">{row.idea}</span>
-              </article>
-            ))}
-          </div>
-          <details className="income-fold">
-            <summary><EmojiTitle emoji="📃">How this is calculated</EmojiTitle></summary>
-            <ul className="income-actions"><li>{SEED_BUSINESS_NOTE}</li></ul>
           </details>
         </IncomePanel>
       )}
@@ -771,80 +861,6 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
         <BtcGauge cap={cap} />
       </IncomePair>
 
-      <IncomePanel emoji="📏" title="Rules">
-        <div className="income-rules">
-          {rules.map(rule => (
-            <div key={rule.id} className="income-rule" title={rule.detail}>
-              <Chip kind={rule.status === 'yes' ? 'ok' : rule.status === 'no' ? 'bad' : 'warn'}>{rule.status === 'yes' ? 'Yes' : rule.status === 'no' ? 'No' : '?'}</Chip>
-              <span>{rule.rule}</span>
-            </div>
-          ))}
-          {snapshotRules.map(rule => (
-            <div key={rule.rule} className="income-rule" title={rule.now}>
-              <Chip kind={rule.status === 'Yes' ? 'ok' : 'bad'}>{rule.status}</Chip>
-              <span>{rule.rule}</span>
-              <Chip kind="snapshot">24 Oct</Chip>
-            </div>
-          ))}
-        </div>
-      </IncomePanel>
-
-      <details className="dash-panel income-panel income-fold">
-        <summary className="dash-panel-header"><EmojiTitle emoji="⚙️">Settings</EmojiTitle></summary>
-        <div className="income-settings">
-          <NumField label="EL floor (US$)" value={settings.elFloor} testId="income-el-floor" onCommit={elFloor => update({ elFloor })} />
-          <label className="income-field">
-            <span>Split</span>
-            <select value={settings.splitMode} onChange={e => update({ splitMode: e.target.value === 'fixed' ? 'fixed' : 'capital' })}>
-              <option value="capital">By capital (live NLV)</option>
-              <option value="fixed">Fixed %</option>
-            </select>
-          </label>
-          <NumField label="Personal share % (fixed split)" value={settings.personalSplitPct} onCommit={personalSplitPct => update({ personalSplitPct })} />
-          <NumField label="Personal tax %" value={Math.round(settings.personalTaxRate * 1000) / 10} onCommit={personalTaxRate => update({ personalTaxRate })} />
-          <NumField label="Business tax %" value={Math.round(settings.businessTaxRate * 1000) / 10} onCommit={businessTaxRate => update({ businessTaxRate })} />
-          <NumField label="Personal interest (A$/mo)" value={settings.personalInterestAud} onCommit={personalInterestAud => update({ personalInterestAud })} />
-          <NumField label="Business interest (A$/mo)" value={settings.businessInterestAud} onCommit={businessInterestAud => update({ businessInterestAud })} />
-          <label className="income-field">
-            <span>Put expiry</span>
-            <input type="date" value={settings.screenExpiry} onChange={e => update({ screenExpiry: e.target.value })} />
-          </label>
-          <NumField label="Delta min" value={settings.deltaMin} onCommit={deltaMin => update({ deltaMin })} />
-          <NumField label="Delta max" value={settings.deltaMax} onCommit={deltaMax => update({ deltaMax })} />
-          <label className="income-field wide">
-            <span>Exclude symbols</span>
-            <input
-              defaultValue={settings.excludeSymbols.join(', ')}
-              key={settings.excludeSymbols.join(',')}
-              onBlur={e => update({ excludeSymbols: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-            />
-          </label>
-          <label className="income-field wide">
-            <span>ETF symbols</span>
-            <input
-              defaultValue={settings.etfSymbols.join(', ')}
-              key={settings.etfSymbols.join(',')}
-              onBlur={e => update({ etfSymbols: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-            />
-          </label>
-          {focus.role === 'business' && settings.exits.map(exit => (
-            <NumField
-              key={exit.symbol}
-              label={`${exit.symbol} exit`}
-              value={exit.price}
-              onCommit={price => update({ exits: settings.exits.map(row => row.symbol === exit.symbol ? { ...row, price } : row) })}
-            />
-          ))}
-          <label className="income-check">
-            <input type="checkbox" checked={settings.noNewMstrPuts} onChange={e => update({ noNewMstrPuts: e.target.checked })} />
-            No new MSTR puts
-          </label>
-          <label className="income-check">
-            <input type="checkbox" checked={settings.tslaCallsCoveredOnly} onChange={e => update({ tslaCallsCoveredOnly: e.target.checked })} />
-            TSLA calls covered by shares
-          </label>
-        </div>
-      </details>
     </div>
   )
 }
