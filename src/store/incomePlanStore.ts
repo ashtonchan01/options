@@ -4,7 +4,7 @@
  * it when a session is present. This blob is settings only — no Flex token.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { DEFAULT_INCOME_SETTINGS, type IncomeSettings } from '../income/incomeSeed'
+import { DEFAULT_INCOME_SETTINGS, type IncomeSettings, type SplitMode } from '../income/incomeSeed'
 import { loadUserData, saveUserData } from '../services/userData'
 
 const LS_KEY = 'options:incomePlan'
@@ -22,6 +22,16 @@ function asSymbols(value: unknown, fallback: string[]): string[] {
   if (!source) return fallback
   const symbols = [...new Set(source.map(item => String(item).trim().toUpperCase()).filter(Boolean))]
   return symbols.length > 0 ? symbols : fallback
+}
+
+/** 30 and 0.30 both mean 30%. A value of 1 stays 100%, which the gross-up then rejects. */
+function asTaxRate(value: unknown, fallback: number): number {
+  const n = asNumber(value, fallback)
+  return n > 1 && n <= 100 ? n / 100 : n
+}
+
+function asSplitMode(value: unknown, fallback: SplitMode): SplitMode {
+  return value === 'capital' || value === 'fixed' ? value : fallback
 }
 
 export function normalizeSettings(raw: unknown): IncomeSettings {
@@ -48,10 +58,12 @@ export function normalizeSettings(raw: unknown): IncomeSettings {
   return {
     elFloor: asNumber(row.elFloor, base.elFloor),
     targetNote: asString(row.targetNote, base.targetNote),
-    personalTarget: asNumber(row.personalTarget, base.personalTarget),
-    businessTarget: asNumber(row.businessTarget, base.businessTarget),
-    personalTaxNote: asString(row.personalTaxNote, base.personalTaxNote),
-    businessTaxNote: asString(row.businessTaxNote, base.businessTaxNote),
+    splitMode: asSplitMode(row.splitMode, base.splitMode),
+    personalSplitPct: asNumber(row.personalSplitPct, base.personalSplitPct),
+    personalTaxRate: asTaxRate(row.personalTaxRate, base.personalTaxRate),
+    businessTaxRate: asTaxRate(row.businessTaxRate, base.businessTaxRate),
+    personalInterestAud: asNumber(row.personalInterestAud, base.personalInterestAud),
+    businessInterestAud: asNumber(row.businessInterestAud, base.businessInterestAud),
     screenExpiry: typeof row.screenExpiry === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.screenExpiry) ? row.screenExpiry : base.screenExpiry,
     deltaMin: asNumber(row.deltaMin, base.deltaMin),
     deltaMax: asNumber(row.deltaMax, base.deltaMax),

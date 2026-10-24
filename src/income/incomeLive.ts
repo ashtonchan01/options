@@ -3,6 +3,7 @@
  * Returned objects never include an IBKR account id.
  */
 import type { RawPosition, RawTrade } from '../types'
+import { buildYears, monthsBetween, type MilestoneConfig } from '../components/dashboard/milestoneYears'
 import type { IncomeSettings, SeedPut, SeedSell } from './incomeSeed'
 import { SEED_MARK_DATE } from './incomeSeed'
 
@@ -201,86 +202,77 @@ export interface LiveRule {
   detail: string
 }
 
-function bookByRole(books: LiveBook[], role: AccountRole): LiveBook | undefined {
-  return books.find(book => book.role === role)
-}
-
 function symbolSet(symbols: string[]): Set<string> {
   return new Set(symbols.map(symbol => symbol.trim().toUpperCase()).filter(Boolean))
 }
 
-export function liveRules(books: LiveBook[], settings: IncomeSettings): LiveRule[] {
+function emptyBook(book: LiveBook): boolean {
+  return book.shortPutCount === 0 && book.shares.length === 0 && book.shortOptions.length === 0 && book.cash == null && book.netLiquidation == null
+}
+
+/** Rules that can be judged from this account's own book. */
+export function accountRules(book: LiveBook, settings: IncomeSettings): LiveRule[] {
   const excluded = symbolSet(settings.excludeSymbols)
   const etfs = symbolSet(settings.etfSymbols)
   const rules: LiveRule[] = []
-  for (const role of ['personal', 'business'] as const) {
-    const book = bookByRole(books, role)
-    const label = role === 'personal' ? 'Personal' : 'Business'
-    const floorLabel = Math.round(settings.elFloor).toLocaleString('en-US')
-    if (!book) {
-      rules.push({ id: `${role}-el`, rule: `${label} excess liquidity above ${floorLabel}`, status: 'unknown', detail: 'Account not in this snapshot' })
-      continue
-    }
-    const state = elState(book.excessLiquidity, settings.elFloor)
-    rules.push({
-      id: `${role}-el`,
-      rule: `${label} excess liquidity above ${floorLabel}`,
-      status: state === 'unknown' ? 'unknown' : state === 'ok' ? 'yes' : 'no',
-      detail: state === 'unknown' ? 'Not in the Flex snapshot' : Math.round(book.excessLiquidity ?? 0).toLocaleString('en-US'),
-    })
-  }
-
-  const personal = bookByRole(books, 'personal')
-  if (!personal) {
-    rules.push({ id: 'personal-cash', rule: 'Every personal short put fully cash-covered', status: 'unknown', detail: 'Account not in this snapshot' })
-    rules.push({ id: 'personal-count', rule: 'At most three personal short puts', status: 'unknown', detail: 'Account not in this snapshot' })
-  } else if (personal.shortPutCount === 0 && personal.shares.length === 0 && personal.cash == null) {
-    rules.push({ id: 'personal-cash', rule: 'Every personal short put fully cash-covered', status: 'unknown', detail: 'No open book in this snapshot' })
-    rules.push({ id: 'personal-count', rule: 'At most three personal short puts', status: 'unknown', detail: 'No open book in this snapshot' })
-  } else {
-    const covered = personal.cash != null && personal.cash >= personal.shortPutNotional
-    rules.push({
-      id: 'personal-cash',
-      rule: 'Every personal short put fully cash-covered',
-      status: personal.cash == null ? 'unknown' : covered || personal.shortPutCount === 0 ? 'yes' : 'no',
-      detail: personal.cash == null
-        ? 'Cash is not in this snapshot'
-        : `${Math.round(personal.shortPutNotional).toLocaleString('en-US')} notional vs ${Math.round(personal.cash).toLocaleString('en-US')} cash`,
-    })
-    rules.push({
-      id: 'personal-count',
-      rule: 'At most three personal short puts',
-      status: personal.shortPutCount <= 3 ? 'yes' : 'no',
-      detail: `${personal.shortPutCount} short put${personal.shortPutCount === 1 ? '' : 's'} open`,
-    })
-  }
-
-  const mstrPuts = books.filter(book => book.shortOptions.some(option => option.underlying === 'MSTR' && option.putCall === 'P')).map(book => book.name)
+  const floorLabel = Math.round(settings.elFloor).toLocaleString('en-US')
+  const state = elState(book.excessLiquidity, settings.elFloor)
   rules.push({
-    id: 'mstr-puts',
-    rule: 'No new MSTR puts',
-    status: !settings.noNewMstrPuts ? 'unknown' : mstrPuts.length === 0 ? 'yes' : 'no',
-    detail: !settings.noNewMstrPuts ? 'Rule turned off' : mstrPuts.length === 0 ? 'None open' : `Open in ${[...new Set(mstrPuts)].join(', ')}`,
+    id: 'el',
+    rule: `Excess liquidity above ${floorLabel}`,
+    status: state === 'unknown' ? 'unknown' : state === 'ok' ? 'yes' : 'no',
+    detail: state === 'unknown' ? 'Not in the Flex snapshot' : Math.round(book.excessLiquidity ?? 0).toLocaleString('en-US'),
   })
 
-  const etfShorts = books.flatMap(book => book.shortOptions.filter(o => etfs.has(o.underlying)))
-  const etfShares = books.flatMap(book => book.shares.filter(row => etfs.has(row.symbol) && row.quantity !== 0))
+  if (book.role === 'personal') {
+    if (emptyBook(book)) {
+      rules.push({ id: 'personal-cash', rule: 'Every short put fully cash-covered', status: 'unknown', detail: 'No open book in this snapshot' })
+      rules.push({ id: 'personal-count', rule: 'At most three short puts', status: 'unknown', detail: 'No open book in this snapshot' })
+    } else {
+      const covered = book.cash != null && book.cash >= book.shortPutNotional
+      rules.push({
+        id: 'personal-cash',
+        rule: 'Every short put fully cash-covered',
+        status: book.cash == null ? 'unknown' : covered || book.shortPutCount === 0 ? 'yes' : 'no',
+        detail: book.cash == null
+          ? 'Cash is not in this snapshot'
+          : `${Math.round(book.shortPutNotional).toLocaleString('en-US')} notional vs ${Math.round(book.cash).toLocaleString('en-US')} cash`,
+      })
+      rules.push({
+        id: 'personal-count',
+        rule: 'At most three short puts',
+        status: book.shortPutCount <= 3 ? 'yes' : 'no',
+        detail: `${book.shortPutCount} short put${book.shortPutCount === 1 ? '' : 's'} open`,
+      })
+    }
+  }
+
+  const mstrPuts = book.shortOptions.filter(option => option.underlying === 'MSTR' && option.putCall === 'P')
+  rules.push({
+    id: 'mstr-puts',
+    rule: 'No new MSTR puts on this account',
+    status: !settings.noNewMstrPuts ? 'unknown' : mstrPuts.length === 0 ? 'yes' : 'no',
+    detail: !settings.noNewMstrPuts ? 'Rule turned off' : mstrPuts.length === 0 ? 'None open' : `${mstrPuts.reduce((sum, option) => sum + Math.abs(option.quantity), 0)} contracts`,
+  })
+
+  const etfShorts = book.shortOptions.filter(option => etfs.has(option.underlying))
+  const etfShares = book.shares.filter(row => etfs.has(row.symbol) && row.quantity !== 0)
   rules.push({
     id: 'etf',
     rule: 'No ETF holdings or ETF short options',
     status: etfShorts.length === 0 && etfShares.length === 0 ? 'yes' : 'no',
     detail: etfShorts.length === 0 && etfShares.length === 0
-      ? 'None in the open book'
-      : [...new Set([...etfShorts.map(o => o.underlying), ...etfShares.map(row => row.symbol)])].join(', '),
+      ? 'None in this account'
+      : [...new Set([...etfShorts.map(option => option.underlying), ...etfShares.map(row => row.symbol)])].join(', '),
   })
 
-  const amznPuts = books.flatMap(book => book.shortOptions.filter(o => o.underlying === 'AMZN' && o.putCall === 'P'))
-  const excludedPuts = books.flatMap(book => book.shortOptions.filter(o => o.putCall === 'P' && excluded.has(o.underlying)))
+  const excludedPuts = book.shortOptions.filter(option => option.putCall === 'P' && excluded.has(option.underlying))
+  const amznPuts = book.shortOptions.filter(option => option.underlying === 'AMZN' && option.putCall === 'P')
   rules.push({
     id: 'excluded-puts',
     rule: 'No short puts in the exclude list',
     status: excludedPuts.length === 0 ? 'yes' : 'no',
-    detail: excludedPuts.length === 0 ? 'None open' : [...new Set(excludedPuts.map(o => o.underlying))].join(', '),
+    detail: excludedPuts.length === 0 ? 'None open' : [...new Set(excludedPuts.map(option => option.underlying))].join(', '),
   })
   rules.push({
     id: 'amzn',
@@ -290,29 +282,64 @@ export function liveRules(books: LiveBook[], settings: IncomeSettings): LiveRule
   })
 
   if (settings.tslaCallsCoveredOnly) {
-    const uncovered = books.filter(book => {
-      const contracts = book.shortOptions.filter(o => o.underlying === 'TSLA' && o.putCall === 'C').reduce((sum, o) => sum + Math.abs(o.quantity), 0)
-      return contracts > 0 && callCover(book, 'TSLA', contracts) === 'short'
-    })
+    const contracts = book.shortOptions.filter(option => option.underlying === 'TSLA' && option.putCall === 'C').reduce((sum, option) => sum + Math.abs(option.quantity), 0)
+    const cover = contracts === 0 ? 'covered' : callCover(book, 'TSLA', contracts)
     rules.push({
       id: 'tsla-calls',
       rule: 'TSLA calls only covered by held shares',
-      status: uncovered.length === 0 ? 'yes' : 'no',
-      detail: uncovered.length === 0 ? 'No uncovered TSLA calls' : uncovered.map(book => book.name).join(', '),
+      status: cover === 'unknown' ? 'unknown' : cover === 'covered' ? 'yes' : 'no',
+      detail: contracts === 0 ? 'No TSLA calls' : cover === 'covered' ? `${contracts} contract${contracts === 1 ? '' : 's'} covered` : `${contracts} contracts are not covered`,
     })
   }
 
   for (const blackout of settings.earningsBlackouts) {
     const symbol = blackout.symbol.toUpperCase()
-    const open = books.flatMap(book => book.shortOptions.filter(o => o.underlying === symbol && o.putCall === 'P' && (!o.expiry || o.expiry >= blackout.date)))
+    const open = book.shortOptions.filter(option => option.underlying === symbol && option.putCall === 'P' && (!option.expiry || option.expiry >= blackout.date))
     rules.push({
       id: `earn-${symbol}`,
       rule: `No short ${symbol} puts through ${blackout.label}`,
       status: open.length === 0 ? 'yes' : 'no',
-      detail: open.length === 0 ? 'None open' : open.map(o => `${o.quantity} ${o.strike}P ${o.expiry}`).join('; '),
+      detail: open.length === 0 ? 'None open' : open.map(option => `${option.quantity} ${option.strike}P ${option.expiry}`).join('; '),
     })
   }
   return rules
+}
+
+export interface BtcCap {
+  mstrShares: number
+  mstrPutContracts: number
+  bsolShares: number
+  bsolPutContracts: number
+  /** No account in the list has a position or balance snapshot. */
+  noBooks: boolean
+  over: boolean
+  /** Aggregate only. No account name and no strike. */
+  detail: string
+}
+
+/** MSTR and BSOL across every account. The text does not say which account holds what. */
+export function btcCap(books: LiveBook[]): BtcCap {
+  let mstrShares = 0
+  let mstrPutContracts = 0
+  let bsolShares = 0
+  let bsolPutContracts = 0
+  let anySnapshot = false
+  for (const book of books) {
+    if (!emptyBook(book)) anySnapshot = true
+    for (const row of book.shares) {
+      if (row.symbol === 'MSTR') mstrShares += row.quantity
+      if (row.symbol === 'BSOL') bsolShares += row.quantity
+    }
+    for (const option of book.shortOptions) {
+      if (option.underlying === 'MSTR' && option.putCall === 'P') mstrPutContracts += Math.abs(option.quantity)
+      if (option.underlying === 'BSOL' && option.putCall === 'P') bsolPutContracts += Math.abs(option.quantity)
+    }
+  }
+  const over = mstrPutContracts > 0 || bsolPutContracts > 0 || bsolShares !== 0
+  const detail = anySnapshot
+    ? `Across both accounts: MSTR ${Math.round(mstrShares).toLocaleString('en-US')} sh, MSTR puts ${mstrPutContracts}, BSOL puts ${bsolPutContracts}${bsolShares !== 0 ? `, BSOL ${Math.round(bsolShares).toLocaleString('en-US')} sh` : ''}.`
+    : 'No open books in this snapshot, so the combined cap is not known.'
+  return { mstrShares, mstrPutContracts, bsolShares, bsolPutContracts, noBooks: !anySnapshot, over, detail }
 }
 
 export type UsSession = 'regular' | 'pre' | 'post' | 'closed'
@@ -390,4 +417,134 @@ export function usd0(n: number): string {
 
 export function pct(n: number): string {
   return `${(n * 100).toFixed(1)}%`
+}
+
+function finiteNumber(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+export interface DecIncomeRow {
+  year: number
+  decDate: Date
+  /** Milestone End-of-Dec target, AUD. */
+  decEndAud: number
+  /** Milestone End (Target) for the financial-year row that holds this 31 Dec, AUD. */
+  fyEndAud: number
+  decEndUsd: number | null
+  months: number
+  /** max(0, gap) / months. Null when net liquidation or the FX rate is missing. */
+  monthlyBaseUsd: number | null
+  personalTarget: number | null
+  businessTarget: number | null
+}
+
+export interface MilestoneIncome {
+  rows: DecIncomeRow[]
+  /** The next 31 Dec still ahead. */
+  current: DecIncomeRow | null
+  combinedNlv: number | null
+  personalNlv: number | null
+  businessNlv: number | null
+  audUsd: number | null
+  personalShare: number | null
+  businessShare: number | null
+  nlvNote: string | null
+  fxNote: string | null
+  splitNote: string | null
+  taxNote: string | null
+}
+
+export function milestoneIncome(args: {
+  config: MilestoneConfig
+  today: Date
+  personalNlv: number | undefined
+  businessNlv: number | undefined
+  otherNlv: number[]
+  audUsd: number | null | undefined
+  splitMode: 'capital' | 'fixed'
+  personalSplitPct: number
+  personalTaxRate: number
+  businessTaxRate: number
+  personalInterestAud: number
+  businessInterestAud: number
+}): MilestoneIncome {
+  const personalNlv = finiteNumber(args.personalNlv)
+  const businessNlv = finiteNumber(args.businessNlv)
+  const audUsd = finiteNumber(args.audUsd)
+  const fx = audUsd != null && audUsd > 0 ? audUsd : null
+  let combinedNlv: number | null = null
+  let nlvNote: string | null = null
+  if (personalNlv == null || businessNlv == null) {
+    nlvNote = 'Net liquidation is missing on Personal or Business, so the gap to the milestone can’t be computed.'
+  } else {
+    const others = args.otherNlv.filter(value => Number.isFinite(value))
+    combinedNlv = personalNlv + businessNlv + others.reduce((sum, value) => sum + value, 0)
+  }
+  const fxNote = fx == null
+    ? 'The live AUD/USD rate isn’t available, so the milestone target can’t be turned into US$ and interest can’t be added.'
+    : null
+
+  let personalShare: number | null = null
+  let splitNote: string | null = null
+  if (args.splitMode === 'fixed') {
+    if (!(args.personalSplitPct >= 0 && args.personalSplitPct <= 100)) splitNote = 'Personal share must be between 0 and 100.'
+    else personalShare = args.personalSplitPct / 100
+  } else if (personalNlv == null || businessNlv == null || personalNlv + businessNlv <= 0) {
+    splitNote = 'The capital split can’t be computed without both accounts’ net liquidation.'
+  } else {
+    personalShare = personalNlv / (personalNlv + businessNlv)
+  }
+  const businessShare = personalShare == null ? null : 1 - personalShare
+
+  let taxNote: string | null = null
+  if (!(args.personalTaxRate >= 0 && args.personalTaxRate < 1) || !(args.businessTaxRate >= 0 && args.businessTaxRate < 1)) {
+    taxNote = 'Each tax rate has to be under 100% before the gross-up can be computed.'
+  }
+
+  const built = buildYears(args.config, args.today)
+    .filter((row): row is typeof row & { decDate: Date; decEnd: number } => row.decDate != null && row.decEnd != null)
+    .filter(row => row.decDate.getTime() > args.today.getTime())
+
+  const rows: DecIncomeRow[] = built.map((row, index) => {
+    const decEndUsd = fx == null ? null : row.decEnd * fx
+    const prev = index === 0 ? null : built[index - 1]
+    const prevUsd = prev == null || fx == null ? null : prev.decEnd * fx
+    let months = index === 0 ? monthsBetween(args.today, row.decDate) : 12
+    if (!(months > 0)) months = 1
+    let monthlyBaseUsd: number | null = null
+    if (decEndUsd != null && (index === 0 ? combinedNlv != null : prevUsd != null)) {
+      const gap = index === 0 ? decEndUsd - (combinedNlv as number) : decEndUsd - (prevUsd as number)
+      monthlyBaseUsd = Math.max(0, gap) / months
+    }
+    const leg = (share: number | null, tax: number, interestAud: number): number | null => {
+      if (monthlyBaseUsd == null || share == null || fx == null || taxNote) return null
+      return (monthlyBaseUsd * share) / (1 - tax) + interestAud * fx
+    }
+    return {
+      year: row.decDate.getFullYear(),
+      decDate: row.decDate,
+      decEndAud: row.decEnd,
+      fyEndAud: row.grossEnd,
+      decEndUsd,
+      months,
+      monthlyBaseUsd,
+      personalTarget: leg(personalShare, args.personalTaxRate, args.personalInterestAud),
+      businessTarget: leg(businessShare, args.businessTaxRate, args.businessInterestAud),
+    }
+  })
+
+  return {
+    rows,
+    current: rows[0] ?? null,
+    combinedNlv,
+    personalNlv,
+    businessNlv,
+    audUsd: fx,
+    personalShare,
+    businessShare,
+    nlvNote,
+    fxNote,
+    splitNote,
+    taxNote,
+  }
 }

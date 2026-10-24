@@ -65,8 +65,8 @@ function initialSection(): Section {
 
 export default function AccountView({ account, accounts, loading, error, syncNote, uploadError, onUpload, onClear, onSyncFlex, tradeLabels, watchlistTickers, sessionKey, expand }: {
   account: Account
-  /** Every account, so Income can show Personal and Business together.
-   * Display names only — Flex tokens stay on Account and are not passed down. */
+  /** Every account, so Income can read combined net liquidation and the
+   * BTC cap. Display names only — Flex tokens stay on Account and are not passed down. */
   accounts?: Account[]
   loading: boolean
   error: string | null
@@ -118,7 +118,13 @@ export default function AccountView({ account, accounts, loading, error, syncNot
           )}
           {section === 'calendar' && <CalendarView state={accountState} watchlistTickers={watchlistTickers} tradeLabels={tradeLabels} />}
           {section === 'journal' && <JournalPageView state={accountState} tradeLabels={tradeLabels} sessionKey={sessionKey} accountId={account.id} />}
-          {section === 'income' && <IncomeView accounts={incomeAccounts} sessionKey={sessionKey} />}
+          {section === 'income' && (
+            <IncomeView
+              account={incomeSources([account])[0]}
+              accounts={incomeAccounts}
+              sessionKey={sessionKey}
+            />
+          )}
           {section === 'allocation' && <PortfolioAllocationView state={accountState} accountId={account.id} sessionKey={sessionKey} />}
           {section === 'reports' && (
             <div className="jr-root" style={{ height: 'auto', overflow: 'visible', padding: 0 }}>

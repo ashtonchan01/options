@@ -1,9 +1,10 @@
 /**
- * Read-only income plan. Settings are editable; nothing on this page
- * places, closes, or rolls a trade. Account ids and Flex tokens are not
- * part of the props.
+ * Read-only income plan for the account currently open. Settings are
+ * editable; nothing on this page places, closes, or rolls a trade.
+ * Account ids and Flex tokens are not part of the props.
  */
 import { useEffect, useMemo, useState } from 'react'
+import { loadMilestoneConfig } from '../dashboard/milestoneYears'
 import {
   SEED_BUSINESS_NOTE,
   SEED_BUSINESS_RISK,
@@ -23,21 +24,26 @@ import {
   type IncomeSettings,
 } from '../../income/incomeSeed'
 import {
+  accountRules,
   annualizedReturn,
   booksFor,
+  btcCap,
   callCover,
   callYield,
   elState,
   exitUpside,
-  liveRules,
+  milestoneIncome,
   pct,
   planPremium,
   putScreenRows,
   quoteFreshness,
   screenDays,
+  toLiveBook,
   usd0,
+  type AccountRole,
   type IncomeSource,
   type LiveBook,
+  type MilestoneIncome,
 } from '../../income/incomeLive'
 import { fetchQuotes, type Quote } from '../../services/quotes'
 import { useIncomePlan } from '../../store/incomePlanStore'
@@ -48,8 +54,20 @@ function formatExpiry(iso: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
 
-function moneyOrDash(value: number | undefined): string {
-  return value == null ? '—' : usd0(value)
+function moneyOrDash(value: number | null | undefined): string {
+  return value == null || !Number.isFinite(value) ? '—' : usd0(value)
+}
+
+function aud0(n: number): string {
+  return `A$${Math.round(n).toLocaleString('en-US')}`
+}
+
+function fxText(n: number): string {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+}
+
+function monthsText(n: number): string {
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
 
 function Source({ kind }: { kind: 'live' | 'snapshot' }) {
@@ -78,8 +96,15 @@ function NumField({ label, value, onCommit, testId }: { label: string; value: nu
   )
 }
 
-function bookFor(books: LiveBook[], role: 'personal' | 'business'): LiveBook | undefined {
-  return books.find(book => book.role === role)
+function nlvFor(books: LiveBook[], role: 'personal' | 'business'): number | undefined {
+  const rows = books.filter(book => book.role === role)
+  if (rows.length === 0) return undefined
+  let sum = 0
+  for (const book of rows) {
+    if (book.netLiquidation == null || !Number.isFinite(book.netLiquidation)) return undefined
+    sum += book.netLiquidation
+  }
+  return sum
 }
 
 function ElLine({ book, floor }: { book: LiveBook; floor: number }) {
@@ -94,6 +119,16 @@ function ElLine({ book, floor }: { book: LiveBook; floor: number }) {
   return <p className="income-el ok" data-testid={`income-el-${book.role}`}>EL {usd0(book.excessLiquidity ?? 0)} — {usd0(gap)} above the US${usd0(floor)} floor</p>
 }
 
+function snapshotFor(role: AccountRole) {
+  if (role === 'other') return []
+  return SEED_SNAPSHOT_RULES.filter(rule => {
+    if (rule.rule.startsWith('BTC beta')) return false
+    if (role === 'personal' && (rule.rule.startsWith('Business') || rule.rule.startsWith('No ETF'))) return false
+    if (role === 'business' && (rule.rule.startsWith('Personal') || rule.rule.startsWith('Every personal') || rule.rule.startsWith('Two or three personal'))) return false
+    return true
+  })
+}
+
 function AccountCard({ book, settings, freshLabel, stale }: { book: LiveBook; settings: IncomeSettings; freshLabel: string; stale: boolean }) {
   const role = book.role === 'business' ? 'business' : book.role === 'personal' ? 'personal' : null
   const state = elState(book.excessLiquidity, settings.elFloor)
@@ -106,6 +141,9 @@ function AccountCard({ book, settings, freshLabel, stale }: { book: LiveBook; se
         <h2>{book.name}</h2>
         <Source kind="live" />
       </header>
+      {book.role === 'other' && (
+        <p className="income-note">This account isn’t part of the Personal / Business split. Live balances only — no seeded plan.</p>
+      )}
       <p className="income-stat">
         Net liq {moneyOrDash(book.netLiquidation)}
         {book.cash != null ? ` · Cash ${usd0(book.cash)}` : ''}
@@ -172,43 +210,59 @@ function AccountCard({ book, settings, freshLabel, stale }: { book: LiveBook; se
   )
 }
 
-export default function IncomeView({ accounts, sessionKey }: { accounts: IncomeSource[]; sessionKey: string | null }) {
+export default function IncomeView({ account, accounts, sessionKey }: { account: IncomeSource; accounts: IncomeSource[]; sessionKey: string | null }) {
   const { settings, update } = useIncomePlan(sessionKey)
-  const books = useMemo(() => booksFor(accounts, new Date()), [accounts])
-  const freshness = useQuoteFreshness(books)
-  const personal = bookFor(books, 'personal')
-  const business = bookFor(books, 'business')
-  const personalNow = planPremium(SEED_SELLS, 'personal', 'now')
-  const personalAfter = planPremium(SEED_SELLS, 'personal', 'after')
-  const businessNow = planPremium(SEED_SELLS, 'business', 'now')
-  const businessAfter = planPremium(SEED_SELLS, 'business', 'after')
-  const needed = settings.personalTarget + settings.businessTarget
-  const planNow = personalNow + businessNow
-  const planAfter = personalAfter + businessAfter
+  const milestone = useMemo(() => loadMilestoneConfig(), [])
+  const now = useMemo(() => new Date(), [])
+  const focus = useMemo(() => toLiveBook(account, now), [account, now])
+  const books = useMemo(() => booksFor(accounts, now), [accounts, now])
+  const quotes = useIncomeQuotes(focus)
+  const role = focus.role === 'business' ? 'business' : focus.role === 'personal' ? 'personal' : null
+  const plan = useMemo(() => milestoneIncome({
+    config: milestone,
+    today: now,
+    personalNlv: nlvFor(books, 'personal'),
+    businessNlv: nlvFor(books, 'business'),
+    otherNlv: books.filter(book => book.role === 'other' && book.netLiquidation != null && Number.isFinite(book.netLiquidation)).map(book => book.netLiquidation as number),
+    audUsd: quotes.audUsd,
+    splitMode: settings.splitMode,
+    personalSplitPct: settings.personalSplitPct,
+    personalTaxRate: settings.personalTaxRate,
+    businessTaxRate: settings.businessTaxRate,
+    personalInterestAud: settings.personalInterestAud,
+    businessInterestAud: settings.businessInterestAud,
+  }), [milestone, now, books, quotes.audUsd, settings])
+  const cap = useMemo(() => btcCap(books), [books])
+  const rules = useMemo(() => accountRules(focus, settings), [focus, settings])
+  const needed = role === 'personal' ? plan.current?.personalTarget ?? null : role === 'business' ? plan.current?.businessTarget ?? null : null
+  const planNow = role ? planPremium(SEED_SELLS, role, 'now') : null
+  const planAfter = role ? planPremium(SEED_SELLS, role, 'after') : null
+  const gap = needed != null && planNow != null ? needed - planNow : null
   const days = screenDays(settings.screenExpiry)
   const puts = putScreenRows(SEED_PUTS, settings)
-  const rules = liveRules(books, settings)
   const exitPrice = (symbol: string) => settings.exits.find(exit => exit.symbol === symbol)?.price
+  const calls = role ? SEED_CALLS.filter(row => row.account === role) : []
+  const snapshotRules = snapshotFor(focus.role)
 
   return (
     <div className="income-root" data-testid="income-root">
       <header className="income-head">
-        <h1>Income plan</h1>
+        <h1>Income plan · {focus.name}</h1>
         <p>
           Marks in the idea tables are the Friday {SEED_CLOSE_LABEL}, pulled {SEED_MARK_DATE}, and stay stale until the next regular session.
-          Ideas only. This page does not place a trade. US$.
+          Ideas only. This page does not place a trade. Milestone targets are AUD; the monthly figure is US$.
         </p>
       </header>
 
-      {freshness.stale && (
+      {quotes.stale && (
         <div className="income-banner" data-testid="income-stale">
-          <Stale label={freshness.label} />
+          <Stale label={quotes.label} />
           <span>Stock quotes and Flex position marks are not a regular-session print. Option mids below are the {SEED_CLOSE_LABEL}.</span>
         </div>
       )}
 
       <section className="income-card">
-        <h2>Target vs plan <span className="income-hint">per month</span></h2>
+        <h2>Target vs plan <span className="income-hint">this account, per month</span></h2>
         <table className="income-table">
           <thead>
             <tr>
@@ -223,49 +277,44 @@ export default function IncomeView({ accounts, sessionKey }: { accounts: IncomeS
           </thead>
           <tbody>
             <tr>
-              <td>Personal <span className="income-hint">({settings.personalTaxNote})</span></td>
-              <td className="n">{usd0(settings.personalTarget)}</td>
-              <td className="n">{usd0(personalNow)} <Source kind="snapshot" /></td>
-              <td className="n">{usd0(personalAfter)}</td>
-              <td className="n gap">{usd0(settings.personalTarget - personalNow)}</td>
-              <td className="n">{personal ? usd0(personal.realisedThisMonth) : '—'} <Source kind="live" /></td>
-              <td className="n">{personal ? usd0(personal.openShortCloseCost) : '—'}</td>
-            </tr>
-            <tr>
-              <td>Business <span className="income-hint">({settings.businessTaxNote})</span></td>
-              <td className="n">{usd0(settings.businessTarget)}</td>
-              <td className="n">{usd0(businessNow)} <Source kind="snapshot" /></td>
-              <td className="n">{usd0(businessAfter)}</td>
-              <td className="n gap">{usd0(settings.businessTarget - businessNow)}</td>
-              <td className="n">{business ? usd0(business.realisedThisMonth) : '—'} <Source kind="live" /></td>
-              <td className="n">{business ? usd0(business.openShortCloseCost) : '—'}</td>
-            </tr>
-            <tr className="tot">
-              <td>Total</td>
-              <td className="n">{usd0(needed)}</td>
-              <td className="n">{usd0(planNow)}</td>
-              <td className="n">{usd0(planAfter)}</td>
-              <td className="n gap">{usd0(needed - planNow)}</td>
-              <td className="n">{usd0(books.reduce((sum, book) => sum + book.realisedThisMonth, 0))}</td>
-              <td className="n">{usd0(books.reduce((sum, book) => sum + book.openShortCloseCost, 0))}</td>
+              <td>{focus.name}</td>
+              <td className="n" data-testid="income-needed">{moneyOrDash(needed)}</td>
+              <td className="n">{planNow == null ? '—' : <>{usd0(planNow)} <Source kind="snapshot" /></>}</td>
+              <td className="n">{moneyOrDash(planAfter)}</td>
+              <td className="n gap">{moneyOrDash(gap)}</td>
+              <td className="n">{usd0(focus.realisedThisMonth)} <Source kind="live" /></td>
+              <td className="n">{usd0(focus.openShortCloseCost)}</td>
             </tr>
           </tbody>
         </table>
-        <p className="income-note">{settings.targetNote} Gap is needed minus plan now.</p>
+        <p className="income-note">{settings.targetNote} Gap is needed minus plan now. The needed figure is this year’s target only.</p>
+        {focus.role === 'other' && <p className="income-note">This account isn’t in the Personal / Business split, so it has no share of the monthly target.</p>}
+        <p className={cap.noBooks ? 'income-note' : cap.over ? 'income-el below' : 'income-el ok'} data-testid="income-btc">
+          {cap.noBooks ? 'BTC cap unknown. ' : cap.over ? 'BTC cap: over. ' : 'BTC cap: inside. '}
+          {cap.detail}
+        </p>
       </section>
 
-      <div className="income-cols">
-        {books.map(book => (
-          <AccountCard key={`${book.role}-${book.name}`} book={book} settings={settings} freshLabel={freshness.label} stale={freshness.stale} />
-        ))}
-      </div>
+      <TargetBreakdown plan={plan} milestoneStart={milestone.startCapital} milestoneRate={milestone.targetPct} role={focus.role} fxStale={quotes.fxFresh} settings={settings} />
+
+      <AccountCard book={focus} settings={settings} freshLabel={quotes.label} stale={quotes.stale} />
 
       <details className="income-fold" open>
         <summary>Screen and floor settings</summary>
         <div className="income-settings">
           <NumField label="EL floor (US$)" value={settings.elFloor} testId="income-el-floor" onCommit={elFloor => update({ elFloor })} />
-          <NumField label="Personal needed / mo" value={settings.personalTarget} onCommit={personalTarget => update({ personalTarget })} />
-          <NumField label="Business needed / mo" value={settings.businessTarget} onCommit={businessTarget => update({ businessTarget })} />
+          <label className="income-field">
+            <span>Split</span>
+            <select value={settings.splitMode} onChange={e => update({ splitMode: e.target.value === 'fixed' ? 'fixed' : 'capital' })}>
+              <option value="capital">By capital (live NLV)</option>
+              <option value="fixed">Fixed %</option>
+            </select>
+          </label>
+          <NumField label="Personal share % (fixed split)" value={settings.personalSplitPct} onCommit={personalSplitPct => update({ personalSplitPct })} />
+          <NumField label="Personal tax %" value={Math.round(settings.personalTaxRate * 1000) / 10} onCommit={personalTaxRate => update({ personalTaxRate })} />
+          <NumField label="Business tax %" value={Math.round(settings.businessTaxRate * 1000) / 10} onCommit={businessTaxRate => update({ businessTaxRate })} />
+          <NumField label="Personal interest (A$/mo)" value={settings.personalInterestAud} onCommit={personalInterestAud => update({ personalInterestAud })} />
+          <NumField label="Business interest (A$/mo)" value={settings.businessInterestAud} onCommit={businessInterestAud => update({ businessInterestAud })} />
           <label className="income-field">
             <span>Put expiry</span>
             <input type="date" value={settings.screenExpiry} onChange={e => update({ screenExpiry: e.target.value })} />
@@ -288,7 +337,7 @@ export default function IncomeView({ accounts, sessionKey }: { accounts: IncomeS
               onBlur={e => update({ etfSymbols: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
             />
           </label>
-          {settings.exits.map(exit => (
+          {focus.role === 'business' && settings.exits.map(exit => (
             <NumField
               key={exit.symbol}
               label={`${exit.symbol} exit`}
@@ -304,12 +353,12 @@ export default function IncomeView({ accounts, sessionKey }: { accounts: IncomeS
             <input type="checkbox" checked={settings.tslaCallsCoveredOnly} onChange={e => update({ tslaCallsCoveredOnly: e.target.checked })} />
             TSLA calls only covered by held shares
           </label>
-          <p className="income-note">Rank is premium / cash secured. {days} days from {SEED_MARK_DATE} to {formatExpiry(settings.screenExpiry)}.</p>
+          <p className="income-note">Rank is premium / cash secured. {days} days from {SEED_MARK_DATE} to {formatExpiry(settings.screenExpiry)}. Tax and interest are settings for the split; the Milestone page still owns the year-end curve.</p>
         </div>
       </details>
 
       <details className="income-fold" open>
-        <summary>Put screen ({formatExpiry(settings.screenExpiry)}) <Source kind="snapshot" /> {freshness.stale && <Stale label={freshness.label} />}</summary>
+        <summary>Put screen ({formatExpiry(settings.screenExpiry)}) <Source kind="snapshot" /> {quotes.stale && <Stale label={quotes.label} />}</summary>
         <div>
           <p className="income-note">
             Delta {settings.deltaMin.toFixed(2)}–{settings.deltaMax.toFixed(2)}, ranked by premium / cash secured
@@ -336,8 +385,8 @@ export default function IncomeView({ accounts, sessionKey }: { accounts: IncomeS
                   <td>{row.symbol} {row.strike}P</td>
                   <td className="n">
                     {row.spot.toFixed(2)}
-                    {freshness.quotes[row.symbol] && (
-                      <div className="income-sub">{freshness.quotes[row.symbol].price.toFixed(2)} <Stale label={freshness.label} /></div>
+                    {quotes.quotes[row.symbol] && (
+                      <div className="income-sub">{quotes.quotes[row.symbol].price.toFixed(2)} <Stale label={quotes.label} /></div>
                     )}
                   </td>
                   <td className="n">{row.mid.toFixed(2)} ({row.bid.toFixed(2)}/{row.ask.toFixed(2)}) <Stale label={SEED_CLOSE_LABEL} /></td>
@@ -361,100 +410,103 @@ export default function IncomeView({ accounts, sessionKey }: { accounts: IncomeS
         </div>
       </details>
 
-      <details className="income-fold" open>
-        <summary>Call detail ({formatExpiry(settings.screenExpiry)}) <Source kind="snapshot" /></summary>
-        <div>
-          <table className="income-table">
-            <thead>
-              <tr>
-                <th>Account</th>
-                <th>Call</th>
-                <th className="n">Spot</th>
-                <th className="n">Mid (bid/ask)</th>
-                <th className="n">Delta</th>
-                <th className="n">Premium</th>
-                <th className="n">Yield</th>
-                <th>Share cover</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SEED_CALLS.map(row => {
-                const book = bookFor(books, row.account)
-                const cover = row.symbol === 'TSLA' && settings.tslaCallsCoveredOnly ? callCover(book, 'TSLA', row.contracts) : null
-                const shares = book?.shares.find(holding => holding.symbol === row.symbol)?.quantity
-                return (
-                  <tr key={`${row.account}-${row.label}`}>
-                    <td>{row.account === 'personal' ? 'Personal' : 'Business'}</td>
-                    <td>{row.label}</td>
-                    <td className="n">{row.spot.toFixed(2)}</td>
-                    <td className="n">{row.mid.toFixed(2)} ({row.bid.toFixed(2)}/{row.ask.toFixed(2)}) <Stale label={SEED_CLOSE_LABEL} /></td>
-                    <td className="n">{row.delta == null ? 'n/a' : row.delta.toFixed(2)}</td>
-                    <td className="n">{usd0(row.premium)}</td>
-                    <td className="n">{pct(callYield(row.premium, row.spot, row.contracts))}</td>
-                    <td>
-                      {cover == null && (shares == null ? '—' : `${usd0(shares)} sh held`)}
-                      {cover === 'covered' && <span className="pos">{usd0(shares ?? 0)} sh cover {row.contracts * 100}</span>}
-                      {cover === 'short' && <span className="neg">{usd0(shares ?? 0)} sh, short of {row.contracts * 100}</span>}
-                      {cover === 'unknown' && 'Share count not in this snapshot'}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-          <p className="income-note">{SEED_CALL_NOTE}</p>
-        </div>
-      </details>
+      {calls.length > 0 && (
+        <details className="income-fold" open>
+          <summary>Call detail ({formatExpiry(settings.screenExpiry)}) <Source kind="snapshot" /></summary>
+          <div>
+            <table className="income-table">
+              <thead>
+                <tr>
+                  <th>Call</th>
+                  <th className="n">Spot</th>
+                  <th className="n">Mid (bid/ask)</th>
+                  <th className="n">Delta</th>
+                  <th className="n">Premium</th>
+                  <th className="n">Yield</th>
+                  <th>Share cover</th>
+                </tr>
+              </thead>
+              <tbody>
+                {calls.map(row => {
+                  const cover = row.symbol === 'TSLA' && settings.tslaCallsCoveredOnly ? callCover(focus, 'TSLA', row.contracts) : null
+                  const shares = focus.shares.find(holding => holding.symbol === row.symbol)?.quantity
+                  return (
+                    <tr key={row.label}>
+                      <td>{row.label}</td>
+                      <td className="n">{row.spot.toFixed(2)}</td>
+                      <td className="n">{row.mid.toFixed(2)} ({row.bid.toFixed(2)}/{row.ask.toFixed(2)}) <Stale label={SEED_CLOSE_LABEL} /></td>
+                      <td className="n">{row.delta == null ? 'n/a' : row.delta.toFixed(2)}</td>
+                      <td className="n">{usd0(row.premium)}</td>
+                      <td className="n">{pct(callYield(row.premium, row.spot, row.contracts))}</td>
+                      <td>
+                        {cover == null && (shares == null ? '—' : `${usd0(shares)} sh held`)}
+                        {cover === 'covered' && <span className="pos">{usd0(shares ?? 0)} sh cover {row.contracts * 100}</span>}
+                        {cover === 'short' && <span className="neg">{usd0(shares ?? 0)} sh, short of {row.contracts * 100}</span>}
+                        {cover === 'unknown' && 'Share count not in this snapshot'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            <p className="income-note">{SEED_CALL_NOTE}</p>
+          </div>
+        </details>
+      )}
 
-      <details className="income-fold" open>
-        <summary>Personal repair detail <Source kind="snapshot" /></summary>
-        <div>
-          <RepairTable rows={SEED_PERSONAL_REPAIR} />
-          <p className="income-note">{SEED_PERSONAL_REPAIR_NOTE} Buying power and leverage are from this snapshot only; they are not in the Flex parse.</p>
-        </div>
-      </details>
+      {focus.role === 'personal' && (
+        <details className="income-fold" open>
+          <summary>Personal repair detail <Source kind="snapshot" /></summary>
+          <div>
+            <RepairTable rows={SEED_PERSONAL_REPAIR} />
+            <p className="income-note">{SEED_PERSONAL_REPAIR_NOTE} Buying power and leverage are from this snapshot only; they are not in the Flex parse.</p>
+          </div>
+        </details>
+      )}
 
-      <details className="income-fold" open>
-        <summary>Business pairs, exits, and other risk <Source kind="snapshot" /></summary>
-        <div>
-          <table className="income-table">
-            <thead>
-              <tr>
-                <th>Pair (call / put)</th>
-                <th className="n">Qty</th>
-                <th className="n">Spot</th>
-                <th className="n">Call / put mark</th>
-                <th className="n">Net /sh</th>
-                <th className="n">Shares</th>
-                <th className="n">Cash for shares</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SEED_PAIRS.map(row => {
-                const exit = row.exitSymbol ? exitPrice(row.exitSymbol) : undefined
-                return (
-                  <tr key={row.label}>
-                    <td>{row.label}</td>
-                    <td className="n">{row.qty}</td>
-                    <td className="n">{row.spot.toFixed(2)} <Stale label={SEED_CLOSE_LABEL} /></td>
-                    <td className="n">{row.marks}</td>
-                    <td className={`n${row.net.startsWith('-') ? ' warn' : ''}`}>{row.net}</td>
-                    <td className="n">{row.shares}</td>
-                    <td className="n">{exit != null ? `Sell at ${usd0(exit)} (${pct(exitUpside(row.spot, exit))})` : row.cash}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-          <RepairTable rows={SEED_BUSINESS_RISK} />
-          <p className="income-note">{SEED_BUSINESS_NOTE}</p>
-        </div>
-      </details>
+      {focus.role === 'business' && (
+        <details className="income-fold" open>
+          <summary>Business pairs, exits, and other risk <Source kind="snapshot" /></summary>
+          <div>
+            <table className="income-table">
+              <thead>
+                <tr>
+                  <th>Pair (call / put)</th>
+                  <th className="n">Qty</th>
+                  <th className="n">Spot</th>
+                  <th className="n">Call / put mark</th>
+                  <th className="n">Net /sh</th>
+                  <th className="n">Shares</th>
+                  <th className="n">Cash for shares</th>
+                </tr>
+              </thead>
+              <tbody>
+                {SEED_PAIRS.map(row => {
+                  const exit = row.exitSymbol ? exitPrice(row.exitSymbol) : undefined
+                  return (
+                    <tr key={row.label}>
+                      <td>{row.label}</td>
+                      <td className="n">{row.qty}</td>
+                      <td className="n">{row.spot.toFixed(2)} <Stale label={SEED_CLOSE_LABEL} /></td>
+                      <td className="n">{row.marks}</td>
+                      <td className={`n${row.net.startsWith('-') ? ' warn' : ''}`}>{row.net}</td>
+                      <td className="n">{row.shares}</td>
+                      <td className="n">{exit != null ? `Sell at ${usd0(exit)} (${pct(exitUpside(row.spot, exit))})` : row.cash}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            <RepairTable rows={SEED_BUSINESS_RISK} />
+            <p className="income-note">{SEED_BUSINESS_NOTE}</p>
+          </div>
+        </details>
+      )}
 
       <details className="income-fold" open>
         <summary>Risk rules</summary>
         <div>
-          <p className="income-kicker">From the open book <Source kind="live" /></p>
+          <p className="income-kicker">From this account <Source kind="live" /></p>
           <table className="income-table">
             <thead>
               <tr><th>Rule</th><th>Status</th><th>Now</th></tr>
@@ -469,21 +521,25 @@ export default function IncomeView({ accounts, sessionKey }: { accounts: IncomeS
               ))}
             </tbody>
           </table>
-          <p className="income-kicker">24 Oct snapshot <Source kind="snapshot" /></p>
-          <table className="income-table">
-            <thead>
-              <tr><th>Rule</th><th>Status</th><th>Then</th></tr>
-            </thead>
-            <tbody>
-              {SEED_SNAPSHOT_RULES.map(rule => (
-                <tr key={rule.rule}>
-                  <td>{rule.rule}</td>
-                  <td className={rule.status === 'Yes' ? 'pos' : 'neg'}>{rule.status}</td>
-                  <td>{rule.now}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {snapshotRules.length > 0 && (
+            <>
+              <p className="income-kicker">24 Oct snapshot <Source kind="snapshot" /></p>
+              <table className="income-table">
+                <thead>
+                  <tr><th>Rule</th><th>Status</th><th>Then</th></tr>
+                </thead>
+                <tbody>
+                  {snapshotRules.map(rule => (
+                    <tr key={rule.rule}>
+                      <td>{rule.rule}</td>
+                      <td className={rule.status === 'Yes' ? 'pos' : 'neg'}>{rule.status}</td>
+                      <td>{rule.now}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </div>
       </details>
 
@@ -501,6 +557,90 @@ export default function IncomeView({ accounts, sessionKey }: { accounts: IncomeS
         </table>
       </details>
     </div>
+  )
+}
+
+function TargetBreakdown({ plan, milestoneStart, milestoneRate, role, fxStale, settings }: {
+  plan: MilestoneIncome
+  milestoneStart: number
+  milestoneRate: number
+  role: AccountRole
+  fxStale: { stale: boolean; label: string } | null
+  settings: IncomeSettings
+}) {
+  const current = plan.current
+  const rawGap = current?.decEndUsd != null && plan.combinedNlv != null ? current.decEndUsd - plan.combinedNlv : null
+  const clampedGap = rawGap == null ? null : Math.max(0, rawGap)
+  const share = role === 'business' ? plan.businessShare : role === 'personal' ? plan.personalShare : null
+  const tax = role === 'business' ? settings.businessTaxRate : settings.personalTaxRate
+  const interestAud = role === 'business' ? settings.businessInterestAud : settings.personalInterestAud
+  const accountTarget = role === 'business' ? current?.businessTarget : role === 'personal' ? current?.personalTarget : null
+  const gross = current?.monthlyBaseUsd != null && share != null && !plan.taxNote ? (current.monthlyBaseUsd * share) / (1 - tax) : null
+  const interestUsd = plan.audUsd != null ? interestAud * plan.audUsd : null
+  return (
+    <details className="income-fold" open>
+      <summary>How this target is built</summary>
+      <div>
+        <p className="income-note">
+          Milestone start {aud0(milestoneStart)} at {milestoneRate}% a year, from the Milestone page. This table uses each 31 Dec on that curve. End (Target) is the financial-year end, before the wealth tax. A negative gap to the milestone is clamped at zero, so the monthly base falls to interest only once capital is already above the checkpoint.
+        </p>
+        {current == null && <p className="income-note">No 31 Dec target is still ahead, so a monthly income target can’t be computed.</p>}
+        {plan.nlvNote && <p className="income-note">{plan.nlvNote}</p>}
+        {plan.fxNote && <p className="income-note">{plan.fxNote}</p>}
+        {plan.splitNote && <p className="income-note">{plan.splitNote}</p>}
+        {plan.taxNote && <p className="income-note">{plan.taxNote}</p>}
+        {current && (
+          <p className="income-note">
+            End of Dec {current.year}: {aud0(current.decEndAud)}
+            {current.decEndUsd != null ? ` · US$${usd0(current.decEndUsd)}` : ''}
+            {plan.audUsd != null ? ` at ${fxText(plan.audUsd)} USD per AUD` : ''}
+            {fxStale?.stale ? <> <Stale label={fxStale.label} /></> : plan.audUsd != null ? ' (live)' : ''}.
+            {' '}Combined net liquidation {moneyOrDash(plan.combinedNlv)}.
+            {' '}Clamped gap {moneyOrDash(clampedGap)}
+            {rawGap != null && rawGap < 0 ? ' — capital is already above this checkpoint' : ''}.
+            {' '}Months left {monthsText(current.months)}. Monthly base {moneyOrDash(current.monthlyBaseUsd)}.
+            {' '}Split {settings.splitMode === 'fixed' ? 'fixed' : 'by capital'}: Personal {plan.personalShare == null ? '—' : pct(plan.personalShare)} (NLV {moneyOrDash(plan.personalNlv)}) · Business {plan.businessShare == null ? '—' : pct(plan.businessShare)} (NLV {moneyOrDash(plan.businessNlv)}).
+            {role !== 'other' && (
+              <>
+                {' '}This account: base × share / (1 − {pct(tax)}) = {moneyOrDash(gross)}, plus interest {aud0(interestAud)}
+                {interestUsd != null ? ` → US$${usd0(interestUsd)}` : ''}. Needed {moneyOrDash(accountTarget)}.
+              </>
+            )}
+          </p>
+        )}
+        {plan.rows.length > 0 && (
+          <table className="income-table">
+            <thead>
+              <tr>
+                <th>31 Dec</th>
+                <th className="n">End of Dec</th>
+                <th className="n">End of Dec US$</th>
+                <th className="n">End (Target)</th>
+                <th className="n">Months</th>
+                <th className="n">Monthly base</th>
+                <th className="n">This account</th>
+              </tr>
+            </thead>
+            <tbody>
+              {plan.rows.map((row, index) => {
+                const target = role === 'business' ? row.businessTarget : role === 'personal' ? row.personalTarget : null
+                return (
+                  <tr key={row.year} className={index === 0 ? 'tot' : undefined}>
+                    <td>{row.year}{index === 0 ? ' · this year' : ''}</td>
+                    <td className="n">{aud0(row.decEndAud)}</td>
+                    <td className="n">{moneyOrDash(row.decEndUsd)}</td>
+                    <td className="n">{aud0(row.fyEndAud)}</td>
+                    <td className="n">{monthsText(row.months)}</td>
+                    <td className="n">{moneyOrDash(row.monthlyBaseUsd)}</td>
+                    <td className="n">{moneyOrDash(target)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </details>
   )
 }
 
@@ -535,11 +675,13 @@ function RepairTable({ rows }: { rows: { label: string; qty: string; mark: strin
   )
 }
 
-function useQuoteFreshness(books: LiveBook[]) {
-  const symbols = useMemo(
-    () => [...new Set(books.flatMap(book => [...book.shares.map(row => row.symbol), ...book.shortOptions.map(option => option.underlying)]))].sort(),
-    [books],
-  )
+function useIncomeQuotes(book: LiveBook) {
+  const symbols = useMemo(() => {
+    const set = new Set<string>(['AUDUSD=X'])
+    for (const row of book.shares) set.add(row.symbol)
+    for (const option of book.shortOptions) set.add(option.underlying)
+    return [...set].sort()
+  }, [book])
   const [quotes, setQuotes] = useState<Record<string, Quote>>({})
   const symbolKey = symbols.join(',')
   useEffect(() => {
@@ -550,8 +692,12 @@ function useQuoteFreshness(books: LiveBook[]) {
     }).catch(() => {})
     return () => { cancelled = true }
   }, [symbolKey])
-  const marketState = Object.values(quotes).find(quote => quote.marketState && quote.marketState.toUpperCase() !== 'REGULAR')?.marketState
-    ?? Object.values(quotes).find(quote => quote.marketState)?.marketState
+  const equity = Object.entries(quotes).filter(([symbol]) => symbol !== 'AUDUSD=X').map(([, quote]) => quote)
+  const marketState = equity.find(quote => quote.marketState && quote.marketState.toUpperCase() !== 'REGULAR')?.marketState
+    ?? equity.find(quote => quote.marketState)?.marketState
   const freshness = quoteFreshness({ marketState, now: new Date() })
-  return { ...freshness, quotes }
+  const fxQuote = quotes['AUDUSD=X']
+  const audUsd = fxQuote && Number.isFinite(fxQuote.price) && fxQuote.price > 0 ? fxQuote.price : null
+  const fxFresh = audUsd != null ? quoteFreshness({ marketState: fxQuote?.marketState, now: new Date() }) : null
+  return { ...freshness, quotes, audUsd, fxFresh }
 }

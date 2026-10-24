@@ -5,16 +5,19 @@
 import { readFileSync } from 'node:fs'
 import { parseFlexDocument } from '../src/services/ibkr'
 import { DEFAULT_INCOME_SETTINGS, SEED_PUTS, SEED_SELLS } from '../src/income/incomeSeed'
+import { DEFAULT_MILESTONE_CONFIG, buildYears, monthsBetween } from '../src/components/dashboard/milestoneYears'
 import {
+  accountRules,
   annualizedReturn,
   booksFor,
+  btcCap,
   callCover,
   callYield,
   deltaInBand,
   displayAccountName,
   elState,
   exitUpside,
-  liveRules,
+  milestoneIncome,
   planPremium,
   premiumOverCash,
   putScreenRows,
@@ -44,8 +47,7 @@ check('personal plan now is the covered TSLA call only', personalNow === 443)
 check('personal plan after repair adds the MSTR calls', personalAfter === 1_463)
 check('business plan is the five ideas', businessNow === 3_158 && businessAfter === 3_158)
 check('combined plan now and after repair match the snapshot totals', personalNow + businessNow === 3_601 && personalAfter + businessAfter === 4_621)
-check('gap is needed minus plan now, not a stored remainder', DEFAULT_INCOME_SETTINGS.personalTarget - personalNow === 4_707)
-check('needed total is the sum of the two targets', DEFAULT_INCOME_SETTINGS.personalTarget + DEFAULT_INCOME_SETTINGS.businessTarget === 11_250)
+check('the plan no longer stores a fixed monthly target', !('personalTarget' in DEFAULT_INCOME_SETTINGS) && !('businessTarget' in DEFAULT_INCOME_SETTINGS) && DEFAULT_INCOME_SETTINGS.splitMode === 'capital')
 
 const ranked = putScreenRows(SEED_PUTS, DEFAULT_INCOME_SETTINGS)
 check('puts rank by premium / cash', ranked.map(row => row.symbol).join(',') === 'ALAB,ARM,MSTR,SKHY,MRVL,SPCX', ranked.map(row => row.symbol).join(','))
@@ -120,14 +122,18 @@ check('opening fifo is not monthly income', realisedInMonth(personal.trades, '20
 check('TSLA call is covered by 100 shares and two contracts would not be', callCover(personalBook, 'TSLA', 1) === 'covered' && callCover(personalBook, 'TSLA', 2) === 'short')
 check('a book with no positions cannot claim share cover', callCover(toLiveBook(other, now), 'TSLA', 1) === 'unknown')
 
-const rules = liveRules(books, DEFAULT_INCOME_SETTINGS)
-const rule = (id: string) => rules.find(row => row.id === id)
-check('personal EL under the floor fails and business EL passes', rule('personal-el')?.status === 'no' && rule('business-el')?.status === 'yes')
+const personalRules = accountRules(personalBook, DEFAULT_INCOME_SETTINGS)
+const businessBook = books.find(book => book.role === 'business')!
+const businessRules = accountRules(businessBook, DEFAULT_INCOME_SETTINGS)
+const rule = (id: string) => personalRules.find(row => row.id === id)
+check('personal EL under the floor fails and business EL passes', rule('el')?.status === 'no' && businessRules.find(row => row.id === 'el')?.status === 'yes')
 check('missing EL stays unknown', elState(toLiveBook(other, now).excessLiquidity, 30_000) === 'unknown')
-check('open MSTR put fails the no-new-puts rule', rule('mstr-puts')?.status === 'no')
-check('BSOL short put fails the ETF rule', rule('etf')?.status === 'no')
+check('open MSTR put fails the no-new-puts rule on this account only', rule('mstr-puts')?.status === 'no' && !rule('mstr-puts')?.detail.includes('Personal'))
+check('BSOL short put fails the ETF rule on the business book', businessRules.find(row => row.id === 'etf')?.status === 'no')
 check('AAOI short put fails the exclude list', rule('excluded-puts')?.status === 'no' && rule('excluded-puts')?.detail.includes('AAOI') === true)
 check('covered TSLA call passes', rule('tsla-calls')?.status === 'yes')
+const cap = btcCap([personalBook, businessBook])
+check('BTC cap sums both books without naming an account or a strike', cap.mstrShares === 200 && cap.mstrPutContracts === 2 && cap.bsolPutContracts === 10 && cap.over === true && !cap.detail.includes('Personal') && !cap.detail.includes('Business') && !cap.detail.includes('160') && !cap.detail.includes('16P'))
 
 check('Saturday is a prior close', quoteFreshness({ now: new Date('2026-10-24T15:00:00Z') }).stale && quoteFreshness({ now: new Date('2026-10-24T15:00:00Z') }).label === 'Prior close')
 check('Wednesday midday is a regular session without a market state', quoteFreshness({ now: new Date('2026-10-21T15:00:00Z') }).stale === false)
@@ -139,7 +145,52 @@ const saved = normalizeSettings({ elFloor: 25_000, screenExpiry: '2026-12-18', d
 check('settings keep an edited floor, expiry, delta, and exit', saved.elFloor === 25_000 && saved.screenExpiry === '2026-12-18' && saved.deltaMin === 0.15 && saved.exits.find(exit => exit.symbol === 'BIDU')?.price === 150)
 check('edited exclude list replaces the default', saved.excludeSymbols.join(',') === 'AAOI,TSLA')
 check('turning off the MSTR rule is kept', saved.noNewMstrPuts === false)
-check('a broken blob falls back to the HTML defaults', normalizeSettings('nope').personalTarget === 5_150 && normalizeSettings({}).rankBy === 'premiumOverCash')
+check('a broken blob falls back to capital split and the default tax', normalizeSettings('nope').splitMode === 'capital' && normalizeSettings('nope').personalTaxRate === 0.3 && normalizeSettings({}).rankBy === 'premiumOverCash')
+const legacy = normalizeSettings({ personalTarget: 5_150, businessTarget: 6_100, returnRate: 0.3, personalTaxRate: 30, businessTaxRate: 25, personalSplitPct: 1 })
+check('legacy fixed targets and a return rate are not kept', !('personalTarget' in legacy) && !('returnRate' in legacy) && legacy.splitMode === 'capital')
+check('a tax typed as 30 is stored as 0.30 and 0.30 stays 0.30', legacy.personalTaxRate === 0.3 && legacy.businessTaxRate === 0.25 && normalizeSettings({ personalTaxRate: 0.3 }).personalTaxRate === 0.3)
+check('a personal share of 1 stays 1 percent', legacy.personalSplitPct === 1)
+
+const milestoneToday = new Date(2026, 9, 24)
+const fx = 0.65
+const milestoneDec = buildYears(DEFAULT_MILESTONE_CONFIG, milestoneToday).find(row => row.decDate?.getFullYear() === 2026 && row.decEnd != null)
+const milestoneArgs = {
+  config: DEFAULT_MILESTONE_CONFIG,
+  today: milestoneToday,
+  personalNlv: 134_982,
+  businessNlv: 156_539,
+  otherNlv: [] as number[],
+  audUsd: fx as number | null,
+  splitMode: 'capital' as const,
+  personalSplitPct: 20,
+  personalTaxRate: 0.3,
+  businessTaxRate: 0.25,
+  personalInterestAud: 500,
+  businessInterestAud: 1_350,
+}
+const income = milestoneIncome(milestoneArgs)
+const milestoneMonths = monthsBetween(milestoneToday, milestoneDec!.decDate!)
+const combinedNlv = 134_982 + 156_539
+const monthlyBase = Math.max(0, milestoneDec!.decEnd! * fx - combinedNlv) / (milestoneMonths > 0 ? milestoneMonths : 1)
+const capitalShare = 134_982 / combinedNlv
+check('this December matches the milestone curve, not a second formula', income.current?.year === 2026 && income.current.decEndAud === milestoneDec!.decEnd)
+check('monthly base is the clamped gap over the months left', Math.abs((income.current?.monthlyBaseUsd ?? NaN) - monthlyBase) < 1e-6)
+check('personal target grosses the capital share up and adds interest', Math.abs((income.current?.personalTarget ?? NaN) - (monthlyBase * capitalShare / 0.7 + 500 * fx)) < 1e-4)
+check('business target uses its own tax and interest', Math.abs((income.current?.businessTarget ?? NaN) - (monthlyBase * (1 - capitalShare) / 0.75 + 1_350 * fx)) < 1e-4)
+const later = income.rows[1]
+check('a later year is the gap between December targets over 12 months', later.months === 12 && Math.abs((later.monthlyBaseUsd ?? NaN) - Math.max(0, (later.decEndAud - income.rows[0].decEndAud) * fx) / 12) < 1e-4)
+const above = milestoneIncome({ ...milestoneArgs, personalNlv: 5_000_000, businessNlv: 5_000_000 })
+check('a portfolio already above the milestone pays interest only', above.current?.monthlyBaseUsd === 0 && Math.abs((above.current?.personalTarget ?? NaN) - 500 * fx) < 1e-6 && Math.abs((above.current?.businessTarget ?? NaN) - 1_350 * fx) < 1e-6)
+const missingNlv = milestoneIncome({ ...milestoneArgs, personalNlv: undefined })
+check('missing net liquidation blocks the dollar target and keeps the AUD year end', missingNlv.current?.personalTarget == null && missingNlv.nlvNote != null && missingNlv.current?.decEndAud === milestoneDec!.decEnd)
+const missingFx = milestoneIncome({ ...milestoneArgs, audUsd: null })
+check('a missing FX rate does not fall back to 0.65', missingFx.audUsd == null && missingFx.fxNote != null && missingFx.current?.personalTarget == null && missingFx.current?.decEndUsd == null && missingFx.current?.monthlyBaseUsd == null && missingFx.current?.decEndAud === milestoneDec!.decEnd)
+const fixed = milestoneIncome({ ...milestoneArgs, splitMode: 'fixed' })
+check('a fixed 20 percent split ignores the capital weights', fixed.personalShare === 0.2 && fixed.businessShare === 0.8 && Math.abs((fixed.current?.personalTarget ?? NaN) - (monthlyBase * 0.2 / 0.7 + 500 * fx)) < 1e-4)
+const fixedMissing = milestoneIncome({ ...milestoneArgs, splitMode: 'fixed', personalNlv: undefined })
+check('a fixed share without net liquidation still has no dollar target', fixedMissing.personalShare === 0.2 && fixedMissing.current?.personalTarget == null)
+const withOther = milestoneIncome({ ...milestoneArgs, otherNlv: [10_000, Number.NaN] })
+check('another account with a balance is in the gap and not in the split', Math.abs((withOther.current?.monthlyBaseUsd ?? NaN) - Math.max(0, milestoneDec!.decEnd! * fx - (combinedNlv + 10_000)) / milestoneMonths) < 1e-6 && withOther.personalShare === capitalShare)
 
 function flexDoc(rows: { tag: string; attrs: Record<string, string> }[]) {
   const elements = rows.map(row => ({
@@ -164,6 +215,7 @@ check('a summary without excess liquidity does not invent one', withoutEl.excess
 const view = readFileSync(new URL('../src/components/income/IncomeView.tsx', import.meta.url), 'utf8')
 check('income page has no order button', !view.includes('<button'))
 check('income page does not read account ids or flex tokens', !view.includes('accountId') && !view.includes('flexToken') && !view.includes('flexQueryId'))
+check('income page does not keep a fixed target or a 0.65 FX fallback', !view.includes('5_150') && !view.includes('5150') && !view.includes('6_100') && !view.includes('6100') && !view.includes('0.65') && !view.includes('liveRules'))
 check('display name redacts a U-number', displayAccountName('U21440275') === 'Other account' && displayAccountName('Personal') === 'Personal')
 
 if (failed > 0) {

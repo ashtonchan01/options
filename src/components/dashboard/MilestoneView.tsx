@@ -40,39 +40,25 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { Account } from '../../store/accountsStore'
 import { fetchQuotes } from '../../services/quotes'
 import { accountNetWorth, describePace, fmtPct, projectMilestone, resolvePace } from './milestonePace'
-
-const MILESTONES = [
-  { label: 'A$1M', value: 1_000_000 },
-  { label: 'A$5M', value: 5_000_000 },
-  { label: 'A$10M', value: 10_000_000 },
-]
+import {
+  addMonths,
+  buildYears,
+  loadMilestoneConfig,
+  monthlyRate,
+  MILESTONE_CONFIG_KEY,
+  MILESTONE_START_MIGRATION_KEY,
+  MILESTONES,
+  ONE_YEAR_MS,
+  type MilestoneConfig,
+  type YearRow,
+} from './milestoneYears'
 
 const TARGET_COLOR = '#10b981'
 const PACE_COLOR = '#f59e0b'
 const ACTUAL_COLOR = '#38bdf8'
 
-interface Config {
-  startCapital: number
-  targetPct: number
-  taxRate: number
-  numYears: number
-}
+type Config = MilestoneConfig
 
-const DEFAULT_CONFIG: Config = {
-  startCapital: 462_000,
-  targetPct: 30,
-  taxRate: 25,
-  numYears: 15,
-}
-
-const CONFIG_KEY = 'options:milestone-config'
-/** Baked-in start capital before it was lowered to 462,000 AUD. Opening this
- * page writes the whole config to localStorage, so browsers that already
- * visited Milestone still have 500_000 saved even though nobody typed it. */
-const PREVIOUS_DEFAULT_START_CAPITAL = 500_000
-/** Set once the saved start capital has been considered for that upgrade.
- * Stops a later, deliberate 500,000 from being rewritten to 462,000. */
-const START_CAPITAL_MIGRATION_KEY = 'options:milestone-start-capital-migrated'
 const EXCLUDED_ACCOUNTS_KEY = 'options:milestone-excluded-accounts'
 
 /** Which accounts are excluded from "Actual", from localStorage — or, on a
@@ -112,145 +98,9 @@ function loadHistory(): HistoryPoint[] {
   }
 }
 
-function loadConfig(): Config {
-  try {
-    const raw = localStorage.getItem(CONFIG_KEY)
-    if (!raw) return DEFAULT_CONFIG
-    const merged = { ...DEFAULT_CONFIG, ...JSON.parse(raw) } as Config
-    const alreadyMigrated = localStorage.getItem(START_CAPITAL_MIGRATION_KEY) === '1'
-    if (!alreadyMigrated && merged.startCapital === PREVIOUS_DEFAULT_START_CAPITAL) {
-      return { ...merged, startCapital: DEFAULT_CONFIG.startCapital }
-    }
-    return merged
-  } catch {
-    return DEFAULT_CONFIG
-  }
-}
-
-const ONE_YEAR_MS = 365.25 * 24 * 3600 * 1000
-
-function monthlyRate(pct: number): number {
-  return Math.pow(1 + pct / 100, 1 / 12) - 1
-}
-
-function addMonths(base: Date, months: number): Date {
-  const d = new Date(base)
-  d.setMonth(d.getMonth() + months)
-  return d
-}
-
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 function fmtMonthYear(d: Date): string {
   return `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`
-}
-
-interface YearRow {
-  idx: number
-  startDate: Date
-  endDate: Date
-  /** Exact whole months this row spans — 12 for every row except the
-   * first, which runs from today to the next 30 June and so is however
-   * many months that actually is. */
-  months: number
-  /** Months-from-today offset of this row's start/end, for placing it on
-   * the chart (which is itself t=0-at-today, independent of FY boundaries). */
-  tStart: number
-  tEnd: number
-  start: number
-  /** Target curve's value at the 31 Dec that falls within this row (or null
-   * if none does — e.g. the first, partial row when today is already past
-   * this calendar year's 31 Dec). Reporting periods here run FY (1 Jul–30
-   * Jun), not calendar years, so "End (Target)" alone never lands on a
-   * calendar-year checkpoint — this gives an interim "where should I be by
-   * 31 Dec" figure to check progress against mid-year. */
-  decEnd: number | null
-  /** Pre-tax compounded value this row would reach at `targetPct` — used
-   * only to work out the milestone-crossing month within the row (the
-   * smooth exponential path tax is paid on, before it's deducted). */
-  grossEnd: number
-  /** The actual carried-forward balance: start + netPnl. This — not
-   * grossEnd — is what next year's Start is: paying tax on this year's
-   * gain (assumed paid from the account) means only the after-tax amount
-   * compounds forward into the next FY, not the full pre-tax gain. */
-  end: number
-  grossPnl: number
-  tax: number
-  netPnl: number
-  crossed: string[]
-}
-
-/** The 31 Dec that falls within [start, end) — a row's FY span (1 Jul–30
- * Jun) crosses exactly one calendar year-end, but the very first, partial
- * row (today → next 30 June) may already be past that year's 31 Dec, in
- * which case there isn't one to find. Checked over a small fixed range
- * rather than solved for, since there's at most one candidate year to try
- * either side of the row's own start. */
-function findDecEndInRange(start: Date, end: Date): Date | null {
-  for (let y = start.getFullYear() - 1; y <= end.getFullYear(); y++) {
-    const dec31 = new Date(y, 11, 31)
-    if (dec31 >= start && dec31 < end) return dec31
-  }
-  return null
-}
-
-function monthIndex(d: Date): number {
-  return d.getFullYear() * 12 + d.getMonth()
-}
-function monthIndexToDate(idx: number): Date {
-  return new Date(Math.floor(idx / 12), ((idx % 12) + 12) % 12, 1)
-}
-
-/** Financial-year-aligned rows (1 Jul–30 Jun), not calendar or
- * rolling-from-today rows — the first row is a partial year running from
- * today to the next 30 June (whatever's left of the FY already under way),
- * every row after that is a full Jul–Jun year. The chart itself still
- * measures everything in months-from-today (t=0 = today) regardless of
- * where these FY boundaries fall — tStart/tEnd carry that mapping. */
-function buildYears(cfg: Config, today: Date): YearRow[] {
-  const r = monthlyRate(cfg.targetPct)
-  const todayIdx = monthIndex(today)
-  const boundaries = [todayIdx]
-  let b = todayIdx + 1
-  while (b % 12 !== 6) b++ // next July (month index 6 = July, 0 = January)
-  boundaries.push(b)
-  for (let i = 1; i < cfg.numYears; i++) boundaries.push(boundaries[boundaries.length - 1] + 12)
-
-  const rows: YearRow[] = []
-  let balance = cfg.startCapital
-  let prevMilestonesHit = new Set<string>()
-  let tCursor = 0
-  for (let i = 0; i < cfg.numYears; i++) {
-    const months = boundaries[i + 1] - boundaries[i]
-    const start = balance
-    const grossEnd = start * Math.pow(1 + r, months)
-    const grossPnl = grossEnd - start
-    const tax = grossPnl > 0 ? grossPnl * (cfg.taxRate / 100) : 0
-    const netPnl = grossPnl - tax
-    const end = start + netPnl
-    const crossed: string[] = []
-    for (const m of MILESTONES) {
-      if (grossEnd >= m.value && !prevMilestonesHit.has(m.label)) {
-        crossed.push(m.label)
-        prevMilestonesHit = new Set(prevMilestonesHit).add(m.label)
-      }
-    }
-    const rowStartDate = i === 0 ? today : monthIndexToDate(boundaries[i])
-    const rowEndDate = monthIndexToDate(boundaries[i + 1])
-    const decDate = findDecEndInRange(rowStartDate, rowEndDate)
-    const decEnd = decDate
-      ? start * Math.pow(1 + r, (decDate.getTime() - rowStartDate.getTime()) / (ONE_YEAR_MS / 12))
-      : null
-    rows.push({
-      idx: i,
-      startDate: rowStartDate,
-      endDate: rowEndDate,
-      months, tStart: tCursor, tEnd: tCursor + months,
-      start, decEnd, grossEnd, end, grossPnl, tax, netPnl, crossed,
-    })
-    tCursor += months
-    balance = end
-  }
-  return rows
 }
 
 function fmt$(n: number): string {
@@ -515,7 +365,7 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
 }
 
 export default function MilestoneView({ accounts }: { accounts: Account[] }) {
-  const [cfg, setCfg] = useState<Config>(loadConfig)
+  const [cfg, setCfg] = useState<Config>(loadMilestoneConfig)
   // Defaults to USD, not AUD — the IBKR accounts that feed "Actual" are
   // USD-denominated, so USD is the currency their real numbers need no FX
   // round-trip to display in; AUD is only the currency the target/start
@@ -536,11 +386,11 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
   const [history, setHistory] = useState<HistoryPoint[]>(loadHistory)
 
   useEffect(() => {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg))
+    localStorage.setItem(MILESTONE_CONFIG_KEY, JSON.stringify(cfg))
     // Record that this browser has loaded the 462,000 default (or kept a
-    // custom start). Done here, not in loadConfig, so the read stays pure
+    // custom start). Done here, not in loadMilestoneConfig, so the read stays pure
     // under Strict Mode's double-invoked state initializer.
-    localStorage.setItem(START_CAPITAL_MIGRATION_KEY, '1')
+    localStorage.setItem(MILESTONE_START_MIGRATION_KEY, '1')
   }, [cfg])
 
   useEffect(() => {

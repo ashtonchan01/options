@@ -2469,6 +2469,6 @@ body {
 .income-field, .income-check { display: flex; flex-direction: column; gap: 2px; font-size: 10px; color: var(--text-4); }
 .income-field.wide { grid-column: 1 / -1; }
 .income-field input, .income-check { font-size: 12px; color: var(--text-1); }
-.income-field input { background: var(--bg-root, var(--bg-surface)); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; }
+.income-field input, .income-field select { background: var(--bg-root, var(--bg-surface)); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; }
 .income-check { flex-direction: row; align-items: center; color: var(--text-2); }
 .income-sub { color: #f59e0b; font-size: 10px; }

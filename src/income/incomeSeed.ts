@@ -8,13 +8,20 @@
 export const SEED_MARK_DATE = '2026-10-24'
 export const SEED_CLOSE_LABEL = '23 Oct 2026 close'
 
+export type SplitMode = 'capital' | 'fixed'
+
 export interface IncomeSettings {
   elFloor: number
   targetNote: string
-  personalTarget: number
-  businessTarget: number
-  personalTaxNote: string
-  businessTaxNote: string
+  /** capital: each account's share of live net liquidation. fixed: personalSplitPct. */
+  splitMode: SplitMode
+  /** Personal share of the monthly base when splitMode is fixed. 20 means 20%. */
+  personalSplitPct: number
+  /** Fraction. 0.30 is 30%. Applied after the milestone gap is split. */
+  personalTaxRate: number
+  businessTaxRate: number
+  personalInterestAud: number
+  businessInterestAud: number
   /** YYYY-MM-DD */
   screenExpiry: string
   deltaMin: number
@@ -32,11 +39,13 @@ export interface IncomeSettings {
 
 export const DEFAULT_INCOME_SETTINGS: IncomeSettings = {
   elFloor: 30_000,
-  targetNote: '30%/yr after tax and interest on about US$291.5k, AUD/USD 0.65. The gap has to come from share and LEAPS growth.',
-  personalTarget: 5_150,
-  businessTarget: 6_100,
-  personalTaxNote: '30% tax, AUD 500/mo interest',
-  businessTaxNote: '25% tax, AUD 1,350/mo interest',
+  targetNote: 'The monthly base is the gap from combined net liquidation up to the Milestone page’s next 31 Dec target, spread over the months left. Later years use the gap between consecutive 31 Dec targets. Each account then grosses its share up for tax and adds its own AUD interest at the live AUD/USD rate.',
+  splitMode: 'capital',
+  personalSplitPct: 20,
+  personalTaxRate: 0.3,
+  businessTaxRate: 0.25,
+  personalInterestAud: 500,
+  businessInterestAud: 1_350,
   screenExpiry: '2026-11-20',
   deltaMin: 0.2,
   deltaMax: 0.3,
