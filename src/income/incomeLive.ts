@@ -86,6 +86,31 @@ function isoExpiry(raw: string | undefined): string {
   return raw.slice(0, 10)
 }
 
+/** Explicit Flex net liquidation wins. Otherwise the latest equity-history
+ * point, then the same stock + option market value + cash Overview uses.
+ * No snapshot stays undefined so a missing book does not become a zero gap. */
+export function resolvedNetLiquidation(source: {
+  netLiquidation?: number
+  cashBalance?: number
+  positions?: { assetClass?: string; positionValue?: number }[]
+  equityHistory?: { netLiquidation?: number }[]
+}): number | undefined {
+  if (source.netLiquidation != null && Number.isFinite(source.netLiquidation)) return source.netLiquidation
+  const history = source.equityHistory ?? []
+  for (let i = history.length - 1; i >= 0; i--) {
+    const value = history[i]?.netLiquidation
+    if (value != null && Number.isFinite(value)) return value
+  }
+  const positions = source.positions ?? []
+  if (positions.length === 0 && source.cashBalance == null) return undefined
+  let marketValue = 0
+  for (const position of positions) {
+    if (position.assetClass !== 'STK' && position.assetClass !== 'OPT') continue
+    if (typeof position.positionValue === 'number' && Number.isFinite(position.positionValue)) marketValue += position.positionValue
+  }
+  return marketValue + (source.cashBalance ?? 0)
+}
+
 export function toLiveBook(source: IncomeSource, now: Date): LiveBook {
   const shareMap = new Map<string, number>()
   const shortOptions: LiveOption[] = []
