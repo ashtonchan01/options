@@ -17,6 +17,7 @@ import {
   displayAccountName,
   elState,
   exitUpside,
+  livePairExits,
   milestoneIncome,
   planPremium,
   premiumOverCash,
@@ -238,9 +239,61 @@ check('the latest equity history point fills a missing net liquidation', resolve
 check('no snapshot stays undefined', resolvedNetLiquidation({}) === undefined)
 
 const view = readFileSync(new URL('../src/components/income/IncomeView.tsx', import.meta.url), 'utf8')
+function optPos(partial: Partial<RawPosition> & Pick<RawPosition, 'symbol' | 'quantity' | 'putCall' | 'strike' | 'expiry' | 'markPrice'>): RawPosition {
+  return {
+    accountId: '',
+    description: partial.symbol,
+    assetClass: 'OPT',
+    costBasisPrice: 0,
+    costBasisMoney: 0,
+    positionValue: partial.markPrice * partial.quantity * 100,
+    unrealizedPnL: 0,
+    currency: 'USD',
+    multiplier: 100,
+    underlyingSymbol: partial.symbol,
+    ...partial,
+  }
+}
+const pairToday = new Date(2026, 9, 24)
+const hkPair = livePairExits([
+  optPos({ symbol: 'BABA', putCall: 'C', strike: 110, expiry: '20290115', quantity: 2, markPrice: 24.73 }),
+  optPos({ symbol: '9988  290115P00120000', underlyingSymbol: '9988', putCall: 'P', strike: 120, expiry: '20290115', quantity: -2, markPrice: 32.96 }),
+], { today: pairToday, spots: { BABA: 99.66 }, exits: [{ symbol: 'BABA', price: 190 }] })
+check('a Hong Kong 9988 put pairs with the BABA call', hkPair.length === 1 && hkPair[0].underlying === 'BABA' && hkPair[0].quantity === 2 && hkPair[0].callStrike === 110 && hkPair[0].putStrike === 120)
+check('an exit price replaces cash to convert', hkPair[0].flag === 'exit' && hkPair[0].exitPrice === 190 && hkPair[0].cash == null && hkPair[0].shares == null && Math.abs((hkPair[0].net ?? NaN) - (24.73 - 32.96)) < 1e-9)
+const bidu = livePairExits([
+  optPos({ symbol: 'BIDU', putCall: 'C', strike: 90, expiry: '20280120', quantity: 1, markPrice: 12.51 }),
+  optPos({ symbol: '9888', underlyingSymbol: '9888', putCall: 'P', strike: 90, expiry: '20280120', quantity: -1, markPrice: 21.09 }),
+], { today: pairToday, spots: { BIDU: 77.22 } })
+check('9888 pairs as BIDU and cash is spot times shares', bidu.length === 1 && bidu[0].underlying === 'BIDU' && bidu[0].flag === 'convert' && bidu[0].shares === 100 && bidu[0].cash === 77.22 * 100)
+const two = livePairExits([
+  optPos({ symbol: 'LRCX', putCall: 'C', strike: 230, expiry: '20280616', quantity: 1, markPrice: 68 }),
+  optPos({ symbol: 'LRCX', putCall: 'C', strike: 260, expiry: '20280616', quantity: 1, markPrice: 58 }),
+  optPos({ symbol: 'LRCX', putCall: 'P', strike: 240, expiry: '20280616', quantity: -1, markPrice: 60 }),
+  optPos({ symbol: 'LRCX', putCall: 'P', strike: 270, expiry: '20280616', quantity: -1, markPrice: 79 }),
+], { today: pairToday, spots: { LRCX: 229.9 } })
+check('two strikes on one ticker stay two pairs', two.filter(row => row.kind === 'pair').length === 2 && two.some(row => row.callStrike === 230 && row.putStrike === 240) && two.some(row => row.callStrike === 260 && row.putStrike === 270))
+const leftover = livePairExits([
+  optPos({ symbol: 'UMAC', putCall: 'C', strike: 20, expiry: '20290115', quantity: 10, markPrice: 8.51 }),
+  optPos({ symbol: 'UMAC', putCall: 'P', strike: 22.5, expiry: '20290115', quantity: -10, markPrice: 11.66 }),
+  optPos({ symbol: 'UMAC', putCall: 'P', strike: 20, expiry: '20270617', quantity: -10, markPrice: 4.81 }),
+], { today: pairToday, spots: { UMAC: 17.05 } })
+check('a shorter put left beside a pair is marked close', leftover.some(row => row.flag === 'convert' && row.quantity === 10) && leftover.some(row => row.flag === 'close' && row.putStrike === 20 && row.quantity === 10))
+const alone = livePairExits([
+  optPos({ symbol: 'BSOL', putCall: 'P', strike: 16, expiry: '20261120', quantity: -10, markPrice: 2.18 }),
+], { today: pairToday })
+check('a short put with no long call is not a pair', alone.length === 0)
+const lots = livePairExits([
+  optPos({ symbol: 'ARM', putCall: 'C', strike: 230, expiry: '20280616', quantity: 1, markPrice: 65, levelOfDetail: 'SUMMARY' }),
+  optPos({ symbol: 'ARM', putCall: 'C', strike: 230, expiry: '20280616', quantity: 1, markPrice: 65, levelOfDetail: 'LOT' }),
+  optPos({ symbol: 'ARM', putCall: 'P', strike: 240, expiry: '20280616', quantity: -1, markPrice: 78, levelOfDetail: 'SUMMARY' }),
+], { today: pairToday, spots: { ARM: 208.5 } })
+check('a lot row does not double the summary pair', lots.length === 1 && lots[0].quantity === 1 && lots[0].cash === 208.5 * 100)
+
 check('income page has no order button', !view.includes('<button'))
 check('income page does not read account ids or flex tokens', !view.includes('accountId') && !view.includes('flexToken') && !view.includes('flexQueryId'))
 check('income page does not keep a fixed target or a 0.65 FX fallback', !view.includes('5_150') && !view.includes('5150') && !view.includes('6_100') && !view.includes('6100') && !view.includes('0.65') && !view.includes('liveRules'))
+check('pair exits are not the 23 Oct snapshot', !view.includes('SEED_PAIRS') && !view.includes('SEED_BUSINESS_RISK'))
 check('display name redacts a U-number', displayAccountName('U21440275') === 'Other account' && displayAccountName('Personal') === 'Personal')
 
 if (failed > 0) {
