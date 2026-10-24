@@ -3,6 +3,7 @@
  * Returned objects never include an IBKR account id.
  */
 import type { RawPosition, RawTrade } from '../types'
+import { canonicalUnderlying, optionRight } from '../engine/syntheticKey'
 import { buildYears, monthsBetween, type MilestoneConfig } from '../components/dashboard/milestoneYears'
 import type { IncomeSettings, SeedPut, SeedSell } from './incomeSeed'
 import { SEED_MARK_DATE } from './incomeSeed'
@@ -434,6 +435,239 @@ export function callYield(premium: number, spot: number, contracts: number): num
 
 export function exitUpside(spot: number, exitPrice: number): number {
   return spot > 0 ? exitPrice / spot - 1 : 0
+}
+
+/** A leg this far out is the long-dated call or put of a conversion pair.
+ * The same cutoff the strategy classifier uses for a LEAP call. */
+const LONG_DATED_DAYS = 365
+
+export interface LivePairRow {
+  kind: 'pair' | 'close'
+  underlying: string
+  callStrike: number | null
+  putStrike: number | null
+  /** Sooner of the two expiries, YYYY-MM-DD. The close row's own expiry. */
+  expiry: string
+  callExpiry: string
+  putExpiry: string
+  quantity: number
+  spot: number | null
+  /** Call mark minus put mark, per share. Negative is a debit. */
+  net: number | null
+  shares: number | null
+  /** Spot × shares. Empty when the ticker has an exit price, or spot is missing. */
+  cash: number | null
+  exitPrice: number | null
+  flag: 'convert' | 'exit' | 'close'
+}
+
+function localIso(today: Date): string {
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${today.getFullYear()}-${month}-${day}`
+}
+
+function expiryIso(raw: string | undefined): string {
+  return isoExpiry(raw)
+}
+
+function expiryKey(iso: string): number {
+  const digits = iso.replace(/\D/g, '')
+  return digits.length >= 8 ? Number(digits.slice(0, 8)) : 0
+}
+
+interface PairLeg {
+  underlying: string
+  right: 'C' | 'P'
+  strike: number
+  expiry: string
+  days: number
+  qty: number
+  mark: number
+  multiplier: number
+}
+
+function legMark(position: RawPosition, multiplier: number): number {
+  if (Number.isFinite(position.markPrice) && position.markPrice !== 0) return position.markPrice
+  const qty = Math.abs(position.quantity)
+  if (qty > 0 && multiplier > 0 && Number.isFinite(position.positionValue) && position.positionValue !== 0) {
+    return Math.abs(position.positionValue) / (qty * multiplier)
+  }
+  return 0
+}
+
+/** Summary rows win over the lots they already total, same as the Flex parser. */
+function optionPositions(positions: RawPosition[]): RawPosition[] {
+  const summaryKeys = new Set(
+    positions
+      .filter(p => p.assetClass === 'OPT' && (p.levelOfDetail ?? '').toUpperCase() === 'SUMMARY')
+      .map(p => `${p.symbol}|${p.putCall ?? ''}|${p.strike ?? ''}|${p.expiry ?? ''}`),
+  )
+  return positions.filter(p => {
+    if (p.assetClass !== 'OPT' || Math.abs(p.quantity) < 1e-6) return false
+    if ((p.levelOfDetail ?? '').toUpperCase() !== 'LOT') return true
+    return !summaryKeys.has(`${p.symbol}|${p.putCall ?? ''}|${p.strike ?? ''}|${p.expiry ?? ''}`)
+  })
+}
+
+function pairLegs(positions: RawPosition[], todayIso: string): PairLeg[] {
+  const grouped = new Map<string, PairLeg>()
+  for (const position of optionPositions(positions)) {
+    const right = optionRight(position)
+    if (right !== 'C' && right !== 'P') continue
+    if (position.strike == null || !Number.isFinite(position.strike)) continue
+    const expiry = expiryIso(position.expiry)
+    if (!expiry) continue
+    const underlying = canonicalUnderlying(position)
+    const multiplier = position.multiplier && position.multiplier > 0 ? position.multiplier : 100
+    const key = `${underlying}|${right}|${position.strike}|${expiry}`
+    const existing = grouped.get(key)
+    const mark = legMark(position, multiplier)
+    if (!existing) {
+      grouped.set(key, {
+        underlying,
+        right,
+        strike: position.strike,
+        expiry,
+        days: daysBetween(todayIso, expiry),
+        qty: position.quantity,
+        mark,
+        multiplier,
+      })
+      continue
+    }
+    const nextQty = existing.qty + position.quantity
+    const weight = Math.abs(existing.qty) + Math.abs(position.quantity)
+    existing.mark = weight > 0 ? (existing.mark * Math.abs(existing.qty) + mark * Math.abs(position.quantity)) / weight : mark
+    existing.qty = nextQty
+  }
+  return [...grouped.values()].filter(leg => Math.abs(leg.qty) > 1e-6)
+}
+
+function stockSpot(positions: RawPosition[], underlying: string): number | null {
+  for (const position of positions) {
+    if (position.assetClass !== 'STK' || Math.abs(position.quantity) < 1e-6) continue
+    const symbol = position.symbol.trim().toUpperCase()
+    if (symbol !== underlying) continue
+    if (Number.isFinite(position.markPrice) && position.markPrice > 0) return position.markPrice
+  }
+  return null
+}
+
+/**
+ * Live conversion pairs for the account that is open.
+ * A pair is a long call and a short put on the same ticker after the HK
+ * alias, both more than a year out. Quantity is matched to the smaller leg,
+ * closest expiry first, so two strikes on one name stay two rows. A short
+ * put left over on a ticker that already has a pair is marked close.
+ * BIDU and BABA keep their editable exit price instead of a conversion cost.
+ */
+export function livePairExits(positions: RawPosition[], args: {
+  today: Date
+  spots?: Record<string, number>
+  exits?: { symbol: string; price: number }[]
+}): LivePairRow[] {
+  const todayIso = localIso(args.today)
+  const legs = pairLegs(positions, todayIso)
+  const byUnderlying = new Map<string, PairLeg[]>()
+  for (const leg of legs) {
+    const list = byUnderlying.get(leg.underlying) ?? []
+    list.push(leg)
+    byUnderlying.set(leg.underlying, list)
+  }
+  const rows: LivePairRow[] = []
+  const names = [...byUnderlying.keys()].sort()
+  for (const underlying of names) {
+    const group = byUnderlying.get(underlying) ?? []
+    const calls = group
+      .filter(leg => leg.right === 'C' && leg.qty > 0 && leg.days > LONG_DATED_DAYS)
+      .map(leg => ({ ...leg, rem: leg.qty }))
+      .sort((a, b) => expiryKey(a.expiry) - expiryKey(b.expiry) || a.strike - b.strike)
+    const puts = group
+      .filter(leg => leg.right === 'P' && leg.qty < 0 && leg.days > LONG_DATED_DAYS)
+      .map(leg => ({ ...leg, rem: Math.abs(leg.qty) }))
+      .sort((a, b) => expiryKey(a.expiry) - expiryKey(b.expiry) || a.strike - b.strike)
+    const exit = args.exits?.find(row => row.symbol.toUpperCase() === underlying)
+    const quoted = args.spots?.[underlying]
+    const spot = quoted != null && Number.isFinite(quoted) && quoted > 0 ? quoted : stockSpot(positions, underlying)
+    const matched: LivePairRow[] = []
+    for (const call of calls) {
+      while (call.rem > 1e-6) {
+        const put = puts
+          .filter(leg => leg.rem > 1e-6)
+          .sort((a, b) => {
+            const gap = Math.abs(expiryKey(a.expiry) - expiryKey(call.expiry)) - Math.abs(expiryKey(b.expiry) - expiryKey(call.expiry))
+            if (gap !== 0) return gap
+            return Math.abs(a.strike - call.strike) - Math.abs(b.strike - call.strike)
+          })[0]
+        if (!put) break
+        const quantity = Math.min(call.rem, put.rem)
+        const multiplier = put.multiplier || call.multiplier || 100
+        const shares = quantity * multiplier
+        const net = call.mark - put.mark
+        const sooner = expiryKey(call.expiry) <= expiryKey(put.expiry) ? call.expiry : put.expiry
+        matched.push({
+          kind: 'pair',
+          underlying,
+          callStrike: call.strike,
+          putStrike: put.strike,
+          expiry: sooner,
+          callExpiry: call.expiry,
+          putExpiry: put.expiry,
+          quantity,
+          spot,
+          net,
+          shares: exit ? null : shares,
+          cash: exit || spot == null ? null : spot * shares,
+          exitPrice: exit ? exit.price : null,
+          flag: exit ? 'exit' : 'convert',
+        })
+        call.rem -= quantity
+        put.rem -= quantity
+      }
+    }
+    rows.push(...matched)
+    if (matched.length === 0) continue
+    for (const put of puts) {
+      if (put.rem <= 1e-6) continue
+      rows.push({
+        kind: 'close',
+        underlying,
+        callStrike: null,
+        putStrike: put.strike,
+        expiry: put.expiry,
+        callExpiry: '',
+        putExpiry: put.expiry,
+        quantity: put.rem,
+        spot,
+        net: null,
+        shares: null,
+        cash: null,
+        exitPrice: null,
+        flag: 'close',
+      })
+    }
+    for (const leg of group) {
+      if (leg.right !== 'P' || leg.qty >= 0 || leg.days > LONG_DATED_DAYS) continue
+      rows.push({
+        kind: 'close',
+        underlying,
+        callStrike: null,
+        putStrike: leg.strike,
+        expiry: leg.expiry,
+        callExpiry: '',
+        putExpiry: leg.expiry,
+        quantity: Math.abs(leg.qty),
+        spot,
+        net: null,
+        shares: null,
+        cash: null,
+        exitPrice: null,
+        flag: 'close',
+      })
+    }
+  }
+  return rows
 }
 
 export function usd0(n: number): string {

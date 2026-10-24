@@ -8,29 +8,28 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { loadMilestoneConfig } from '../dashboard/milestoneYears'
 import { CHART_THEME } from '../shared/chartTheme'
 import {
-  SEED_BUSINESS_NOTE,
-  SEED_BUSINESS_RISK,
   SEED_CALENDAR,
   SEED_CALLS,
   SEED_CALL_NOTE,
   SEED_CLOSE_LABEL,
   SEED_MARK_DATE,
   SEED_NEXT_ACTIONS,
-  SEED_PAIRS,
   SEED_PERSONAL_REPAIR,
   SEED_PERSONAL_REPAIR_NOTE,
   SEED_PUTS,
   SEED_PUT_NOTE,
   SEED_SELLS,
 } from '../../income/incomeSeed'
+import { adrTicker, canonicalUnderlying } from '../../engine/syntheticKey'
 import {
   annualizedReturn,
   booksFor,
   btcCap,
   callCover,
-  callYield,
+  daysBetween,
   elState,
   exitUpside,
+  livePairExits,
   milestoneIncome,
   pct,
   planPremium,
@@ -43,6 +42,7 @@ import {
   type BtcCap,
   type IncomeSource,
   type LiveBook,
+  type LivePairRow,
   type MilestoneIncome,
 } from '../../income/incomeLive'
 import { fetchQuotes, type Quote } from '../../services/quotes'
@@ -99,6 +99,117 @@ function Lines({ children }: { children: ReactNode }) {
 
 function Line({ children, muted, title }: { children: ReactNode; muted?: boolean; title?: string }) {
   return <div className={`income-line${muted ? ' muted' : ''}`} title={title}>{children}</div>
+}
+
+function tickerColor(symbol: string): string {
+  const known: Record<string, string> = { BTC: '#f7931a', MSTR: '#a78bfa', BSOL: '#14f195', IBIT: '#4a72d4' }
+  if (known[symbol]) return known[symbol]
+  let hash = 0
+  for (let i = 0; i < symbol.length; i++) hash = (hash * 33 + symbol.charCodeAt(i)) % 360
+  return `hsl(${hash}, 62%, 62%)`
+}
+
+function TickerChip({ symbol }: { symbol: string }) {
+  return <span className="income-ticker" style={{ ['--tick' as string]: tickerColor(symbol) }}>{symbol}</span>
+}
+
+function todayIso(today: Date): string {
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${today.getFullYear()}-${month}-${day}`
+}
+
+function daysLeft(iso: string, today: Date): number | null {
+  if (!iso) return null
+  return daysBetween(todayIso(today), iso.slice(0, 10))
+}
+
+function formatExpiryShort(iso: string, today: Date): string {
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return iso || '—'
+  const month = date.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' })
+  const day = date.getUTCDate()
+  if (date.getUTCFullYear() === today.getFullYear()) return `${day} ${month}`
+  return `${day} ${month} '${String(date.getUTCFullYear()).slice(2)}`
+}
+
+function DtePill({ days }: { days: number | null }) {
+  if (days == null) return null
+  const kind = days <= 7 ? 'urgent' : days <= 30 ? 'soon' : 'later'
+  return <span className={`income-dte-pill ${kind}`}>{`${Math.max(days, 0)}d`}</span>
+}
+
+function ExpiryCell({ iso, today, extra }: { iso: string; today: Date; extra?: string }) {
+  return (
+    <span className="income-expiry">
+      <span>{extra ? `${formatExpiryShort(iso, today)} · ${extra}` : formatExpiryShort(iso, today)}</span>
+      <DtePill days={daysLeft(iso, today)} />
+    </span>
+  )
+}
+
+function qtyText(n: number): string {
+  const abs = Math.abs(n)
+  const body = Number.isInteger(abs) ? abs.toLocaleString('en-US') : abs.toLocaleString('en-US', { maximumFractionDigits: 2 })
+  return `${body}×`
+}
+
+function netText(n: number): string {
+  const body = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return n < 0 ? `−${body}` : `+${body}`
+}
+
+function PairRow({ row, today }: { row: LivePairRow; today: Date }) {
+  const other = row.kind === 'pair' && row.callExpiry && row.putExpiry && row.callExpiry !== row.putExpiry
+    ? formatExpiryShort(row.callExpiry === row.expiry ? row.putExpiry : row.callExpiry, today)
+    : undefined
+  const upside = row.flag === 'exit' && row.spot != null && row.exitPrice != null ? pct(exitUpside(row.spot, row.exitPrice)) : null
+  return (
+    <tr>
+      <td><TickerChip symbol={row.underlying} /></td>
+      <td>
+        {row.kind === 'pair' ? (
+          <>
+            <span className="income-kind">🔁</span>
+            <span className="income-right call">{`${row.callStrike}C`}</span>
+            <span className="income-pair-slash">/</span>
+            <span className="income-right put">{`${row.putStrike}P`}</span>
+          </>
+        ) : (
+          <>
+            <span className="income-kind">📉</span>
+            <span className="income-right put">{`${row.putStrike}P`}</span>
+          </>
+        )}
+      </td>
+      <td><ExpiryCell iso={row.expiry} today={today} extra={other} /></td>
+      <td className="n">{qtyText(row.quantity)}</td>
+      <td className="n">{row.spot == null ? '—' : row.spot.toFixed(2)}</td>
+      <td className={`n${row.net == null ? '' : row.net < 0 ? ' neg' : ' pos'}`}>{row.net == null ? '—' : netText(row.net)}</td>
+      <td className="n">{row.shares == null ? '—' : Math.round(row.shares).toLocaleString('en-US')}</td>
+      <td className="n">{row.flag === 'exit' && row.exitPrice != null ? usd0(row.exitPrice) : moneyOrDash(row.cash)}</td>
+      <td>
+        {row.flag === 'close' && <span className="income-flag bad">Close</span>}
+        {row.flag === 'exit' && <span className="income-flag warn">{upside ? `Exit ${upside}` : 'Exit'}</span>}
+        {row.flag === 'convert' && <span className="income-flag snapshot">Convert</span>}
+      </td>
+    </tr>
+  )
+}
+
+function ScanTable({ columns, children }: { columns: { label: string; align?: 'n' }[]; children: ReactNode }) {
+  return (
+    <div className="income-scan">
+      <table className="income-scan-table">
+        <thead>
+          <tr>
+            {columns.map(column => <th key={column.label} className={column.align}>{column.label}</th>)}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  )
 }
 
 function nlvFor(books: LiveBook[], role: 'personal' | 'business'): number | undefined {
@@ -440,7 +551,15 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
   const now = useMemo(() => new Date(), [])
   const focus = useMemo(() => toLiveBook(account, now), [account, now])
   const books = useMemo(() => booksFor(accounts, now), [accounts, now])
-  const quotes = useIncomeQuotes(focus)
+  const pairSymbols = useMemo(() => {
+    const set = new Set<string>()
+    for (const position of account.positions) {
+      if (position.assetClass !== 'OPT') continue
+      set.add(canonicalUnderlying(position))
+    }
+    return [...set].sort()
+  }, [account.positions])
+  const quotes = useIncomeQuotes(focus, pairSymbols)
   const role = focus.role === 'business' ? 'business' : focus.role === 'personal' ? 'personal' : null
   const plan = useMemo(() => milestoneIncome({
     config: milestone,
@@ -475,7 +594,15 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
   const gross = baseShare != null && !plan.taxNote ? baseShare / (1 - tax) : null
   const grossUp = gross != null && baseShare != null ? gross - baseShare : null
   const interestUsd = plan.audUsd != null && role ? interestAud * plan.audUsd : null
-  const exitPrice = (symbol: string) => settings.exits.find(exit => exit.symbol === symbol)?.price
+  const pairSpots = useMemo(() => {
+    const spots: Record<string, number> = {}
+    for (const symbol of pairSymbols) {
+      const price = quotes.quotes[symbol]?.price
+      if (price != null && Number.isFinite(price) && price > 0) spots[symbol] = price
+    }
+    return spots
+  }, [pairSymbols, quotes.quotes])
+  const pairs = useMemo(() => livePairExits(account.positions, { today: now, spots: pairSpots, exits: settings.exits }), [account.positions, now, pairSpots, settings.exits])
   const usdSeries = plan.rows.length > 0 && plan.rows.every(row => row.decEndUsd != null)
 
   return (
@@ -676,150 +803,126 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
         </IncomePanel>
       </IncomePair>
 
-      {(focus.shortOptions.length > 0 || role) && (
-        <IncomePair single={!(focus.shortOptions.length > 0 && role)}>
-          {focus.shortOptions.length > 0 && (
-            <IncomePanel emoji="💰" title="Open shorts">
-              <Lines>
-                {focus.shortOptions.map(option => (
-                  <Line key={`${option.underlying}-${option.putCall}-${option.strike}-${option.expiry}`}>
-                    <strong>{option.underlying}</strong>
-                    <span>{`${option.strike}${option.putCall}`}</span>
-                    <span>{option.expiry || '—'}</span>
-                    <span>{`Qty ${option.quantity}`}</span>
-                    <span>{`Mark ${option.mark.toFixed(2)}`}</span>
-                    <span>{`Close ${usd0(option.closeCost)}`}</span>
-                    <span className="income-hint">{quotes.stale ? quotes.label : 'Statement mark'}</span>
-                  </Line>
-                ))}
-              </Lines>
-            </IncomePanel>
-          )}
-          {role && (
-            <IncomePanel emoji="💡" title="Ideas">
-              <Lines>
-                {SEED_NEXT_ACTIONS[role].map(step => (
-                  <Line key={step} title={step}>{step}</Line>
-                ))}
-                {sells.map(sell => (
-                  <Line key={sell.label} title={sell.cover}>
-                    <strong>{sell.label}</strong>
-                    <span>{usd0(sell.premium)}</span>
-                    <span>{sell.phase === 'now' ? 'Now' : 'After repair'}</span>
-                    <span>{sell.cover}</span>
-                  </Line>
-                ))}
-              </Lines>
-            </IncomePanel>
-          )}
-        </IncomePair>
-      )}
-
-      <div className="income-trio">
-      <IncomePanel emoji="📉" title={`Puts · ${formatExpiry(settings.screenExpiry)}`}>
-        <div className="income-chips">
-          <Chip>{`Δ ${settings.deltaMin.toFixed(2)}–${settings.deltaMax.toFixed(2)}`}</Chip>
-          <Chip>Premium / cash</Chip>
-          <Chip>{`${days}d`}</Chip>
-          {quotes.stale && <Chip kind="stale">{quotes.label}</Chip>}
-        </div>
-        <Lines>
-          {puts.map(row => (
-            <Line key={`${row.symbol}-${row.strike}`} muted={row.excluded || row.blockedMstr} title={row.note}>
-              <strong>{row.symbol}</strong>
-              <span>{`${row.strike}P`}</span>
-              <span>{formatExpiry(settings.screenExpiry)}</span>
-              <span>{row.delta == null ? 'Δ n/a' : `Δ ${row.delta.toFixed(2)}`}</span>
-              <span>{usd0(row.premium)}</span>
-              <span>{pct(annualizedReturn(row.ratio, days))}</span>
-              <span>{`Spot ${row.spot.toFixed(2)}`}</span>
-              {quotes.quotes[row.symbol] && <span>{quotes.quotes[row.symbol].price.toFixed(2)}</span>}
-              <span>{`${row.mid.toFixed(2)} (${row.bid.toFixed(2)}/${row.ask.toFixed(2)})`}</span>
-              <span>{row.iv == null ? 'IV n/a' : `IV ${pct(row.iv)}`}</span>
-              <span>{`Cash ${usd0(row.cash)}`}</span>
-              <span>{pct(row.ratio)}</span>
-              {row.excluded && <span>Excluded</span>}
-              {row.blockedMstr && <span>No new MSTR puts</span>}
-              {row.band === 'out' && <span>Outside band</span>}
-            </Line>
-          ))}
-        </Lines>
-        <details className="income-fold">
-          <summary><EmojiTitle emoji="📝">How this is calculated</EmojiTitle></summary>
-          <ul className="income-actions">
-            <li>{SEED_PUT_NOTE}</li>
-            <li>Rank is premium / cash secured, {days} days from {SEED_MARK_DATE} to {formatExpiry(settings.screenExpiry)}.</li>
-          </ul>
-        </details>
-      </IncomePanel>
-
-      {calls.length > 0 && (
-        <IncomePanel emoji="📞" title="Calls">
-          <Lines>
-            {calls.map(row => {
-              const cover = row.symbol === 'TSLA' && settings.tslaCallsCoveredOnly ? callCover(focus, 'TSLA', row.contracts) : null
-              const shares = focus.shares.find(holding => holding.symbol === row.symbol)?.quantity
-              return (
-                <Line key={row.label}>
-                  <strong>{row.label}</strong>
-                  <span>{row.delta == null ? 'Δ n/a' : `Δ ${row.delta.toFixed(2)}`}</span>
-                  <span>{usd0(row.premium)}</span>
-                  <span>{pct(callYield(row.premium, row.spot, row.contracts))}</span>
-                  <span>{`Spot ${row.spot.toFixed(2)}`}</span>
-                  <span>{`${row.mid.toFixed(2)} (${row.bid.toFixed(2)}/${row.ask.toFixed(2)})`}</span>
-                  {cover === 'covered' && <span>{`Covered · ${usd0(shares ?? 0)} sh`}</span>}
-                  {cover === 'short' && <span>{`Uncovered · ${usd0(shares ?? 0)} sh`}</span>}
-                  {cover === 'unknown' && <span>Cover unknown</span>}
-                  {cover == null && shares != null && <span>{`${usd0(shares)} sh`}</span>}
-                </Line>
-              )
-            })}
-          </Lines>
-          <details className="income-fold">
-            <summary><EmojiTitle emoji="🗒️">How this is calculated</EmojiTitle></summary>
-            <ul className="income-actions"><li>{SEED_CALL_NOTE}</li></ul>
-          </details>
-        </IncomePanel>
-      )}
-
-      {focus.role === 'business' && (
-        <IncomePanel emoji="⚖️" title="Pair exits">
-          <Lines>
-            {SEED_PAIRS.map(row => {
-              const exit = row.exitSymbol ? exitPrice(row.exitSymbol) : undefined
-              return (
-                <Line key={row.label}>
-                  <strong>{row.label}</strong>
-                  <span>{`Qty ${row.qty}`}</span>
-                  <span>{`Spot ${row.spot.toFixed(2)}`}</span>
-                  <span>{row.marks}</span>
-                  <span>{row.net}</span>
-                  <span>{row.shares}</span>
-                  {exit != null
-                    ? <span>{`Exit ${usd0(exit)} · ${pct(exitUpside(row.spot, exit))}`}</span>
-                    : row.cash ? <span>{`Cash ${row.cash}`}</span> : null}
-                  <span className="income-hint">{SEED_CLOSE_LABEL}</span>
-                </Line>
-              )
-            })}
-            {SEED_BUSINESS_RISK.map(row => (
-              <Line key={row.label} title={row.idea}>
-                <strong>{row.label}</strong>
-                <span>{`Qty ${row.qty}`}</span>
-                <span>{`Mark ${row.mark}`}</span>
-                <span>{`Close ${row.closeCost}`}</span>
-                <span>{`Spot ${row.spot}`}</span>
-                <span>{row.state}</span>
-                <span>{row.idea}</span>
-              </Line>
+      <div className="income-list-row">
+        {focus.shortOptions.length > 0 && (
+          <IncomePanel emoji="💰" title="Open shorts">
+            <ScanTable columns={[{ label: 'Ticker' }, { label: 'Contract' }, { label: 'Expiry' }, { label: 'Qty', align: 'n' }]}>
+              {focus.shortOptions.map(option => (
+                <tr key={`${option.underlying}-${option.putCall}-${option.strike}-${option.expiry}`}>
+                  <td><TickerChip symbol={adrTicker(option.underlying)} /></td>
+                  <td>
+                    <span className="income-kind">{option.putCall === 'P' ? '📉' : '📈'}</span>
+                    <span className={option.putCall === 'P' ? 'income-right put' : 'income-right call'}>{`${option.strike}${option.putCall}`}</span>
+                  </td>
+                  <td>{option.expiry ? <ExpiryCell iso={option.expiry} today={now} /> : '—'}</td>
+                  <td className="n">{qtyText(option.quantity)}</td>
+                </tr>
+              ))}
+            </ScanTable>
+          </IncomePanel>
+        )}
+        {role && (
+          <IncomePanel emoji="💡" title="Ideas">
+            <ScanTable columns={[{ label: 'Ticker' }, { label: 'Idea' }, { label: 'Credit', align: 'n' }]}>
+              {SEED_NEXT_ACTIONS[role].map(step => (
+                <tr key={step}>
+                  <td>—</td>
+                  <td title={step}>{step}</td>
+                  <td className="n">—</td>
+                </tr>
+              ))}
+              {sells.map(sell => (
+                <tr key={sell.label}>
+                  <td><TickerChip symbol={sell.label.split(' ')[0] ?? sell.label} /></td>
+                  <td title={sell.cover}>{`${sell.label} · ${sell.phase === 'now' ? 'Now' : 'After repair'}`}</td>
+                  <td className="n">{usd0(sell.premium)}</td>
+                </tr>
+              ))}
+            </ScanTable>
+          </IncomePanel>
+        )}
+        <IncomePanel emoji="📉" title={`Puts · ${formatExpiry(settings.screenExpiry)}`}>
+          <ScanTable columns={[{ label: 'Ticker' }, { label: 'Contract' }, { label: 'Expiry' }, { label: 'Credit', align: 'n' }, { label: 'Yield', align: 'n' }, { label: 'Flag' }]}>
+            {puts.map(row => (
+              <tr key={`${row.symbol}-${row.strike}`} className={row.excluded || row.blockedMstr ? 'muted' : undefined} title={row.note}>
+                <td><TickerChip symbol={row.symbol} /></td>
+                <td>
+                  <span className="income-kind">📉</span>
+                  <span className="income-right put">{`${row.strike}P`}</span>
+                </td>
+                <td><ExpiryCell iso={settings.screenExpiry} today={now} /></td>
+                <td className="n">{usd0(row.premium)}</td>
+                <td className="n">{pct(annualizedReturn(row.ratio, days))}</td>
+                <td>
+                  {row.excluded && <span className="income-flag bad">Excluded</span>}
+                  {row.blockedMstr && <span className="income-flag bad">No MSTR</span>}
+                  {row.band === 'out' && <span className="income-flag warn">Outside</span>}
+                  {!row.excluded && !row.blockedMstr && row.band !== 'out' && '—'}
+                </td>
+              </tr>
             ))}
-          </Lines>
+          </ScanTable>
           <details className="income-fold">
-            <summary><EmojiTitle emoji="📃">How this is calculated</EmojiTitle></summary>
-            <ul className="income-actions"><li>{SEED_BUSINESS_NOTE}</li></ul>
+            <summary><EmojiTitle emoji="📝">How this is calculated</EmojiTitle></summary>
+            <ul className="income-actions">
+              <li>{SEED_PUT_NOTE}</li>
+              <li>Rank is premium / cash secured, {days} days from {SEED_MARK_DATE} to {formatExpiry(settings.screenExpiry)}. Δ {settings.deltaMin.toFixed(2)}–{settings.deltaMax.toFixed(2)}.</li>
+            </ul>
           </details>
         </IncomePanel>
-      )}
+
+        {calls.length > 0 && (
+          <IncomePanel emoji="📞" title="Calls">
+            <ScanTable columns={[{ label: 'Ticker' }, { label: 'Contract' }, { label: 'Qty', align: 'n' }, { label: 'Credit', align: 'n' }, { label: 'Cover' }]}>
+              {calls.map(row => {
+                const cover = row.symbol === 'TSLA' && settings.tslaCallsCoveredOnly ? callCover(focus, 'TSLA', row.contracts) : null
+                const shares = focus.shares.find(holding => holding.symbol === row.symbol)?.quantity
+                const strike = row.label.match(/(\d+(?:\.\d+)?)C/)?.[1]
+                return (
+                  <tr key={row.label}>
+                    <td><TickerChip symbol={row.symbol} /></td>
+                    <td>
+                      <span className="income-kind">📈</span>
+                      <span className="income-right call">{strike ? `${strike}C` : row.label}</span>
+                    </td>
+                    <td className="n">{qtyText(row.contracts)}</td>
+                    <td className="n">{usd0(row.premium)}</td>
+                    <td>
+                      {cover === 'covered' && <span className="income-flag ok">Covered</span>}
+                      {cover === 'short' && <span className="income-flag bad">Uncovered</span>}
+                      {cover === 'unknown' && <span className="income-flag warn">Unknown</span>}
+                      {cover == null && shares != null && <span>{`${Math.round(shares)} sh`}</span>}
+                      {cover == null && shares == null && '—'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </ScanTable>
+            <details className="income-fold">
+              <summary><EmojiTitle emoji="🗒️">How this is calculated</EmojiTitle></summary>
+              <ul className="income-actions"><li>{SEED_CALL_NOTE}</li></ul>
+            </details>
+          </IncomePanel>
+        )}
+
+        {(role || pairs.length > 0) && (
+          <IncomePanel emoji="⚖️" title="Pair exits">
+            <ScanTable columns={[{ label: 'Ticker' }, { label: 'Contract' }, { label: 'Expiry' }, { label: 'Qty', align: 'n' }, { label: 'Spot', align: 'n' }, { label: 'Net', align: 'n' }, { label: 'Shares', align: 'n' }, { label: 'Cash', align: 'n' }, { label: 'Flag' }]}>
+              {pairs.length === 0 && (
+                <tr><td colSpan={9}>No live pairs</td></tr>
+              )}
+              {pairs.map(row => (
+                <PairRow key={`${row.kind}-${row.underlying}-${row.callStrike}-${row.putStrike}-${row.callExpiry}-${row.putExpiry}`} row={row} today={now} />
+              ))}
+            </ScanTable>
+            <details className="income-fold">
+              <summary><EmojiTitle emoji="📃">How this is calculated</EmojiTitle></summary>
+              <ul className="income-actions">
+                <li>Live long call plus short put on this account, both more than a year out. 9988 is BABA and 9888 is BIDU. Net is the call mark minus the put mark. Cash to convert is spot times the shares. BIDU and BABA use the exit price instead. A short put left over on a paired ticker is marked Close.</li>
+              </ul>
+            </details>
+          </IncomePanel>
+        )}
       </div>
 
       {focus.role === 'personal' && (
@@ -865,13 +968,14 @@ export default function IncomeView({ account, accounts, sessionKey }: { account:
   )
 }
 
-function useIncomeQuotes(book: LiveBook) {
+function useIncomeQuotes(book: LiveBook, extra: string[]) {
+  const extraKey = extra.join(',')
   const symbols = useMemo(() => {
-    const set = new Set<string>(['AUDUSD=X'])
+    const set = new Set<string>(['AUDUSD=X', ...extraKey.split(',').filter(Boolean)])
     for (const row of book.shares) set.add(row.symbol)
     for (const option of book.shortOptions) set.add(option.underlying)
     return [...set].sort()
-  }, [book])
+  }, [book, extraKey])
   const [quotes, setQuotes] = useState<Record<string, Quote>>({})
   const symbolKey = symbols.join(',')
   useEffect(() => {

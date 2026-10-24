@@ -17,6 +17,7 @@ import { fetchRSI, type RsiData } from '../../services/rsi'
 import { loadUserData, saveUserData } from '../../services/userData'
 import { meanReversionSignal, SIGNAL_STYLE } from '../../services/signal'
 import { useManualCashRows, getManualCashTotal } from '../../store/manualCashStore'
+import { adrTicker, optionRight, rawOptionUnderlying } from '../../engine/syntheticKey'
 
 export function fmt$(n: number): string {
   const abs = Math.abs(n)
@@ -32,48 +33,6 @@ export function tickerColor(i: number): string {
 }
 
 interface Holding { symbol: string; shares: number; avgCost: number; value: number; optionsValue: number; syntheticContracts: number }
-
-/**
- * IBKR's Hong Kong line uses the numeric board ticker. The US ADR — and the
- * allocation row — uses the letter ticker. A synthetic whose call is booked
- * on one line and whose put is booked on the other never shares a grouping
- * key, so neither side looks like a long-call + short-put and both marks
- * fall into OTHER. UMAC has only one listing, so this never comes up for it.
- */
-const HK_LISTING_TO_ADR: Record<string, string> = {
-  '9988': 'BABA',
-  '9888': 'BIDU',
-}
-
-/** OCC root + right, e.g. "BABA  270115C00120000" or "9988  270115P00090000". */
-function occContract(symbol: string): { root: string; putCall: 'C' | 'P' } | null {
-  const m = symbol.trim().toUpperCase().match(/^([A-Z0-9][A-Z0-9.]{0,5})\s*(\d{6})([CP])(\d{8})$/)
-  if (!m) return null
-  return { root: m[1], putCall: m[3] as 'C' | 'P' }
-}
-
-function adrTicker(root: string): string {
-  return HK_LISTING_TO_ADR[root] ?? root
-}
-
-/** Ticker IBKR actually put on this leg, before the HK→ADR alias.
- *  A blank underlyingSymbol used to fall through to the whole contract
- *  symbol, which is different for the call and the put, so the two legs
- *  could never meet. The root (text before the OCC date) is the underlying. */
-function rawOptionUnderlying(p: RawPosition): string {
-  const under = (p.underlyingSymbol ?? '').trim()
-  const underOcc = under ? occContract(under) : null
-  if (under && !underOcc) return under.split(/\s+/)[0]!.toUpperCase()
-  const fromSymbol = occContract(p.symbol)
-  if (fromSymbol) return fromSymbol.root
-  if (underOcc) return underOcc.root
-  return (under || p.symbol).trim().split(/\s+/)[0]?.toUpperCase() ?? p.symbol
-}
-
-function optionRight(p: RawPosition): 'C' | 'P' | undefined {
-  if (p.putCall === 'C' || p.putCall === 'P') return p.putCall
-  return occContract(p.symbol)?.putCall ?? (p.underlyingSymbol ? occContract(p.underlyingSymbol)?.putCall : undefined)
-}
 
 /** Option-only rows whose mark is zero or negative (an underwater synthetic
  * long). The holdings table still shows them — Current $ is negative and
