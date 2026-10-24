@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { AppState, Action, UrgencyLevel, StrategyType, RawTrade } from '../../types'
 import { tradeId } from '../../store/tradeLabelsStore'
 import { buildJournalPositions, buildStockPositions } from '../../engine/journal'
 import { fetchQuotes, type Quote } from '../../services/quotes'
 import { generateActions } from '../../engine/actions'
+import { elState } from '../../income/incomeLive'
 
 // ─── Urgency config ───────────────────────────────────────────────────────────
 
@@ -659,22 +660,71 @@ function AllocationPieRightLegend({ slices, centerLabel, centerValue }: { slices
 
 // ─── Individual Dashboard analytics cards ─────────────────────────────────────
 
-export function PortfolioSummaryCard({ state }: { state: AppState }) {
-  const { netLiq, totalUnrealized, realizedPnL, cashBalance } = derivePortfolio(state)
+function fmtFullDollar(n: number): string {
+  const sign = n < 0 ? '-' : ''
+  return `${sign}$${Math.abs(Math.round(n)).toLocaleString('en-US')}`
+}
+
+export function PortfolioSummaryCard({
+  state,
+  netLiquidation,
+  excessLiquidity,
+  elFloor,
+}: {
+  state: AppState
+  /** Income's resolved net liquidation. Missing stays blank. */
+  netLiquidation: number | undefined
+  excessLiquidity: number | undefined
+  elFloor: number
+}) {
+  const { totalUnrealized, realizedPnL, cashBalance } = derivePortfolio(state)
+  const el = elState(excessLiquidity, elFloor)
+  const elGap = excessLiquidity == null || !Number.isFinite(excessLiquidity) ? null : Math.abs(excessLiquidity - elFloor)
+  const cells: { key: string; label: ReactNode; value: string; color: string; sub?: string; subColor?: string; outline?: boolean }[] = [
+    { key: 'nlv', label: 'Net Liquidation', value: netLiquidation == null || !Number.isFinite(netLiquidation) ? '—' : fmtDollar(netLiquidation), color: 'var(--text-1)' },
+    { key: 'upnl', label: 'Unrealised P&L', value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
+    { key: 'rpnl', label: 'Realised P&L', value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
+    { key: 'cash', label: 'Cash (Base)', value: fmtDollar(cashBalance), color: 'var(--text-1)' },
+    {
+      key: 'el',
+      label: (
+        <span className="income-title">
+          <span className="income-emoji" aria-hidden="true">🛡️</span>
+          <span>Excess liquidity</span>
+        </span>
+      ),
+      value: el === 'unknown' ? '—' : fmtDollar(excessLiquidity ?? 0),
+      color: 'var(--text-1)',
+      sub: el === 'unknown'
+        ? 'Not in snapshot'
+        : el === 'below'
+          ? `${fmtFullDollar(elGap ?? 0)} below ${fmtFullDollar(elFloor)}`
+          : `${fmtFullDollar(elGap ?? 0)} above ${fmtFullDollar(elFloor)}`,
+      subColor: el === 'below' ? '#ef4444' : el === 'ok' ? '#10b981' : 'var(--text-4)',
+      outline: el === 'below',
+    },
+  ]
   return (
     <div className="dash-panel" style={{ padding: 0, overflow: 'hidden' }}>
       <div className="db-keymetrics" style={{
         display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', height: '100%',
       }}>
-        {[
-          { label: 'Net Liquidation', value: fmtDollar(netLiq), color: 'var(--text-1)' },
-          { label: 'Unrealised P&L',  value: fmtDollar(totalUnrealized), color: pnlColor(totalUnrealized) },
-          { label: 'Realised P&L',    value: fmtDollar(realizedPnL), color: pnlColor(realizedPnL) },
-          { label: 'Cash (Base)',      value: fmtDollar(cashBalance), color: 'var(--text-1)' },
-        ].map(({ label, value, color }) => (
-          <div key={label} style={{ padding: '10px 16px', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Inter, sans-serif', color }}>{value}</div>
+        {cells.map(cell => (
+          <div
+            key={cell.key}
+            data-testid={cell.key === 'el' ? 'overview-el' : cell.key === 'nlv' ? 'overview-nlv' : undefined}
+            style={{
+              padding: '10px 16px',
+              borderRight: '1px solid var(--border)',
+              borderBottom: '1px solid var(--border)',
+              boxShadow: cell.outline ? 'inset 0 0 0 1px #ef4444' : undefined,
+            }}
+          >
+            <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{cell.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: cell.color }}>{cell.value}</div>
+            {cell.sub && (
+              <div style={{ marginTop: 2, fontSize: 11, fontWeight: 500, color: cell.subColor }}>{cell.sub}</div>
+            )}
           </div>
         ))}
       </div>

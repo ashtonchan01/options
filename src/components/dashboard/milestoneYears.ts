@@ -1,5 +1,5 @@
 /**
- * Milestone year rows. The Income tab reads these figures; it does not
+ * Milestone year rows. The Milestone page reads these figures; it does not
  * recompute the compound path.
  */
 export interface MilestoneConfig {

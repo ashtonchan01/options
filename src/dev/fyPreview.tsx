@@ -172,7 +172,6 @@ export function FyPreviewApp() {
         <main style={{ overflow: 'visible' }}>
           <AccountView
             account={active}
-            accounts={accounts}
             loading={false}
             error={null}
             onUpload={() => {}}
