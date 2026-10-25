@@ -23,9 +23,6 @@ function fmtDollar(n: number): string {
   const sign = n < 0 ? '-' : ''
   return `${sign}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
-function fmt(n: number): string {
-  return Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-}
 
 /** Rounds a positive value up to a "nice" number (1/2/5 x a power of ten) —
  * e.g. 17,798 -> 20,000, 64,104 -> 70,000 — so chart axes read like a human
@@ -107,13 +104,6 @@ function monthLabelLayout(slotPx: number): { angle: 45 | 90; font: number } {
   return { angle: 90, font: 8 }
 }
 
-function valueLabelFont(slotPx: number): number {
-  if (slotPx <= 0 || slotPx >= 14) return 11
-  if (slotPx >= 12) return 10
-  if (slotPx >= 10) return 9
-  return 8
-}
-
 /** IBKR dates come as raw "YYYYMMDD" — plain string slicing is enough, no Date parsing needed. */
 function monthKey(dateStr: string): string {
   const d = /^\d{8}$/.test(dateStr) ? dateStr : dateStr.replace(/-/g, '')
@@ -191,23 +181,21 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
     </div>
   )
 
-  const valueLabels = rows.map(([, val]) => `${val >= 0 ? '+' : '-'}${fmt(Math.abs(val))}`)
   const monthLabels = rows.map(([key]) => fmtMonthShort(key))
-  const valueTextW = Math.max(...valueLabels.map(label => textWidth(label, `600 11px ${CHART_THEME.fontFamily}`)), 1)
   const monthTextW = Math.max(...monthLabels.map(label => textWidth(label, `400 11px ${CHART_THEME.fontFamily}`)), 1)
-  const yLabel = `-${fmtDollar(niceCeil(Math.max(...rows.map(([, v]) => Math.abs(v)), 1)))}`
-  const yLabelW = textWidth(yLabel, `400 ${AXIS_LABEL_SIZE}px ${CHART_THEME.fontFamily}`)
+  // Symmetric ticks (-max, half, zero, half, max) so the bars scale against
+  // a real axis instead of carrying a number on every bar.
+  const maxAbs = niceCeil(Math.max(...rows.map(([, v]) => Math.abs(v)), 1))
+  const yTicks = [-maxAbs, -maxAbs / 2, 0, maxAbs / 2, maxAbs]
+  const yLabelW = Math.max(...yTicks.map(tick => textWidth(fmtDollar(tick), `400 ${AXIS_LABEL_SIZE}px ${CHART_THEME.fontFamily}`)))
   const leftPad = Math.max(58, Math.ceil(yLabelW + 14))
-  // Value labels stand straight up, clear of the bar tip. Month labels use
-  // their own angle. Right padding fits the last rotated date, and the
-  // bottom pad is that date's full height so it stays inside the card.
   const n = rows.length
   const slotBeforeRight = plot.w > 0 ? Math.max(1, (plot.w - leftPad - 8) / n) : 0
-  const valueFont = valueLabelFont(slotBeforeRight)
-  const valueW = valueTextW * (valueFont / 11)
   let { angle: monthAngle, font: monthFont } = monthLabelLayout(slotBeforeRight)
-  const monthW = monthTextW * (monthFont / 11)
-  const monthReach = monthAngle === 90 ? monthFont + 4 : monthW * Math.SQRT1_2 + 6
+  const monthReachFor = (angle: 45 | 90, font: number) => {
+    const width = monthTextW * (font / 11)
+    return angle === 90 ? font + 4 : width * Math.SQRT1_2 + 6
+  }
   const inner = Math.max(0, plot.w - leftPad)
   const denom = 1 - 0.85 / n
   const rightFor = (reach: number) => {
@@ -215,65 +203,34 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
     const raw = (reach - (0.85 * inner) / n) / denom
     return Math.max(8, Math.min(plot.w * 0.28, Math.ceil(raw)))
   }
-  let rightPad = rightFor(Math.max(monthReach, valueFont + 4))
+  let rightPad = rightFor(monthReachFor(monthAngle, monthFont))
   const slot = plot.w > 0 ? Math.max(1, (plot.w - leftPad - rightPad) / n) : slotBeforeRight
   const tightened = monthLabelLayout(slot)
   if (tightened.angle !== monthAngle || tightened.font !== monthFont) {
     monthAngle = tightened.angle
     monthFont = tightened.font
-    const nextW = monthTextW * (monthFont / 11)
-    const nextReach = monthAngle === 90 ? monthFont + 4 : nextW * Math.SQRT1_2 + 6
-    rightPad = rightFor(Math.max(nextReach, valueFont + 4))
+    rightPad = rightFor(monthReachFor(monthAngle, monthFont))
   }
   const fittedMonthW = monthTextW * (monthFont / 11)
-  const valueRoom = valueW + 14
   const monthRoom = monthAngle === 90
     ? fittedMonthW + 8
     : (fittedMonthW + monthFont) * Math.SQRT1_2 + 10
-  let topPad = valueRoom
-  let negPad = valueRoom
+  const topPad = 14
   let monthPad = monthRoom
-  if (plot.h > 0 && topPad + negPad + monthPad > plot.h - 36) {
-    const room = Math.max(48, plot.h - 36)
-    const scale = room / (topPad + negPad + monthPad)
-    topPad *= scale
-    negPad *= scale
-    monthPad *= scale
+  if (plot.h > 0 && topPad + monthPad > plot.h * 0.42) {
+    monthPad = Math.max(28, plot.h * 0.42 - topPad)
   }
 
   const W = 100, H = 100
   const PL = plot.w > 0 ? (leftPad / plot.w) * 100 : 16
   const PR = plot.w > 0 ? (rightPad / plot.w) * 100 : 6
-  const PT = plot.h > 0 ? (topPad / plot.h) * 100 : 18
-  const negU = plot.h > 0 ? (negPad / plot.h) * 100 : 14
+  const PT = plot.h > 0 ? (topPad / plot.h) * 100 : 8
   const monthU = plot.h > 0 ? (monthPad / plot.h) * 100 : 16
-  const PB = negU + monthU
-  // Rounded up to a "nice" number (e.g. 17,798 -> 20,000) so the axis reads
-  // like a human picked the increment instead of whatever the data computed
-  // to — bars scale against this slightly-larger ceiling, so they no longer
-  // quite touch the label row, which is the expected/normal look for a
-  // rounded axis.
-  const maxAbs = niceCeil(Math.max(...rows.map(([, v]) => Math.abs(v)), 1))
-  const y0 = PT + (H - PT - PB) / 2
-  const halfHeight = (H - PT - PB) / 2
-  const scale = halfHeight / maxAbs
+  const PB = monthU
+  const yOf = (v: number) => PT + (1 - (v + maxAbs) / (maxAbs * 2)) * (H - PT - PB)
+  const y0 = yOf(0)
   const bw = (W - PL - PR) / rows.length
   const total = rows.reduce((s, [, v]) => s + v, 0)
-  const valueStyle = (positive: boolean): React.CSSProperties => ({
-    position: 'absolute',
-    writingMode: 'vertical-rl',
-    // The layout box is already a vertical strip. Shift it fully off the
-    // bar tip (above a gain, below a loss) before any extra turn.
-    transform: positive
-      ? 'translate(-50%, calc(-100% - 8px)) rotate(180deg)'
-      : 'translate(-50%, 8px)',
-    transformOrigin: positive ? 'center center' : 'center top',
-    fontSize: valueFont,
-    fontWeight: 600,
-    lineHeight: 1,
-    color: positive ? '#10b981' : '#ef4444',
-    whiteSpace: 'nowrap',
-  })
   const monthStyle: React.CSSProperties = {
     position: 'absolute',
     transform: monthAngle === 90 ? 'rotate(90deg)' : 'rotate(45deg)',
@@ -308,17 +265,20 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
           Net {total >= 0 ? '+' : ''}{fmtDollar(total)}
         </span>
       </div>
-      <div ref={plotRef} className="ov-chart-plot" data-bar-angle="90" data-month-angle={monthAngle} style={{ position: 'relative', height: 190, flex: '0 0 auto', overflow: 'visible' }}>
+      <div ref={plotRef} className="ov-chart-plot" data-month-angle={monthAngle} style={{ position: 'relative', height: 256, flex: '0 0 auto', overflow: 'visible' }}>
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
-          <line x1={PL} x2={W - PR} y1={PT} y2={PT} stroke="var(--border-light)" strokeWidth="0.15" strokeDasharray="0.6,0.6" />
-          <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="var(--border-light)" strokeWidth="0.3" />
-          <line x1={PL} x2={W - PR} y1={H - PB} y2={H - PB} stroke="var(--border-light)" strokeWidth="0.15" strokeDasharray="0.6,0.6" />
+          {yTicks.map(tick => (
+            <line key={tick} x1={PL} x2={W - PR} y1={yOf(tick)} y2={yOf(tick)}
+              stroke={tick === 0 ? 'var(--border-light)' : 'var(--border-light)'}
+              strokeWidth={tick === 0 ? 0.35 : 0.15}
+              strokeDasharray={tick === 0 ? undefined : '0.6,0.6'} />
+          ))}
           {rows.map(([key, val], i) => {
-            const h = Math.abs(val) * scale
+            const yv = yOf(val)
+            const top = Math.min(yv, y0)
             const bx = PL + i * bw + bw * 0.15
-            const by = val >= 0 ? y0 - h : y0
             return (
-              <rect key={key} x={bx} y={by} width={bw * 0.7} height={Math.max(h, 0.3)} rx={0.3}
+              <rect key={key} x={bx} y={top} width={bw * 0.7} height={Math.max(Math.abs(yv - y0), 0.3)} rx={0.3}
                 fill={val >= 0 ? '#10b981' : '#ef4444'} opacity={0.85} vectorEffect="non-scaling-stroke">
                 <title>{fmtMonthFull(key)}: {val >= 0 ? '+' : ''}{fmtDollar(val)}</title>
               </rect>
@@ -326,25 +286,9 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
           })}
         </svg>
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: CHART_THEME.fontFamily }}>
-          <span style={{ position: 'absolute', left: 4, top: `${(PT / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>{fmtDollar(maxAbs)}</span>
-          <span style={{ position: 'absolute', left: 4, top: `${(y0 / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>$0</span>
-          <span style={{ position: 'absolute', left: 4, top: `${((H - PB) / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>-{fmtDollar(maxAbs)}</span>
-          {rows.map(([key, val], i) => {
-            const h = Math.abs(val) * scale
-            const bx = PL + i * bw + bw * 0.15
-            const by = val >= 0 ? y0 - h : y0
-            const positive = val >= 0
-            const cx = bx + bw * 0.35
-            return (
-              <span key={key} className="ov-bar-value" style={{
-                ...valueStyle(positive),
-                left: `${(cx / W) * 100}%`,
-                top: `${((positive ? by : by + h) / H) * 100}%`,
-              }}>
-                {valueLabels[i]}
-              </span>
-            )
-          })}
+          {yTicks.map(tick => (
+            <span key={tick} className="ov-y-tick" style={{ position: 'absolute', left: 4, top: `${(yOf(tick) / H) * 100}%`, transform: 'translateY(-50%)', fontSize: AXIS_LABEL_SIZE, color: 'var(--text-4)' }}>{fmtDollar(tick)}</span>
+          ))}
           {rows.map(([key], i) => {
             const bx = PL + i * bw + bw * 0.15
             return (
@@ -536,7 +480,7 @@ export default function OverviewView({ state, account, loading, error, syncNote,
 
   return (
     <div className="jr-root ov-root" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 8, padding: 0 }}>
-      <div className="ov-top-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'start', flex: '0 0 auto' }}>
+      <div className="ov-top-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 0.78fr) minmax(0, 1.22fr)', gap: 8, alignItems: 'stretch', flex: '0 0 auto' }}>
         <div className="ov-import-stack">
           <FlexSyncBar
             savedToken={account.flexToken}
@@ -573,13 +517,12 @@ export default function OverviewView({ state, account, loading, error, syncNote,
       ) : (
         <>
           <div style={{ flex: '0 0 auto' }}><KpiStrip state={state} /></div>
-          {/* Fixed plot height. The Ideas / Puts / Calls row below takes the
-              leftover viewport height, instead of these charts growing and
-              squeezing that row. */}
+          {/* Plot sits between the old 190px and 260px heights. The Ideas /
+              Puts / Calls row keeps whatever viewport is left. */}
           <div className="ov-charts-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'stretch', flex: '0 0 auto' }}>
             <div className="dash-panel ov-equity-panel">
               <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Equity Curve</span></div>
-              <div className="ov-equity-plot" style={{ height: 190, flex: '0 0 auto', display: 'flex', alignItems: 'stretch' }}>
+              <div className="ov-equity-plot" style={{ height: 256, flex: '0 0 auto', display: 'flex', alignItems: 'stretch' }}>
                 <EquityChart points={equityCurve(closedByDate([
                   ...buildJournalPositions(state.sync.trades, {}),
                   ...buildStockPositions(state.sync.trades, {}, state.sync.positions),

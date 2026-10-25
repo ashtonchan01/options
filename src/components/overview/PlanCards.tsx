@@ -64,10 +64,18 @@ function EmojiTitle({ emoji, children }: { emoji: string; children: ReactNode })
   )
 }
 
-function IncomePanel({ emoji, title, children }: { emoji: string; title: string; children: ReactNode }) {
+function money(n: number): string {
+  const sign = n < 0 ? '-' : ''
+  return `${sign}$${usd0(Math.abs(n))}`
+}
+
+function IncomePanel({ emoji, title, extra, children }: { emoji: string; title: string; extra?: ReactNode; children: ReactNode }) {
   return (
     <section className="dash-panel income-panel">
-      <div className="dash-panel-header"><EmojiTitle emoji={emoji}>{title}</EmojiTitle></div>
+      <div className="dash-panel-header">
+        <EmojiTitle emoji={emoji}>{title}</EmojiTitle>
+        {extra}
+      </div>
       {children}
     </section>
   )
@@ -132,6 +140,8 @@ export default function PlanCards({ account, settings }: { account: Account; set
   const puts = putScreenRows(SEED_PUTS, settings)
   const calls = role ? SEED_CALLS.filter(row => row.account === role) : []
   const sells = role ? SEED_SELLS.filter(sell => sell.account === role) : []
+  const putCredit = puts.reduce((sum, row) => sum + row.premium, 0)
+  const callCredit = calls.reduce((sum, row) => sum + row.premium, 0)
 
   return (
     <div className="income-list-row ov-plan-row">
@@ -155,7 +165,11 @@ export default function PlanCards({ account, settings }: { account: Account; set
           </ScanTable>
         </IncomePanel>
       )}
-      <IncomePanel emoji="📉" title={`Puts · ${formatExpiry(settings.screenExpiry)}`}>
+      <IncomePanel
+        emoji="📉"
+        title={`Puts · ${formatExpiry(settings.screenExpiry)}`}
+        extra={<span className="ov-credit-total" data-testid="puts-credit-total">Credit total <b>{money(putCredit)}</b></span>}
+      >
         <ScanTable columns={[{ label: 'Ticker' }, { label: 'Contract' }, { label: 'Expiry' }, { label: 'Credit', align: 'n' }, { label: 'Yield', align: 'n' }, { label: 'Flag' }]}>
           {puts.map(row => (
             <tr key={`${row.symbol}-${row.strike}`} className={row.excluded || row.blockedMstr ? 'muted' : undefined} title={row.note}>
@@ -185,7 +199,11 @@ export default function PlanCards({ account, settings }: { account: Account; set
         </details>
       </IncomePanel>
       {calls.length > 0 && (
-        <IncomePanel emoji="📞" title="Calls">
+        <IncomePanel
+          emoji="📞"
+          title="Calls"
+          extra={<span className="ov-credit-total" data-testid="calls-credit-total">Credit total <b>{money(callCredit)}</b></span>}
+        >
           <ScanTable columns={[{ label: 'Ticker' }, { label: 'Contract' }, { label: 'Qty', align: 'n' }, { label: 'Credit', align: 'n' }, { label: 'Cover' }]}>
             {calls.map(row => {
               const coveredOnly = settings.rules.some(rule => rule.type === 'coveredCalls' && rule.symbol.trim().toUpperCase() === row.symbol)

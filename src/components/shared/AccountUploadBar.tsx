@@ -36,7 +36,7 @@ export default function AccountUploadBar({ label, fileName, uploadedAt, loading,
 
   return (
     <div className="ov-import-card" style={{
-      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px',
+      display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
       background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, flexWrap: 'wrap',
     }}>
       <label style={{

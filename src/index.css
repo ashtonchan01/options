@@ -1239,9 +1239,10 @@ body {
 .ov-import-stack {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  height: auto;
+  gap: 4px;
+  height: 100%;
   min-height: 0;
+  justify-content: center;
 }
 .ov-import-stack > .ov-import-card {
   flex: 0 0 auto;
@@ -1252,15 +1253,15 @@ body {
 .ov-inline-note p { margin: 6px 0 0; line-height: 1.45; max-width: 520px; }
 .ov-kpi-card {
   container-type: inline-size;
-  height: auto;
-  align-self: start;
+  height: 100%;
+  align-self: stretch;
   width: 100%;
 }
 .ov-kpi-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  height: auto;
-  align-content: start;
+  height: 100%;
+  align-content: stretch;
 }
 .ov-plan-row {
   flex: 1 1 auto;
@@ -1277,6 +1278,20 @@ body {
   overflow: auto;
 }
 .ov-root .income-fold { flex: 0 0 auto; }
+.ov-credit-total {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.ov-credit-total b {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-1);
+  font-family: Inter, sans-serif;
+}
 .ov-kpi-cell {
   padding: 6px 8px;
   border-right: 1px solid var(--border);
@@ -1566,7 +1581,7 @@ body {
   .ov-top-grid, .ov-charts-row { grid-template-columns: 1fr !important; }
   .ov-charts-row { flex: none !important; height: auto !important; min-height: 0 !important; }
   .ov-equity-panel, .ov-monthly-panel { height: auto !important; overflow: visible; }
-  .ov-equity-plot, .ov-chart-plot { height: 180px !important; flex: 0 0 auto !important; }
+  .ov-equity-plot, .ov-chart-plot { height: 200px !important; flex: 0 0 auto !important; }
   .ov-plan-row { flex: none !important; height: auto !important; }
   .ov-root .income-panel { height: auto; overflow: visible; }
   .ov-root .income-scan { max-height: none; }
