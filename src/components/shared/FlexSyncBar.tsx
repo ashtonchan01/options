@@ -23,19 +23,16 @@ const REQUIRED_SECTIONS = [
 ]
 
 function SetupInstructions() {
-  const [open, setOpen] = useState(false)
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-elevated)' }}>
-      <button onClick={() => setOpen(o => !o)} style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
-        background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'var(--text-2)',
+    <details style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-elevated)' }}>
+      <summary style={{
+        display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+        cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'var(--text-2)',
       }}>
         <HelpCircle size={12} />
         First time setting this up? Steps for a new IBKR account
-        {open ? <ChevronUp size={12} style={{ marginLeft: 'auto' }} /> : <ChevronDown size={12} style={{ marginLeft: 'auto' }} />}
-      </button>
-      {open && (
-        <ol style={{ margin: 0, padding: '0 14px 10px 24px', fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.6 }}>
+      </summary>
+      <ol style={{ margin: 0, padding: '0 14px 10px 24px', fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.6 }}>
           <li>
             On IBKR's website: <strong>Reporting → Flex Queries → Flex Queries</strong> → under "Activity Flex Query" click the <strong>+</strong> to create a new one. Give it any name.
           </li>
@@ -55,8 +52,7 @@ function SetupInstructions() {
           </li>
           <li>Paste that <strong>Token</strong> and the <strong>Query ID</strong> into the two fields below and click <strong>Save & Sync</strong>.</li>
         </ol>
-      )}
-    </div>
+    </details>
   )
 }
 

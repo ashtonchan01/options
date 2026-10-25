@@ -134,7 +134,7 @@ export default function PlanCards({ account, settings }: { account: Account; set
   const sells = role ? SEED_SELLS.filter(sell => sell.account === role) : []
 
   return (
-    <div className="income-list-row" style={{ flex: '0 0 auto', width: '100%' }}>
+    <div className="income-list-row ov-plan-row">
       {role && (
         <IncomePanel emoji="💡" title="Ideas">
           <ScanTable columns={[{ label: 'Ticker' }, { label: 'Idea' }, { label: 'Credit', align: 'n' }]}>
