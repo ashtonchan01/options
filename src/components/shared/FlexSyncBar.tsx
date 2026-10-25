@@ -84,7 +84,7 @@ export default function FlexSyncBar({ savedToken, savedQueryId, loading, error, 
   }
 
   return (
-    <div style={{
+    <div className="ov-import-card ov-import-card--col" style={{
       display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 14px',
       background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
     }}>
