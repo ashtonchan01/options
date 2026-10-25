@@ -1251,17 +1251,22 @@ body {
 .ov-inline-note { font-size: 11px; color: var(--text-4); }
 .ov-inline-note summary { cursor: pointer; color: var(--text-3); }
 .ov-inline-note p { margin: 6px 0 0; line-height: 1.45; max-width: 520px; }
-.ov-kpi-card {
+.dash-panel.ov-kpi-card {
   container-type: inline-size;
   height: 100%;
   align-self: stretch;
   width: 100%;
+  border-radius: 14px;
+  padding: 6px;
+  overflow: hidden;
+  gap: 0;
 }
 .ov-kpi-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   height: 100%;
   align-content: stretch;
+  gap: 6px;
 }
 .ov-plan-row {
   flex: 1 1 auto;
@@ -1293,16 +1298,17 @@ body {
   font-family: Inter, sans-serif;
 }
 .ov-kpi-cell {
-  padding: 6px 8px;
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  padding: 8px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
   min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
+  text-align: center;
 }
-.ov-kpi-cell:nth-child(2n) { border-right: none; }
-.ov-kpi-cell:last-child { border-right: none; border-bottom: none; }
 /* The fifth metric sits alone on the last row of the 2-column layout.
    Span it so that row isn't a half-empty cell. */
 .ov-kpi-cell:last-child:nth-child(odd) { grid-column: 1 / -1; }
@@ -1315,7 +1321,10 @@ body {
   margin-bottom: 2px;
   line-height: 1.2;
 }
-.ov-kpi-label .income-title { flex-wrap: wrap; }
+.ov-kpi-label .income-title { flex-wrap: wrap; justify-content: center; }
+.ov-kpi-label,
+.ov-kpi-value,
+.ov-kpi-sub { text-align: center; width: 100%; }
 .ov-kpi-value {
   font-size: 16px;
   font-weight: 700;
@@ -1330,10 +1339,6 @@ body {
 }
 @container (min-width: 480px) {
   .ov-kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .ov-kpi-cell { border-bottom: none; border-right: 1px solid var(--border); }
-  .ov-kpi-cell:nth-child(2n) { border-right: 1px solid var(--border); }
-  .ov-kpi-cell:nth-child(5n),
-  .ov-kpi-cell:last-child { border-right: none; }
   .ov-kpi-cell:last-child:nth-child(odd) { grid-column: auto; }
 }
 

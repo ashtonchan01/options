@@ -705,7 +705,7 @@ export function PortfolioSummaryCard({
     },
   ]
   return (
-    <div className="dash-panel ov-kpi-card" style={{ padding: 0, overflow: 'hidden' }}>
+    <div className="dash-panel ov-kpi-card">
       <div className="ov-kpi-grid">
         {cells.map(cell => (
           <div
