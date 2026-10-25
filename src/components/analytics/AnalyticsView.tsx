@@ -705,25 +705,19 @@ export function PortfolioSummaryCard({
     },
   ]
   return (
-    <div className="dash-panel" style={{ padding: 0, overflow: 'hidden' }}>
-      <div className="db-keymetrics" style={{
-        display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', height: '100%',
-      }}>
+    <div className="dash-panel ov-kpi-card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="ov-kpi-grid">
         {cells.map(cell => (
           <div
             key={cell.key}
+            className="ov-kpi-cell"
             data-testid={cell.key === 'el' ? 'overview-el' : cell.key === 'nlv' ? 'overview-nlv' : undefined}
-            style={{
-              padding: '10px 16px',
-              borderRight: '1px solid var(--border)',
-              borderBottom: '1px solid var(--border)',
-              boxShadow: cell.outline ? 'inset 0 0 0 1px #ef4444' : undefined,
-            }}
+            style={{ boxShadow: cell.outline ? 'inset 0 0 0 1px #ef4444' : undefined }}
           >
-            <div style={{ fontSize: 10, color: 'var(--text-4)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{cell.label}</div>
-            <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: cell.color }}>{cell.value}</div>
+            <div className="ov-kpi-label">{cell.label}</div>
+            <div className="ov-kpi-value" style={{ color: cell.color }}>{cell.value}</div>
             {cell.sub && (
-              <div style={{ marginTop: 2, fontSize: 11, fontWeight: 500, color: cell.subColor }}>{cell.sub}</div>
+              <div className="ov-kpi-sub" style={{ color: cell.subColor }}>{cell.sub}</div>
             )}
           </div>
         ))}
