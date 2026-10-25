@@ -75,17 +75,17 @@ export default function FlexSyncBar({ savedToken, savedQueryId, loading, error, 
   }
 
   const inputStyle: React.CSSProperties = {
-    padding: '5px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)',
-    background: 'var(--bg-elevated)', color: 'var(--text-1)', width: 180,
+    padding: '4px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)',
+    background: 'var(--bg-elevated)', color: 'var(--text-1)', width: 0, flex: '1 1 72px', minWidth: 0,
   }
 
   return (
     <div className="ov-import-card ov-import-card--col" style={{
-      display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 14px',
+      display: 'flex', flexDirection: 'column', gap: 4, padding: '5px 10px',
       background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-1)' }}>IBKR Flex Web Service</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-1)', flex: '0 0 auto' }}>IBKR Flex Web Service</span>
         {hasSaved && !expanded ? (
           <>
             <span style={{ fontSize: 11, color: 'var(--text-4)' }}>Query ID {savedQueryId}</span>
@@ -109,7 +109,7 @@ export default function FlexSyncBar({ savedToken, savedQueryId, loading, error, 
             <input value={token} onChange={e => setToken(e.target.value)} placeholder="Token" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} style={inputStyle} />
             <input value={queryId} onChange={e => setQueryId(e.target.value)} placeholder="Query ID" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} style={inputStyle} />
             <button onClick={handleSync} disabled={loading || !token.trim() || !queryId.trim()} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px',
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', flex: '0 0 auto',
               fontSize: 11, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
               color: 'var(--accent)', cursor: loading ? 'not-allowed' : 'pointer', borderRadius: 4,
             }}>
