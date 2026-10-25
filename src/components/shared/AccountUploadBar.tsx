@@ -48,9 +48,15 @@ export default function AccountUploadBar({ label, fileName, uploadedAt, loading,
         {loading ? 'Decoding…' : `Upload ${label} statement`}
         <input ref={fileRef} type="file" accept=".xml,.csv,.xlsx,.xls,.pdf" multiple style={{ display: 'none' }} onChange={handleFile} disabled={loading} />
       </label>
-      <span style={{ fontSize: 11, color: 'var(--text-4)' }}>
-        Works with statements from any broker — an IBKR Flex .xml export, or a .csv/.xlsx/.xls/.pdf statement (Moomoo, etc. — needs Date/Symbol/Quantity/Price columns) — select multiple files (e.g. several financial years) to import them all at once.
+      <span style={{ fontSize: 11, color: 'var(--text-4)', whiteSpace: 'nowrap' }}>
+        IBKR Flex, CSV, Excel, or PDF
       </span>
+      <details className="ov-inline-note">
+        <summary>Details</summary>
+        <p>
+          Works with statements from any broker — an IBKR Flex .xml export, or a .csv/.xlsx/.xls/.pdf statement (Moomoo, etc. — needs Date/Symbol/Quantity/Price columns). Select multiple files (e.g. several financial years) to import them all at once.
+        </p>
+      </details>
       {fileName && (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>
           Last import: {fileName} ({uploadedAt ? new Date(uploadedAt).toLocaleDateString() : ''})

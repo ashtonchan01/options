@@ -95,17 +95,23 @@ function textWidth(text: string, font: string): number {
   return ctx.measureText(text).width
 }
 
-/** 45° while neighbouring labels stay apart and finish inside the plot.
- * A dense month set that still collides on the diagonal drops to 90°.
- * Font steps down one notch before that. */
-function barLabelLayout(slotPx: number): { angle: 45 | 90; font: number } {
+/** Bar values are always vertical so a bar cannot cut through the digits.
+ * Month labels stay at 45° while the slot still clears the next date, and
+ * drop to 90° on a dense month set. */
+function monthLabelLayout(slotPx: number): { angle: 45 | 90; font: number } {
   const diagonalOk = (font: number) => slotPx <= 0 || slotPx * Math.SQRT1_2 >= font + 3
   if (diagonalOk(11)) return { angle: 45, font: 11 }
   if (diagonalOk(10)) return { angle: 45, font: 10 }
-  // 90° labels are `font` px wide. Keep that narrower than the slot.
   if (slotPx <= 0 || slotPx >= 13) return { angle: 90, font: 10 }
   if (slotPx >= 11) return { angle: 90, font: 9 }
   return { angle: 90, font: 8 }
+}
+
+function valueLabelFont(slotPx: number): number {
+  if (slotPx <= 0 || slotPx >= 14) return 11
+  if (slotPx >= 12) return 10
+  if (slotPx >= 10) return 9
+  return 8
 }
 
 /** IBKR dates come as raw "YYYYMMDD" — plain string slicing is enough, no Date parsing needed. */
@@ -192,18 +198,16 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
   const yLabel = `-${fmtDollar(niceCeil(Math.max(...rows.map(([, v]) => Math.abs(v)), 1)))}`
   const yLabelW = textWidth(yLabel, `400 ${AXIS_LABEL_SIZE}px ${CHART_THEME.fontFamily}`)
   const leftPad = Math.max(58, Math.ceil(yLabelW + 14))
-  // Value labels and month labels share one angle. 45° while each slot still
-  // clears the next label; a dense set drops to 90°. Right padding is the
-  // horizontal reach of that rotation past the last bar, and the bottom pad
-  // is the full vertical reach of a rotated month ("Sep 25") so the dates
-  // land inside the plot instead of on the card edge.
+  // Value labels stand straight up, clear of the bar tip. Month labels use
+  // their own angle. Right padding fits the last rotated date, and the
+  // bottom pad is that date's full height so it stays inside the card.
   const n = rows.length
-  const reachFor = (ang: 45 | 90, font: number) => {
-    const widest = Math.max(valueTextW, monthTextW) * (font / 11)
-    return ang === 90 ? font + 4 : widest * Math.SQRT1_2 + 6
-  }
   const slotBeforeRight = plot.w > 0 ? Math.max(1, (plot.w - leftPad - 8) / n) : 0
-  let { angle, font: labelFont } = barLabelLayout(slotBeforeRight)
+  const valueFont = valueLabelFont(slotBeforeRight)
+  const valueW = valueTextW * (valueFont / 11)
+  let { angle: monthAngle, font: monthFont } = monthLabelLayout(slotBeforeRight)
+  const monthW = monthTextW * (monthFont / 11)
+  const monthReach = monthAngle === 90 ? monthFont + 4 : monthW * Math.SQRT1_2 + 6
   const inner = Math.max(0, plot.w - leftPad)
   const denom = 1 - 0.85 / n
   const rightFor = (reach: number) => {
@@ -211,27 +215,30 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
     const raw = (reach - (0.85 * inner) / n) / denom
     return Math.max(8, Math.min(plot.w * 0.28, Math.ceil(raw)))
   }
-  let rightPad = rightFor(reachFor(angle, labelFont))
+  let rightPad = rightFor(Math.max(monthReach, valueFont + 4))
   const slot = plot.w > 0 ? Math.max(1, (plot.w - leftPad - rightPad) / n) : slotBeforeRight
-  const tightened = barLabelLayout(slot)
-  if (tightened.angle !== angle || tightened.font !== labelFont) {
-    angle = tightened.angle
-    labelFont = tightened.font
-    rightPad = rightFor(reachFor(angle, labelFont))
+  const tightened = monthLabelLayout(slot)
+  if (tightened.angle !== monthAngle || tightened.font !== monthFont) {
+    monthAngle = tightened.angle
+    monthFont = tightened.font
+    const nextW = monthTextW * (monthFont / 11)
+    const nextReach = monthAngle === 90 ? monthFont + 4 : nextW * Math.SQRT1_2 + 6
+    rightPad = rightFor(Math.max(nextReach, valueFont + 4))
   }
-  const verticalRoom = (textW: number) => angle === 90
-    ? textW * (labelFont / 11) + 6
-    : (textW * (labelFont / 11) + labelFont) * Math.SQRT1_2 + 10
-  let topPad = verticalRoom(valueTextW)
-  let negPad = verticalRoom(valueTextW)
-  let monthPad = verticalRoom(monthTextW)
-  if (plot.h > 0 && topPad + negPad + monthPad > plot.h * 0.72) {
-    const monthKeep = Math.min(monthPad, plot.h * 0.38)
-    const rest = Math.max(24, plot.h * 0.72 - monthKeep)
-    const valueScale = Math.min(1, rest / Math.max(1, topPad + negPad))
-    monthPad = monthKeep
-    topPad *= valueScale
-    negPad *= valueScale
+  const fittedMonthW = monthTextW * (monthFont / 11)
+  const valueRoom = valueW + 14
+  const monthRoom = monthAngle === 90
+    ? fittedMonthW + 8
+    : (fittedMonthW + monthFont) * Math.SQRT1_2 + 10
+  let topPad = valueRoom
+  let negPad = valueRoom
+  let monthPad = monthRoom
+  if (plot.h > 0 && topPad + negPad + monthPad > plot.h - 36) {
+    const room = Math.max(48, plot.h - 36)
+    const scale = room / (topPad + negPad + monthPad)
+    topPad *= scale
+    negPad *= scale
+    monthPad *= scale
   }
 
   const W = 100, H = 100
@@ -254,11 +261,14 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
   const total = rows.reduce((s, [, v]) => s + v, 0)
   const valueStyle = (positive: boolean): React.CSSProperties => ({
     position: 'absolute',
-    transform: angle === 90
-      ? (positive ? 'rotate(-90deg)' : 'rotate(90deg)')
-      : (positive ? 'rotate(-45deg)' : 'rotate(45deg)'),
-    transformOrigin: positive ? 'left bottom' : 'left top',
-    fontSize: labelFont,
+    writingMode: 'vertical-rl',
+    // The layout box is already a vertical strip. Shift it fully off the
+    // bar tip (above a gain, below a loss) before any extra turn.
+    transform: positive
+      ? 'translate(-50%, calc(-100% - 8px)) rotate(180deg)'
+      : 'translate(-50%, 8px)',
+    transformOrigin: positive ? 'center center' : 'center top',
+    fontSize: valueFont,
     fontWeight: 600,
     lineHeight: 1,
     color: positive ? '#10b981' : '#ef4444',
@@ -266,9 +276,9 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
   })
   const monthStyle: React.CSSProperties = {
     position: 'absolute',
-    transform: angle === 90 ? 'rotate(90deg)' : 'rotate(45deg)',
+    transform: monthAngle === 90 ? 'rotate(90deg)' : 'rotate(45deg)',
     transformOrigin: 'left top',
-    fontSize: labelFont,
+    fontSize: monthFont,
     fontWeight: 400,
     lineHeight: 1,
     color: 'var(--text-4)',
@@ -298,7 +308,7 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
           Net {total >= 0 ? '+' : ''}{fmtDollar(total)}
         </span>
       </div>
-      <div ref={plotRef} className="ov-chart-plot" data-bar-angle={angle} style={{ position: 'relative', flex: '1 1 0', minHeight: 0, overflow: 'visible' }}>
+      <div ref={plotRef} className="ov-chart-plot" data-bar-angle="90" data-month-angle={monthAngle} style={{ position: 'relative', height: 190, flex: '0 0 auto', overflow: 'visible' }}>
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
           <line x1={PL} x2={W - PR} y1={PT} y2={PT} stroke="var(--border-light)" strokeWidth="0.15" strokeDasharray="0.6,0.6" />
           <line x1={PL} x2={W - PR} y1={y0} y2={y0} stroke="var(--border-light)" strokeWidth="0.3" />
@@ -324,10 +334,11 @@ function MonthlyPnlChart({ state, fy, onFyChange }: { state: AppState; fy: strin
             const bx = PL + i * bw + bw * 0.15
             const by = val >= 0 ? y0 - h : y0
             const positive = val >= 0
+            const cx = bx + bw * 0.35
             return (
               <span key={key} className="ov-bar-value" style={{
                 ...valueStyle(positive),
-                left: `${(bx / W) * 100}%`,
+                left: `${(cx / W) * 100}%`,
                 top: `${((positive ? by : by + h) / H) * 100}%`,
               }}>
                 {valueLabels[i]}
@@ -525,7 +536,7 @@ export default function OverviewView({ state, account, loading, error, syncNote,
 
   return (
     <div className="jr-root ov-root" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 8, padding: 0 }}>
-      <div className="ov-top-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'stretch', flex: '0 0 auto' }}>
+      <div className="ov-top-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'start', flex: '0 0 auto' }}>
         <div className="ov-import-stack">
           <FlexSyncBar
             savedToken={account.flexToken}
@@ -562,32 +573,22 @@ export default function OverviewView({ state, account, loading, error, syncNote,
       ) : (
         <>
           <div style={{ flex: '0 0 auto' }}><KpiStrip state={state} /></div>
-          {/* minHeight (not 0) on the chart row — without a real floor,
-              flex-shrink happily squashes the charts down to nothing to keep
-              everything inside the container's fixed height, instead of the
-              container actually overflowing and letting .jr-root's
-              overflow-y:auto do its job. Expanding the Flex setup
-              instructions above adds real height that these panels have no
-              business absorbing, so they now hold their size and the page
-              scrolls for it instead. No maxHeight — both charts' labels are
-              now fixed-size HTML overlaid on a text-free SVG (see
-              AXIS_LABEL_SIZE/VALUE_LABEL_SIZE above), not SVG <text> that
-              scales with the viewBox, so letting these panels grow to fill
-              whatever vertical space the window actually has no longer
-              inflates the text along with them. */}
-          <div className="ov-charts-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'stretch', flex: '1.3 1 0', minHeight: 260 }}>
-            <div className="dash-panel ov-equity-panel" style={{ minHeight: 260, height: '100%' }}>
+          {/* Fixed plot height. The Ideas / Puts / Calls row below takes the
+              leftover viewport height, instead of these charts growing and
+              squeezing that row. */}
+          <div className="ov-charts-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'stretch', flex: '0 0 auto' }}>
+            <div className="dash-panel ov-equity-panel">
               <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Equity Curve</span></div>
-              <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
+              <div className="ov-equity-plot" style={{ height: 190, flex: '0 0 auto', display: 'flex', alignItems: 'stretch' }}>
                 <EquityChart points={equityCurve(closedByDate([
                   ...buildJournalPositions(state.sync.trades, {}),
                   ...buildStockPositions(state.sync.trades, {}, state.sync.positions),
                 ]))} />
               </div>
             </div>
-            <div className="dash-panel ov-monthly-panel" style={{ minHeight: 260, height: '100%' }}>
+            <div className="dash-panel ov-monthly-panel">
               <div className="dash-panel-header" style={{ flex: '0 0 auto' }}><span>Monthly Realised P&amp;L</span></div>
-              <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
+              <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'stretch' }}>
                 <MonthlyPnlChart state={state} fy={monthlyFy} onFyChange={setMonthlyFy} />
               </div>
             </div>

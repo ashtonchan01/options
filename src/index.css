@@ -1240,27 +1240,43 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  height: 100%;
+  height: auto;
   min-height: 0;
 }
 .ov-import-stack > .ov-import-card {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
 }
-.ov-import-stack > .ov-import-card--col {
-  justify-content: center;
-}
+.ov-inline-note { font-size: 11px; color: var(--text-4); }
+.ov-inline-note summary { cursor: pointer; color: var(--text-3); }
+.ov-inline-note p { margin: 6px 0 0; line-height: 1.45; max-width: 520px; }
 .ov-kpi-card {
   container-type: inline-size;
-  height: 100%;
+  height: auto;
+  align-self: start;
   width: 100%;
 }
 .ov-kpi-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  height: 100%;
-  align-content: center;
+  height: auto;
+  align-content: start;
 }
+.ov-plan-row {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+.ov-root .income-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+.ov-root .income-scan {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+.ov-root .income-fold { flex: 0 0 auto; }
 .ov-kpi-cell {
   padding: 6px 8px;
   border-right: 1px solid var(--border);
@@ -1549,9 +1565,11 @@ body {
      a wide desktop row. */
   .ov-top-grid, .ov-charts-row { grid-template-columns: 1fr !important; }
   .ov-charts-row { flex: none !important; height: auto !important; min-height: 0 !important; }
-  .ov-equity-panel, .ov-monthly-panel { min-height: 280px !important; height: auto !important; overflow: visible; }
-  .ov-equity-panel > div:last-child,
-  .ov-monthly-panel > div:last-child { min-height: 230px !important; flex: 1 1 auto !important; }
+  .ov-equity-panel, .ov-monthly-panel { height: auto !important; overflow: visible; }
+  .ov-equity-plot, .ov-chart-plot { height: 180px !important; flex: 0 0 auto !important; }
+  .ov-plan-row { flex: none !important; height: auto !important; }
+  .ov-root .income-panel { height: auto; overflow: visible; }
+  .ov-root .income-scan { max-height: none; }
   /* flex-shrink:0 — same bug as jr-stacked-bottom below: an "auto"-height
      child of a flex-column parent still gets compressed by the default
      flex-shrink:1 to fit whatever space is available above it, rather
