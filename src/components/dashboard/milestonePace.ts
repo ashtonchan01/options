@@ -273,18 +273,82 @@ export function formatSpan(years: number): string {
   return parts.length ? parts.join(' ') : 'Under a month'
 }
 
+export interface ProjectedMilestone {
+  label: string
+  remaining: string
+  /** Years from `today` along the same compound path the chart draws.
+   * 0 when `start` is already at or above `target`. Null when this rate
+   * never reaches the level. */
+  years: number | null
+}
+
 /** When the smooth compound path from `start` hits `target`. */
-export function projectMilestone(start: number, target: number, annualRate: number, today: Date): { label: string; remaining: string } {
+export function projectMilestone(start: number, target: number, annualRate: number, today: Date): ProjectedMilestone {
   const monthLabel = `${MONTHS[today.getMonth()]} ${today.getFullYear()}`
-  if (start >= target) return { label: monthLabel, remaining: 'Already above the start' }
-  if (!(annualRate > 0) || !Number.isFinite(annualRate)) return { label: '—', remaining: 'Not at this pace' }
+  if (start >= target) return { label: monthLabel, remaining: 'Already above the start', years: 0 }
+  if (!(annualRate > 0) || !Number.isFinite(annualRate) || !(start > 0) || !(target > 0)) {
+    return { label: '—', remaining: 'Not at this pace', years: null }
+  }
   const years = Math.log(target / start) / Math.log(1 + annualRate)
-  if (!Number.isFinite(years) || years < 0) return { label: '—', remaining: 'Not at this pace' }
+  if (!Number.isFinite(years) || years < 0) return { label: '—', remaining: 'Not at this pace', years: null }
   const date = new Date(today.getTime() + years * 365.25 * 24 * 3600 * 1000)
   return {
     label: `${MONTHS[date.getMonth()]} ${date.getFullYear()}`,
     remaining: `${formatSpan(years)} left`,
+    years,
   }
+}
+
+export interface MilestoneLevel {
+  label: string
+  value: number
+}
+
+export interface MilestoneChartMark {
+  id: string
+  /** Short chart label, e.g. "Target 1M". */
+  text: string
+  /** Same month the summary card shows, for the hover title. */
+  title: string
+  years: number
+  aud: number
+  series: 'target' | 'pace'
+}
+
+/** Crossings to draw on the wealth chart. One per series per level, and
+ * only when that series actually reaches the level inside the projected
+ * window. A level the line already starts above has no future crossing. */
+export function milestoneChartMarks(opts: {
+  startCapital: number
+  targetAnnual: number
+  paceAnnual: number
+  numYears: number
+  today: Date
+  milestones: MilestoneLevel[]
+}): MilestoneChartMark[] {
+  const series = [
+    { id: 'target' as const, name: 'Target', rate: opts.targetAnnual },
+    { id: 'pace' as const, name: 'Pace', rate: opts.paceAnnual },
+  ]
+  const marks: MilestoneChartMark[] = []
+  for (const level of opts.milestones) {
+    const short = level.label.replace(/^A\$/, '')
+    for (const item of series) {
+      const hit = projectMilestone(opts.startCapital, level.value, item.rate, opts.today)
+      if (hit.years == null || hit.years < 0) continue
+      if (hit.years === 0 && opts.startCapital > level.value) continue
+      if (hit.years > opts.numYears) continue
+      marks.push({
+        id: `${item.id}-${level.value}`,
+        text: `${item.name} ${short}`,
+        title: `${item.id === 'pace' ? 'Your pace' : 'Target'} ${level.label} · ${hit.label}`,
+        years: hit.years,
+        aud: level.value,
+        series: item.id,
+      })
+    }
+  }
+  return marks
 }
 
 function aud(n: number): string {

@@ -8,7 +8,7 @@
     "flex": "node server/flex-proxy.cjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "test": "tsx scripts/journal-partial.test.ts && tsx scripts/journal-stock-lots.test.ts && tsx scripts/fy-realized.test.ts && tsx scripts/flex-throttle.test.ts && tsx scripts/income-plan.test.ts",
+    "test": "tsx scripts/journal-partial.test.ts && tsx scripts/journal-stock-lots.test.ts && tsx scripts/fy-realized.test.ts && tsx scripts/flex-throttle.test.ts && tsx scripts/income-plan.test.ts && tsx scripts/milestone-marks.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
