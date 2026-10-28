@@ -39,7 +39,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { Account } from '../../store/accountsStore'
 import { fetchQuotes } from '../../services/quotes'
-import { accountNetWorth, describePace, fmtPct, projectMilestone, resolvePace } from './milestonePace'
+import { accountNetWorth, describePace, fmtPct, milestoneChartMarks, projectMilestone, resolvePace, type MilestoneChartMark } from './milestonePace'
 import {
   addMonths,
   buildYears,
@@ -184,7 +184,7 @@ interface AccountActual { name: string; display: number }
  * account, and each account's own figure as its own marker so e.g.
  * Personal and Business stay visually distinguishable instead of only ever
  * appearing pre-summed. */
-function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, accountActuals, history, actualPath, years }: {
+function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, accountActuals, history, actualPath, years, marks }: {
   cfg: Config; r: number; paceMonthly: number; toDisplayFromAud: (v: number) => number
   actualDisplay: number; accountActuals: AccountActual[]
   /** Recorded past "Actual" points, in chart-years-from-today (negative =
@@ -194,6 +194,8 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   /** Real account value over time, same units as `history`. Preferred. */
   actualPath: { t: number; value: number }[]
   years: YearRow[]
+  /** A$1M / A$5M / A$10M crossings for the target and pace curves. */
+  marks: MilestoneChartMark[]
 }) {
   const [setNode, measured] = useElementSize<HTMLDivElement>()
   const past = (actualPath.length > 1 ? actualPath : history).filter(p => p.value > 0)
@@ -229,9 +231,9 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   // "Actual $269K" render nearly 2x its authored size on desktop before,
   // and would make every label unreadably tiny on a phone-width container).
   // Measuring the real box keeps 1 viewBox unit = 1 real pixel everywhere.
-  const W = measured.width, H = 260
+  const W = measured.width, H = 280
   const padL = W * (CHART_PAD_L_PCT / 100), padR = W * (CHART_PAD_R_PCT / 100)
-  const padT = 20, padB = 26
+  const padT = 32, padB = 26
   const plotW = W - padL - padR, plotH = H - padT - padB
 
   // Not measured yet (first render, before the ResizeObserver reports back)
@@ -302,6 +304,59 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
     return { ...l, labelY }
   })
 
+  // Each mark sits on the curve where that series crosses the AUD level.
+  // Labels prefer a spot just above the dot; pace and target on the same
+  // level, and any label that would cover another, take the next free slot.
+  const markGlyph = 5.2
+  const markDots = marks.map(mark => {
+    const cx = x(mark.years)
+    const cy = y(toDisplayFromAud(mark.aud))
+    return { ...mark, cx, cy, w: mark.text.length * markGlyph + 8 }
+  }).filter(mark => mark.cx >= padL - 1 && mark.cx <= W - padR + 1 && mark.cy >= padT - 1 && mark.cy <= padT + plotH + 1)
+  type MarkBox = { l: number; r: number; t: number; b: number }
+  const overlaps = (a: MarkBox, b: MarkBox) => a.l < b.r - 1 && a.r > b.l + 1 && a.t < b.b - 1 && a.b > b.t + 1
+  const obstacles: MarkBox[] = [
+    ...milestoneLines.map(level => ({
+      l: padL + 2,
+      r: padL + 6 + level.label.length * markGlyph,
+      t: y(level.display) - 13,
+      b: y(level.display) + 2,
+    })),
+    ...labels.map(l => {
+      const textW = l.text.length * 5.3 + 6
+      const rectX = actualLabelRight ? x(0) + 3 : x(0) - 9 - (l.text.length * 5.3)
+      return { l: rectX, r: rectX + textW, t: l.labelY - 9, b: l.labelY + 3 }
+    }),
+  ]
+  const placedMarks: { mark: typeof markDots[number]; lx: number; ly: number; anchor: 'start' | 'middle' | 'end' }[] = []
+  const taken: MarkBox[] = [...obstacles]
+  for (const mark of [...markDots].sort((a, b) => a.cy - b.cy || a.cx - b.cx)) {
+    const slots = [-16, -28, 18, 30, -40, 42]
+    let chosen: { lx: number; ly: number; anchor: 'start' | 'middle' | 'end'; box: MarkBox } | null = null
+    let fallback: { lx: number; ly: number; anchor: 'start' | 'middle' | 'end'; box: MarkBox } | null = null
+    for (const dy of slots) {
+      let anchor: 'start' | 'middle' | 'end' = 'middle'
+      let lx = mark.cx
+      if (mark.cx - mark.w / 2 < padL + 2) { anchor = 'start'; lx = mark.cx + 7 }
+      else if (mark.cx + mark.w / 2 > W - padR - 2) { anchor = 'end'; lx = mark.cx - 7 }
+      const top = mark.cy + dy - 8
+      const box: MarkBox = anchor === 'start'
+        ? { l: lx, r: lx + mark.w, t: top, b: top + 12 }
+        : anchor === 'end'
+          ? { l: lx - mark.w, r: lx, t: top, b: top + 12 }
+          : { l: lx - mark.w / 2, r: lx + mark.w / 2, t: top, b: top + 12 }
+      if (box.t < 1 || box.b > H - 18 || box.l < 1 || box.r > W - 1) continue
+      const slot = { lx, ly: mark.cy + dy, anchor, box }
+      fallback ??= slot
+      if (taken.some(box2 => overlaps(box, box2))) continue
+      chosen = slot
+      break
+    }
+    const used = chosen ?? fallback ?? { lx: mark.cx, ly: Math.max(12, mark.cy - 16), anchor: 'middle' as const, box: { l: mark.cx - mark.w / 2, r: mark.cx + mark.w / 2, t: mark.cy - 24, b: mark.cy - 12 } }
+    taken.push(used.box)
+    placedMarks.push({ mark, lx: used.lx, ly: used.ly, anchor: used.anchor })
+  }
+
   return (
     <div ref={setNode} style={{ width: '100%' }}>
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
@@ -331,6 +386,30 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
       {accountActuals.map((a, i) => (
         <circle key={a.name} cx={x(0)} cy={y(a.display)} r={3} fill={ACCOUNT_COLORS[i % ACCOUNT_COLORS.length]} stroke="var(--bg-card)" strokeWidth={1} />
       ))}
+
+      {[...placedMarks].sort((a, b) => Number(a.mark.series === 'target') - Number(b.mark.series === 'target')).map(({ mark, lx, ly, anchor }) => {
+        const stacked = markDots.some(other => other.id !== mark.id && Math.hypot(other.cx - mark.cx, other.cy - mark.cy) < 8)
+        const radius = !stacked ? 3.6 : mark.series === 'pace' ? 5.2 : 2.8
+        return (
+          <g key={mark.id} data-testid="milestone-mark" data-series={mark.series} data-aud={mark.aud}>
+            <circle cx={mark.cx} cy={mark.cy} r={radius} fill={mark.series === 'target' ? TARGET_COLOR : PACE_COLOR} stroke="var(--bg-card)" strokeWidth={1.25} />
+            <rect
+              x={anchor === 'start' ? lx - 2 : anchor === 'end' ? lx - mark.w + 2 : lx - mark.w / 2}
+              y={ly - 9}
+              width={mark.w}
+              height={12}
+              rx={2}
+              fill="var(--bg-card)"
+              fillOpacity={0.92}
+            />
+            <text x={lx} y={ly} fontSize={10} fontWeight={700} fill={mark.series === 'target' ? TARGET_COLOR : PACE_COLOR}
+              textAnchor={anchor} fontFamily="Inter, sans-serif">
+              {mark.text}
+              <title>{mark.title}</title>
+            </text>
+          </g>
+        )
+      })}
 
       {labels.map(l => {
         // Approximate monospace glyph width to lay down an opaque backing
@@ -430,6 +509,14 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
     [accounts, excludedAccounts, today, cfg.targetPct],
   )
   const paceMonthly = pace.usingTarget ? r : Math.pow(1 + pace.pacePct / 100, 1 / 12) - 1
+  const chartMarks = useMemo(() => milestoneChartMarks({
+    startCapital: cfg.startCapital,
+    targetAnnual: cfg.targetPct / 100,
+    paceAnnual: (pace.usingTarget ? cfg.targetPct : pace.pacePct) / 100,
+    numYears: cfg.numYears,
+    today,
+    milestones: MILESTONES,
+  }), [cfg.startCapital, cfg.targetPct, cfg.numYears, pace.usingTarget, pace.pacePct, today])
   const paceNote = describePace(pace, {
     startCapital: cfg.startCapital,
     startMonthLabel: fmtMonthYear(today),
@@ -584,7 +671,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
         </div>
         <TimelineChart cfg={cfg} r={r} paceMonthly={paceMonthly} toDisplayFromAud={toDisplayFromAud}
           actualDisplay={actualDisplay} accountActuals={accountActuals} history={historyDisplay}
-          actualPath={actualPathDisplay} years={years} />
+          actualPath={actualPathDisplay} years={years} marks={chartMarks} />
         <div className="ms-timeline-scroll" style={{ paddingLeft: `${CHART_PAD_L_PCT}%`, paddingRight: `${CHART_PAD_R_PCT}%` }}>
           {years.length > 0 && (
             <div className="ms-timeline-year current" style={{ flex: '0 0 auto', minWidth: 64 }}>
