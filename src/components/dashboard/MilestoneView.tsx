@@ -35,11 +35,12 @@
  * the two isn't already in that currency, via a live AUDUSD=X quote, it
  * does not change what's stored.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { Account } from '../../store/accountsStore'
 import { fetchQuotes } from '../../services/quotes'
 import { accountNetWorth, describePace, fmtPct, milestoneChartMarks, projectMilestone, resolvePace, type MilestoneChartMark } from './milestonePace'
 import {
+  addMonths,
   buildYears,
   loadMilestoneConfig,
   monthlyRate,
@@ -226,15 +227,14 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   // "Actual $269K" render nearly 2x its authored size on desktop before,
   // and would make every label unreadably tiny on a phone-width container).
   // Measuring the real box keeps 1 viewBox unit = 1 real pixel everywhere.
-  const W = measured.width, H = 300
-  const padL = Math.max(28, W * (CHART_PAD_L_PCT / 100)), padR = W * (CHART_PAD_R_PCT / 100)
-  const padT = 32, padB = 44
-  const plotW = W - padL - padR, plotH = H - padT - padB
+  const W = measured.width
+  const padL = Math.max(62, W * (CHART_PAD_L_PCT / 100)), padR = W * (CHART_PAD_R_PCT / 100)
+  const padT = 28
 
   // Not measured yet (first render, before the ResizeObserver reports back)
   // — render just the (ref-carrying) box so it can actually be measured,
   // rather than dividing by a zero width below.
-  if (W <= 0) return <div ref={setNode} style={{ width: '100%', height: H }} />
+  if (W <= 0) return <div ref={setNode} style={{ width: '100%', height: 480 }} />
 
   // The x-axis normally starts at t=0 (today) — a recorded history stretches
   // it a bit to the left so past readings have somewhere to sit instead of
@@ -252,9 +252,43 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   const logMin = Math.log10(Math.max(1, minV))
   const logMax = Math.log10(Math.max(10, maxV))
 
+  const axisToday = years[0]?.startDate ?? new Date()
+  const yearTicks: { t: number; label: string }[] = []
+  const pastYears = Math.max(0, Math.ceil(-domainMinYears))
+  for (let i = -pastYears; i <= cfg.numYears; i++) {
+    if (i < domainMinYears - 0.05) continue
+    const when = new Date(axisToday.getTime() + i * ONE_YEAR_MS)
+    yearTicks.push({ t: i, label: String(when.getFullYear()) })
+  }
+  const yearSlot = yearTicks.length > 1 ? (W - padL - padR) / (yearTicks.length - 1) : W
+  const yearVertical = yearSlot < 36
+  const padB = yearVertical ? 56 : 40
+  // Log spacing squeezes the top of the scale. Grow the plot until each
+  // million has room for its own label, and stop before a very high pace
+  // turns the chart into a page of its own.
+  const logSpan = Math.max(0.01, logMax - logMin)
+  const topMillion = Math.max(2, Math.floor(maxV / 1_000_000))
+  const tightStep = Math.log10(topMillion / (topMillion - 1))
+  const plotH = Math.min(1100, Math.max(420, Math.ceil(11 * logSpan / tightStep)))
+  const H = plotH + padT + padB
+  const plotW = W - padL - padR
+
   const domainYears = cfg.numYears - domainMinYears
   const x = (tYears: number) => padL + ((tYears - domainMinYears) / domainYears) * plotW
   const y = (v: number) => padT + plotH - ((Math.log10(Math.max(1, v)) - logMin) / (logMax - logMin)) * plotH
+
+  const millionTicks: { value: number; label: string; yy: number; showLabel: boolean }[] = []
+  const firstMillion = Math.max(1, Math.ceil(minV / 1_000_000))
+  const lastMillion = Math.floor(maxV / 1_000_000)
+  let lastLabelY = Infinity
+  for (let n = firstMillion; n <= lastMillion; n++) {
+    const value = n * 1_000_000
+    const yy = y(value)
+    if (yy < padT - 1 || yy > padT + plotH + 1) continue
+    const showLabel = Math.abs(yy - lastLabelY) >= 9
+    if (showLabel) lastLabelY = yy
+    millionTicks.push({ value, label: `${n}M`, yy, showLabel })
+  }
 
   const linePath = smoothPath(points.map(p => ({ x: x(p.t / 12), y: y(p.value) })))
   const pacePath = smoothPath(pacePoints.map(p => ({ x: x(p.t / 12), y: y(p.value) })))
@@ -266,11 +300,6 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   const milestoneLines = MILESTONES
     .map(m => ({ ...m, display: toDisplayFromAud(m.value) }))
     .filter(m => m.display >= minV && m.display <= maxV)
-
-  // One tick per FY boundary (today, then each row's 30 June end) rather
-  // than a generic anniversary-of-today grid.
-  const tickDefs = [{ t: 0, label: 'Today' }, ...years.map(row => ({ t: row.tEnd / 12, label: String(row.endDate.getFullYear()) }))]
-  const yearTicks = tickDefs.filter((_, i) => years.length <= 10 || i % 2 === 0)
 
   const actualLabelRight = x(0) < W - 200
 
@@ -366,6 +395,14 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
 
       <line x1={padL} x2={padL} y1={padT} y2={padT + plotH} stroke="var(--border)" strokeWidth={1} />
       <line x1={padL} x2={W - padR} y1={padT + plotH} y2={padT + plotH} stroke="var(--border)" strokeWidth={1} />
+      {millionTicks.map(tick => (
+        <g key={tick.label} data-testid="y-million" data-labeled={tick.showLabel ? '1' : '0'}>
+          <line x1={padL - 4} x2={padL} y1={tick.yy} y2={tick.yy} stroke="var(--text-4)" strokeWidth={1} />
+          {tick.showLabel && (
+            <text x={padL - 6} y={tick.yy + 3} fontSize={9} fill="var(--text-4)" textAnchor="end" fontFamily="JetBrains Mono, monospace">{tick.label}</text>
+          )}
+        </g>
+      ))}
       <text
         x={13}
         y={padT + plotH / 2}
@@ -461,11 +498,22 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
         )
       })}
 
-      {yearTicks.map(tick => (
-        <text key={tick.t} x={x(tick.t)} y={padT + plotH + 14} fontSize={9} fill="var(--text-4)" textAnchor="middle" fontFamily="Inter, sans-serif">
-          {tick.label}
-        </text>
-      ))}
+      {yearTicks.map(tick => {
+        const tx = x(tick.t)
+        if (yearVertical) {
+          return (
+            <text key={tick.t} data-testid="x-year" x={tx} y={padT + plotH + 4} fontSize={9} fill="var(--text-4)" textAnchor="start" fontFamily="Inter, sans-serif" transform={`rotate(90 ${tx} ${padT + plotH + 4})`}>
+              {tick.label}
+            </text>
+          )
+        }
+        const anchor = tx < padL + 18 ? 'start' : tx > W - padR - 18 ? 'end' : 'middle'
+        return (
+          <text key={tick.t} data-testid="x-year" x={tx} y={padT + plotH + 14} fontSize={9} fill="var(--text-4)" textAnchor={anchor} fontFamily="Inter, sans-serif">
+            {tick.label}
+          </text>
+        )
+      })}
       <text x={(padL + W - padR) / 2} y={H - 6} fontSize={11} fill="var(--text-3)" textAnchor="middle" fontFamily="Inter, sans-serif">
         Year
       </text>
@@ -481,6 +529,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
   // round-trip to display in; AUD is only the currency the target/start
   // capital was configured in.
   const [currency, setCurrency] = useState<'AUD' | 'USD'>('USD')
+  const [expandedYear, setExpandedYear] = useState<number | null>(null)
   const [audUsd, setAudUsd] = useState<number | null>(null)
   // Which accounts to leave OUT of "Actual" — e.g. a broker whose synced
   // balance isn't trustworthy/relevant yet. Defaults to none excluded;
@@ -702,6 +751,67 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
         <TimelineChart cfg={cfg} r={r} paceMonthly={paceMonthly} toDisplayFromAud={toDisplayFromAud}
           actualDisplay={actualDisplay} accountActuals={accountActuals} history={historyDisplay}
           actualPath={actualPathDisplay} years={years} marks={chartMarks} currency={currency} />
+      </div>
+
+      <div className="dash-panel ms-table-panel">
+        <div className="dash-panel-header"><span>Yearly Breakdown</span></div>
+        <div className="ms-table-scroll">
+          <table className="trade-table ms-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Period</th>
+                <th style={{ textAlign: 'right' }}>Start</th>
+                <th style={{ textAlign: 'right' }}>End of Dec (Target)</th>
+                <th style={{ textAlign: 'right' }}>End (Target)</th>
+                <th style={{ textAlign: 'right' }}>Gross P&amp;L</th>
+                <th style={{ textAlign: 'right' }}>Tax ({cfg.taxRate}%)</th>
+                <th style={{ textAlign: 'right' }}>Net P&amp;L (after tax)</th>
+                <th>Milestone</th>
+              </tr>
+            </thead>
+            <tbody>
+              {years.map(y => {
+                const open = expandedYear === y.idx
+                return (
+                  <Fragment key={y.idx}>
+                    <tr onClick={() => setExpandedYear(open ? null : y.idx)} style={{ cursor: 'pointer' }}>
+                      <td className="mono" style={{ color: 'var(--text-4)' }}>{open ? '▾' : '▸'}</td>
+                      <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {fmtMonthYear(y.startDate)} – {fmtMonthYear(addMonths(y.endDate, -1))}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{fmt$(toDisplayFromAud(y.start))}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{y.decEnd != null ? fmt$(toDisplayFromAud(y.decEnd)) : '—'}</td>
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt$(toDisplayFromAud(y.grossEnd))}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: '#10b981' }}>{fmt$(toDisplayFromAud(y.grossPnl))}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: '#ef4444' }}>{fmt$(toDisplayFromAud(y.tax))}</td>
+                      <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt$(toDisplayFromAud(y.netPnl))}</td>
+                      <td>{y.crossed.join(', ')}</td>
+                    </tr>
+                    {open && (
+                      <tr>
+                        <td colSpan={9} style={{ padding: 0 }}>
+                          <div className="ms-month-grid">
+                            {Array.from({ length: y.months }, (_, i) => {
+                              const monthStart = y.start * Math.pow(1 + r, i)
+                              const required = monthStart * r
+                              return (
+                                <div key={i} className="ms-month-cell">
+                                  <div className="ms-month-label">{MONTH_ABBR[addMonths(y.startDate, i).getMonth()]}</div>
+                                  <div className="ms-month-value">{fmt$(toDisplayFromAud(required))}</div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
