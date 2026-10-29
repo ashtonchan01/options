@@ -2445,8 +2445,38 @@ body {
   overflow: hidden;
 }
 .ms-chart-fill {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
+}
+.ms-chart-tip {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 6px 8px 7px;
+  min-width: 156px;
+  box-shadow: var(--shadow-card);
+}
+.ms-chart-tip-date {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin-bottom: 4px;
+}
+.ms-chart-tip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.ms-chart-tip-row b {
+  font-weight: 700;
+  color: var(--text-1);
+  font-family: 'JetBrains Mono', monospace;
 }
 .ms-timeline-panel {
   display: flex;
