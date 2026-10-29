@@ -2407,14 +2407,52 @@ body {
    parent's actual box. Making this div's own scrollbar the one true
    scroll container avoids that flex-basis/overflow interaction. */
 .ms-wrap {
-  display: block;
-  padding: 10px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  overflow: hidden;
   height: 100%;
   box-sizing: border-box;
 }
-.ms-wrap > * + * { margin-top: 10px; }
+.ms-wrap > .dash-panel,
+.ms-wrap > .ms-summary-row,
+.ms-wrap > .ms-pace-details,
+.ms-wrap > .ms-subtabs { flex: 0 0 auto; }
+.ms-subtabs { gap: 18px; }
+.ms-pace-details {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  padding: 6px 10px;
+}
+.ms-pace-details summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.ms-pace-details .ms-pace-note { margin: 8px 0 2px; }
+.ms-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ms-pane > .dash-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.ms-chart-fill {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.ms-timeline-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 /* flex-wrap here matters on mobile — the account-chip row (Include in
    Actual) can carry several account-name chips, and without wrapping this
    row (and its unconstrained parent label, hence the whole config row)
@@ -2541,6 +2579,8 @@ body {
 .ms-month-value { font-size: 12px; color: var(--text-1); font-family: 'JetBrains Mono', monospace; }
 
 @media (max-width: 768px) {
+  .ms-wrap { overflow-y: auto; }
+  .ms-pane { flex: 1 0 420px; min-height: 420px; }
   .ms-summary-row { grid-template-columns: repeat(2, 1fr); }
   .ms-month-grid { grid-template-columns: repeat(3, 1fr); }
 }
