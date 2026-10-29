@@ -380,7 +380,7 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
       {milestoneLines.map(m => (
         <g key={m.label}>
           <line x1={padL} x2={W - padR} y1={y(m.display)} y2={y(m.display)}
-            stroke="var(--text-5)" strokeOpacity={0.4} strokeDasharray="3,3" strokeWidth={1} />
+            stroke="var(--text-3)" strokeDasharray="3,3" strokeWidth={1} />
           <text x={padL + 4} y={y(m.display) - 4} fontSize={9} fill="var(--text-4)" fontFamily="JetBrains Mono, monospace">
             {m.label}
           </text>
