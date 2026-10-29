@@ -174,6 +174,23 @@ const ACCOUNT_COLORS = ['#38bdf8', '#f59e0b', '#a78bfa', '#f472b6', '#34d399', '
 
 interface AccountActual { name: string; display: number }
 
+function seriesValueAt(points: { t: number; value: number }[], t: number): number | null {
+  if (points.length === 0) return null
+  const sorted = [...points].sort((a, b) => a.t - b.t)
+  if (t < sorted[0].t - 1e-6 || t > sorted[sorted.length - 1].t + 1e-6) return null
+  if (sorted.length === 1) return Math.abs(sorted[0].t - t) <= 0.05 ? sorted[0].value : null
+  for (let i = 1; i < sorted.length; i++) {
+    const left = sorted[i - 1]
+    const right = sorted[i]
+    if (t <= right.t + 1e-9) {
+      const span = right.t - left.t
+      const u = span === 0 ? 0 : (t - left.t) / span
+      return left.value + (right.value - left.value) * u
+    }
+  }
+  return sorted[sorted.length - 1].value
+}
+
 /** Horizontal timeline: monthly-resolution target curve on a log-value
  * y-axis (compounding growth would otherwise squash the early, still-small
  * years down near zero pixels next to an $11M+ later year on a linear
@@ -197,6 +214,7 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   marks: MilestoneChartMark[]
 }) {
   const [setNode, measured] = useElementSize<HTMLDivElement>()
+  const [hover, setHover] = useState<{ x: number; tYears: number } | null>(null)
   const past = (actualPath.length > 1 ? actualPath : history).filter(p => p.value > 0)
 
   // Drawn as one continuous exponential from today at the target rate.
@@ -374,6 +392,29 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
     placedMarks.push({ mark, lx: used.lx, ly: used.ly, anchor: used.anchor })
   }
 
+  const forecastEnd = totalMonths / 12
+  const inForecast = hover != null && hover.tYears >= 0 && hover.tYears <= forecastEnd + 0.001
+  const actualSeries = [...past]
+  if (actualDisplay > 0 && !actualSeries.some(point => Math.abs(point.t) < 0.01)) {
+    actualSeries.push({ t: 0, value: actualDisplay })
+  }
+  const hoverRows = hover == null ? [] : [
+    inForecast ? { name: 'Target', color: TARGET_COLOR, value: toDisplayFromAud(cfg.startCapital * Math.pow(1 + r, hover.tYears * 12)) } : null,
+    inForecast ? { name: 'Pace', color: PACE_COLOR, value: toDisplayFromAud(cfg.startCapital * Math.pow(1 + paceMonthly, hover.tYears * 12)) } : null,
+    (() => {
+      const actual = seriesValueAt(actualSeries, hover.tYears)
+      return actual == null ? null : { name: 'Actual', color: ACTUAL_COLOR, value: actual }
+    })(),
+  ].flatMap(row => row ? [row] : [])
+  const hoverDots = hoverRows
+  const hoverWhen = hover == null ? null : new Date(axisToday.getTime() + hover.tYears * ONE_YEAR_MS)
+  const hoverTip = hover && hoverWhen && hoverRows.length > 0 ? {
+    date: `${MONTH_ABBR[hoverWhen.getMonth()]} ${hoverWhen.getDate()}, ${hoverWhen.getFullYear()}`,
+    rows: hoverRows.map(row => ({ ...row, value: fmt$(row.value) })),
+    left: hover.x + 14,
+    flip: hover.x > W - 180,
+  } : null
+
   return (
     <div ref={setNode} className="ms-chart-fill">
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }}>
@@ -511,7 +552,48 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
       <text x={(padL + W - padR) / 2} y={H - 6} fontSize={11} fill="var(--text-3)" textAnchor="middle" fontFamily="Inter, sans-serif">
         Year
       </text>
+      {hover && (
+        <g data-testid="milestone-crosshair" pointerEvents="none">
+          <line x1={hover.x} x2={hover.x} y1={padT} y2={padT + plotH} stroke="var(--text-3)" strokeWidth={1} />
+          {hoverDots.map(dot => (
+            <circle key={dot.name} cx={hover.x} cy={y(dot.value)} r={3.4} fill={dot.color} stroke="var(--bg-card)" strokeWidth={1} />
+          ))}
+        </g>
+      )}
+      <rect
+        x={padL}
+        y={padT}
+        width={plotW}
+        height={plotH}
+        fill="transparent"
+        style={{ cursor: 'crosshair' }}
+        onMouseMove={e => {
+          const svg = e.currentTarget.ownerSVGElement
+          if (!svg) return
+          const rect = svg.getBoundingClientRect()
+          const px = ((e.clientX - rect.left) / rect.width) * W
+          if (px < padL || px > W - padR) { setHover(null); return }
+          const tYears = domainMinYears + ((px - padL) / plotW) * domainYears
+          setHover({ x: px, tYears })
+        }}
+        onMouseLeave={() => setHover(null)}
+      />
     </svg>
+    {hoverTip && (
+      <div
+        className="ms-chart-tip"
+        data-testid="milestone-tooltip"
+        style={{ left: hoverTip.left, top: 8, transform: hoverTip.flip ? 'translateX(-100%)' : undefined }}
+      >
+        <div className="ms-chart-tip-date">{hoverTip.date}</div>
+        {hoverTip.rows.map(row => (
+          <div key={row.name} className="ms-chart-tip-row">
+            <span style={{ color: row.color }}>{row.name}</span>
+            <b>{row.value}</b>
+          </div>
+        ))}
+      </div>
+    )}
     </div>
   )
 }
