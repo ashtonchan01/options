@@ -228,13 +228,14 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   // and would make every label unreadably tiny on a phone-width container).
   // Measuring the real box keeps 1 viewBox unit = 1 real pixel everywhere.
   const W = measured.width
+  const H = measured.height
   const padL = Math.max(62, W * (CHART_PAD_L_PCT / 100)), padR = W * (CHART_PAD_R_PCT / 100)
   const padT = 28
 
   // Not measured yet (first render, before the ResizeObserver reports back)
   // — render just the (ref-carrying) box so it can actually be measured,
   // rather than dividing by a zero width below.
-  if (W <= 0) return <div ref={setNode} style={{ width: '100%', height: 480 }} />
+  if (W < 20 || H < 40) return <div ref={setNode} className="ms-chart-fill" />
 
   // The x-axis normally starts at t=0 (today) — a recorded history stretches
   // it a bit to the left so past readings have somewhere to sit instead of
@@ -263,14 +264,7 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   const yearSlot = yearTicks.length > 1 ? (W - padL - padR) / (yearTicks.length - 1) : W
   const yearVertical = yearSlot < 36
   const padB = yearVertical ? 56 : 40
-  // Log spacing squeezes the top of the scale. Grow the plot until each
-  // million has room for its own label, and stop before a very high pace
-  // turns the chart into a page of its own.
-  const logSpan = Math.max(0.01, logMax - logMin)
-  const topMillion = Math.max(2, Math.floor(maxV / 1_000_000))
-  const tightStep = Math.log10(topMillion / (topMillion - 1))
-  const plotH = Math.min(1100, Math.max(420, Math.ceil(11 * logSpan / tightStep)))
-  const H = plotH + padT + padB
+  const plotH = Math.max(40, H - padT - padB)
   const plotW = W - padL - padR
 
   const domainYears = cfg.numYears - domainMinYears
@@ -381,8 +375,8 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   }
 
   return (
-    <div ref={setNode} style={{ width: '100%' }}>
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+    <div ref={setNode} className="ms-chart-fill">
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }}>
       {milestoneLines.map(m => (
         <g key={m.label}>
           <line x1={padL} x2={W - padR} y1={y(m.display)} y2={y(m.display)}
@@ -529,6 +523,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
   // round-trip to display in; AUD is only the currency the target/start
   // capital was configured in.
   const [currency, setCurrency] = useState<'AUD' | 'USD'>('USD')
+  const [pane, setPane] = useState<'chart' | 'table'>('chart')
   const [expandedYear, setExpandedYear] = useState<number | null>(null)
   const [audUsd, setAudUsd] = useState<number | null>(null)
   // Which accounts to leave OUT of "Actual" — e.g. a broker whose synced
@@ -735,10 +730,18 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
         })}
       </div>
 
-      <div className="dash-panel" style={{ flex: '0 0 auto' }}>
-        <div className="ms-pace-note">{paceNote}</div>
+      <details className="ms-pace-details">
+        <summary>How the lines are calculated</summary>
+        <p className="ms-pace-note">{paceNote}</p>
+      </details>
+
+      <div className="ph-underline-tabs ms-subtabs" role="tablist">
+        <button type="button" role="tab" aria-selected={pane === 'chart'} className={`ph-underline-tab${pane === 'chart' ? ' active' : ''}`} onClick={() => setPane('chart')}>Chart</button>
+        <button type="button" role="tab" aria-selected={pane === 'table'} className={`ph-underline-tab${pane === 'table' ? ' active' : ''}`} onClick={() => setPane('table')}>Table</button>
       </div>
 
+      <div className="ms-pane">
+      {pane === 'chart' ? (
       <div className="dash-panel ms-timeline-panel">
         <div className="dash-panel-header">
           <span>Timeline</span>
@@ -752,7 +755,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
           actualDisplay={actualDisplay} accountActuals={accountActuals} history={historyDisplay}
           actualPath={actualPathDisplay} years={years} marks={chartMarks} currency={currency} />
       </div>
-
+      ) : (
       <div className="dash-panel ms-table-panel">
         <div className="dash-panel-header"><span>Yearly Breakdown</span></div>
         <div className="ms-table-scroll">
@@ -812,6 +815,8 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
             </tbody>
           </table>
         </div>
+      </div>
+      )}
       </div>
     </div>
   )
