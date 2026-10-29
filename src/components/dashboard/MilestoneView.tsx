@@ -13,8 +13,7 @@
  * only the after-tax remainder (start + net P&L) compounds into the next
  * year, not the full pre-tax gain — but the chart itself is drawn as one
  * smooth pre-tax reference curve (a visible sawtooth read as broken, not
- * informative); the real after-tax numbers live in the Yearly Breakdown
- * table below it. Every time the portfolio's Actual total changes
+ * informative). Every time the portfolio's Actual total changes
  * (a fresh IBKR sync), that day's figure is recorded to localStorage so the
  * Actual side grows into a real history line over time rather than staying
  * a single live point. A second curve, "your pace", compounds the start
@@ -36,12 +35,11 @@
  * the two isn't already in that currency, via a live AUDUSD=X quote, it
  * does not change what's stored.
  */
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Account } from '../../store/accountsStore'
 import { fetchQuotes } from '../../services/quotes'
 import { accountNetWorth, describePace, fmtPct, milestoneChartMarks, projectMilestone, resolvePace, type MilestoneChartMark } from './milestonePace'
 import {
-  addMonths,
   buildYears,
   loadMilestoneConfig,
   monthlyRate,
@@ -122,7 +120,6 @@ function fmtCompact(n: number): string {
 const CHART_W = 1800, CHART_PAD_L = 60, CHART_PAD_R = 24
 const CHART_PAD_L_PCT = (CHART_PAD_L / CHART_W) * 100
 const CHART_PAD_R_PCT = (CHART_PAD_R / CHART_W) * 100
-const CHART_PLOT_W_PCT = 100 - CHART_PAD_L_PCT - CHART_PAD_R_PCT
 
 /** Catmull-Rom-through-cubic-Bezier smoothing — turns a polyline of many
  * short straight segments (one per month, plus a sharp corner at every FY
@@ -184,8 +181,9 @@ interface AccountActual { name: string; display: number }
  * account, and each account's own figure as its own marker so e.g.
  * Personal and Business stay visually distinguishable instead of only ever
  * appearing pre-summed. */
-function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, accountActuals, history, actualPath, years, marks }: {
+function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, accountActuals, history, actualPath, years, marks, currency }: {
   cfg: Config; r: number; paceMonthly: number; toDisplayFromAud: (v: number) => number
+  currency: 'AUD' | 'USD'
   actualDisplay: number; accountActuals: AccountActual[]
   /** Recorded past "Actual" points, in chart-years-from-today (negative =
    * past) and already display-currency-converted. Used only when the
@@ -200,13 +198,10 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   const [setNode, measured] = useElementSize<HTMLDivElement>()
   const past = (actualPath.length > 1 ? actualPath : history).filter(p => p.value > 0)
 
-  // Drawn as one continuous exponential from today at the target rate —
-  // the annual tax drag (each row's real, lower after-tax start) is still
-  // exactly what the Yearly Breakdown table and every dollar figure use,
-  // but charting it produced a sawtooth that read as jagged/broken rather
-  // than informative. This line is the smooth "if nothing were ever taxed"
-  // reference curve; the actual after-tax numbers live in the table below.
-  // The amber pace line is the same shape at the rate the accounts have
+  // Drawn as one continuous exponential from today at the target rate.
+  // Charting the annual tax drag produced a sawtooth that read as jagged
+  // rather than informative. This line is the smooth "if nothing were ever taxed"
+  // reference curve. The amber pace line is the same shape at the rate the accounts have
   // actually achieved (or the target rate, when that rate isn't knowable).
   const totalMonths = years[years.length - 1]?.tEnd ?? cfg.numYears * 12
   const points = useMemo(() => {
@@ -231,9 +226,9 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   // "Actual $269K" render nearly 2x its authored size on desktop before,
   // and would make every label unreadably tiny on a phone-width container).
   // Measuring the real box keeps 1 viewBox unit = 1 real pixel everywhere.
-  const W = measured.width, H = 280
-  const padL = W * (CHART_PAD_L_PCT / 100), padR = W * (CHART_PAD_R_PCT / 100)
-  const padT = 32, padB = 26
+  const W = measured.width, H = 300
+  const padL = Math.max(28, W * (CHART_PAD_L_PCT / 100)), padR = W * (CHART_PAD_R_PCT / 100)
+  const padT = 32, padB = 44
   const plotW = W - padL - padR, plotH = H - padT - padB
 
   // Not measured yet (first render, before the ResizeObserver reports back)
@@ -273,8 +268,7 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
     .filter(m => m.display >= minV && m.display <= maxV)
 
   // One tick per FY boundary (today, then each row's 30 June end) rather
-  // than a generic anniversary-of-today grid — ticks land exactly where
-  // the Yearly Breakdown table's own rows do.
+  // than a generic anniversary-of-today grid.
   const tickDefs = [{ t: 0, label: 'Today' }, ...years.map(row => ({ t: row.tEnd / 12, label: String(row.endDate.getFullYear()) }))]
   const yearTicks = tickDefs.filter((_, i) => years.length <= 10 || i % 2 === 0)
 
@@ -370,6 +364,40 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
         </g>
       ))}
 
+      <line x1={padL} x2={padL} y1={padT} y2={padT + plotH} stroke="var(--border)" strokeWidth={1} />
+      <line x1={padL} x2={W - padR} y1={padT + plotH} y2={padT + plotH} stroke="var(--border)" strokeWidth={1} />
+      <text
+        x={13}
+        y={padT + plotH / 2}
+        fontSize={11}
+        fill="var(--text-3)"
+        textAnchor="middle"
+        fontFamily="Inter, sans-serif"
+        transform={`rotate(-90 13 ${padT + plotH / 2})`}
+      >
+        {`Net worth (${currency})`}
+      </text>
+      {markDots.map(mark => {
+        const nearOther = markDots.some(other => other.series !== mark.series && Math.abs(other.cx - mark.cx) < 28)
+        const color = mark.series === 'target' ? TARGET_COLOR : PACE_COLOR
+        return (
+          <line
+            key={`guide-${mark.id}`}
+            data-testid="milestone-guide"
+            data-series={mark.series}
+            x1={mark.cx}
+            x2={mark.cx}
+            y1={mark.cy}
+            y2={padT + plotH}
+            stroke={color}
+            strokeOpacity={0.45}
+            strokeWidth={1}
+            strokeDasharray={mark.series === 'pace' && nearOther ? '2,3' : undefined}
+            vectorEffect="non-scaling-stroke"
+          />
+        )
+      })}
+
       {pastPath && <path d={pastPath} fill="none" stroke={ACTUAL_COLOR} strokeWidth={2.25} vectorEffect="non-scaling-stroke" />}
       {pastDots.map(h => (
         <circle key={`${h.t}-${h.value}`} cx={x(h.t)} cy={y(h.value)} r={1.6} fill={ACTUAL_COLOR} />
@@ -434,10 +462,13 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
       })}
 
       {yearTicks.map(tick => (
-        <text key={tick.t} x={x(tick.t)} y={H - 8} fontSize={9} fill="var(--text-4)" textAnchor="middle" fontFamily="Inter, sans-serif">
+        <text key={tick.t} x={x(tick.t)} y={padT + plotH + 14} fontSize={9} fill="var(--text-4)" textAnchor="middle" fontFamily="Inter, sans-serif">
           {tick.label}
         </text>
       ))}
+      <text x={(padL + W - padR) / 2} y={H - 6} fontSize={11} fill="var(--text-3)" textAnchor="middle" fontFamily="Inter, sans-serif">
+        Year
+      </text>
     </svg>
     </div>
   )
@@ -450,7 +481,6 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
   // round-trip to display in; AUD is only the currency the target/start
   // capital was configured in.
   const [currency, setCurrency] = useState<'AUD' | 'USD'>('USD')
-  const [expandedYear, setExpandedYear] = useState<number | null>(null)
   const [audUsd, setAudUsd] = useState<number | null>(null)
   // Which accounts to leave OUT of "Actual" — e.g. a broker whose synced
   // balance isn't trustworthy/relevant yet. Defaults to none excluded;
@@ -671,87 +701,7 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
         </div>
         <TimelineChart cfg={cfg} r={r} paceMonthly={paceMonthly} toDisplayFromAud={toDisplayFromAud}
           actualDisplay={actualDisplay} accountActuals={accountActuals} history={historyDisplay}
-          actualPath={actualPathDisplay} years={years} marks={chartMarks} />
-        <div className="ms-timeline-scroll" style={{ paddingLeft: `${CHART_PAD_L_PCT}%`, paddingRight: `${CHART_PAD_R_PCT}%` }}>
-          {years.length > 0 && (
-            <div className="ms-timeline-year current" style={{ flex: '0 0 auto', minWidth: 64 }}>
-              <div className="ms-timeline-year-label">{fmtMonthYear(years[0].startDate)}</div>
-              <div className="ms-timeline-year-value">{fmt$(toDisplayFromAud(years[0].start))}</div>
-            </div>
-          )}
-          {years.map(y => (
-            // Label is the END of this row's period (the date the value below
-            // it targets), not the start — the row's start date is shown by
-            // the previous box (or the leading "today" box for row 0).
-            <div key={y.idx} className={`ms-timeline-year${y.crossed.length ? ' hit' : ''}${y.idx === 0 ? ' current' : ''}`}
-              style={{ width: `${(y.months / (years[years.length - 1]?.tEnd || 1)) * CHART_PLOT_W_PCT}%` }}>
-              <div className="ms-timeline-year-label">{fmtMonthYear(addMonths(y.endDate, -1))}</div>
-              <div className="ms-timeline-year-value">{fmt$(toDisplayFromAud(y.grossEnd))}</div>
-              {y.crossed.map(c => <div key={c} className="ms-timeline-badge">{c}</div>)}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="dash-panel ms-table-panel">
-        <div className="dash-panel-header"><span>Yearly Breakdown</span></div>
-        <div className="ms-table-scroll">
-          <table className="trade-table ms-table">
-            <thead>
-              <tr>
-                <th></th>
-                <th>Period</th>
-                <th style={{ textAlign: 'right' }}>Start</th>
-                <th style={{ textAlign: 'right' }}>End of Dec (Target)</th>
-                <th style={{ textAlign: 'right' }}>End (Target)</th>
-                <th style={{ textAlign: 'right' }}>Gross P&amp;L</th>
-                <th style={{ textAlign: 'right' }}>Tax ({cfg.taxRate}%)</th>
-                <th style={{ textAlign: 'right' }}>Net P&amp;L (after tax)</th>
-                <th>Milestone</th>
-              </tr>
-            </thead>
-            <tbody>
-              {years.map(y => {
-                const open = expandedYear === y.idx
-                return (
-                  <Fragment key={y.idx}>
-                    <tr onClick={() => setExpandedYear(open ? null : y.idx)} style={{ cursor: 'pointer' }}>
-                      <td className="mono" style={{ color: 'var(--text-4)' }}>{open ? '▾' : '▸'}</td>
-                      <td className="mono" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                        {fmtMonthYear(y.startDate)} – {fmtMonthYear(addMonths(y.endDate, -1))}
-                      </td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{fmt$(toDisplayFromAud(y.start))}</td>
-                      <td className="mono" style={{ textAlign: 'right', color: 'var(--text-3)' }}>{y.decEnd != null ? fmt$(toDisplayFromAud(y.decEnd)) : '—'}</td>
-                      <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt$(toDisplayFromAud(y.grossEnd))}</td>
-                      <td className="mono" style={{ textAlign: 'right', color: '#10b981' }}>{fmt$(toDisplayFromAud(y.grossPnl))}</td>
-                      <td className="mono" style={{ textAlign: 'right', color: '#ef4444' }}>{fmt$(toDisplayFromAud(y.tax))}</td>
-                      <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt$(toDisplayFromAud(y.netPnl))}</td>
-                      <td>{y.crossed.join(', ')}</td>
-                    </tr>
-                    {open && (
-                      <tr>
-                        <td colSpan={9} style={{ padding: 0 }}>
-                          <div className="ms-month-grid">
-                            {Array.from({ length: y.months }, (_, i) => {
-                              const monthStart = y.start * Math.pow(1 + r, i)
-                              const required = monthStart * r
-                              return (
-                                <div key={i} className="ms-month-cell">
-                                  <div className="ms-month-label">{MONTH_ABBR[addMonths(y.startDate, i).getMonth()]}</div>
-                                  <div className="ms-month-value">{fmt$(toDisplayFromAud(required))}</div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+          actualPath={actualPathDisplay} years={years} marks={chartMarks} currency={currency} />
       </div>
     </div>
   )
