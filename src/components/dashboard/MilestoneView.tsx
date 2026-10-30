@@ -736,54 +736,6 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
 
   return (
     <div className="ms-wrap">
-      <div className="dash-panel" style={{ flex: '0 0 auto' }}>
-        <div className="dash-panel-header">
-          <span>Wealth Timeline</span>
-        </div>
-        <div className="ms-config-row">
-          <label>Start capital
-            <input type="number" value={cfg.startCapital}
-              onChange={e => setCfg({ ...cfg, startCapital: Number(e.target.value) || 0 })} />
-          </label>
-          <label>Target return %/yr
-            <input type="number" value={cfg.targetPct}
-              onChange={e => setCfg({ ...cfg, targetPct: Number(e.target.value) || 0 })} />
-          </label>
-          <label>Tax rate %
-            <input type="number" value={cfg.taxRate}
-              onChange={e => setCfg({ ...cfg, taxRate: Number(e.target.value) || 0 })} />
-          </label>
-          <label>Years to project
-            <input type="number" value={cfg.numYears}
-              onChange={e => setCfg({ ...cfg, numYears: Math.max(1, Number(e.target.value) || 1) })} />
-          </label>
-          {accounts.length > 0 && (
-            <label>Include in Actual
-              <div className="ms-currency-toggle" style={{ marginTop: 3 }}>
-                {accounts.map(a => (
-                  <button key={a.id} className={`ms-chip${!excludedAccounts.has(a.id) ? ' active' : ''}`}
-                    onClick={() => toggleAccount(a.id)} title={a.name}>
-                    {a.name}
-                  </button>
-                ))}
-              </div>
-            </label>
-          )}
-          <label>Currency
-            <div className="ms-currency-toggle" style={{ marginTop: 3 }}>
-              {(['AUD', 'USD'] as const).map(c => (
-                <button key={c} className={`ms-chip${currency === c ? ' active' : ''}`} onClick={() => setCurrency(c)}>{c}</button>
-              ))}
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <details className="ms-pace-details">
-        <summary>How the lines are calculated</summary>
-        <p className="ms-pace-note">{paceNote}</p>
-      </details>
-
       <div className="ph-underline-tabs ms-subtabs" role="tablist">
         <button type="button" role="tab" aria-selected={pane === 'chart'} className={`ph-underline-tab${pane === 'chart' ? ' active' : ''}`} onClick={() => setPane('chart')}>Chart</button>
         <button type="button" role="tab" aria-selected={pane === 'table'} className={`ph-underline-tab${pane === 'table' ? ' active' : ''}`} onClick={() => setPane('table')}>Table</button>
@@ -867,6 +819,54 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
       </div>
       )}
       </div>
+
+      <div className="dash-panel" style={{ flex: '0 0 auto' }}>
+        <div className="dash-panel-header">
+          <span>Wealth Timeline</span>
+        </div>
+        <div className="ms-config-row">
+          <label>Start capital
+            <input type="number" value={cfg.startCapital}
+              onChange={e => setCfg({ ...cfg, startCapital: Number(e.target.value) || 0 })} />
+          </label>
+          <label>Target return %/yr
+            <input type="number" value={cfg.targetPct}
+              onChange={e => setCfg({ ...cfg, targetPct: Number(e.target.value) || 0 })} />
+          </label>
+          <label>Tax rate %
+            <input type="number" value={cfg.taxRate}
+              onChange={e => setCfg({ ...cfg, taxRate: Number(e.target.value) || 0 })} />
+          </label>
+          <label>Years to project
+            <input type="number" value={cfg.numYears}
+              onChange={e => setCfg({ ...cfg, numYears: Math.max(1, Number(e.target.value) || 1) })} />
+          </label>
+          {accounts.length > 0 && (
+            <label>Include in Actual
+              <div className="ms-currency-toggle" style={{ marginTop: 3 }}>
+                {accounts.map(a => (
+                  <button key={a.id} className={`ms-chip${!excludedAccounts.has(a.id) ? ' active' : ''}`}
+                    onClick={() => toggleAccount(a.id)} title={a.name}>
+                    {a.name}
+                  </button>
+                ))}
+              </div>
+            </label>
+          )}
+          <label>Currency
+            <div className="ms-currency-toggle" style={{ marginTop: 3 }}>
+              {(['AUD', 'USD'] as const).map(c => (
+                <button key={c} className={`ms-chip${currency === c ? ' active' : ''}`} onClick={() => setCurrency(c)}>{c}</button>
+              ))}
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <details className="ms-pace-details">
+        <summary>How the lines are calculated</summary>
+        <p className="ms-pace-note">{paceNote}</p>
+      </details>
 
       <div className="ms-summary-row">
         <div className="dash-panel ms-summary-tile">
