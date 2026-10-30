@@ -779,39 +779,6 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
         </div>
       </div>
 
-      <div className="ms-summary-row">
-        <div className="dash-panel ms-summary-tile">
-          <div className="dash-panel-sub">Actual Net Worth Today ({currency})</div>
-          <div className="ms-summary-value">{fmt$(actualDisplay)}</div>
-          <div className="ms-summary-sub" style={{ color: variance >= 0 ? '#10b981' : '#ef4444' }}>
-            {variance >= 0 ? '+' : ''}{fmt$(variance)} vs start capital
-          </div>
-        </div>
-        {MILESTONES.map(m => {
-          const target = projectMilestone(cfg.startCapital, m.value, cfg.targetPct / 100, today)
-          const yours = pace.usingTarget
-            ? target
-            : projectMilestone(cfg.startCapital, m.value, pace.pacePct / 100, today)
-          const alreadyActual = actualNetWorthUsd >= m.value * rate
-          return (
-            <div key={m.label} className="dash-panel ms-summary-tile ms-milestone-tile">
-              <div className="dash-panel-sub">{m.label}</div>
-              <div className="ms-compare">
-                <div className="ms-compare-k" style={{ color: TARGET_COLOR }}>Target · {fmtPct(cfg.targetPct)}</div>
-                <div className="ms-compare-date">{target.label}</div>
-                <div className="ms-compare-left">{target.remaining}</div>
-              </div>
-              <div className="ms-compare">
-                <div className="ms-compare-k" style={{ color: PACE_COLOR }}>Your pace · {pace.usingTarget ? `target ${fmtPct(cfg.targetPct)}` : fmtPct(pace.pacePct)}</div>
-                <div className="ms-compare-date">{yours.label}</div>
-                <div className="ms-compare-left">{yours.remaining}</div>
-              </div>
-              {alreadyActual && <div className="ms-summary-sub" style={{ color: '#10b981' }}>Already reached (actual)</div>}
-            </div>
-          )
-        })}
-      </div>
-
       <details className="ms-pace-details">
         <summary>How the lines are calculated</summary>
         <p className="ms-pace-note">{paceNote}</p>
@@ -899,6 +866,39 @@ export default function MilestoneView({ accounts }: { accounts: Account[] }) {
         </div>
       </div>
       )}
+      </div>
+
+      <div className="ms-summary-row">
+        <div className="dash-panel ms-summary-tile">
+          <div className="dash-panel-sub">Actual Net Worth Today ({currency})</div>
+          <div className="ms-summary-value">{fmt$(actualDisplay)}</div>
+          <div className="ms-summary-sub" style={{ color: variance >= 0 ? '#10b981' : '#ef4444' }}>
+            {variance >= 0 ? '+' : ''}{fmt$(variance)} vs start capital
+          </div>
+        </div>
+        {MILESTONES.map(m => {
+          const target = projectMilestone(cfg.startCapital, m.value, cfg.targetPct / 100, today)
+          const yours = pace.usingTarget
+            ? target
+            : projectMilestone(cfg.startCapital, m.value, pace.pacePct / 100, today)
+          const alreadyActual = actualNetWorthUsd >= m.value * rate
+          return (
+            <div key={m.label} className="dash-panel ms-summary-tile ms-milestone-tile">
+              <div className="dash-panel-sub">{m.label}</div>
+              <div className="ms-compare">
+                <div className="ms-compare-k" style={{ color: TARGET_COLOR }}>Target · {fmtPct(cfg.targetPct)}</div>
+                <div className="ms-compare-date">{target.label}</div>
+                <div className="ms-compare-left">{target.remaining}</div>
+              </div>
+              <div className="ms-compare">
+                <div className="ms-compare-k" style={{ color: PACE_COLOR }}>Your pace · {pace.usingTarget ? `target ${fmtPct(cfg.targetPct)}` : fmtPct(pace.pacePct)}</div>
+                <div className="ms-compare-date">{yours.label}</div>
+                <div className="ms-compare-left">{yours.remaining}</div>
+              </div>
+              {alreadyActual && <div className="ms-summary-sub" style={{ color: '#10b981' }}>Already reached (actual)</div>}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
