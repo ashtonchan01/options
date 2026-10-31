@@ -215,7 +215,7 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
 }) {
   const [setNode, measured] = useElementSize<HTMLDivElement>()
   const [hover, setHover] = useState<{ x: number; tYears: number } | null>(null)
-  const past = (actualPath.length > 1 ? actualPath : history).filter(p => p.value > 0)
+  const past = (actualPath.length > 1 ? actualPath : history).filter(p => p.value > 0 && Number.isFinite(p.t) && Number.isFinite(p.value))
 
   // Drawn as one continuous exponential from today at the target rate.
   // Charting the annual tax drag produced a sawtooth that read as jagged
@@ -248,31 +248,35 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   // "Actual $269K" render nearly 2x its authored size on desktop before,
   // and would make every label unreadably tiny on a phone-width container).
   // Measuring the real box keeps 1 viewBox unit = 1 real pixel everywhere.
-  const W = measured.width
-  const H = measured.height
-  const padL = Math.max(62, W * (CHART_PAD_L_PCT / 100)), padR = W * (CHART_PAD_R_PCT / 100)
+  const W = measured.width >= 20 ? measured.width : 320
+  const H = measured.height >= 40 ? measured.height : 280
+  const padL = Math.max(62, W * (CHART_PAD_L_PCT / 100)), padR = Math.max(16, W * (CHART_PAD_R_PCT / 100))
   const padT = 28
-
-  // Not measured yet (first render, before the ResizeObserver reports back)
-  // — render just the (ref-carrying) box so it can actually be measured,
-  // rather than dividing by a zero width below.
-  if (W < 20 || H < 40) return <div ref={setNode} className="ms-chart-fill" />
 
   // The x-axis normally starts at t=0 (today) — a recorded history stretches
   // it a bit to the left so past readings have somewhere to sit instead of
   // being clipped off before the chart even begins.
-  const rawMinYears = Math.min(0, ...past.map(h => h.t))
-  const domainMinYears = rawMinYears < 0 ? rawMinYears - 0.2 : rawMinYears
+  let rawMinYears = 0
+  for (const point of past) if (point.t < rawMinYears) rawMinYears = point.t
+  // A single bad date must not stretch the axis so far that the lines vanish.
+  const domainMinYears = Math.max(rawMinYears < 0 ? rawMinYears - 0.2 : 0, -40)
 
   const finiteValues = [
     ...points.map(p => p.value), ...pacePoints.map(p => p.value),
     actualDisplay, ...accountActuals.map(a => a.display),
     ...past.map(h => h.value),
   ].filter(v => Number.isFinite(v) && v > 0)
-  const minV = Math.min(toDisplayFromAud(cfg.startCapital * 0.5), ...finiteValues)
-  const maxV = Math.max(...finiteValues) * 1.08
+  let minV = toDisplayFromAud(Math.max(cfg.startCapital, 1) * 0.5)
+  let maxV = minV
+  for (const value of finiteValues) {
+    if (value < minV) minV = value
+    if (value > maxV) maxV = value
+  }
+  maxV *= 1.08
+  if (!(maxV > minV) || !Number.isFinite(maxV)) maxV = minV * 2
   const logMin = Math.log10(Math.max(1, minV))
-  const logMax = Math.log10(Math.max(10, maxV))
+  const logMax = Math.log10(Math.max(minV * 1.01, maxV))
+  const logSpan = Math.max(logMax - logMin, 1e-6)
 
   const axisToday = years[0]?.startDate ?? new Date()
   const yearTicks: { t: number; label: string }[] = []
@@ -290,13 +294,17 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
 
   const domainYears = cfg.numYears - domainMinYears
   const x = (tYears: number) => padL + ((tYears - domainMinYears) / domainYears) * plotW
-  const y = (v: number) => padT + plotH - ((Math.log10(Math.max(1, v)) - logMin) / (logMax - logMin)) * plotH
+  const y = (v: number) => {
+    if (!(v > 0) || !Number.isFinite(v)) return padT + plotH
+    return padT + plotH - ((Math.log10(v) - logMin) / logSpan) * plotH
+  }
 
   const millionTicks: { value: number; label: string; yy: number; showLabel: boolean }[] = []
   const firstMillion = Math.max(1, Math.ceil(minV / 1_000_000))
-  const lastMillion = Math.floor(maxV / 1_000_000)
+  const lastMillion = Math.max(firstMillion, Math.floor(maxV / 1_000_000))
+  const millionStep = Math.max(1, Math.ceil((lastMillion - firstMillion) / 48))
   let lastLabelY = Infinity
-  for (let n = firstMillion; n <= lastMillion; n++) {
+  for (let n = firstMillion; n <= lastMillion; n += millionStep) {
     const value = n * 1_000_000
     const yy = y(value)
     if (yy < padT - 1 || yy > padT + plotH + 1) continue
