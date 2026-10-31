@@ -158,13 +158,13 @@ function useElementSize<T extends HTMLElement>() {
   const [size, setSize] = useState({ width: 0, height: 0 })
   useEffect(() => {
     if (!node) return
-    const ro = new ResizeObserver(entries => {
-      const box = entries[0]?.contentBoxSize?.[0]
-      if (box) setSize({ width: box.inlineSize, height: box.blockSize })
-      else setSize({ width: node.clientWidth, height: node.clientHeight })
-    })
+    // clientWidth/clientHeight, not contentBoxSize. Safari reports a 0
+    // content-box height for a flex child that actually has a height, which
+    // left the Milestone plot unmeasured and blank.
+    const measure = () => setSize({ width: node.clientWidth, height: node.clientHeight })
+    const ro = new ResizeObserver(measure)
     ro.observe(node)
-    setSize({ width: node.clientWidth, height: node.clientHeight })
+    measure()
     return () => ro.disconnect()
   }, [node])
   return [setNode, size] as const
@@ -223,6 +223,8 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   // reference curve. The amber pace line is the same shape at the rate the accounts have
   // actually achieved (or the target rate, when that rate isn't knowable).
   const totalMonths = years[years.length - 1]?.tEnd ?? cfg.numYears * 12
+  const paceFactor = 1 + paceMonthly
+  const paceDrawable = paceFactor > 0 && Number.isFinite(paceFactor)
   const points = useMemo(() => {
     const pts: { t: number; value: number }[] = []
     for (let t = 0; t <= totalMonths; t++) {
@@ -231,12 +233,13 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
     return pts
   }, [totalMonths, r, cfg.startCapital, toDisplayFromAud])
   const pacePoints = useMemo(() => {
+    if (!paceDrawable) return []
     const pts: { t: number; value: number }[] = []
     for (let t = 0; t <= totalMonths; t++) {
-      pts.push({ t, value: toDisplayFromAud(cfg.startCapital * Math.pow(1 + paceMonthly, t)) })
+      pts.push({ t, value: toDisplayFromAud(cfg.startCapital * Math.pow(paceFactor, t)) })
     }
     return pts
-  }, [totalMonths, paceMonthly, cfg.startCapital, toDisplayFromAud])
+  }, [totalMonths, paceDrawable, paceFactor, cfg.startCapital, toDisplayFromAud])
 
   // viewBox width is the container's own measured pixel width (not a fixed
   // assumption) — text/dot sizes are defined in user-space units that scale
@@ -261,13 +264,13 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   const rawMinYears = Math.min(0, ...past.map(h => h.t))
   const domainMinYears = rawMinYears < 0 ? rawMinYears - 0.2 : rawMinYears
 
-  const allValues = [
+  const finiteValues = [
     ...points.map(p => p.value), ...pacePoints.map(p => p.value),
     actualDisplay, ...accountActuals.map(a => a.display),
     ...past.map(h => h.value),
-  ]
-  const minV = Math.min(toDisplayFromAud(cfg.startCapital * 0.5), ...allValues)
-  const maxV = Math.max(...allValues) * 1.08
+  ].filter(v => Number.isFinite(v) && v > 0)
+  const minV = Math.min(toDisplayFromAud(cfg.startCapital * 0.5), ...finiteValues)
+  const maxV = Math.max(...finiteValues) * 1.08
   const logMin = Math.log10(Math.max(1, minV))
   const logMax = Math.log10(Math.max(10, maxV))
 
@@ -400,7 +403,7 @@ function TimelineChart({ cfg, r, paceMonthly, toDisplayFromAud, actualDisplay, a
   }
   const hoverRows = hover == null ? [] : [
     inForecast ? { name: 'Target', color: TARGET_COLOR, value: toDisplayFromAud(cfg.startCapital * Math.pow(1 + r, hover.tYears * 12)) } : null,
-    inForecast ? { name: 'Pace', color: PACE_COLOR, value: toDisplayFromAud(cfg.startCapital * Math.pow(1 + paceMonthly, hover.tYears * 12)) } : null,
+    inForecast && paceDrawable ? { name: 'Pace', color: PACE_COLOR, value: toDisplayFromAud(cfg.startCapital * Math.pow(paceFactor, hover.tYears * 12)) } : null,
     (() => {
       const actual = seriesValueAt(actualSeries, hover.tYears)
       return actual == null ? null : { name: 'Actual', color: ACTUAL_COLOR, value: actual }
