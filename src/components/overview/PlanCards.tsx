@@ -1,7 +1,7 @@
 /**
- * Ideas, Puts, and Calls for the open account. Same rows the Income page
- * showed: ticker chips, strike and right, expiry, quantity, and the saved
- * ticker rules. Nothing here places a trade.
+ * Ideas, Puts, and Calls for the open account. Ideas are rebuilt from the
+ * open book and the income rules. Puts and Calls stay the saved screens.
+ * Nothing here places a trade.
  */
 import { useMemo, type ReactNode } from 'react'
 import type { Account } from '../../store/accountsStore'
@@ -9,16 +9,17 @@ import {
   SEED_CALLS,
   SEED_CALL_NOTE,
   SEED_MARK_DATE,
-  SEED_NEXT_ACTIONS,
   SEED_PUTS,
   SEED_PUT_NOTE,
-  SEED_SELLS,
   type IncomeSettings,
 } from '../../income/incomeSeed'
 import {
   annualizedReturn,
+  calendarIso,
   callCover,
   daysBetween,
+  ideaCopy,
+  liveIdeas,
   pct,
   putScreenRows,
   resolvedNetLiquidation,
@@ -26,6 +27,7 @@ import {
   toLiveBook,
   usd0,
   type IncomeSource,
+  type LiveIdea,
 } from '../../income/incomeLive'
 import { tickerColor } from '../../income/tickerColor'
 
@@ -35,15 +37,9 @@ function formatExpiry(iso: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
-function todayIso(today: Date): string {
-  const month = String(today.getMonth() + 1).padStart(2, '0')
-  const day = String(today.getDate()).padStart(2, '0')
-  return `${today.getFullYear()}-${month}-${day}`
-}
-
 function daysLeft(iso: string, today: Date): number | null {
   if (!iso) return null
-  return daysBetween(todayIso(today), iso.slice(0, 10))
+  return daysBetween(calendarIso(today), iso.slice(0, 10))
 }
 
 function formatExpiryShort(iso: string, today: Date): string {
@@ -69,9 +65,9 @@ function money(n: number): string {
   return `${sign}$${usd0(Math.abs(n))}`
 }
 
-function IncomePanel({ emoji, title, extra, children }: { emoji: string; title: string; extra?: ReactNode; children: ReactNode }) {
+function IncomePanel({ emoji, title, extra, testId, children }: { emoji: string; title: string; extra?: ReactNode; testId?: string; children: ReactNode }) {
   return (
-    <section className="dash-panel income-panel">
+    <section className="dash-panel income-panel" data-testid={testId}>
       <div className="dash-panel-header">
         <EmojiTitle emoji={emoji}>{title}</EmojiTitle>
         {extra}
@@ -121,6 +117,30 @@ function ScanTable({ columns, children }: { columns: { label: string; align?: 'n
   )
 }
 
+function heldSymbols(account: Account): string[] {
+  const symbols: string[] = []
+  for (const position of account.positions ?? []) {
+    if (position.assetClass !== 'STK' && position.assetClass !== 'OPT') continue
+    if (!position.quantity) continue
+    symbols.push(position.underlyingSymbol || position.symbol)
+  }
+  return symbols
+}
+
+function IdeaCells({ idea, today }: { idea: LiveIdea; today: string }) {
+  const copy = ideaCopy(idea, today)
+  return (
+    <td title={copy.text}>
+      {copy.before}{copy.qty}{copy.contract ? (
+        <>
+          <span className="income-kind">{idea.putCall === 'C' ? '📈' : '📉'}</span>
+          <span className={`income-right ${idea.putCall === 'C' ? 'call' : 'put'}`}>{copy.contract}</span>
+        </>
+      ) : null}{copy.after}
+    </td>
+  )
+}
+
 function sourceFor(account: Account): IncomeSource {
   return {
     name: account.name,
@@ -132,34 +152,38 @@ function sourceFor(account: Account): IncomeSource {
   }
 }
 
-export default function PlanCards({ account, settings }: { account: Account; settings: IncomeSettings }) {
-  const now = useMemo(() => new Date(), [])
+export default function PlanCards({ account, settings, today }: { account: Account; settings: IncomeSettings; today?: Date }) {
+  const now = useMemo(() => today ?? new Date(), [today])
+  const todayIso = calendarIso(now)
   const focus = useMemo(() => toLiveBook(sourceFor(account), now), [account, now])
   const role = focus.role === 'personal' || focus.role === 'business' ? focus.role : null
+  const ideas = useMemo(
+    () => (role ? liveIdeas(focus, settings, now, heldSymbols(account)) : []),
+    [account, focus, now, role, settings],
+  )
   const days = screenDays(settings.screenExpiry)
   const puts = putScreenRows(SEED_PUTS, settings)
   const calls = role ? SEED_CALLS.filter(row => row.account === role) : []
-  const sells = role ? SEED_SELLS.filter(sell => sell.account === role) : []
   const putCredit = puts.reduce((sum, row) => sum + row.premium, 0)
   const callCredit = calls.reduce((sum, row) => sum + row.premium, 0)
 
   return (
     <div className="income-list-row ov-plan-row">
       {role && (
-        <IncomePanel emoji="💡" title="Ideas">
+        <IncomePanel emoji="💡" title="Ideas" testId="ideas-panel">
           <ScanTable columns={[{ label: 'Ticker' }, { label: 'Idea' }, { label: 'Credit', align: 'n' }]}>
-            {SEED_NEXT_ACTIONS[role].map(step => (
-              <tr key={step}>
+            {ideas.length === 0 && (
+              <tr data-testid="idea-row" data-kind="none">
                 <td>—</td>
-                <td title={step}>{step}</td>
+                <td>No pending ideas</td>
                 <td className="n">—</td>
               </tr>
-            ))}
-            {sells.map(sell => (
-              <tr key={sell.label}>
-                <td><TickerChip symbol={sell.label.split(' ')[0] ?? sell.label} /></td>
-                <td title={sell.cover}>{`${sell.label} · ${sell.phase === 'now' ? 'Now' : 'After repair'}`}</td>
-                <td className="n">{usd0(sell.premium)}</td>
+            )}
+            {ideas.map(idea => (
+              <tr key={idea.key} data-testid="idea-row" data-kind={idea.kind} data-symbol={idea.symbol} data-strike={idea.strike ?? ''}>
+                <td>{idea.symbol ? <TickerChip symbol={idea.symbol} /> : '—'}</td>
+                <IdeaCells idea={idea} today={todayIso} />
+                <td className="n">—</td>
               </tr>
             ))}
           </ScanTable>

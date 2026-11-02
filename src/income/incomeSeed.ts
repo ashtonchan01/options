@@ -86,6 +86,8 @@ export interface SeedSell {
   phase: 'now' | 'afterRepair'
 }
 
+/** 23 Oct sell list. Overview Ideas does not render this. A short is listed
+ * only while the live book still has it. */
 export const SEED_SELLS: SeedSell[] = [
   { account: 'personal', label: 'TSLA 410C Nov 20 x1', cover: 'Now; covered by 100 sh', premium: 443, phase: 'now' },
   { account: 'personal', label: 'MSTR 175C Nov 20 x3', cover: 'After repair', premium: 1_020, phase: 'afterRepair' },
@@ -96,6 +98,8 @@ export const SEED_SELLS: SeedSell[] = [
   { account: 'business', label: 'SKHY 155C Nov 20', cover: '100 sh', premium: 435, phase: 'now' },
 ]
 
+/** 23 Oct narrative. Overview Ideas does not render these lines.
+ * liveIdeas() rebuilds the card from the open book and the income rules. */
 export const SEED_NEXT_ACTIONS: Record<'personal' | 'business', string[]> = {
   personal: [
     'Close MSTR 160P (4,887); let SOFI 14.5P expire 30 Oct',
