@@ -10,6 +10,7 @@ import { DEFAULT_INCOME_SETTINGS, SEED_PUTS, type IncomeSettings } from '../src/
 import {
   annualizedReturn,
   callCover,
+  callPremiumRatio,
   deltaInBand,
   displayAccountName,
   elState,
@@ -44,6 +45,8 @@ const ranked = putScreenRows(SEED_PUTS, DEFAULT_INCOME_SETTINGS)
 check('puts rank by premium / cash', ranked.map(row => row.symbol).join(',') === 'ALAB,ARM,MSTR,SKHY,MRVL,SPCX', ranked.map(row => row.symbol).join(','))
 check('screen is 27 days to 20 Nov 2026', screenDays(DEFAULT_INCOME_SETTINGS.screenExpiry) === 27)
 check('ALAB return annualizes near 69%', Math.abs(annualizedReturn(premiumOverCash(1_123, 22_000), 27) - 0.69) < 0.005)
+check('TSLA call yield is premium over the stock, annualized like puts', Math.abs(annualizedReturn(callPremiumRatio(443, 372, 1), 27) - 0.161) < 0.001)
+check('MSTR call yield does not depend on the contract count', Math.abs(callPremiumRatio(1_020, 145.12, 3) - callPremiumRatio(680, 145.12, 2)) < 1e-12)
 check('SPCX sits outside the 0.20-0.30 delta band', ranked.find(row => row.symbol === 'SPCX')?.band === 'out')
 check('ARM delta is unknown, not outside the band', deltaInBand(null, 0.2, 0.3) === 'unknown')
 check('MSTR put stays ranked and is blocked by the no-new-puts rule', ranked.find(row => row.symbol === 'MSTR')?.blockedMstr === true && ranked.find(row => row.symbol === 'MSTR')?.excluded === false)
@@ -196,17 +199,17 @@ check('a far MSTR put is not closed just because new MSTR puts are blocked', !ro
 check('SOFI is absent once the October put has left the book', !rolledIdeas.some(idea => idea.symbol === 'SOFI'))
 check('the ARM earnings blackout stays through 4 Nov and the GOOGL blackout has expired', rolledIdeas.some(idea => idea.kind === 'blackout' && idea.symbol === 'ARM' && idea.date === '2026-11-04') && !rolledIdeas.some(idea => idea.symbol === 'GOOGL'))
 check('blackout copy names the rule date', ideaCopy(rolledIdeas.find(idea => idea.kind === 'blackout' && idea.symbol === 'ARM')!, '2026-11-02').text === 'No new puts through 4 Nov')
-check('resolve copy names the live strike, date, and close cost', ideaCopy(rolledIdeas.find(idea => idea.strike === 180)!, '2026-11-02').text === 'Resolve 180P before 20 Nov (585)')
+check('resolve copy names the live strike and date without the buyback cost', ideaCopy(rolledIdeas.find(idea => idea.strike === 180)!, '2026-11-02').text === 'Resolve 180P before 20 Nov')
 const twoArm = liveIdeas(toLiveBook(bookFrom('Personal', [
   opt({ symbol: 'ARM', putCall: 'P', strike: 180, quantity: -2, markPrice: 5.85, expiry: '20261120' }),
 ], 80_000), nov2), { ...DEFAULT_INCOME_SETTINGS, rules: [] }, nov2)
-check('a two-lot short keeps its size and close cost', ideaCopy(twoArm.find(idea => idea.strike === 180)!, '2026-11-02').text === 'Resolve 2× 180P before 20 Nov (1,170)')
+check('a two-lot short keeps its size without the buyback cost', ideaCopy(twoArm.find(idea => idea.strike === 180)!, '2026-11-02').text === 'Resolve 2× 180P before 20 Nov')
 
 const stillExpired = toLiveBook(bookFrom('Personal', [
   opt({ symbol: 'SOFI', putCall: 'P', strike: 14.5, quantity: -1, markPrice: 0.05, expiry: '20261030' }),
 ], 40_000), nov2)
 const expiredIdeas = liveIdeas(stillExpired, { ...DEFAULT_INCOME_SETTINGS, rules: [] }, nov2)
-check('a short that is still in the book after its expiry is a close idea', expiredIdeas.some(idea => idea.kind === 'expired' && idea.symbol === 'SOFI' && idea.strike === 14.5) && ideaCopy(expiredIdeas[0], '2026-11-02').text === 'Close 14.5P — expired 30 Oct (5)')
+check('a short that is still in the book after its expiry is a close idea', expiredIdeas.some(idea => idea.kind === 'expired' && idea.symbol === 'SOFI' && idea.strike === 14.5) && ideaCopy(expiredIdeas[0], '2026-11-02').text === 'Close 14.5P — expired 30 Oct')
 
 const repairBook = toLiveBook(bookFrom('Business', [
   opt({ symbol: 'UMAC', putCall: 'P', strike: 20, quantity: -1, markPrice: 48.06, expiry: '20270115' }),
@@ -215,7 +218,7 @@ const repairBook = toLiveBook(bookFrom('Business', [
 const repairSettings: IncomeSettings = { ...DEFAULT_INCOME_SETTINGS, rules: [] }
 const repairIdeas = liveIdeas(repairBook, repairSettings, nov2)
 check('excluded and ETF shorts are repair ideas while EL is under the floor', repairIdeas.some(idea => idea.symbol === 'UMAC' && idea.kind === 'repair') && repairIdeas.some(idea => idea.symbol === 'BSOL' && idea.kind === 'repair') && repairIdeas.some(idea => idea.kind === 'floor' && idea.amount === 20_000))
-check('repair copy keeps the live strike, expiry, and close cost', ideaCopy(repairIdeas.find(idea => idea.symbol === 'UMAC')!, '2026-11-02').text === 'Close 20P 15 Jan \'27 until EL is above 30,000 (4,806)')
+check('repair copy keeps the live strike and expiry without the buyback cost', ideaCopy(repairIdeas.find(idea => idea.symbol === 'UMAC')!, '2026-11-02').text === 'Close 20P 15 Jan \'27 until EL is above 30,000')
 const repaired = liveIdeas(toLiveBook(bookFrom('Business', [
   opt({ symbol: 'UMAC', putCall: 'P', strike: 20, quantity: -1, markPrice: 48.06, expiry: '20270115' }),
 ], 40_000), nov2), repairSettings, nov2)
@@ -242,14 +245,18 @@ function ideaPanel(html: string): string {
 function viewAccount(name: string, positions: RawPosition[], excessLiquidity: number): Account {
   return { id: name, name, trades: [], positions, cashBalance: 10_000, netLiquidation: 100_000, excessLiquidity }
 }
-const personalHtml = ideaPanel(renderToStaticMarkup(createElement(PlanCards, {
+const personalPage = renderToStaticMarkup(createElement(PlanCards, {
   account: viewAccount('Personal', [
     opt({ symbol: 'ARM', putCall: 'P', strike: 180, quantity: -1, markPrice: 5.85, expiry: '20261120' }),
+    { accountId: 'x', symbol: 'TSLA', description: 'TSLA', assetClass: 'STK', quantity: 100, costBasisPrice: 1, costBasisMoney: 100, markPrice: 372, positionValue: 37_200, unrealizedPnL: 0, currency: 'USD' },
   ], 40_000),
   settings: DEFAULT_INCOME_SETTINGS,
   today: nov2,
-})))
-check('the ideas card renders the live ARM put and drops the October lines', personalHtml.includes('Resolve') && personalHtml.includes('180P') && personalHtml.includes('before 20 Nov') && personalHtml.includes('income-ticker') && !personalHtml.includes('240P') && !personalHtml.includes('30 Oct') && !personalHtml.includes('let SOFI') && !personalHtml.includes('five trades') && !personalHtml.includes('16P'))
+}))
+const personalHtml = ideaPanel(personalPage)
+const callsHtml = personalPage.slice(personalPage.indexOf('data-testid="calls-credit-total"'))
+check('the ideas card renders the live ARM put and drops the October lines', personalHtml.includes('Resolve') && personalHtml.includes('180P') && personalHtml.includes('before 20 Nov') && personalHtml.includes('income-ticker') && !personalHtml.includes('240P') && !personalHtml.includes('30 Oct') && !personalHtml.includes('let SOFI') && !personalHtml.includes('five trades') && !personalHtml.includes('16P') && !personalHtml.includes('(585)'))
+check('calls show the screen expiry and the stock yield', callsHtml.includes('>Expiry<') && callsHtml.includes('>Yield<') && callsHtml.includes('20 Nov') && callsHtml.includes('18d') && callsHtml.includes('16.1%') && callsHtml.includes('31.7%') && callsHtml.includes('Covered'))
 const businessHtml = ideaPanel(renderToStaticMarkup(createElement(PlanCards, {
   account: viewAccount('Business', [
     opt({ symbol: 'BSOL', putCall: 'P', strike: 16, quantity: -10, markPrice: 2.18, expiry: '20261120' }),

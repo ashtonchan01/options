@@ -178,6 +178,11 @@ export function premiumOverCash(premium: number, cash: number): number {
   return cash > 0 ? premium / cash : 0
 }
 
+/** Call-screen capital is the stock the contracts would cover. Same ratio puts use, with spot instead of cash secured. */
+export function callPremiumRatio(premium: number, spot: number, contracts: number): number {
+  return premiumOverCash(premium, spot * 100 * Math.abs(contracts))
+}
+
 export function annualizedReturn(ratio: number, days: number): number {
   return days > 0 ? ratio * (365 / days) : 0
 }
@@ -319,7 +324,6 @@ export interface IdeaCopy {
 
 export function ideaCopy(idea: LiveIdea, todayIso: string): IdeaCopy {
   const when = idea.date ? formatIdeaDate(idea.date, todayIso) : ''
-  const cost = idea.closeCost != null ? ` (${usd0(idea.closeCost)})` : ''
   const qty = idea.contracts != null && idea.contracts !== 1 ? `${formatCount(idea.contracts)}× ` : ''
   const contract = idea.strike != null && idea.putCall ? `${formatCount(idea.strike)}${idea.putCall}` : ''
   let before = ''
@@ -336,15 +340,15 @@ export function ideaCopy(idea: LiveIdea, todayIso: string): IdeaCopy {
       break
     case 'resolve':
       before = 'Resolve '
-      after = idea.date === todayIso ? ` today${cost}` : ` before ${when}${cost}`
+      after = idea.date === todayIso ? ' today' : ` before ${when}`
       break
     case 'expired':
       before = 'Close '
-      after = ` — expired ${when}${cost}`
+      after = ` — expired ${when}`
       break
     case 'repair':
       before = 'Close '
-      after = `${when ? ` ${when}` : ''} until EL is above ${usd0(idea.floor ?? 0)}${cost}`
+      after = `${when ? ` ${when}` : ''} until EL is above ${usd0(idea.floor ?? 0)}`
       break
   }
   const text = `${before}${qty}${contract}${after}`.replace(/ +/g, ' ').trim()

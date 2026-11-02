@@ -17,6 +17,7 @@ import {
   annualizedReturn,
   calendarIso,
   callCover,
+  callPremiumRatio,
   daysBetween,
   ideaCopy,
   liveIdeas,
@@ -228,7 +229,7 @@ export default function PlanCards({ account, settings, today }: { account: Accou
           title="Calls"
           extra={<span className="ov-credit-total" data-testid="calls-credit-total">Credit total <b>{money(callCredit)}</b></span>}
         >
-          <ScanTable columns={[{ label: 'Ticker' }, { label: 'Contract' }, { label: 'Qty', align: 'n' }, { label: 'Credit', align: 'n' }, { label: 'Cover' }]}>
+          <ScanTable columns={[{ label: 'Ticker' }, { label: 'Contract' }, { label: 'Expiry' }, { label: 'Qty', align: 'n' }, { label: 'Credit', align: 'n' }, { label: 'Yield', align: 'n' }, { label: 'Cover' }]}>
             {calls.map(row => {
               const coveredOnly = settings.rules.some(rule => rule.type === 'coveredCalls' && rule.symbol.trim().toUpperCase() === row.symbol)
               const blockedCalls = settings.rules.some(rule => rule.type === 'noNewCalls' && rule.symbol.trim().toUpperCase() === row.symbol)
@@ -242,8 +243,10 @@ export default function PlanCards({ account, settings, today }: { account: Accou
                     <span className="income-kind">📈</span>
                     <span className="income-right call">{strike ? `${strike}C` : row.label}</span>
                   </td>
+                  <td><ExpiryCell iso={settings.screenExpiry} today={now} /></td>
                   <td className="n">{qtyText(row.contracts)}</td>
                   <td className="n">{usd0(row.premium)}</td>
+                  <td className="n">{pct(annualizedReturn(callPremiumRatio(row.premium, row.spot, row.contracts), days))}</td>
                   <td>
                     {blockedCalls && <span className="income-flag bad">No calls</span>}
                     {cover === 'covered' && <span className="income-flag ok">Covered</span>}
@@ -258,7 +261,10 @@ export default function PlanCards({ account, settings, today }: { account: Accou
           </ScanTable>
           <details className="income-fold">
             <summary><EmojiTitle emoji="🗒️">How this is calculated</EmojiTitle></summary>
-            <ul className="income-actions"><li>{SEED_CALL_NOTE}</li></ul>
+            <ul className="income-actions">
+              <li>{SEED_CALL_NOTE}</li>
+              <li>Yield is premium / (spot × 100 × contracts), {days} days from {SEED_MARK_DATE} to {formatExpiry(settings.screenExpiry)}, same annualization as the put screen.</li>
+            </ul>
           </details>
         </IncomePanel>
       )}
