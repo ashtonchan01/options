@@ -12,6 +12,8 @@ import { tradeId } from '../../store/tradeLabelsStore'
 import { fetchQuotes } from '../../services/quotes'
 import { fetchMarketQuotes } from '../../services/markets'
 import { journalMarks } from './shareMark'
+import { contractKey, fetchIndexOptionMarks, indexOptionMarketValue, type OptionQuote } from '../../services/indexOptionMarks'
+import { isIndexOptionRoot } from '../../services/symbolAliases'
 import { useManualCashRows, type ManualCashRow } from '../../store/manualCashStore'
 import type { RawPosition, RawTrade } from '../../types'
 
@@ -876,6 +878,25 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, acc
     return () => { cancelled = true }
   }, [underlyingsKey])
 
+  // Index option marks. Flex markPrice is the last sync, and a 1–2 DTE SPX
+  // put spread can go from a loss to most of its credit without a resync.
+  // CBOE mids replace that snapshot for index roots only; equity options
+  // stay on the Flex mark.
+  const [optionMarks, setOptionMarks] = useState<Record<string, OptionQuote>>({})
+  const optionMarksKey = displayPositions
+    .filter(p => p.status === 'Active' && p.strikeDisplay !== 'SHARES' && isIndexOptionRoot(p.underlying) && (p.putCall === 'P' || p.putCall === 'C'))
+    .flatMap(p => p.strikes.map(strike => contractKey(p.underlying, p.expiry, strike, p.putCall)))
+    .sort()
+    .join(',')
+  useEffect(() => {
+    const keys = optionMarksKey ? optionMarksKey.split(',') : []
+    let cancelled = false
+    fetchIndexOptionMarks(keys).then(marks => {
+      if (!cancelled) setOptionMarks(marks)
+    })
+    return () => { cancelled = true }
+  }, [optionMarksKey])
+
 
   const tradesByKey = useMemo(() => {
     const m = new Map<string, RawTrade>()
@@ -1002,7 +1023,7 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, acc
                       const e = entries[p.id] ?? {}
                       const open = expanded === p.id
                       return (
-                        <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} underlyingPrice={underlyingPrices[p.underlying] ?? null} entry={e} open={open} cols={COLS}
+                        <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} underlyingPrice={underlyingPrices[p.underlying] ?? null} optionMarks={optionMarks} entry={e} open={open} cols={COLS}
                           onToggle={() => setExpanded(open ? null : p.id)}
                           editor={pickEditor(p, e, tradesByKey, updateEntry, setups, addSetup)} />
                       )
@@ -1028,7 +1049,7 @@ export function JournalTab({ positions, livePositions, trades, cashBalances, acc
                   const e = entries[p.id] ?? {}
                   const open = expanded === p.id
                   return (
-                    <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} underlyingPrice={underlyingPrices[p.underlying] ?? null} entry={e} open={open} cols={COLS}
+                    <Row key={p.id} pos={p} livePositions={livePositions} strikeUsage={strikeUsage} underlyingPrice={underlyingPrices[p.underlying] ?? null} optionMarks={optionMarks} entry={e} open={open} cols={COLS}
                       onToggle={() => setExpanded(open ? null : p.id)}
                       editor={pickEditor(p, e, tradesByKey, updateEntry, setups, addSetup)} />
                   )
@@ -1079,9 +1100,10 @@ function TableHead() {
   )
 }
 
-function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, open, cols, onToggle, editor }: {
+function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, optionMarks, open, cols, onToggle, editor }: {
   pos: JournalPosition; livePositions: RawPosition[]; strikeUsage: Map<string, number>
   underlyingPrice: number | null
+  optionMarks: Record<string, OptionQuote>
   entry: JournalEntry; open: boolean; cols: number
   onToggle: () => void; editor: JournalDetail
 }) {
@@ -1170,11 +1192,30 @@ function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, open, cols, 
         return s + lp.markPrice * signedContracts * (lp.multiplier ?? 100)
       }, 0)
     : null
+  const multiplier = liveLegs.find(lp => (lp.multiplier ?? 0) > 0)?.multiplier ?? 100
+  const liveSigns: Record<string, number> = {}
+  for (const lp of liveLegs) {
+    if (lp.strike == null || !lp.quantity) continue
+    liveSigns[String(lp.strike)] = Math.sign(lp.quantity)
+  }
+  const liveMarketValue = indexOptionMarketValue({
+    underlying: p.underlying,
+    expiry: p.expiry,
+    strikes: p.strikes,
+    putCall: p.putCall,
+    strategy: p.strategy,
+    netPremium: p.netPremium,
+    contracts: p.contracts,
+    multiplier,
+    liveSigns,
+    quotes: optionMarks,
+  })
   const marks = journalMarks({
     isShares,
     contracts: p.contracts,
     underlyingPrice,
     ibkrMarketValue,
+    liveMarketValue,
     units,
   })
   const ownMarketValue = marks.marketValue

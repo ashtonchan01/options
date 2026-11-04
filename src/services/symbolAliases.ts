@@ -42,6 +42,19 @@ const INDEX_ALIASES: Record<string, string> = {
   OEX: '^OEX',
 }
 
+/** Option roots whose strikes are on an index, not a stock. SPXW is the
+ * weekly SPX root; the journal sometimes stores the position as SPX. */
+const INDEX_OPTION_ROOTS = new Set([
+  'SPX', 'SPXW', 'XSP',
+  'NDX', 'NDXP', 'NDXW',
+  'RUT', 'RUTW',
+  'VIX', 'DJX', 'OEX',
+])
+
+export function isIndexOptionRoot(symbol: string): boolean {
+  return INDEX_OPTION_ROOTS.has(symbol.toUpperCase().replace(/!$/, ''))
+}
+
 export function toYahooSymbol(symbol: string): string {
   // TradingView-style continuous-contract tickers (e.g. "HG1!" for front-
   // month COMEX copper) end in a bang the user might type verbatim — strip
