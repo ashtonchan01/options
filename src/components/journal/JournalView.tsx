@@ -11,6 +11,7 @@ import { MISTAKES, type JournalEntry } from '../../store/journalStore'
 import { tradeId } from '../../store/tradeLabelsStore'
 import { fetchQuotes } from '../../services/quotes'
 import { fetchMarketQuotes } from '../../services/markets'
+import { journalMarks } from './shareMark'
 import { useManualCashRows, type ManualCashRow } from '../../store/manualCashStore'
 import type { RawPosition, RawTrade } from '../../types'
 
@@ -1157,13 +1158,28 @@ function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, open, cols, 
   // sharing the 7525P leg), whereas splitting the aggregate by any ratio
   // (contract count or otherwise) only ever gets the TOTAL across every
   // sharing position right, never each one's own number.
-  const ownMarketValue = hasLive
+  //
+  // Shares are the exception. Stock Price is already the live quote, and
+  // for a stock that number IS the mark. The Flex markPrice is only as new
+  // as the last sync, so Market Price was a different (older) print of the
+  // same share. Prefer the live quote for the mark, the value, and the
+  // unrealised; fall back to the Flex mark when the quote didn't arrive.
+  const ibkrMarketValue = hasLive
     ? liveLegs.reduce((s, lp) => {
         const signedContracts = Math.sign(lp.quantity) * p.contracts
         return s + lp.markPrice * signedContracts * (lp.multiplier ?? 100)
       }, 0)
     : null
-  const marketPrice = ownMarketValue != null && units > 0 ? Math.abs(ownMarketValue) / units : null
+  const marks = journalMarks({
+    isShares,
+    contracts: p.contracts,
+    underlyingPrice,
+    ibkrMarketValue,
+    units,
+  })
+  const ownMarketValue = marks.marketValue
+  const marketPrice = marks.marketPrice
+  const stockPrice = marks.stockPrice
   const unrealized = ownMarketValue != null ? ownMarketValue - costBasis : null
   const unrealizedPct = unrealized != null && costBasis !== 0 ? (unrealized / Math.abs(costBasis)) * 100 : null
 
@@ -1181,7 +1197,7 @@ function Row({ pos: p, livePositions, strikeUsage, underlyingPrice, open, cols, 
         </td>
         <td className="mono" style={{ fontWeight: 700, color: 'var(--text-1)' }}>{p.underlying}</td>
         <td className="mono" style={{ textAlign: 'right', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
-          {underlyingPrice != null ? fmt$(underlyingPrice, 2) : '—'}
+          {stockPrice != null ? fmt$(stockPrice, 2) : '—'}
         </td>
         <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
           {p.strikeDisplay === 'SHARES' ? `${p.contracts} sh` : `${p.contracts}× ${p.strikeDisplay}`}

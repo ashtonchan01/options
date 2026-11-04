@@ -28,14 +28,18 @@ const COMMODITY_ALIASES: Record<string, string> = {
   COPPER: 'HG=F', HG1: 'HG=F',
 }
 
-// Index/CFD aliases -> Yahoo's "^"-prefixed index symbol. A bare "SPX" or
-// "VIX" resolves to nothing on Yahoo — indices need the caret.
+// Index roots -> Yahoo's "^"-prefixed index symbol. A bare "SPX", "NDX",
+// or "XSP" resolves to nothing on Yahoo — indices need the caret. Option
+// roots that don't have their own Yahoo listing (SPXW weeklies, NDXP/NDXW
+// Nasdaq-100 options) quote the same index the strikes are on.
 const INDEX_ALIASES: Record<string, string> = {
-  SPX: '^GSPC', US500: '^GSPC', 'SPX500': '^GSPC',
+  SPX: '^GSPC', SPXW: '^GSPC', US500: '^GSPC', SPX500: '^GSPC',
+  XSP: '^XSP',
   VIX: '^VIX',
-  NDQ: '^NDX', NAS100: '^NDX', USTEC: '^NDX',
-  DJI: '^DJI', US30: '^DJI',
-  RUT: '^RUT', US2000: '^RUT',
+  NDX: '^NDX', NDXP: '^NDX', NDXW: '^NDX', NDQ: '^NDX', NAS100: '^NDX', USTEC: '^NDX',
+  DJI: '^DJI', US30: '^DJI', DJX: '^DJX',
+  RUT: '^RUT', RUTW: '^RUT', US2000: '^RUT',
+  OEX: '^OEX',
 }
 
 export function toYahooSymbol(symbol: string): string {
@@ -50,23 +54,32 @@ export function toYahooSymbol(symbol: string): string {
 }
 
 /** Normalizes a list of tickers to Yahoo symbols, and returns a lookup back
- * from Yahoo symbol to the original ticker so response keys can be
- * remapped. */
-export function toYahooSymbols(symbols: string[]): { yahooSymbols: string[]; toOriginal: Record<string, string> } {
-  const toOriginal: Record<string, string> = {}
-  const yahooSymbols = symbols.map(s => {
+ * from Yahoo symbol to every original ticker that asked for it. Several
+ * roots share one index (SPX and SPXW are both ^GSPC); a single-slot map
+ * would keep only the last of them and leave the other Stock Price blank. */
+export function toYahooSymbols(symbols: string[]): { yahooSymbols: string[]; toOriginal: Record<string, string[]> } {
+  const toOriginal: Record<string, string[]> = {}
+  const yahooSymbols: string[] = []
+  for (const s of symbols) {
     const y = toYahooSymbol(s)
-    toOriginal[y] = s
-    return y
-  })
+    const originals = toOriginal[y]
+    if (originals) originals.push(s)
+    else {
+      toOriginal[y] = [s]
+      yahooSymbols.push(y)
+    }
+  }
   return { yahooSymbols, toOriginal }
 }
 
-/** Remaps a Yahoo-symbol-keyed response back to plain-ticker keys. */
-export function remapToOriginal<T>(data: Record<string, T>, toOriginal: Record<string, string>): Record<string, T> {
+/** Remaps a Yahoo-symbol-keyed response back to plain-ticker keys. Every
+ * original that shared a Yahoo symbol gets the same quote. */
+export function remapToOriginal<T>(data: Record<string, T>, toOriginal: Record<string, string[]>): Record<string, T> {
   const out: Record<string, T> = {}
   for (const [yahooSym, value] of Object.entries(data)) {
-    out[toOriginal[yahooSym] ?? yahooSym] = value
+    const originals = toOriginal[yahooSym]
+    if (!originals || originals.length === 0) out[yahooSym] = value
+    else for (const orig of originals) out[orig] = value
   }
   return out
 }
