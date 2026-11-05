@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RawPosition, RawTrade } from '../types'
 import { syncFromXML, syncFromFlexAPI } from '../services/ibkr'
 import { replaceTradeWindow } from '../services/flexWindow'
-import { addWindow, enqueueToken, isRetryableFlexFailure, runFlexBackfill, type BackfillState, type FlexWindow } from '../services/flexPace'
+import { addWindow, enqueueToken, isRetryableFlexFailure, primaryWindowRetryMessage, runFlexBackfill, type BackfillState, type FlexWindow } from '../services/flexPace'
 import { parseGenericCsvTrades } from '../services/genericCsvImport'
 import { parseXlsxTrades } from '../services/xlsxImport'
 import { parsePdfTrades } from '../services/pdfImport'
@@ -470,7 +470,7 @@ export function useAccounts(sessionKey: string | null) {
     } catch (e) {
       setSyncNote(null)
       setSyncError(isRetryableFlexFailure(e)
-        ? 'IBKR is limiting requests for this token. The latest window was not updated. Try again in a minute.'
+        ? primaryWindowRetryMessage(e)
         : (e instanceof Error ? e.message : 'Flex sync failed'))
     } finally {
       setLoadingId(curr => curr === id ? null : curr)

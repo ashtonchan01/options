@@ -53,13 +53,16 @@ export async function syncFromFlexAPI(
   if (!res.ok) {
     let msg = `HTTP ${res.status}`
     let retryable = res.status === 503 || res.status === 504
+    let code: string | undefined
     try {
       const b = JSON.parse(text) as { error?: string; retryable?: boolean; code?: string }
       if (b.error) msg = b.error
       if (b.retryable) retryable = true
+      if (b.code) code = String(b.code)
     } catch { msg = text.slice(0, 200) }
-    const err = new Error(msg) as Error & { retryable?: boolean }
+    const err = new Error(msg) as Error & { retryable?: boolean; code?: string }
     err.retryable = retryable || isRetryableFlexFailure(err)
+    if (code) err.code = code
     throw err
   }
 
