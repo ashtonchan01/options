@@ -14,6 +14,7 @@ import {
   backfillStatus,
   enqueueToken,
   pendingBackfill,
+  primaryWindowRetryMessage,
   runFlexBackfill,
   type FlexWindow,
 } from '../src/services/flexPace'
@@ -230,6 +231,18 @@ const statement = `<?xml version="1.0"?><FlexQueryResponse><FlexStatements><Flex
   const rendered = await import(pathToFileURL(outfile).href) as { syncHtml: string; uploadHtml: string }
   check('the sync bar shows the backfill status without a red error', rendered.syncHtml.includes(note) && !rendered.syncHtml.includes('#ef4444'))
   check('the upload box does not repeat the sync status', !rendered.uploadHtml.includes(note) && !rendered.uploadHtml.includes('Too many requests') && !rendered.uploadHtml.includes('#ef4444'))
+}
+
+{
+  const rate = 'IBKR is limiting requests for this token. The latest window was not updated. Try again in a minute.'
+  const waiting = 'The statement is not ready yet. The latest window was not updated. Try again shortly.'
+  check('1018 on the latest window stays a rate-limit message', primaryWindowRetryMessage(Object.assign(new Error('IBKR: Too many requests have been made from this token. Please try again shortly.'), { code: '1018', retryable: true })) === rate)
+  check('too many requests without a code is still a rate limit', primaryWindowRetryMessage(new Error('IBKR: Too many requests have been made from this token.')) === rate)
+  check('1019 on the latest window is statement-not-ready', primaryWindowRetryMessage(Object.assign(new Error('IBKR: Statement generation in progress. Please try again shortly.'), { code: '1019', retryable: true })) === waiting)
+  check('statement not ready text is not called a rate limit', primaryWindowRetryMessage(new Error('IBKR: statement not ready')) === waiting)
+  const other = primaryWindowRetryMessage(Object.assign(new Error('IBKR: Service unavailable'), { code: '1001', retryable: true }))
+  check('another retryable code keeps the IBKR text and the code', other === 'IBKR: Service unavailable (1001) The latest window was not updated.', other)
+  check('a retryable failure with no text names the code', primaryWindowRetryMessage(Object.assign(new Error(''), { code: '1021', retryable: true })) === 'IBKR 1021. The latest window was not updated. Try again shortly.')
 }
 
 if (failed > 0) {

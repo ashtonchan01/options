@@ -89,6 +89,45 @@ export function isRetryableFlexFailure(err: unknown): boolean {
     || /statement not ready/i.test(msg)
 }
 
+const FLEX_CODES = /\b(1001|1004|1005|1018|1019|1021)\b/
+const LATEST_WINDOW_NOTE = 'The latest window was not updated.'
+
+/** Code from the thrown Flex error, or from the IBKR text when the proxy omitted it. */
+export function flexFailureCode(err: unknown): string | undefined {
+  if (err && typeof err === 'object' && 'code' in err) {
+    const raw = (err as { code?: unknown }).code
+    if (raw != null && FLEX_CODES.test(String(raw))) return String(raw).match(FLEX_CODES)?.[1]
+  }
+  const msg = err instanceof Error ? err.message : String(err ?? '')
+  return msg.match(FLEX_CODES)?.[1]
+}
+
+/**
+ * Copy for a failed primary (latest) window that can be retried.
+ * 1018 is the token pace; 1019 means IBKR has not finished the statement.
+ */
+export function primaryWindowRetryMessage(err: unknown): string {
+  const msg = (err instanceof Error ? err.message : String(err ?? '')).trim()
+  const code = flexFailureCode(err)
+  const tooMany = code === '1018' || /too many requests/i.test(msg)
+  if (tooMany) {
+    return `IBKR is limiting requests for this token. ${LATEST_WINDOW_NOTE} Try again in a minute.`
+  }
+  const notReady = code === '1019'
+    || /statement not ready/i.test(msg)
+    || /statement generation/i.test(msg)
+  if (notReady) {
+    return `The statement is not ready yet. ${LATEST_WINDOW_NOTE} Try again shortly.`
+  }
+  if (msg) {
+    const withCode = code && !msg.includes(code) ? `${msg} (${code})` : msg
+    return withCode.includes(LATEST_WINDOW_NOTE) ? withCode : `${withCode} ${LATEST_WINDOW_NOTE}`
+  }
+  return code
+    ? `IBKR ${code}. ${LATEST_WINDOW_NOTE} Try again shortly.`
+    : `IBKR could not finish this request. ${LATEST_WINDOW_NOTE} Try again shortly.`
+}
+
 const tokenTails = new Map<string, Promise<void>>()
 const tokenFreeAt = new Map<string, number>()
 
