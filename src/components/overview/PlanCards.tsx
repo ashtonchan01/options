@@ -3,12 +3,9 @@
  * open book and the income rules. Puts and Calls stay the saved screens.
  * Nothing here places a trade.
  */
-import { useMemo, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Account } from '../../store/accountsStore'
 import {
-  SEED_CALLS,
-  SEED_CALL_NOTE,
-  SEED_MARK_DATE,
   SEED_PUTS,
   SEED_PUT_NOTE,
   type IncomeSettings,
@@ -24,12 +21,17 @@ import {
   pct,
   putScreenRows,
   resolvedNetLiquidation,
-  screenDays,
   toLiveBook,
   usd0,
   type IncomeSource,
   type LiveIdea,
 } from '../../income/incomeLive'
+import {
+  bidQuoteLabel,
+  loadIncomeScreen,
+  type IncomeLiveScreen,
+  type LiveCallRec,
+} from '../../income/livePremium'
 import { tickerColor } from '../../income/tickerColor'
 
 function formatExpiry(iso: string): string {
@@ -142,6 +144,15 @@ function IdeaCells({ idea, today }: { idea: LiveIdea; today: string }) {
   )
 }
 
+function QuoteStamp({ quotedAt, stale }: { quotedAt: number | null; stale: boolean }) {
+  return (
+    <div className="income-quote" data-testid="premium-quote">
+      <span>{bidQuoteLabel(quotedAt)}</span>
+      {stale && <span className="income-flag warn">Stale</span>}
+    </div>
+  )
+}
+
 function sourceFor(account: Account): IncomeSource {
   return {
     name: account.name,
@@ -153,7 +164,7 @@ function sourceFor(account: Account): IncomeSource {
   }
 }
 
-export default function PlanCards({ account, settings, today }: { account: Account; settings: IncomeSettings; today?: Date }) {
+export default function PlanCards({ account, settings, today, liveScreen }: { account: Account; settings: IncomeSettings; today?: Date; liveScreen?: IncomeLiveScreen }) {
   const now = useMemo(() => today ?? new Date(), [today])
   const todayIso = calendarIso(now)
   const focus = useMemo(() => toLiveBook(sourceFor(account), now), [account, now])
@@ -162,9 +173,23 @@ export default function PlanCards({ account, settings, today }: { account: Accou
     () => (role ? liveIdeas(focus, settings, now, heldSymbols(account)) : []),
     [account, focus, now, role, settings],
   )
-  const days = screenDays(settings.screenExpiry)
-  const puts = putScreenRows(SEED_PUTS, settings)
-  const calls = role ? SEED_CALLS.filter(row => row.account === role) : []
+  const days = daysBetween(todayIso, settings.screenExpiry)
+  const [fetched, setFetched] = useState<IncomeLiveScreen | null>(liveScreen ?? null)
+  useEffect(() => {
+    if (liveScreen) {
+      setFetched(liveScreen)
+      return
+    }
+    let cancel = false
+    const holdings = focus.shares.map(row => ({ symbol: row.symbol, shares: row.quantity }))
+    loadIncomeScreen(holdings, SEED_PUTS.map(row => ({ symbol: row.symbol, note: row.note })), settings, now)
+      .then(screen => { if (!cancel) setFetched(screen) })
+      .catch(() => { if (!cancel) setFetched({ calls: [], puts: [], putQuotedAt: {}, putStale: {}, loaded: true }) })
+    return () => { cancel = true }
+  }, [liveScreen, focus, settings, now])
+  const screen = liveScreen ?? fetched
+  const puts = screen ? putScreenRows(screen.puts, settings) : []
+  const calls: LiveCallRec[] = screen?.calls ?? []
   const putCredit = puts.reduce((sum, row) => sum + row.premium, 0)
   const callCredit = calls.reduce((sum, row) => sum + row.premium, 0)
 
@@ -196,6 +221,16 @@ export default function PlanCards({ account, settings, today }: { account: Accou
         extra={<span className="ov-credit-total" data-testid="puts-credit-total">Credit total <b>{money(putCredit)}</b></span>}
       >
         <ScanTable columns={[{ label: 'Ticker' }, { label: 'Contract' }, { label: 'Expiry' }, { label: 'Credit', align: 'n' }, { label: 'Yield', align: 'n' }, { label: 'Flag' }]}>
+          {!screen && (
+            <tr>
+              <td colSpan={6}>Waiting for live bids</td>
+            </tr>
+          )}
+          {screen && puts.length === 0 && (
+            <tr>
+              <td colSpan={6}>No strikes with a live bid</td>
+            </tr>
+          )}
           {puts.map(row => (
             <tr key={`${row.symbol}-${row.strike}`} className={row.excluded || row.blockedMstr ? 'muted' : undefined} title={row.note}>
               <td><TickerChip symbol={row.symbol} /></td>
@@ -204,7 +239,10 @@ export default function PlanCards({ account, settings, today }: { account: Accou
                 <span className="income-right put">{`${row.strike}P`}</span>
               </td>
               <td><ExpiryCell iso={settings.screenExpiry} today={now} /></td>
-              <td className="n">{usd0(row.premium)}</td>
+              <td className="n">
+                {usd0(row.premium)}
+                <QuoteStamp quotedAt={screen?.putQuotedAt[row.symbol] ?? null} stale={screen?.putStale[row.symbol] ?? true} />
+              </td>
               <td className="n">{pct(annualizedReturn(row.ratio, days))}</td>
               <td>
                 {row.excluded && <span className="income-flag bad">Excluded</span>}
@@ -219,33 +257,45 @@ export default function PlanCards({ account, settings, today }: { account: Accou
           <summary><EmojiTitle emoji="📝">How this is calculated</EmojiTitle></summary>
           <ul className="income-actions">
             <li>{SEED_PUT_NOTE}</li>
-            <li>Rank is premium / cash secured, {days} days from {SEED_MARK_DATE} to {formatExpiry(settings.screenExpiry)}. Δ {settings.deltaMin.toFixed(2)}–{settings.deltaMax.toFixed(2)}.</li>
+            <li>Credit is the live bid × 100. Strikes with no bid are left off. Rank is that credit / cash secured, {days} days to {formatExpiry(settings.screenExpiry)}, using the live stock price. Δ {settings.deltaMin.toFixed(2)}–{settings.deltaMax.toFixed(2)}.</li>
           </ul>
         </details>
       </IncomePanel>
-      {calls.length > 0 && (
+      {role && (
         <IncomePanel
           emoji="📞"
           title="Calls"
           extra={<span className="ov-credit-total" data-testid="calls-credit-total">Credit total <b>{money(callCredit)}</b></span>}
         >
           <ScanTable columns={[{ label: 'Ticker' }, { label: 'Contract' }, { label: 'Expiry' }, { label: 'Qty', align: 'n' }, { label: 'Credit', align: 'n' }, { label: 'Yield', align: 'n' }, { label: 'Cover' }]}>
+            {!screen && (
+              <tr>
+                <td colSpan={7}>Waiting for live bids</td>
+              </tr>
+            )}
+            {screen && calls.length === 0 && (
+              <tr>
+                <td colSpan={7}>No strikes with a live bid</td>
+              </tr>
+            )}
             {calls.map(row => {
               const coveredOnly = settings.rules.some(rule => rule.type === 'coveredCalls' && rule.symbol.trim().toUpperCase() === row.symbol)
               const blockedCalls = settings.rules.some(rule => rule.type === 'noNewCalls' && rule.symbol.trim().toUpperCase() === row.symbol)
               const cover = coveredOnly ? callCover(focus, row.symbol, row.contracts) : null
               const shares = focus.shares.find(holding => holding.symbol === row.symbol)?.quantity
-              const strike = row.label.match(/(\d+(?:\.\d+)?)C/)?.[1]
               return (
-                <tr key={row.label} className={blockedCalls ? 'muted' : undefined}>
+                <tr key={`${row.symbol}-${row.strike}`} className={blockedCalls ? 'muted' : undefined}>
                   <td><TickerChip symbol={row.symbol} /></td>
                   <td>
                     <span className="income-kind">📈</span>
-                    <span className="income-right call">{strike ? `${strike}C` : row.label}</span>
+                    <span className="income-right call">{`${row.strike}C`}</span>
                   </td>
                   <td><ExpiryCell iso={settings.screenExpiry} today={now} /></td>
                   <td className="n">{qtyText(row.contracts)}</td>
-                  <td className="n">{usd0(row.premium)}</td>
+                  <td className="n">
+                    {usd0(row.premium)}
+                    <QuoteStamp quotedAt={row.quotedAt} stale={row.stale} />
+                  </td>
                   <td className="n">{pct(annualizedReturn(callPremiumRatio(row.premium, row.spot, row.contracts), days))}</td>
                   <td>
                     {blockedCalls && <span className="income-flag bad">No calls</span>}
@@ -262,8 +312,7 @@ export default function PlanCards({ account, settings, today }: { account: Accou
           <details className="income-fold">
             <summary><EmojiTitle emoji="🗒️">How this is calculated</EmojiTitle></summary>
             <ul className="income-actions">
-              <li>{SEED_CALL_NOTE}</li>
-              <li>Yield is premium / (spot × 100 × contracts), {days} days from {SEED_MARK_DATE} to {formatExpiry(settings.screenExpiry)}, same annualization as the put screen.</li>
+              <li>Credit is the live bid × 100 × contracts. The strike is the call in the delta band against the live stock price. Strikes with no bid are left off. Yield is that credit / (live spot × 100 × contracts), {days} days to {formatExpiry(settings.screenExpiry)}.</li>
             </ul>
           </details>
         </IncomePanel>

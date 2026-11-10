@@ -256,7 +256,23 @@ const personalPage = renderToStaticMarkup(createElement(PlanCards, {
 const personalHtml = ideaPanel(personalPage)
 const callsHtml = personalPage.slice(personalPage.indexOf('data-testid="calls-credit-total"'))
 check('the ideas card renders the live ARM put and drops the October lines', personalHtml.includes('Resolve') && personalHtml.includes('180P') && personalHtml.includes('before 20 Nov') && personalHtml.includes('income-ticker') && !personalHtml.includes('240P') && !personalHtml.includes('30 Oct') && !personalHtml.includes('let SOFI') && !personalHtml.includes('five trades') && !personalHtml.includes('16P') && !personalHtml.includes('(585)'))
-check('calls show the screen expiry and the stock yield', callsHtml.includes('>Expiry<') && callsHtml.includes('>Yield<') && callsHtml.includes('20 Nov') && callsHtml.includes('18d') && callsHtml.includes('16.1%') && callsHtml.includes('31.7%') && callsHtml.includes('Covered'))
+check('calls wait for a live bid instead of the October premium', callsHtml.includes('Waiting for live bids') && callsHtml.includes('>Expiry<') && !callsHtml.includes('1,020') && !callsHtml.includes('175C'))
+const liveBid = renderToStaticMarkup(createElement(PlanCards, {
+  account: viewAccount('Personal', [
+    { accountId: 'x', symbol: 'TSLA', description: 'TSLA', assetClass: 'STK', quantity: 100, costBasisPrice: 1, costBasisMoney: 100, markPrice: 372, positionValue: 37_200, unrealizedPnL: 0, currency: 'USD' },
+    { accountId: 'x', symbol: 'MSTR', description: 'MSTR', assetClass: 'STK', quantity: 300, costBasisPrice: 1, costBasisMoney: 300, markPrice: 145.12, positionValue: 43_536, unrealizedPnL: 0, currency: 'USD' },
+  ], 40_000),
+  settings: DEFAULT_INCOME_SETTINGS,
+  today: nov2,
+  liveScreen: {
+    loaded: true,
+    calls: [{ symbol: 'MSTR', strike: 150, contracts: 3, spot: 126, bid: 2.4, premium: 720, delta: 0.25, quotedAt: Date.parse('2026-11-09T21:00:00Z'), stale: true }],
+    puts: [],
+    putQuotedAt: {},
+    putStale: {},
+  },
+}))
+check('a live call shows the bid credit and the quote time', liveBid.includes('150C') && liveBid.includes('720') && liveBid.includes('bid ·') && liveBid.includes('Stale') && !liveBid.includes('175C') && !liveBid.includes('1,020'))
 const businessHtml = ideaPanel(renderToStaticMarkup(createElement(PlanCards, {
   account: viewAccount('Business', [
     opt({ symbol: 'BSOL', putCall: 'P', strike: 16, quantity: -10, markPrice: 2.18, expiry: '20261120' }),
