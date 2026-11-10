@@ -36,10 +36,10 @@ export default function AccountUploadBar({ label, fileName, uploadedAt, loading,
 
   return (
     <div className="ov-import-card" style={{
-      display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
+      display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 10px',
       background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, flexWrap: 'wrap',
     }}>
-      <label style={{
+      <label className="ov-upload-btn" style={{
         display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px',
         fontSize: 11, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
         color: 'var(--accent)', cursor: loading ? 'not-allowed' : 'pointer', borderRadius: 4, fontFamily: 'Inter, sans-serif',
@@ -48,7 +48,7 @@ export default function AccountUploadBar({ label, fileName, uploadedAt, loading,
         {loading ? 'Decoding…' : `Upload ${label} statement`}
         <input ref={fileRef} type="file" accept=".xml,.csv,.xlsx,.xls,.pdf" multiple style={{ display: 'none' }} onChange={handleFile} disabled={loading} />
       </label>
-      <span style={{ fontSize: 11, color: 'var(--text-4)', whiteSpace: 'nowrap' }}>
+      <span className="ov-import-hint">
         IBKR Flex, CSV, Excel, or PDF
       </span>
       <details className="ov-inline-note">

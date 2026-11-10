@@ -480,7 +480,7 @@ export default function OverviewView({ state, account, loading, error, syncNote,
 
   return (
     <div className="jr-root ov-root" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 8, padding: 0 }}>
-      <div className="ov-top-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 0.78fr) minmax(0, 1.22fr)', gap: 8, alignItems: 'stretch', flex: '0 0 auto' }}>
+      <div className="ov-top-grid" style={{ flex: '0 0 auto' }}>
         <div className="ov-import-stack">
           <FlexSyncBar
             savedToken={account.flexToken}
