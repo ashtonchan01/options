@@ -99,7 +99,7 @@ export function pickLeg(
     const distance = Math.abs(abs - target)
     if (
       distance < bestDistance - 1e-9
-      || (Math.abs(distance - bestDistance) <= 1e-9 && best != null && leg.bid > best.bid)
+      || (Math.abs(distance - bestDistance) <= 1e-9 && best != null && realBid(best.bid) && leg.bid > best.bid)
     ) {
       best = leg
       bestDistance = distance
