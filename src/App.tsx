@@ -149,7 +149,17 @@ function SignedInApp() {
               onRemoveTicker={watchlists.removeTicker}
             />
           ) : activeTab === 'pairs' ? (
-            <PairsView tickers={watchlists.activeTickers} />
+            <PairsView
+              tickers={watchlists.allTickers}
+              sessionKey={sessionEmail ?? 'anon'}
+              onAddTicker={sym => {
+                const id = watchlists.activeId || watchlists.addList('My Watchlist')
+                watchlists.addTicker(id, sym)
+              }}
+              onRemoveTicker={sym => {
+                if (watchlists.activeId) watchlists.removeTicker(watchlists.activeId, sym)
+              }}
+            />
           ) : activeTab === 'scanner' ? (
             <OpportunitiesView
               state={EMPTY_STATE}
