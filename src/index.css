@@ -2621,6 +2621,7 @@ body {
 .income-panel { flex: none; width: 100%; }
 .income-title { display: inline-flex; align-items: center; gap: 0.45em; min-width: 0; }
 .income-emoji { font-size: 14px; line-height: 1; flex: 0 0 auto; }
+.income-quote { display: flex; gap: 4px; justify-content: flex-end; align-items: center; font-size: 10px; line-height: 1.3; color: var(--text-4); font-weight: 500; }
 .income-flag { display: inline-block; font-family: Inter, sans-serif; font-size: 12.5px; line-height: 1.4; border-radius: 999px; padding: 0 7px; background: var(--bg-elevated); color: var(--text-2); }
 .income-flag.ok { color: #10b981; background: rgba(16,185,129,0.12); }
 .income-flag.warn { color: #f59e0b; background: rgba(245,158,11,0.14); }
