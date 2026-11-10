@@ -2685,7 +2685,18 @@ body {
 .income-fold > ul, .income-fold > table { margin-top: 8px; }
 /* Wide enough for the Flex card and a 5-up metrics row side by side. */
 @container overview (min-width: 1040px) {
-  .ov-top-grid { grid-template-columns: minmax(340px, 0.82fr) minmax(0, 1.18fr); }
+  .ov-top-grid {
+    grid-template-columns: minmax(340px, 0.82fr) minmax(0, 1.18fr);
+    align-items: stretch;
+  }
+  .ov-import-stack {
+    height: 100%;
+    min-height: 100%;
+  }
+  .ov-import-stack > .ov-import-card {
+    flex: 1 1 0;
+    align-items: flex-start;
+  }
 }
 /* Three plan cards only while each one can hold its table. */
 @container overview (max-width: 1500px) {
