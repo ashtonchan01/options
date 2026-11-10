@@ -375,6 +375,8 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
   const area = `${line} L${x(points.length - 1).toFixed(2)},${y0.toFixed(2)} L${x(0).toFixed(2)},${y0.toFixed(2)} Z`
   const last = points[points.length - 1]
   const mid = points[Math.floor(points.length / 2)]
+  // Same green/red as the Monthly Realised P&L "Net" label. Zero stays green.
+  const curveColor = last.equity >= 0 ? '#10b981' : '#ef4444'
 
   // Financial-year boundaries — every point where the FY changes from the
   // previous one starts a new band, so multi-year curves read as distinct
@@ -393,8 +395,8 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
         <defs>
           <linearGradient id="ov-eq-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+            <stop offset="0%" stopColor={curveColor} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={curveColor} stopOpacity="0.02" />
           </linearGradient>
         </defs>
         {fyBands.map((b, bi) => (
@@ -411,7 +413,7 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
           <line key={b.i} x1={x(b.i)} x2={x(b.i)} y1={PT} y2={H - PB} stroke="var(--text-4)" strokeWidth="0.25" strokeDasharray="0.8 0.8" vectorEffect="non-scaling-stroke" />
         ))}
         <path d={area} fill="url(#ov-eq-fill)" />
-        <path d={line} fill="none" stroke="#10b981" strokeWidth="1" vectorEffect="non-scaling-stroke" style={{ filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.45))' }} />
+        <path d={line} fill="none" stroke={curveColor} strokeWidth="1" vectorEffect="non-scaling-stroke" style={{ filter: `drop-shadow(0 0 6px ${curveColor}73)` }} />
       </svg>
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: CHART_THEME.fontFamily }}>
         {gridVals.map((v, i) => (
@@ -434,7 +436,7 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
         {/* Pinned to a fixed corner instead of tracking the curve's actual
             last point — anchoring it at the point itself clipped off-panel
             whenever the series ended near the very top or right edge. */}
-        <span style={{ position: 'absolute', top: 18, right: 8, fontSize: VALUE_LABEL_SIZE, fontWeight: 700, color: '#10b981' }}>
+        <span style={{ position: 'absolute', top: 18, right: 8, fontSize: VALUE_LABEL_SIZE, fontWeight: 700, color: curveColor }}>
           {fmtDollar(last.equity)}
         </span>
         {/* Dedupe by index — with few points (e.g. only 2-3 closed trades) the
