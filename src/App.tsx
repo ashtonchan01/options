@@ -10,7 +10,9 @@ import MilestoneView from './components/dashboard/MilestoneView'
 import AccountView from './components/portfolio/AccountView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import WatchlistView from './components/watchlist/WatchlistView'
+import PairsView from './components/pairs/PairsView'
 import { tradesToAppState } from './components/shared/syntheticAccountState'
+import { WATCHLIST } from './data/watchlist'
 import type { TradeLabel } from './store/tradeLabelsStore'
 
 // Kept for TradeLabel (trade labeling feature, used by Analytics/Portfolio) even though
@@ -44,6 +46,18 @@ export interface TradeLabels {
 // prop, so an empty one is all there is to pass.
 const EMPTY_STATE = tradesToAppState([])
 
+function seedPreviewWatchlist(email: string) {
+  const key = `options:watchlists:${email}`
+  try {
+    if (localStorage.getItem(key)) return
+    localStorage.setItem('options:sidebar-collapsed', '0')
+    localStorage.setItem(key, JSON.stringify({
+      lists: [{ id: 'wl_preview', name: 'Watchlist', tickers: [...WATCHLIST] }],
+      activeId: 'wl_preview',
+    }))
+  } catch { /* ignore */ }
+}
+
 const FyPreviewApp = import.meta.env.DEV
   ? lazy(() => import('./dev/fyPreview').then(m => ({ default: m.FyPreviewApp })))
   : null
@@ -60,20 +74,29 @@ export default function App() {
 }
 
 function SignedInApp() {
-  const [activeTab, setActiveTab] = useState<TabId>('dashboard')
+  // Local-only shortcut so the Pairs page can be opened without a session.
+  // Production builds never take this path.
+  const previewEmail = import.meta.env.DEV && typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('preview') === 'pairs'
+    ? 'preview@local'
+    : null
+  if (previewEmail) seedPreviewWatchlist(previewEmail)
+
+  const [activeTab, setActiveTab] = useState<TabId>(previewEmail ? 'pairs' : 'dashboard')
   const auth = useAuthStore()
-  const { labels, setLabel, setMany, clearAll } = useTradeLabelStore(auth.user?.email ?? null)
-  const accountsStore = useAccounts(auth.user?.email ?? null)
-  const watchlists = useWatchlists(auth.user?.email ?? null)
+  const sessionEmail = previewEmail ?? auth.user?.email ?? null
+  const { labels, setLabel, setMany, clearAll } = useTradeLabelStore(sessionEmail)
+  const accountsStore = useAccounts(sessionEmail)
+  const watchlists = useWatchlists(sessionEmail)
 
   const activeAccountId = parseAccountTabId(activeTab)
   const activeAccount = activeAccountId ? accountsStore.accounts.find(a => a.id === activeAccountId) : undefined
   const tradeLabels: TradeLabels = { labels, setLabel, setMany, clearAll }
 
-  if (auth.loading) {
+  if (!previewEmail && auth.loading) {
     return <div style={{ height: '100vh', width: '100vw', background: 'var(--bg-surface)' }} />
   }
-  if (!auth.user) {
+  if (!previewEmail && !auth.user) {
     return <AuthGate error={auth.error} onLogin={auth.login} onSignup={auth.signup} />
   }
 
@@ -88,7 +111,7 @@ function SignedInApp() {
         onTabChange={handleTabChange}
         accounts={accountsStore.accounts}
         onAddAccount={accountsStore.addAccount}
-        userEmail={auth.user.email}
+        userEmail={sessionEmail ?? undefined}
         onSignOut={auth.logout}
         syncingId={accountsStore.loadingId}
         onSyncAccount={id => {
@@ -112,7 +135,7 @@ function SignedInApp() {
               onSyncFlex={(token, queryId) => accountsStore.syncFlex(activeAccount.id, token, queryId)}
               tradeLabels={tradeLabels}
               watchlistTickers={watchlists.activeTickers}
-              sessionKey={auth.user.email}
+              sessionKey={sessionEmail ?? ''}
             />
           ) : activeTab === 'watchlist' ? (
             <WatchlistView
@@ -125,6 +148,8 @@ function SignedInApp() {
               onAddTicker={watchlists.addTicker}
               onRemoveTicker={watchlists.removeTicker}
             />
+          ) : activeTab === 'pairs' ? (
+            <PairsView tickers={watchlists.activeTickers} />
           ) : activeTab === 'scanner' ? (
             <OpportunitiesView
               state={EMPTY_STATE}

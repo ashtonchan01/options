@@ -8,7 +8,7 @@
     "flex": "node server/flex-proxy.cjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "test": "tsx --tsconfig tsconfig.app.json scripts/journal-partial.test.ts && tsx --tsconfig tsconfig.app.json scripts/journal-stock-lots.test.ts && tsx --tsconfig tsconfig.app.json scripts/fy-realized.test.ts && tsx --tsconfig tsconfig.app.json scripts/flex-throttle.test.ts && tsx --tsconfig tsconfig.app.json scripts/income-plan.test.ts && tsx --tsconfig tsconfig.app.json scripts/live-bid-premium.test.ts && tsx --tsconfig tsconfig.app.json scripts/milestone-marks.test.ts && tsx --tsconfig tsconfig.app.json scripts/symbol-aliases.test.ts && tsx --tsconfig tsconfig.app.json scripts/share-mark.test.ts && tsx --tsconfig tsconfig.app.json scripts/index-option-mark.test.ts",
+    "test": "tsx --tsconfig tsconfig.app.json scripts/journal-partial.test.ts && tsx --tsconfig tsconfig.app.json scripts/journal-stock-lots.test.ts && tsx --tsconfig tsconfig.app.json scripts/fy-realized.test.ts && tsx --tsconfig tsconfig.app.json scripts/flex-throttle.test.ts && tsx --tsconfig tsconfig.app.json scripts/income-plan.test.ts && tsx --tsconfig tsconfig.app.json scripts/live-bid-premium.test.ts && tsx --tsconfig tsconfig.app.json scripts/milestone-marks.test.ts && tsx --tsconfig tsconfig.app.json scripts/symbol-aliases.test.ts && tsx --tsconfig tsconfig.app.json scripts/pair-ratio.test.ts && tsx --tsconfig tsconfig.app.json scripts/share-mark.test.ts && tsx --tsconfig tsconfig.app.json scripts/index-option-mark.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
