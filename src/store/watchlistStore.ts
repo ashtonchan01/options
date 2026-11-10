@@ -130,11 +130,15 @@ export function useWatchlists(sessionKey: string | null) {
   }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const activeList = state.lists.find(l => l.id === state.activeId) ?? null
+  const allTickers = [...new Set(
+    state.lists.flatMap(l => l.tickers.map(t => t.trim().toUpperCase()).filter(Boolean)),
+  )].sort()
 
   return {
     lists: state.lists,
     activeId: state.activeId,
     activeTickers: activeList?.tickers ?? [],
+    allTickers,
     setActive,
     addList,
     removeList,

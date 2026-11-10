@@ -2,8 +2,8 @@
  * Pair ratio chart. Read-only analytics: daily A/B from /api/history,
  * horizontal range bands, and touch/cross markers. Never places an order.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRightLeft, RefreshCw, RotateCcw } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { ArrowRightLeft, Plus, RefreshCw, RotateCcw, X } from 'lucide-react'
 import { WATCHLIST } from '../../data/watchlist'
 import { fetchDailyHistory, type DailySeries, type HistoryRange } from '../../services/history'
 import {
@@ -19,6 +19,8 @@ const LOOKBACKS: { id: HistoryRange; label: string }[] = [
 ]
 
 const STORAGE_PREFIX = 'options:pair-bands:'
+const ADDED_PREFIX = 'options:pairs-added:'
+const SYMBOL_RE = /^[A-Z0-9.^=-]{1,12}$/
 
 interface SavedBands { top: number; bottom: number }
 
@@ -44,6 +46,22 @@ function clearBands(a: string, b: string) {
   try { localStorage.removeItem(storageKey(a, b)) } catch { /* ignore */ }
 }
 
+function loadAdded(sessionKey: string): string[] {
+  try {
+    const raw = localStorage.getItem(ADDED_PREFIX + sessionKey)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return [...new Set(parsed.map(s => String(s).trim().toUpperCase()).filter(s => SYMBOL_RE.test(s)))]
+  } catch {
+    return []
+  }
+}
+
+function saveAdded(sessionKey: string, symbols: string[]) {
+  try { localStorage.setItem(ADDED_PREFIX + sessionKey, JSON.stringify(symbols)) } catch { /* ignore */ }
+}
+
 function tickerList(tickers: string[]): string[] {
   const set = new Set<string>()
   for (const t of tickers) {
@@ -60,8 +78,26 @@ interface Hover {
   yPct: number
 }
 
-export default function PairsView({ tickers }: { tickers: string[] }) {
-  const symbols = useMemo(() => tickerList(tickers), [tickers])
+export default function PairsView({
+  tickers, sessionKey, onAddTicker, onRemoveTicker,
+}: {
+  tickers: string[]
+  sessionKey: string
+  onAddTicker: (symbol: string) => void
+  onRemoveTicker: (symbol: string) => void
+}) {
+  const [added, setAdded] = useState<string[]>(() => loadAdded(sessionKey))
+  const [draft, setDraft] = useState('')
+  const [addError, setAddError] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
+  const symbols = useMemo(() => {
+    const base = tickerList(tickers)
+    const set = new Set(base)
+    for (const s of added) set.add(s)
+    return [...set].sort()
+  }, [tickers, added])
+
+  useEffect(() => { setAdded(loadAdded(sessionKey)) }, [sessionKey])
   const [sideA, setSideA] = useState(() => symbols.includes('TSLA') ? 'TSLA' : symbols[0] ?? 'TSLA')
   const [sideB, setSideB] = useState(() => {
     const other = symbols.find(s => s !== (symbols.includes('TSLA') ? 'TSLA' : symbols[0]))
@@ -125,6 +161,44 @@ export default function PairsView({ tickers }: { tickers: string[] }) {
     setSideB(sideA)
   }
 
+  async function submitTicker(e: FormEvent) {
+    e.preventDefault()
+    const sym = draft.trim().toUpperCase()
+    if (!sym) return
+    if (!SYMBOL_RE.test(sym)) {
+      setAddError('Use a ticker like AAPL, BRK.B, or BTC.')
+      return
+    }
+    if (symbols.includes(sym)) {
+      setAddError(`${sym} is already in the list.`)
+      setDraft('')
+      return
+    }
+    setChecking(true)
+    setAddError(null)
+    const data = await fetchDailyHistory([sym], '3mo')
+    setChecking(false)
+    if (!data[sym]?.c?.length) {
+      setAddError(`No daily prices for ${sym}.`)
+      return
+    }
+    const next = [...added, sym].sort()
+    setAdded(next)
+    saveAdded(sessionKey, next)
+    onAddTicker(sym)
+    setDraft('')
+    if (sym !== sideA) setSideB(sym)
+  }
+
+  function removeAdded(sym: string) {
+    const next = added.filter(s => s !== sym)
+    setAdded(next)
+    saveAdded(sessionKey, next)
+    onRemoveTicker(sym)
+    if (sideA === sym) setSideA(symbols.find(s => s !== sym && s !== sideB) ?? symbols.find(s => s !== sym) ?? sym)
+    if (sideB === sym) setSideB(symbols.find(s => s !== sym && s !== sideA) ?? symbols.find(s => s !== sym) ?? sym)
+  }
+
   return (
     <div className="jr-root pairs-root">
       <div className="pairs-toolbar">
@@ -157,14 +231,43 @@ export default function PairsView({ tickers }: { tickers: string[] }) {
             >{lb.label}</button>
           ))}
         </div>
+        <form className="pairs-add" onSubmit={submitTicker}>
+          <input
+            value={draft}
+            onChange={e => { setDraft(e.target.value.toUpperCase()); setAddError(null) }}
+            placeholder="Add ticker"
+            aria-label="Add ticker"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            maxLength={12}
+          />
+          <button type="submit" disabled={checking || draft.trim() === ''}>
+            <Plus size={12} /> {checking ? 'Checking…' : 'Add'}
+          </button>
+        </form>
         <button type="button" className="pairs-refresh" onClick={() => setReloadKey(k => k + 1)} disabled={loading}>
           <RefreshCw size={12} style={{ animation: loading ? 'spin 1.5s linear infinite' : 'none' }} />
           {loading ? 'Loading…' : 'Refresh'}
         </button>
       </div>
 
+      {addError && <div className="pairs-add-error" role="alert">{addError}</div>}
+      {added.length > 0 && (
+        <div className="pairs-added" aria-label="Tickers added from Pairs">
+          {added.map(sym => (
+            <span key={sym} className="pairs-chip">
+              {sym}
+              <button type="button" onClick={() => removeAdded(sym)} aria-label={`Remove ${sym}`}>
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {sideA === sideB && (
-        <div className="pairs-note">Pick two different watchlist stocks.</div>
+        <div className="pairs-note">Pick two different stocks.</div>
       )}
 
       <div className="pairs-readout">
