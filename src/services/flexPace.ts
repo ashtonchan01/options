@@ -87,6 +87,7 @@ export function isRetryableFlexFailure(err: unknown): boolean {
     || /too many requests/i.test(msg)
     || /try again shortly/i.test(msg)
     || /statement not ready/i.test(msg)
+    || /statement is not available/i.test(msg)
 }
 
 const FLEX_CODES = /\b(1001|1004|1005|1018|1019|1021)\b/
@@ -116,6 +117,7 @@ export function primaryWindowRetryMessage(err: unknown): string {
   const notReady = code === '1019'
     || /statement not ready/i.test(msg)
     || /statement generation/i.test(msg)
+    || /statement is not available/i.test(msg)
   if (notReady) {
     return `The statement is not ready yet. ${LATEST_WINDOW_NOTE} Try again shortly.`
   }
@@ -163,26 +165,41 @@ export interface BackfillState {
   failedRounds: number
 }
 
+/** Shown in grey when older windows fail but the latest sync succeeded. */
+export const OLDER_HISTORY_NOTE = 'Older history unavailable from IBKR right now — latest data synced.'
+
+/** 1019, or the same condition when the proxy omits the code. Transient; not a failed sync. */
+export function isStatementUnavailable(err: unknown): boolean {
+  if (flexFailureCode(err) === '1019') return true
+  const msg = err instanceof Error ? err.message : String(err ?? '')
+  return /statement is not available/i.test(msg)
+    || /statement not ready/i.test(msg)
+    || /statement generation/i.test(msg)
+}
+
+function isTokenPace(err: unknown): boolean {
+  if (flexFailureCode(err) === '1018') return true
+  const msg = err instanceof Error ? err.message : String(err ?? '')
+  return /too many requests/i.test(msg)
+}
+
 export interface BackfillResult extends BackfillState {
   note: string | null
   error: string | null
   retryAfterMs: number | null
 }
 
-function outcome(state: BackfillState, hardError?: string): BackfillResult {
-  if (hardError) {
-    return { ...state, note: null, error: hardError, retryAfterMs: null }
-  }
-  if (state.pending.length === 0) {
+function outcome(state: BackfillState, settle?: 'hide' | 'note'): BackfillResult {
+  if (state.pending.length === 0 && !settle) {
     return { ...state, note: null, error: null, retryAfterMs: null }
   }
-  if (state.failedRounds >= MAX_BACKFILL_ROUNDS) {
-    return {
-      ...state,
-      note: null,
-      error: 'Older history did not load after several tries. Sync again in a minute.',
-      retryAfterMs: null,
-    }
+  // A backfill miss is never a red error. 1019 is hidden; anything else is a grey note.
+  // The latest-window failure is reported by the primary sync, not here.
+  if (settle === 'hide') {
+    return { ...state, note: null, error: null, retryAfterMs: null }
+  }
+  if (settle === 'note' || state.failedRounds >= MAX_BACKFILL_ROUNDS) {
+    return { ...state, note: OLDER_HISTORY_NOTE, error: null, retryAfterMs: null }
   }
   return {
     ...state,
@@ -230,10 +247,26 @@ export async function runFlexBackfill(opts: {
     try {
       await opts.fetchWindow(window)
     } catch (err) {
-      const state: BackfillState = { stored, pending, completed, total, failedRounds: failedRounds + 1 }
-      if (retryable(err)) return outcome(state)
-      const msg = err instanceof Error ? err.message : 'Flex backfill failed'
-      return outcome(state, `Older history did not load: ${msg}`)
+      let failure: unknown = err
+      // One quiet extra try for the token pace and for a statement IBKR has not generated.
+      if (isTokenPace(err) || isStatementUnavailable(err)) {
+        if (gapMs > 0) await sleep(gapMs)
+        try {
+          await opts.fetchWindow(window)
+          failure = null
+        } catch (again) {
+          failure = again
+        }
+      }
+      if (failure == null) {
+        // The quiet retry stored this window; fall through to the success path.
+      } else {
+        const state: BackfillState = { stored, pending, completed, total, failedRounds: failedRounds + 1 }
+        if (isStatementUnavailable(failure)) return outcome(state, 'hide')
+        if (isTokenPace(failure)) return outcome(state, 'note')
+        if (retryable(failure)) return outcome(state)
+        return outcome(state, 'note')
+      }
     }
     stored = addWindow(stored, window)
     pending = pending.slice(1)

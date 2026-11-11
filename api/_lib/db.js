@@ -62,6 +62,20 @@ export async function ensureSchema() {
           PRIMARY KEY (user_id, data_key)
         )
       `
+      // Statements pulled by the GitHub-scheduled Flex check. Tokens stay in
+      // Vercel env vars; this table stores the XML and the schedule cursor.
+      await db`
+        CREATE TABLE IF NOT EXISTS flex_server_sync (
+          account_key TEXT PRIMARY KEY,
+          xml TEXT,
+          from_date TEXT,
+          to_date TEXT,
+          fetched_at TIMESTAMPTZ,
+          schedule JSONB NOT NULL DEFAULT '{}',
+          last_code TEXT,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `
     })()
   }
   return schemaReady

@@ -14,8 +14,8 @@ export const IBKR_GET = 'https://ndcdyn.interactivebrokers.com/AccountManagement
  * including when the next invocation starts as soon as this one returns.
  */
 export const MIN_GAP_MS = 6_000
-/** Leave headroom under the 90s Vercel limit for this function. */
-export const BUDGET_MS = 75_000
+/** Leave headroom under the 60s Hobby function limit. */
+export const BUDGET_MS = 50_000
 const MAX_SENDS = 4
 const MAX_POLLS = 5
 

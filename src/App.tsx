@@ -5,6 +5,7 @@ import { useTradeLabelStore } from './store/tradeLabelsStore'
 import { useAuthStore } from './store/authStore'
 import { useAccounts } from './store/accountsStore'
 import { useWatchlists } from './store/watchlistStore'
+import { useFlexAutoSync } from './hooks/useFlexAutoSync'
 import DashboardView from './components/dashboard/DashboardView'
 import MilestoneView from './components/dashboard/MilestoneView'
 import AccountView from './components/portfolio/AccountView'
@@ -88,6 +89,7 @@ function SignedInApp() {
   const { labels, setLabel, setMany, clearAll } = useTradeLabelStore(sessionEmail)
   const accountsStore = useAccounts(sessionEmail)
   const watchlists = useWatchlists(sessionEmail)
+  useFlexAutoSync(sessionEmail, accountsStore.accounts, accountsStore.syncFlex, accountsStore.loadingId, accountsStore.flexRemoteReady)
 
   const activeAccountId = parseAccountTabId(activeTab)
   const activeAccount = activeAccountId ? accountsStore.accounts.find(a => a.id === activeAccountId) : undefined
