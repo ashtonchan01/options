@@ -1030,6 +1030,11 @@ body {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  /* overflow-x: auto computes overflow-y to auto, and WebKit then treats
+     this flex item's minimum size as 0 and clips the labels. Keep the row
+     at least as tall as the text plus its underline padding. */
+  flex-shrink: 0;
+  min-height: 32px;
 }
 .ph-underline-tabs::-webkit-scrollbar { display: none; }
 .ph-underline-tab {
@@ -1791,13 +1796,21 @@ body {
 
 .ew-shell {
   display: flex;
-  height: 100vh;
+  /* 100% of the viewport, not 100vh. In desktop Safari 100vh is taller than
+     the visible window, and these flex children refuse to shrink below
+     their content (min-height: auto), so the shell overflows and the top
+     — logo, account tabs — is clipped with no way to scroll it back. */
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
+  align-items: stretch;
+  justify-content: flex-start;
 }
 
 .ew-main {
-  flex: 1;
+  flex: 1 1 0%;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1805,11 +1818,27 @@ body {
   background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px);
   background-size: 26px 26px;
 }
+/* The page mounted in <main> fills that column and starts at its top.
+   min-height: 0 lets it shrink so a header isn't pushed above the clip. */
+.ew-main > main {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ew-main > main > * {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  max-height: 100%;
+}
 
 /* Sidebar (two-tone navy rail) */
 .ew-sidebar {
   width: 230px;
   flex-shrink: 0;
+  /* min-height: 0 — otherwise the nav's content height becomes the flex
+     item's minimum and the rail grows past the window, clipping the logo. */
+  min-height: 0;
   background: var(--sb-bg);
   border-right: 1px solid var(--sb-border);
   display: flex;
@@ -2186,6 +2215,14 @@ body {
 .dash-cell { display: flex; min-width: 0; min-height: 0; }
 .dash-cell > * { flex: 1; min-width: 0; min-height: 0; }
 .dash-resizable { position: relative; }
+/* The resize handles are absolutely positioned, but `.dash-cell > *` still
+   gives them flex: 1. In WebKit that stretch ignores the 20px thickness
+   and lays the hit target across the card. Pin the thickness. */
+.dash-cell > .dash-row-resize-handle,
+.dash-cell > .dash-col-resize-handle {
+  flex: none;
+  align-self: auto;
+}
 /* Bottom-edge drag handle for height — matches World Monitor's
    panel-resize-handle exactly (full-width 20px hit area, ⋯ dot glyph,
    gradient highlight on hover/active), replacing the browser's own resize
@@ -2367,6 +2404,15 @@ body {
   font-weight: 700;
   color: var(--text-1);
   flex-wrap: wrap;
+}
+/* Column-resize handle is a 20px strip on the card's right edge at
+   z-index 100, which covers refresh icons and Live TV's region buttons.
+   The header and any control inside a resizable card sit above that strip
+   so the click lands on them. The rest of the edge still drags. */
+.dash-resizable .dash-panel-header,
+.dash-resizable .dash-panel :is(button, a, input, select, textarea) {
+  position: relative;
+  z-index: 110;
 }
 .dash-panel-sub {
   font-size: 11px;
