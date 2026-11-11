@@ -1,13 +1,13 @@
 /**
- * World-Monitor-style overview. Left side: World Map (expanded to be the
- * dominant element, World-Monitor-style) with a thin Live Charts strip
- * below it, filling the viewport with no scrolling. Right side: two
- * independently vertically-scrolling columns holding the rest of the
- * panels; each has a drag handle on its bottom edge to resize its height
- * (remembered per panel — see ResizablePanel/useResizablePanel) and a
- * corner button to expand across both columns instead of just its own
- * (see useWideMap) — wide panels render in their own full-width row above
- * the two columns. A thin scrolling headlines ticker (top 10 latest across
+ * World-Monitor-style overview. The top band is the World Map beside
+ * the right-hand cards (Live TV, Fear & Greed, and Pair Trading in one
+ * column, Watchlist in the other). The index strip and sector heatmap
+ * sit underneath, across the full window, so they keep their columns
+ * when the map gives width to the side cards. Each right-side panel has
+ * a drag handle on its bottom edge to resize its height (remembered per
+ * panel — see ResizablePanel/useResizablePanel) and a right-edge handle
+ * to expand across both columns (see useWideMap) — wide panels render
+ * in their own full-width row above the two columns. A thin scrolling headlines ticker (top 10 latest across
  * followed tickers) runs above everything else, full width — replacing the
  * old boxed "Ticker Headlines" panel and the Market Movers panels (Trending
  * Tickers/Top Gainers/Top Losers/Most Active), both removed. Sector Heatmap
@@ -84,43 +84,42 @@ export default function DashboardView({ state, watchlistTickers = [] }: { state:
     <div className="dash-page">
       <HeadlinesTicker />
       <div className="dash-wrap">
-        <div className="dash-left-col">
+        <div className="dash-top">
           <div className="dash-cell dash-left-map">
             <WorldMapPanel quotes={quotes} now={now} />
           </div>
-          <div className="dash-cell dash-left-charts">
-            <LiveChartsStrip quotes={quotes} layout="row-single" />
-          </div>
-          <div className="dash-cell dash-left-heatmap">
-            <SectorHeatmapPanel />
+          <div className="dash-right-cols-wrap">
+            {wideOnes.map(p => (
+              <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
+                autoFit={p.autoFit ?? true} wide onSetWide={(w) => setWide(p.id, w)}>
+                {p.node}
+              </ResizablePanel>
+            ))}
+            <div className="dash-right-cols">
+              <div className="dash-right-col">
+                {colA.filter(p => !wideIds.has(p.id)).map(p => (
+                  <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
+                    autoFit={p.autoFit ?? true} onSetWide={(w) => setWide(p.id, w)}>
+                    {p.node}
+                  </ResizablePanel>
+                ))}
+              </div>
+              <div className="dash-right-col">
+                {colB.filter(p => !wideIds.has(p.id)).map(p => (
+                  <ResizablePanel key={p.id} id={p.id} defaultWidth={460} defaultHeight={p.h} axis="vertical"
+                    autoFit={p.autoFit ?? true} onSetWide={(w) => setWide(p.id, w)}>
+                    {p.node}
+                  </ResizablePanel>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-
-        <div className="dash-right-cols-wrap">
-          {wideOnes.map(p => (
-            <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
-              autoFit={p.autoFit ?? true} wide onSetWide={(w) => setWide(p.id, w)}>
-              {p.node}
-            </ResizablePanel>
-          ))}
-          <div className="dash-right-cols">
-            <div className="dash-right-col">
-              {colA.filter(p => !wideIds.has(p.id)).map(p => (
-                <ResizablePanel key={p.id} id={p.id} defaultWidth={900} defaultHeight={p.h} axis="vertical"
-                  autoFit={p.autoFit ?? true} onSetWide={(w) => setWide(p.id, w)}>
-                  {p.node}
-                </ResizablePanel>
-              ))}
-            </div>
-            <div className="dash-right-col">
-              {colB.filter(p => !wideIds.has(p.id)).map(p => (
-                <ResizablePanel key={p.id} id={p.id} defaultWidth={460} defaultHeight={p.h} axis="vertical"
-                  autoFit={p.autoFit ?? true} onSetWide={(w) => setWide(p.id, w)}>
-                  {p.node}
-                </ResizablePanel>
-              ))}
-            </div>
-          </div>
+        <div className="dash-cell dash-left-charts">
+          <LiveChartsStrip quotes={quotes} layout="row-single" />
+        </div>
+        <div className="dash-cell dash-left-heatmap">
+          <SectorHeatmapPanel />
         </div>
       </div>
     </div>

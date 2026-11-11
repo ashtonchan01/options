@@ -63,7 +63,7 @@ export default function WatchlistPanel({ tickers }: { tickers: string[] }) {
   useEffect(() => { load() }, [tickersKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="dash-panel">
+    <div className="dash-panel dash-watchlist">
       <div className="dash-panel-header">
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <ListChecks size={13} style={{ color: 'var(--accent)' }} />

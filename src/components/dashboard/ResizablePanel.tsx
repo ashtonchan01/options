@@ -20,18 +20,18 @@ export default function ResizablePanel({ id, defaultWidth, defaultHeight, axis =
   onSetWide?: (wide: boolean) => void
   children: ReactNode
 }) {
-  const { ref, style } = useResizablePanel(id, defaultWidth, defaultHeight, axis, autoFit)
-  const row = useRowDragHandle(ref)
+  const { ref, style, lockHeight, resetHeight, manual } = useResizablePanel(id, defaultWidth, defaultHeight, axis, autoFit)
+  const row = useRowDragHandle(ref, lockHeight)
   const col = useColDragHandle(!!wide, onSetWide ?? (() => {}))
   return (
-    <div ref={ref} className="dash-cell dash-resizable" style={style}>
+    <div ref={ref} className="dash-cell dash-resizable" data-sized={manual ? 'manual' : 'auto'} style={style}>
       {axis === 'vertical' && (
         <div
           className={`dash-row-resize-handle${row.dragging ? ' active' : ''}`}
           title="Drag to resize (double-click to reset)"
           onMouseDown={row.onMouseDown}
           onTouchStart={row.onTouchStart}
-          onDoubleClick={() => { if (ref.current) ref.current.style.height = `${defaultHeight}px` }}
+          onDoubleClick={() => resetHeight()}
         />
       )}
       {onSetWide && (
