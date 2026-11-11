@@ -25,7 +25,7 @@ export default function AuthGate({ error, onLogin, onSignup }: Props) {
 
   return (
     <div style={{
-      height: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'var(--bg-surface)',
     }}>
       <div style={{

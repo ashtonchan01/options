@@ -66,7 +66,7 @@ const FyPreviewApp = import.meta.env.DEV
 export default function App() {
   if (FyPreviewApp && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('fypreview') === '1') {
     return (
-      <Suspense fallback={<div style={{ height: '100vh', width: '100vw', background: 'var(--bg-surface)' }} />}>
+      <Suspense fallback={<div style={{ height: '100%', width: '100%', background: 'var(--bg-surface)' }} />}>
         <FyPreviewApp />
       </Suspense>
     )
@@ -96,7 +96,7 @@ function SignedInApp() {
   const tradeLabels: TradeLabels = { labels, setLabel, setMany, clearAll }
 
   if (!previewEmail && auth.loading) {
-    return <div style={{ height: '100vh', width: '100vw', background: 'var(--bg-surface)' }} />
+    return <div style={{ height: '100%', width: '100%', background: 'var(--bg-surface)' }} />
   }
   if (!previewEmail && !auth.user) {
     return <AuthGate error={auth.error} onLogin={auth.login} onSignup={auth.signup} />
