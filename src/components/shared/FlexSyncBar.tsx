@@ -6,6 +6,7 @@
  */
 import { useState } from 'react'
 import { RefreshCw, ChevronDown, ChevronUp, HelpCircle } from 'lucide-react'
+import { OLDER_HISTORY_NOTE } from '../../services/flexPace'
 
 // The exact set of Activity Flex Query "Sections" checkboxes this app's XML
 // parser (src/services/ibkr.ts) actually reads — Trade, OpenPosition,
@@ -127,7 +128,7 @@ export default function FlexSyncBar({ savedToken, savedQueryId, loading, error, 
           </>
         )}
       </div>
-      {note && <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{note}</div>}
+      {note && <div style={{ fontSize: 11, color: note === OLDER_HISTORY_NOTE ? 'var(--text-4)' : 'var(--text-3)' }}>{note}</div>}
       {error && <div style={{ fontSize: 11, color: '#ef4444' }}>{error}</div>}
       {expanded && <SetupInstructions />}
     </div>

@@ -15,6 +15,7 @@ import {
   enqueueToken,
   pendingBackfill,
   primaryWindowRetryMessage,
+  OLDER_HISTORY_NOTE,
   runFlexBackfill,
   type FlexWindow,
 } from '../src/services/flexPace'
@@ -121,16 +122,18 @@ const statement = `<?xml version="1.0"?><FlexQueryResponse><FlexStatements><Flex
 
 {
   const fetched: FlexWindow[] = []
+  let paceTries = 0
   const first = await runFlexBackfill({
     state: { stored: [], pending: [], completed: 0, total: 0, failedRounds: 0 },
     primaryFrom: '20251018',
     gapMs: 0,
     fetchWindow: async () => {
-      throw Object.assign(new Error('IBKR: Too many requests have been made from this token. Please try again shortly.'), { retryable: true })
+      paceTries++
+      throw Object.assign(new Error('IBKR: Too many requests have been made from this token. Please try again shortly.'), { retryable: true, code: '1018' })
     },
   })
-  check('a retryable backfill failure is not a red error', first.error === null && first.note === backfillStatus(0, 1), JSON.stringify(first))
-  check('the unfinished window stays pending', first.pending.length === 1 && first.pending[0].fromDate === '20250701' && first.retryAfterMs === 15_000, JSON.stringify(first.pending))
+  check('a 1018 backfill retries once, then a grey note, not a red error', paceTries === 2 && first.error === null && first.note === OLDER_HISTORY_NOTE && first.retryAfterMs === null, JSON.stringify(first))
+  check('the unfinished window stays pending', first.pending.length === 1 && first.pending[0].fromDate === '20250701', JSON.stringify(first.pending))
 
   const second = await runFlexBackfill({
     state: first,
@@ -161,10 +164,24 @@ const statement = `<?xml version="1.0"?><FlexQueryResponse><FlexStatements><Flex
     state = await runFlexBackfill({
       state,
       gapMs: 0,
-      fetchWindow: async () => { throw new Error('IBKR 1018: Too many requests') },
+      fetchWindow: async () => { throw new Error('IBKR 1001: request timed out') },
     })
   }
-  check('three failed rounds become an error and stop the follow-up', state.failedRounds === 3 && state.error === 'Older history did not load after several tries. Sync again in a minute.' && state.retryAfterMs === null && state.note === null, JSON.stringify(state))
+  check('three failed rounds stop without a red error', state.failedRounds === 3 && state.error === null && state.note === OLDER_HISTORY_NOTE && state.retryAfterMs === null, JSON.stringify(state))
+}
+
+{
+  let tries = 0
+  const hidden = await runFlexBackfill({
+    state: { stored: [], pending: [], completed: 0, total: 0, failedRounds: 0 },
+    primaryFrom: '20251018',
+    gapMs: 0,
+    fetchWindow: async () => {
+      tries++
+      throw new Error('IBKR: Statement is not available.')
+    },
+  })
+  check('1019-style backfill retries once and then stays hidden', tries === 2 && hidden.error === null && hidden.note === null && hidden.retryAfterMs === null, JSON.stringify(hidden))
 }
 
 {
