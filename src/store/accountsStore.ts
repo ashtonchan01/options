@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RawPosition, RawTrade } from '../types'
 import { syncFromXML, syncFromFlexAPI } from '../services/ibkr'
 import { replaceTradeWindow } from '../services/flexWindow'
-import { addWindow, enqueueToken, isRetryableFlexFailure, primaryWindowRetryMessage, runFlexBackfill, type BackfillState, type FlexWindow } from '../services/flexPace'
+import { addWindow, enqueueToken, flexFailureCode, isRetryableFlexFailure, isStatementUnavailable, primaryWindowRetryMessage, runFlexBackfill, type BackfillState, type FlexWindow } from '../services/flexPace'
 import { parseGenericCsvTrades } from '../services/genericCsvImport'
 import { parseXlsxTrades } from '../services/xlsxImport'
 import { parsePdfTrades } from '../services/pdfImport'
@@ -218,7 +218,7 @@ export function useAccounts(sessionKey: string | null) {
   /** Windows saved during this session, updated before React re-renders so the next queued sync does not refetch them. */
   const flexProgressRef = useRef(new Map<string, BackfillState>())
   const resumeTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
-  const runSyncRef = useRef<(id: string, token: string, queryId: string, mode: 'full' | 'resume') => Promise<void>>(async () => {})
+  const runSyncRef = useRef<(id: string, token: string, queryId: string, mode: 'full' | 'resume') => Promise<unknown>>(async () => {})
 
   useEffect(() => {
     accountsRef.current = accounts
@@ -373,7 +373,13 @@ export function useAccounts(sessionKey: string | null) {
    * one click. Older windows are fetched one at a time; a window already
    * stored is left alone. A rate limit pauses and resumes instead of failing
    * the sync that just saved the latest window. */
-  const runSync = useCallback(async (id: string, token: string, queryId: string, mode: 'full' | 'resume') => {
+  const runSync = useCallback(async (
+    id: string,
+    token: string,
+    queryId: string,
+    mode: 'full' | 'resume',
+    opts?: { auto?: boolean; waitingNote?: string; expectedDay?: string },
+  ): Promise<{ ok: boolean; toDate?: string }> => {
     const pendingTimer = resumeTimers.current.get(id)
     if (pendingTimer) {
       clearTimeout(pendingTimer)
@@ -383,7 +389,7 @@ export function useAccounts(sessionKey: string | null) {
     setSyncAccountId(id)
     setSyncError(null)
     try {
-      await enqueueToken(token, async () => {
+      return await enqueueToken(token, async () => {
         const prior = accountsRef.current.find(a => a.id === id)
         const saved = flexProgressRef.current.get(id)
         let stored = saved?.stored ?? prior?.flexStoredWindows ?? []
@@ -432,10 +438,12 @@ export function useAccounts(sessionKey: string | null) {
             },
           })
           rememberBackfill(id, backfill)
-          setSyncNote(backfill.note)
+          const covered = !!(result.toDate && opts?.expectedDay && result.toDate >= opts.expectedDay)
+          const waiting = opts?.auto && opts.waitingNote && !covered
+          setSyncNote(waiting ? opts!.waitingNote! : backfill.note)
           setSyncError(backfill.error)
           if (backfill.retryAfterMs != null) scheduleResume(id, token, queryId, backfill.retryAfterMs)
-          return
+          return { ok: true, toDate: result.toDate }
         }
 
         const backfill = await runFlexBackfill({
@@ -466,12 +474,20 @@ export function useAccounts(sessionKey: string | null) {
         setSyncNote(backfill.note)
         setSyncError(backfill.error)
         if (backfill.retryAfterMs != null) scheduleResume(id, token, queryId, backfill.retryAfterMs)
+        return { ok: true }
       })
     } catch (e) {
+      const pace = flexFailureCode(e) === '1018' || /too many requests/i.test(e instanceof Error ? e.message : '')
+      if (opts?.auto && (isStatementUnavailable(e) || pace)) {
+        setSyncError(null)
+        setSyncNote(opts.waitingNote ?? null)
+        return { ok: false }
+      }
       setSyncNote(null)
       setSyncError(isRetryableFlexFailure(e)
         ? primaryWindowRetryMessage(e)
         : (e instanceof Error ? e.message : 'Flex sync failed'))
+      return { ok: false }
     } finally {
       setLoadingId(curr => curr === id ? null : curr)
     }
@@ -481,8 +497,13 @@ export function useAccounts(sessionKey: string | null) {
     runSyncRef.current = runSync
   }, [runSync])
 
-  const syncFlex = useCallback((id: string, token: string, queryId: string) => {
-    return runSync(id, token, queryId, 'full')
+  const syncFlex = useCallback((
+    id: string,
+    token: string,
+    queryId: string,
+    opts?: { auto?: boolean; waitingNote?: string; expectedDay?: string },
+  ) => {
+    return runSync(id, token, queryId, 'full', opts)
   }, [runSync])
 
   return { accounts, addAccount, removeAccount, clearTrades, uploadStatement, syncFlex, loadingId, syncError, syncNote, syncAccountId, uploadError, uploadAccountId }

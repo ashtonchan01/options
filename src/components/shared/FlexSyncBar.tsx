@@ -128,7 +128,7 @@ export default function FlexSyncBar({ savedToken, savedQueryId, loading, error, 
           </>
         )}
       </div>
-      {note && <div style={{ fontSize: 11, color: note === OLDER_HISTORY_NOTE ? 'var(--text-4)' : 'var(--text-3)' }}>{note}</div>}
+      {note && <div style={{ fontSize: 11, color: note === OLDER_HISTORY_NOTE || note.startsWith('Waiting for IBKR statement') ? 'var(--text-4)' : 'var(--text-3)' }}>{note}</div>}
       {error && <div style={{ fontSize: 11, color: '#ef4444' }}>{error}</div>}
       {expanded && <SetupInstructions />}
     </div>
