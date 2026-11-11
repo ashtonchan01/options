@@ -3,7 +3,7 @@
   "outputDirectory": "dist",
   "functions": {
     "api/flex-sync.js": {
-      "maxDuration": 90
+      "maxDuration": 60
     },
     "api/flex-cron.js": {
       "maxDuration": 60
