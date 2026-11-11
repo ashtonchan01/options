@@ -1,5 +1,5 @@
 /**
- * Sydney Flex schedule, shared by the open-app hook and /api/flex-cron.
+ * Sydney Flex schedule, shared by the open-app hook and /api/flex-sync.
  * Sunday and Monday are skipped. Other days: hourly from 09:00 through 15:00,
  * then every 15 minutes. Account index staggers the minute (0, 1, 2, …).
  */

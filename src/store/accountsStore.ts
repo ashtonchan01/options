@@ -172,7 +172,7 @@ interface FlexServerSnapshot {
 
 async function loadFlexSnapshots(): Promise<FlexServerSnapshot[] | null> {
   try {
-    const res = await fetch('/api/flex-cron', { credentials: 'include' })
+    const res = await fetch('/api/flex-sync', { credentials: 'include' })
     if (!res.ok) return null
     const data: unknown = await res.json()
     const snapshots = (data as { snapshots?: unknown } | null)?.snapshots

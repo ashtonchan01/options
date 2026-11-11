@@ -16,4 +16,4 @@ jobs:
         run: |
           curl --fail-with-body -sS -X POST \
             -H "Authorization: Bearer ${CRON_SECRET}" \
-            https://options-jade.vercel.app/api/flex-cron
+            https://options-jade.vercel.app/api/flex-sync
