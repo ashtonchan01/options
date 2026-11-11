@@ -5,6 +5,9 @@
     "api/flex-sync.js": {
       "maxDuration": 90
     },
+    "api/flex-cron.js": {
+      "maxDuration": 60
+    },
     "api/option-marks.js": {
       "maxDuration": 30
     }

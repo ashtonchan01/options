@@ -1,0 +1,19 @@
+name: Flex schedule
+
+on:
+  schedule:
+    # Every 15 minutes. The route decides whether any account is actually due.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  flex:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Flex check
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            https://options-jade.vercel.app/api/flex-cron

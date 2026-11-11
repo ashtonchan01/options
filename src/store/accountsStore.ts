@@ -14,7 +14,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RawPosition, RawTrade } from '../types'
-import { syncFromXML, syncFromFlexAPI } from '../services/ibkr'
+import { parseFlexDocument, syncFromXML, syncFromFlexAPI } from '../services/ibkr'
 import { replaceTradeWindow } from '../services/flexWindow'
 import { addWindow, enqueueToken, flexFailureCode, isRetryableFlexFailure, isStatementUnavailable, primaryWindowRetryMessage, runFlexBackfill, type BackfillState, type FlexWindow } from '../services/flexPace'
 import { parseGenericCsvTrades } from '../services/genericCsvImport'
@@ -162,6 +162,60 @@ async function saveRemote(accounts: Account[]) {
   } catch { /* offline or request failed — localStorage still has it */ }
 }
 
+interface FlexServerSnapshot {
+  key: string
+  xml: string
+  fromDate?: string
+  toDate?: string
+  fetchedAt?: string
+}
+
+async function loadFlexSnapshots(): Promise<FlexServerSnapshot[] | null> {
+  try {
+    const res = await fetch('/api/flex-cron', { credentials: 'include' })
+    if (!res.ok) return null
+    const data: unknown = await res.json()
+    const snapshots = (data as { snapshots?: unknown } | null)?.snapshots
+    return Array.isArray(snapshots) ? snapshots as FlexServerSnapshot[] : null
+  } catch {
+    return null
+  }
+}
+
+/** Server statement is newer: merge its window and replace the live snapshot. Local Flex credentials stay. */
+function applyServerSnapshots(accounts: Account[], snaps: FlexServerSnapshot[]): Account[] {
+  let next = accounts
+  for (const snap of snaps) {
+    if (!snap?.xml || !snap.key) continue
+    const idx = next.findIndex(a => a.name.toLowerCase().includes(String(snap.key).toLowerCase()))
+    if (idx < 0) continue
+    const fetched = snap.fetchedAt ? Date.parse(snap.fetchedAt) : NaN
+    if (!Number.isFinite(fetched) || fetched <= (next[idx].uploadedAt ?? 0)) continue
+    const doc = new DOMParser().parseFromString(snap.xml, 'application/xml')
+    if (doc.querySelector('parsererror')) continue
+    const parsed = parseFlexDocument(doc)
+    const fromDate = snap.fromDate || parsed.fromDate
+    const toDate = snap.toDate || parsed.toDate
+    next = next.map((a, i) => {
+      if (i !== idx) return a
+      return {
+        ...a,
+        trades: mergeTrades(a.trades, parsed.trades, fromDate, toDate),
+        positions: parsed.positions,
+        cashBalance: parsed.cashBalance,
+        cashBalances: parsed.cashBalances,
+        netLiquidation: parsed.netLiquidation ?? a.netLiquidation,
+        excessLiquidity: parsed.excessLiquidity ?? a.excessLiquidity,
+        equityHistory: parsed.equityHistory?.length ? parsed.equityHistory : a.equityHistory,
+        flexStoredWindows: fromDate && toDate ? addWindow(a.flexStoredWindows, { fromDate, toDate }) : a.flexStoredWindows,
+        fileName: 'IBKR Flex sync',
+        uploadedAt: fetched,
+      }
+    })
+  }
+  return next
+}
+
 async function loadRemote(): Promise<Account[] | null> {
   try {
     const res = await fetch('/api/portfolio-data', { credentials: 'include' })
@@ -234,18 +288,28 @@ export function useAccounts(sessionKey: string | null) {
   // flash; the server fetch then reconciles once it lands, since the server
   // copy is the one that's actually consistent across browsers/devices —
   // whichever this browser's localStorage happens to hold is not.
+  const [flexRemoteReady, setFlexRemoteReady] = useState(!sessionKey)
+
   useEffect(() => {
     flexProgressRef.current.clear()
     setAccounts(load(key))
-    if (!sessionKey) return
+    if (!sessionKey) {
+      setFlexRemoteReady(true)
+      return
+    }
+    setFlexRemoteReady(false)
     let cancelled = false
-    loadRemote().then(remote => {
-      if (cancelled || remote === null) return
-      // The server snapshot is the source of truth when it arrives. Drop the
-      // in-memory window cache so a sync cannot skip history this response just replaced.
+    Promise.all([loadRemote(), loadFlexSnapshots()]).then(([remote, snaps]) => {
+      if (cancelled) return
+      const base = remote ?? load(key)
+      const merged = snaps && snaps.length > 0 ? applyServerSnapshots(base, snaps) : base
       flexProgressRef.current.clear()
-      setAccounts(remote)
-      save(key, remote)
+      setAccounts(merged)
+      save(key, merged)
+      if (snaps && snaps.length > 0 && merged !== base) saveRemote(merged)
+      setFlexRemoteReady(true)
+    }).catch(() => {
+      if (!cancelled) setFlexRemoteReady(true)
     })
     return () => { cancelled = true }
   }, [key, sessionKey])
@@ -506,5 +570,5 @@ export function useAccounts(sessionKey: string | null) {
     return runSync(id, token, queryId, 'full', opts)
   }, [runSync])
 
-  return { accounts, addAccount, removeAccount, clearTrades, uploadStatement, syncFlex, loadingId, syncError, syncNote, syncAccountId, uploadError, uploadAccountId }
+  return { accounts, addAccount, removeAccount, clearTrades, uploadStatement, syncFlex, loadingId, syncError, syncNote, syncAccountId, uploadError, uploadAccountId, flexRemoteReady }
 }

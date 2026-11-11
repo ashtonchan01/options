@@ -5,10 +5,15 @@
  */
 import { holidaysForYear } from '../src/data/marketHolidays'
 import {
+  configuredFlexAccounts,
+  cronDecision,
   expectedUsTradingDay,
+  flexWindowFromXml,
   isSlotMinute,
   latestSlotId,
   nextSlotTime,
+  pickDueAccount,
+  scheduleAfterAttempt,
   sydneyClock,
   waitingForStatementNote,
   windowCoversTradingDay,
@@ -76,6 +81,48 @@ const tue1516 = new Date('2026-11-10T04:16:00Z')
   check('Thanksgiving is not the expected session', expectedUsTradingDay(new Date('2026-11-26T22:00:00Z')) === '20261125')
   check('a window through that day covers it', windowCoversTradingDay([{ fromDate: '20250701', toDate: '20261109' }], '20261109'))
   check('a window that ended the day before does not', !windowCoversTradingDay([{ fromDate: '20250701', toDate: '20261106' }], '20261109'))
+}
+
+{
+  const tue0900 = new Date('2026-11-09T22:00:00Z')
+  const due = cronDecision(tue0900, 0, {}, [])
+  check('09:00 with nothing stored is due', due.action === 'sync' && due.slot === '2026-11-10T09:00', JSON.stringify(due))
+  check('the second account is not due on the first minute', cronDecision(tue0900, 1, {}, []).action === 'skip')
+  check('Sunday is off hours', cronDecision(sun1000, 0, {}, []).reason === 'off-hours')
+  check('a finished Sydney day is skipped', cronDecision(tue0900, 0, { doneSydneyDate: '2026-11-10' }, []).reason === 'done')
+  check('the same slot is not tried twice', cronDecision(tue0900, 0, { lastSlotId: '2026-11-10T09:00' }, []).reason === 'already-tried')
+  const covered = cronDecision(tue0900, 0, {}, [{ fromDate: '20251110', toDate: '20261109' }])
+  check('a window that already covers the US session is not due', covered.action === 'skip' && covered.reason === 'covered' && covered.doneSydneyDate === '2026-11-10')
+
+  const accounts = [
+    { key: 'personal', index: 0, record: { lastSlotId: '2026-11-10T15:15' }, windows: [] as { fromDate: string; toDate: string }[] },
+    { key: 'business', index: 1, record: {}, windows: [] as { fromDate: string; toDate: string }[] },
+  ]
+  const picked = pickDueAccount(tue1516, accounts)
+  check('only the first due account runs', picked?.account.key === 'business' && picked.decision.slot === '2026-11-10T15:16')
+  const afterQuiet = scheduleAfterAttempt({}, picked!.decision, { ok: false })
+  check('a 1019 still consumes the slot', afterQuiet.lastSlotId === '2026-11-10T15:16' && !afterQuiet.doneSydneyDate)
+  const afterSave = scheduleAfterAttempt({}, picked!.decision, { ok: true, toDate: '20261109' })
+  check('a statement through the expected day finishes the Sydney date', afterSave.doneSydneyDate === '2026-11-10')
+  const short = scheduleAfterAttempt({}, picked!.decision, { ok: true, toDate: '20261106' })
+  check('a statement that stops early stays due tomorrow', short.lastSlotId === '2026-11-10T15:16' && !short.doneSydneyDate)
+
+  const xml = '<FlexStatement toDate="20261109" fromDate="20251110" accountId="U1">'
+  check('the report window is read in either attribute order', flexWindowFromXml(xml)?.fromDate === '20251110' && flexWindowFromXml(xml)?.toDate === '20261109')
+
+  const env = {
+    FLEX_TOKEN_PERSONAL: 'secret-token',
+    FLEX_QUERY_BUSINESS: 'q-only',
+    FLEX_TOKEN_BUSINESS: 'other-token',
+    FLEX_QUERY_BUSINESS_IGNORED: 'no',
+    FLEX_ACCOUNTS: 'moomoo',
+    FLEX_TOKEN_MOOMOO: 'm-token',
+    FLEX_QUERY_MOOMOO: 'm-query',
+  }
+  const configured = configuredFlexAccounts(env)
+  check('personal is skipped without a query id', configured.map(a => a.key).join(',') === 'business,moomoo')
+  check('business keeps stagger index 1', configured[0].index === 1 && configured[1].index === 2)
+  check('configured accounts do not echo tokens into the key', configured.every(a => !a.key.includes('secret') && a.token.length > 0))
 }
 
 if (failed > 0) {

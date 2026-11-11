@@ -1,7 +1,8 @@
 /**
  * While this tab is open, pull each Flex account on the Sydney schedule.
  * Stops for the rest of the Sydney day once the latest window covers the
- * US session that just closed. Does nothing when the tab is closed.
+ * US session that just closed — including a statement the server cron already
+ * stored. Waits until that merge has finished so it does not race the server.
  */
 import { useEffect, useRef } from 'react'
 import type { Account } from '../store/accountsStore'
@@ -47,6 +48,7 @@ export function useFlexAutoSync(
   accounts: Account[],
   syncFlex: (id: string, token: string, queryId: string, opts?: { auto?: boolean; waitingNote?: string; expectedDay?: string }) => Promise<SyncOutcome>,
   loadingId: string | null,
+  remoteReady: boolean,
 ) {
   const accountsRef = useRef(accounts)
   const loadingRef = useRef(loadingId)
@@ -57,7 +59,7 @@ export function useFlexAutoSync(
   syncRef.current = syncFlex
 
   useEffect(() => {
-    if (!sessionKey) return
+    if (!sessionKey || !remoteReady) return
     let cancelled = false
 
     async function tick() {
@@ -120,5 +122,5 @@ export function useFlexAutoSync(
       cancelled = true
       clearInterval(timer)
     }
-  }, [sessionKey])
+  }, [sessionKey, remoteReady])
 }

@@ -89,7 +89,7 @@ function SignedInApp() {
   const { labels, setLabel, setMany, clearAll } = useTradeLabelStore(sessionEmail)
   const accountsStore = useAccounts(sessionEmail)
   const watchlists = useWatchlists(sessionEmail)
-  useFlexAutoSync(sessionEmail, accountsStore.accounts, accountsStore.syncFlex, accountsStore.loadingId)
+  useFlexAutoSync(sessionEmail, accountsStore.accounts, accountsStore.syncFlex, accountsStore.loadingId, accountsStore.flexRemoteReady)
 
   const activeAccountId = parseAccountTabId(activeTab)
   const activeAccount = activeAccountId ? accountsStore.accounts.find(a => a.id === activeAccountId) : undefined
