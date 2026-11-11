@@ -273,11 +273,20 @@ body {
   .calendar-strategy-filter .tl-filter-chip { padding: 3px 8px !important; font-size: 11px !important; }
   .calendar-header-grid { grid-template-columns: repeat(5, 1fr) 50px !important; }
   .calendar-grid-wrap { grid-template-columns: repeat(5, 1fr) 50px !important; }
-  .calendar-ratio-box { aspect-ratio: 4 / 5 !important; }
+  /* The desktop month grid stretches to fill the column. On a phone the
+     page scrolls as one document, so the grid needs an intrinsic ratio
+     again or the flex child collapses to nothing. */
+  .calendar-ratio-box {
+    aspect-ratio: 4 / 5 !important;
+    flex: none !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
   .calendar-sidebar {
     width: 100% !important; border-left: none !important;
     border-top: 1px solid var(--border) !important;
     height: auto !important; max-height: none !important; overflow: visible !important; flex: 0 0 auto !important;
+    margin: 0 !important;
   }
   .calendar-activity-sidebar { overflow: visible !important; flex: none !important; }
   .calendar-activity-list { overflow: visible !important; flex: none !important; }
@@ -2420,23 +2429,28 @@ body {
   color: var(--text-4);
 }
 
-/* Calendar column (Portfolio tab): always stacked (grid on top, activity list
- * directly below, no gap) rather than CalendarView's own default side-by-side
- * layout (grid + 300px list) — the Portfolio column isn't wide enough for
- * both side by side without squeezing the grid. calendar-main is shrunk to
- * its natural content height (nav + aspect-ratio grid); the activity list
- * below it is flex:1 (not a fixed 380px) so it fills whatever's left of the
- * pf-column's full height instead of stopping short and leaving dead space
- * underneath with its own internal scroll doing more work than it needs to.
- * The embed's own root div and .calendar-layout stay height:100% (the
- * default from CalendarView itself) so that leftover space exists for the
- * sidebar to actually flex into. */
+/* Calendar column (Portfolio tab): grid keeps a fixed ratio and the activity
+ * list fills whatever height is left under it. The account Calendar page
+ * instead lets the month grid grow with the window and caps the list (see
+ * CalendarView). calendar-main is shrunk to its natural content height
+ * (nav + aspect-ratio grid); the activity list below it is flex:1 so it
+ * fills the rest of the column instead of stopping at the page's 300px cap.
+ * The embed's own root div and .calendar-layout stay height:100% so that
+ * leftover space exists for the list to flex into. */
 .dash-calendar-embed .calendar-layout { flex-direction: column !important; }
 .dash-calendar-embed .calendar-main { flex: none !important; padding: 12px !important; overflow: visible !important; }
+.dash-calendar-embed .calendar-ratio-box {
+  aspect-ratio: 16 / 9 !important;
+  flex: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
 .dash-calendar-embed .calendar-sidebar {
   width: 100% !important; border-left: none !important;
   border-top: 1px solid var(--border) !important;
   flex: 1 !important; height: auto !important; max-height: none !important; min-height: 0 !important;
+  margin: 0 !important;
 }
 
 /* Scanner param/ticker inputs must stay >=16px on mobile so iOS Safari (as an

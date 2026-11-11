@@ -9,6 +9,7 @@ import { buildEconEventMap, type EconEvent } from '../../data/economicEvents'
 import { buildJournalPositions, buildStockPositions, type JournalPosition } from '../../engine/journal'
 import { tradeId } from '../../store/tradeLabelsStore'
 import { STRAT_ORDER, stratLabel } from '../companies/reportsShared'
+import { calendarYMD, sydneyTodayYMD, sydneyYearMonth } from './sydneyDate'
 
 // Calendar's filter chips are a fixed 76px wide — "Synthetic Long" and
 // "Shares" (the full labels used elsewhere, e.g. Journal/Reports) don't fit
@@ -95,11 +96,6 @@ function normalizeDate(s: string): string {
   const m = s.match(/^(\d{4})(\d{2})(\d{2})$/)
   return m ? `${m[1]}-${m[2]}-${m[3]}` : s
 }
-
-function todayYMD(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 
 function isoWeek(d: Date): number {
   const dt = new Date(d.getTime())
@@ -233,12 +229,12 @@ function buildCalYearWeeks(year: number, dailyPnl: Record<string, number>, group
   const byMonth = new Map<number, CalWeekRow[]>()
   while (monday < yearEnd) {
     const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6)
-    const startDate = monday.toISOString().slice(0, 10)
-    const endDate = sunday.toISOString().slice(0, 10)
+    const startDate = calendarYMD(monday)
+    const endDate = calendarYMD(sunday)
     let total = 0
     const notes: string[] = []
     for (let d = new Date(monday); d <= sunday; d.setDate(d.getDate() + 1)) {
-      const ds = d.toISOString().slice(0, 10)
+      const ds = calendarYMD(d)
       total += dailyPnl[ds] ?? 0
     }
     for (const g of groupedEvents) {
@@ -296,7 +292,7 @@ function MultiYearCalendarView({ trades, events, positions }: { trades: RawTrade
   // simply have MORE rows than another's. Padding every column's month to
   // the tallest column's row count for that month (with blank filler rows)
   // keeps every month starting at the same running height across columns.
-  const todayStr = todayYMD()
+  const todayStr = sydneyTodayYMD()
 
   const maxRunsByMonth = useMemo(() => {
     const max = new Array(12).fill(1)
@@ -586,13 +582,6 @@ function DayCell({
   isSelected: boolean
   onClick: () => void
 }) {
-  if (!date) return <div style={{ background: 'var(--bg-surface)' }} />
-
-  const dayNum = parseInt(date.split('-')[2])
-  const { events, trades, hasActivity, earnings, holiday, econEvents } = data
-  const hasPnL = trades && trades.netCash !== 0
-  const isHoliday = !!holiday
-
   const listRef = useRef<HTMLDivElement>(null)
   const [hiddenCount, setHiddenCount] = useState(0)
 
@@ -607,6 +596,13 @@ function DayCell({
     })
     setHiddenCount(count)
   })
+
+  if (!date) return <div style={{ background: 'var(--bg-surface)' }} />
+
+  const dayNum = parseInt(date.split('-')[2])
+  const { events, trades, hasActivity, earnings, holiday, econEvents } = data
+  const hasPnL = trades && trades.netCash !== 0
+  const isHoliday = !!holiday
 
   return (
     <div
@@ -844,12 +840,12 @@ function ActivitySidebar({
     : 'All Activity'
 
   return (
-    <div className="calendar-activity-sidebar" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
+    <div className="calendar-activity-sidebar" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1, minHeight: 0 }}>
       <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text-2)', letterSpacing: '0.08em', flexShrink: 0 }}>
         {title.toUpperCase()}
       </div>
 
-      <div className="calendar-activity-list" style={{ flex: 1, overflow: 'auto' }}>
+      <div className="calendar-activity-list" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
         {displayDates.length === 0 && (
           <div style={{ padding: 24, color: 'var(--text-3)', fontSize: 14, textAlign: 'center' }}>
             No activity
@@ -974,9 +970,8 @@ function ActivitySidebar({
 // ─── Main view ────────────────────────────────────────────────────────────────
 
 export default function CalendarView({ state, watchlistTickers = [], tradeLabels }: Props) {
-  const today = new Date()
-  const [year, setYear]     = useState(today.getFullYear())
-  const [month, setMonth]   = useState(today.getMonth())
+  const [year, setYear] = useState(() => sydneyYearMonth().year)
+  const [month, setMonth] = useState(() => sydneyYearMonth().month)
   const [selected, setSelected] = useState<string | null>(null)
   const [view, setView] = useState<'month' | 'multiyear'>('month')
 
@@ -1059,23 +1054,6 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
     return state.sync.trades.filter(t => strategyFilter.has(tradeStrategy.get(tradeId(t)) ?? 'unlabelled'))
   }, [state.sync.trades, strategyFilter, tradeStrategy])
 
-  // The sidebar must never grow past the calendar box's own height (a long
-  // trade day list was pushing the whole card taller than the calendar and
-  // overlapping the row below it) — measure the calendar's actual rendered
-  // height and cap the sidebar to it, scrolling internally instead.
-  const calMainRef = useRef<HTMLDivElement>(null)
-  const [calHeight, setCalHeight] = useState<number | null>(null)
-  useLayoutEffect(() => {
-    const el = calMainRef.current
-    if (!el) return
-    const ro = new ResizeObserver(entries => {
-      const h = entries[0]?.contentRect.height
-      if (h) setCalHeight(h)
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
   // Earnings dates (fetched once, cached 6h) — the user's Watchlist plus every
   // ticker actually traded (stock symbol or option underlying), so tickers
   // outside the watchlist still get their earnings date pulled and shown.
@@ -1109,7 +1087,7 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
   }, [events])
 
   const weeks = useMemo(() => calendarWeeks(year, month), [year, month])
-  const todayStr = todayYMD()
+  const todayStr = sydneyTodayYMD()
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11) }
@@ -1246,14 +1224,16 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
         <MultiYearCalendarView trades={state.sync.trades} events={events} positions={positions} />
       ) : (
       <>
-      {/* ── Top: Calendar + Sidebar ──────────────────────────────────────── */}
-      <div className="calendar-layout" style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+      {/* Calendar fills the width and height the activity column used to
+          take. All Activity sits underneath and scrolls on its own, so a
+          taller or wider window grows the month grid instead of leaving a
+          band of empty space under a 16:9 box. */}
+      <div className="calendar-layout" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
 
         {/* Calendar grid */}
-        <div ref={calMainRef} className="calendar-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto', padding: '0 20px 16px' }}>
+        <div className="calendar-main" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '0 20px 8px' }}>
 
-          {/* Fixed-ratio landscape calendar block — headers + grid together */}
-          <div className="calendar-ratio-box" style={{ width: '100%', aspectRatio: '16 / 9', maxHeight: '100%', display: 'flex', flexDirection: 'column', margin: '0 auto' }}>
+          <div className="calendar-ratio-box" style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
 
             {/* Day headers: Mon–Fri + WK P&L */}
             <div className="calendar-header-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) 100px', gap: 3, marginBottom: 3, flexShrink: 0 }}>
@@ -1292,12 +1272,18 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
           </div>
         </div>
 
-        {/* Activity sidebar */}
+        {/* Activity list — under the grid, bounded so the month can keep
+            the leftover width and height. The list scrolls when the month
+            has more days than the strip can show. */}
         <div className="calendar-sidebar" style={{
-          width: 300, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column',
-          overflow: 'hidden', flexShrink: 0,
-          height: calHeight ? `${calHeight}px` : '100%',
-          maxHeight: calHeight ? `${calHeight}px` : undefined,
+          flex: '0 1 300px',
+          minHeight: 140,
+          maxHeight: 300,
+          margin: '0 20px 12px',
+          borderTop: '1px solid var(--border)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
         }}>
           <ActivitySidebar events={events} dailyTrades={dailyTrades} earningsByDateMap={earningsByDateMap} econEventMap={econEventMap} selectedDate={selected} year={year} month={month} />
         </div>
