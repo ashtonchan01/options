@@ -2210,6 +2210,48 @@ body {
   overflow: hidden;
 }
 .dash-left-heatmap .dash-panel > div:last-child { height: 100%; }
+/* Sector tiles wrap into as few rows as stay landscape. Height is capped
+   just under the tile's width so a tall card cannot stretch them into bars. */
+.dash-heat-rows {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dash-heat-row {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.dash-heat-slot {
+  container-type: size;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.dash-heat-tile {
+  width: 100%;
+  height: min(100cqh, 92cqw);
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
 /* Two rows of index charts. Each tile is capped below its own width so it
    stays landscape even when the chart block is as tall as the heatmap. */
 .dash-charts-rows {
@@ -2253,25 +2295,6 @@ body {
   flex-direction: column;
   gap: 2px;
   overflow: hidden;
-}
-/* 11 tiles in one row once the map half is wide enough. Below that, pick a
-   column count that does not leave a single tile alone on the last row
-   (11 is prime: 6+5, then 4+4+3, then 3+3+3+2). */
-@container dashleft (max-width: 1080px) {
-  .dash-left-heatmap .dash-panel > div:last-child {
-    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-    grid-auto-rows: minmax(0, 1fr) !important;
-  }
-}
-@container dashleft (max-width: 680px) {
-  .dash-left-heatmap .dash-panel > div:last-child {
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  }
-}
-@container dashleft (max-width: 460px) {
-  .dash-left-heatmap .dash-panel > div:last-child {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }
 }
 /* Single shared scrollbar for the whole right side — World-Monitor-style —
    covering both the two columns AND any "wide" panel (see useWideMap)
@@ -2503,13 +2526,18 @@ body {
   .dash-pairs-list { flex: none !important; }
   .dash-rsi-card { flex: none !important; min-height: 42px !important; }
 
-  /* Sector Heatmap: 11 equal columns (fine on desktop) squeeze into slivers
-     at mobile width. Wrap into several rows of wider tiles instead — no
-     horizontal scroll, the row just grows to fit them all (dash-left-heatmap
-     above is height:auto/no max-height so the extra rows have room). */
-  .dash-left-heatmap .dash-panel > div:last-child {
-    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)) !important;
-    grid-auto-rows: minmax(56px, auto) !important;
+  .dash-left-heatmap .dash-heat-rows { height: auto !important; overflow: hidden !important; }
+  .dash-left-heatmap .dash-panel > .dash-heat-rows > .dash-heat-row {
+    flex: none !important;
+    width: 100% !important;
+    height: auto !important;
+    min-width: 0 !important;
+  }
+  .dash-left-heatmap .dash-heat-slot { height: auto !important; }
+  .dash-left-heatmap .dash-heat-tile {
+    height: auto !important;
+    aspect-ratio: 8 / 5;
+    max-height: none !important;
   }
 
   /* Pair Trading's side-by-side Overbought/Oversold columns don't have room

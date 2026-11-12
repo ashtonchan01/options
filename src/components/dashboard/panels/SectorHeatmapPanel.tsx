@@ -3,12 +3,38 @@
  * change, World-Monitor-style. Free data (Yahoo via the existing
  * /api/markets proxy), no new backend needed.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { RefreshCw, Grid3x3 } from 'lucide-react'
 import { fetchMarketQuotes, type MarketQuote } from '../../../services/markets'
 import { SECTOR_ETFS } from '../../../data/sectorEtfs'
 
 const REFRESH_MS = 60_000
+
+/** Row lengths that share 11 tiles without a one-tile last row.
+ *  The first plan whose narrowest tile is wider than it is tall wins,
+ *  so a wide window wraps instead of stretching one row into portrait bars. */
+const HEAT_PLANS: number[][] = [
+  [11],
+  [6, 5],
+  [4, 4, 3],
+  [3, 3, 3, 2],
+]
+
+function heatPlan(width: number, height: number): number[] {
+  const gap = 4
+  if (width < 40 || height < 40) return [4, 4, 3]
+  for (const plan of HEAT_PLANS) {
+    const fullest = Math.max(...plan)
+    const tileW = (width - gap * (fullest - 1)) / fullest
+    const tileH = (height - gap * (plan.length - 1)) / plan.length
+    if (tileW > tileH + 4) return plan
+  }
+  return [3, 3, 3, 2]
+}
+
+function samePlan(a: number[], b: number[]) {
+  return a.length === b.length && a.every((n, i) => n === b[i])
+}
 
 /** Green/red intensity scales with |%change|, capped at 3% so one outlier
  * sector doesn't wash out the rest of the grid. */
@@ -21,6 +47,8 @@ function heatColor(pct: number | undefined): string {
 export default function SectorHeatmapPanel() {
   const [quotes, setQuotes] = useState<Record<string, MarketQuote>>({})
   const [loading, setLoading] = useState(false)
+  const [plan, setPlan] = useState<number[]>([6, 5])
+  const rowsRef = useRef<HTMLDivElement>(null)
 
   async function load() {
     setLoading(true)
@@ -36,6 +64,27 @@ export default function SectorHeatmapPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useLayoutEffect(() => {
+    const el = rowsRef.current
+    if (!el) return
+    const measure = () => {
+      const { width, height } = el.getBoundingClientRect()
+      const next = heatPlan(width, height)
+      setPlan(prev => (samePlan(prev, next) ? prev : next))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const rows: { symbol: string; name: string }[][] = []
+  let cursor = 0
+  for (const count of plan) {
+    rows.push(SECTOR_ETFS.slice(cursor, cursor + count))
+    cursor += count
+  }
+
   return (
     <div className="dash-panel">
       <div className="dash-panel-header" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -48,37 +97,28 @@ export default function SectorHeatmapPanel() {
           <RefreshCw size={11} style={{ animation: loading ? 'spin 1.5s linear infinite' : 'none' }} />
         </button>
       </div>
-      {/* Exactly SECTOR_ETFS.length equal columns (not auto-fill/minmax) —
-          auto-fill wrapped to however many ~90px columns fit and left
-          whatever didn't divide evenly as a dead gap on the last row's
-          right edge, instead of every sector's tile actually sharing the
-          panel's full width. A single explicit row also stretches to fill
-          the panel's full height by default, instead of gridAutoRows'
-          minmax(0,1fr) leaving row height to whatever the tallest tile's
-          own content needed. */}
-      <div style={{
-        flex: 1, minHeight: 0, display: 'grid',
-        gridTemplateColumns: `repeat(${SECTOR_ETFS.length}, 1fr)`,
-        gap: 4, padding: '2px 2px 4px',
-      }}>
-        {SECTOR_ETFS.map(s => {
-          const q = quotes[s.symbol]
-          return (
-            <div key={s.symbol} style={{
-              background: heatColor(q?.changePercent), border: '1px solid var(--border-light)', borderRadius: 6,
-              padding: '6px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 0,
-            }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-2)' }}>{s.symbol}</div>
-              <div style={{ fontSize: 9, color: 'var(--text-4)', lineHeight: 1.3, marginBottom: 2 }}>{s.name}</div>
-              <div style={{
-                fontSize: 12.5, fontWeight: 800, fontFamily: 'Inter, sans-serif',
-                color: q ? (q.changePercent >= 0 ? '#10b981' : '#f43f5e') : 'var(--text-4)',
-              }}>
-                {q ? `${q.changePercent >= 0 ? '+' : ''}${q.changePercent.toFixed(2)}%` : '—'}
-              </div>
-            </div>
-          )
-        })}
+      <div className="dash-heat-rows" ref={rowsRef}>
+        {rows.map((row, i) => (
+          <div className="dash-heat-row" key={i}>
+            {row.map(s => {
+              const q = quotes[s.symbol]
+              return (
+                <div className="dash-heat-slot" key={s.symbol}>
+                  <div className="dash-heat-tile" style={{ background: heatColor(q?.changePercent) }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-2)' }}>{s.symbol}</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-4)', lineHeight: 1.3 }}>{s.name}</div>
+                    <div style={{
+                      fontSize: 12.5, fontWeight: 800, fontFamily: 'Inter, sans-serif', marginTop: 'auto',
+                      color: q ? (q.changePercent >= 0 ? '#10b981' : '#f43f5e') : 'var(--text-4)',
+                    }}>
+                      {q ? `${q.changePercent >= 0 ? '+' : ''}${q.changePercent.toFixed(2)}%` : '—'}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ))}
       </div>
     </div>
   )
