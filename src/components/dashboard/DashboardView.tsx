@@ -1,10 +1,10 @@
 /**
- * World-Monitor-style overview. The main area is an even split: the map
- * column and the Live TV column are each half the width. The map fills its
- * half and keeps its own aspect ratio. Live TV fills its half as a 16:9
+ * World-Monitor-style overview. The main area is a 60/40 split: the map
+ * column takes 60% of the width and Live TV takes 40%. The map fills its
+ * column and keeps its own aspect ratio. Live TV fills its column as a 16:9
  * player and stays the top card there. The sector heatmap and the index
- * sparkline strip stay in the map half, under the map — the strip does not
- * run under the video. Fear & Greed and Pair Trading stack under the video;
+ * sparkline strip stay in the map column, under the map, and share that
+ * leftover height equally. Fear & Greed and Pair Trading stack under the video;
  * Watchlist is the other column on that side. Each right-side panel has a
  * drag handle on its bottom edge to resize its height (remembered per panel —
  * see ResizablePanel/useResizablePanel) and a right-edge handle to expand

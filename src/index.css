@@ -2133,14 +2133,14 @@ body {
   overflow: hidden;
   box-sizing: border-box;
 }
-/* Even split of the main area: map half and Live TV half. minmax(0, 1fr)
-   so a card's min-content width cannot pull one side wider than the other.
-   The index strip and heatmap stay inside the map half. */
+/* 60/40 split of the main area: map column, then Live TV. minmax(0, …fr)
+   so a card's min-content width cannot pull one side off that ratio.
+   The index strip and heatmap stay inside the map column. */
 .dash-top {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   grid-template-rows: minmax(0, 1fr);
   gap: 6px;
 }
@@ -2196,14 +2196,19 @@ body {
   container-type: inline-size;
   container-name: dashleft;
 }
-/* The map card is only as tall as its crop. The heatmap under it takes
-   the rest of the column, so that space is not an empty band and the map
-   is not stretched to fill it. */
+/* The map card is only as tall as its crop. The heatmap and the index
+   strip under it split whatever height is left, so the two cards match
+   and the map is not stretched to fill the column. */
 .dash-left-map { flex: 0 0 auto; min-height: 0; overflow: hidden; }
 .dash-map-panel { flex: 0 0 auto; }
 .dash-map-frame { width: 100%; height: auto; flex: none; }
-.dash-left-charts { flex: 0 0 auto; min-height: 0; min-width: 0; }
-.dash-left-heatmap { flex: 1 1 auto; min-height: 140px; min-width: 0; }
+.dash-left-heatmap,
+.dash-left-charts {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
 .dash-left-heatmap .dash-panel > div:last-child { height: 100%; }
 /* 11 tiles in one row once the map half is wide enough. Below that, pick a
    column count that does not leave a single tile alone on the last row
@@ -2211,7 +2216,7 @@ body {
 @container dashleft (max-width: 1080px) {
   .dash-left-heatmap .dash-panel > div:last-child {
     grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-    grid-auto-rows: minmax(72px, 1fr) !important;
+    grid-auto-rows: minmax(0, 1fr) !important;
   }
 }
 @container dashleft (max-width: 680px) {

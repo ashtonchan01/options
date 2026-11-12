@@ -59,9 +59,9 @@ export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Re
     ? { flex: 1, minWidth: 0, minHeight: 0, display: 'flex' as const, flexDirection: 'column' as const, gap: 8, overflowY: 'auto' as const, padding: '2px 2px 6px' }
     : layout === 'row-single'
     ? {
-      // One row under the map, only as wide as that half. Cards share the
-      // row equally. The heatmap takes the vertical space the map does not.
-      flex: '0 0 auto', minWidth: 0, minHeight: 108, height: 118, display: 'flex' as const, flexDirection: 'row' as const,
+      // One row under the map, only as wide as that column. The row grows
+      // to the same height as the heatmap card beside it in the column.
+      flex: '1 1 auto', minWidth: 0, minHeight: 108, display: 'flex' as const, flexDirection: 'row' as const,
       gap: 6, padding: '2px 0 4px',
     }
     : {
