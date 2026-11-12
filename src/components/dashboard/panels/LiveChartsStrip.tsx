@@ -8,6 +8,8 @@
  */
 import type { MarketQuote } from '../../../services/markets'
 
+// Shared with the dashboard quote fetch, so this file exports more than the component.
+// eslint-disable-next-line react-refresh/only-export-components
 export const MARKET_BAR_SYMBOLS = [
   { symbol: '^GSPC', name: 'S&P 500' },
   { symbol: '^DJI', name: 'Dow Jones' },
@@ -57,14 +59,10 @@ export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Re
     ? { flex: 1, minWidth: 0, minHeight: 0, display: 'flex' as const, flexDirection: 'column' as const, gap: 8, overflowY: 'auto' as const, padding: '2px 2px 6px' }
     : layout === 'row-single'
     ? {
-      // Fixed (not flex:1) so the row has a definite height itself — the card is
-      // deliberately shorter than its dashboard grid track, and if this stretched to
-      // fill the track instead, the panel's own border would still end early, leaving
-      // a blank gap of bare page background before the next grid row starts.
-      // No horizontal scroll — every card gets an equal flex share of the
-      // full width instead of a fixed 150px, so the strip fills edge to
-      // edge with no leftover gap (or scrollbar) after the last card.
-      height: 100, flexShrink: 0, display: 'flex' as const, flexDirection: 'row' as const,
+      // One row under the whole dashboard. Width follows the window; the
+      // row stays tall enough for a sparkline. The heatmap, not this strip,
+      // takes the vertical space the map does not use.
+      flex: '0 0 auto', minWidth: 0, minHeight: 100, height: 110, display: 'flex' as const, flexDirection: 'row' as const,
       gap: 10, padding: '2px 2px 6px',
     }
     : {

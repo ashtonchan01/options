@@ -1,9 +1,9 @@
 /**
- * World-Monitor-style overview. The map sits beside the right-hand cards.
- * Live TV stays at the top of its column and that column keeps a real
- * 16:9 width (it does not shrink into a thumbnail). Fear & Greed and Pair
- * Trading stack under the video; Watchlist is the other column. The index
- * strip and sector heatmap run full width underneath. Each right-side panel has a drag
+ * World-Monitor-style overview. The map sits beside the right-hand cards
+ * and keeps its own aspect ratio; the index strip and sector heatmap
+ * under it take whatever height the map does not. Live TV stays at the
+ * top of its column at a real 16:9 width. Fear & Greed and Pair Trading
+ * stack under the video; Watchlist is the other column. Each right-side panel has a drag
  * handle on its bottom edge to resize its height (remembered per panel —
  * see ResizablePanel/useResizablePanel) and a right-edge handle to expand
  * across both columns (see useWideMap) — wide panels render in their own
@@ -84,8 +84,13 @@ export default function DashboardView({ state, watchlistTickers = [] }: { state:
       <HeadlinesTicker />
       <div className="dash-wrap">
         <div className="dash-top">
-          <div className="dash-cell dash-left-map">
-            <WorldMapPanel quotes={quotes} now={now} />
+          <div className="dash-left-col">
+            <div className="dash-cell dash-left-map">
+              <WorldMapPanel quotes={quotes} now={now} />
+            </div>
+            <div className="dash-cell dash-left-heatmap">
+              <SectorHeatmapPanel />
+            </div>
           </div>
           <div className="dash-right-cols-wrap">
             {wideOnes.map(p => (
@@ -116,9 +121,6 @@ export default function DashboardView({ state, watchlistTickers = [] }: { state:
         </div>
         <div className="dash-cell dash-left-charts">
           <LiveChartsStrip quotes={quotes} layout="row-single" />
-        </div>
-        <div className="dash-cell dash-left-heatmap">
-          <SectorHeatmapPanel />
         </div>
       </div>
     </div>

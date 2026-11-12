@@ -258,8 +258,12 @@ export default function WorldMapPanel({ quotes, now }: { quotes: Record<string, 
         ))}
       </div>
 
-      <div ref={svgWrapRef} style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-        <svg viewBox={`${crop.x0} ${crop.y0} ${crop.width} ${crop.height}`} style={{ width: '100%', height: '100%', display: 'block' }}>
+      <div
+        ref={svgWrapRef}
+        className="dash-map-frame"
+        style={{ aspectRatio: `${crop.width} / ${crop.height}` }}
+      >
+        <svg viewBox={`${crop.x0} ${crop.y0} ${crop.width} ${crop.height}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', display: 'block' }}>
           <rect x={crop.x0} y={crop.y0} width={crop.width} height={crop.height} fill="var(--bg-surface)" />
           <path d={countriesPath} fill="var(--bg-active)" fillRule="evenodd" />
           <path d={bordersPath} fill="none" stroke="var(--border)" strokeWidth={0.5} />

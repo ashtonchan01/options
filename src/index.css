@@ -2176,9 +2176,32 @@ body {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
 }
-.dash-left-map { min-width: 0; min-height: 0; overflow: hidden; }
+.dash-left-col {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+  container-type: inline-size;
+  container-name: dashleft;
+}
+/* The map card is only as tall as its crop. The heatmap under it takes
+   the rest of the column, so that space is not an empty band and the map
+   is not stretched to fill it. */
+.dash-left-map { flex: 0 0 auto; min-height: 0; overflow: hidden; }
+.dash-map-panel { flex: 0 0 auto; }
+.dash-map-frame { width: 100%; }
 .dash-left-charts { flex: 0 0 auto; min-height: 0; min-width: 0; }
-.dash-left-heatmap { flex: 0 0 auto; min-height: 0; min-width: 0; }
+.dash-left-heatmap { flex: 1 1 auto; min-height: 140px; min-width: 0; }
+.dash-left-heatmap .dash-panel > div:last-child { height: 100%; }
+@container dashleft (max-width: 860px) {
+  .dash-left-heatmap .dash-panel > div:last-child {
+    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)) !important;
+    grid-auto-rows: minmax(72px, 1fr) !important;
+  }
+}
 /* Single shared scrollbar for the whole right side — World-Monitor-style —
    covering both the two columns AND any "wide" panel (see useWideMap)
    stacked above them, rather than scrolling just the two-column area. A
@@ -2347,7 +2370,10 @@ body {
      silently clipped with no scrollbar anywhere to reach it. */
   .dash-wrap { overflow-y: auto; overflow-x: hidden; }
   .dash-top { display: flex; flex-direction: column; flex: none; min-height: 0; grid-template-columns: none; }
-  .dash-right-cols-wrap, .dash-right-cols, .dash-right-col { flex: none; height: auto; overflow: visible; width: 100%; min-width: 0; }
+  .dash-left-col, .dash-right-cols-wrap, .dash-right-cols, .dash-right-col { flex: none; height: auto; overflow: visible; width: 100%; min-width: 0; }
+  .dash-left-map { min-height: 0; height: auto; }
+  .dash-left-charts { flex: 0 0 130px; min-height: 130px; height: auto; }
+  .dash-left-heatmap { flex: 0 0 auto; height: auto; min-height: 170px; }
   .dash-right-col:first-child, .dash-right-col:last-child { flex: none; width: 100%; min-width: 0; }
   .dash-right-col > .dash-resizable[data-sized="auto"]:only-child { height: auto !important; max-height: none; flex: none !important; }
   .dash-right-col > .dash-resizable[data-sized="auto"]:last-child:not(:only-child) { flex: none !important; height: auto !important; min-height: 0; }
@@ -2370,7 +2396,7 @@ body {
      actual (autoFit-measured, sometimes 500px+) row-table height, so it had
      to scroll instead of just being that tall. Scoping height rules to only
      these three cells (by class, not the shared blanket) fixes both. */
-  .dash-left-map { min-height: 320px; }
+  .dash-left-map { min-height: 0; height: auto; }
   /* 130px, not the earlier 190px: the card row itself is a fixed 100px tall
      (LiveChartsStrip's row-single gridStyle sets `height: 100` inline,
      unaffected by anything here) plus the panel's own 16px padding and the
