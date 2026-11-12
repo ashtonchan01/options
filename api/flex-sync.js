@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { ensureSchema, getSql } from './_lib/db.js'
 import { fetchFlexStatement } from './_lib/flexStatement.js'
 import { getSessionUser } from './_lib/session.js'
+import { followPlan } from './_lib/flexFollow.js'
 import {
   configuredFlexAccounts,
   flexWindowFromXml,
@@ -80,7 +81,13 @@ async function runCron(req, res) {
       return { ...account, record: schedule, windows }
     })
     const picked = pickDueAccount(now, candidates)
-    if (!picked) return res.status(200).json({ ran: null, reason: 'none-due' })
+    if (!picked) {
+      return res.status(200).json({
+        ran: null,
+        reason: 'none-due',
+        follow: followPlan(now, candidates),
+      })
+    }
 
     const { account, decision } = picked
     const result = await fetchFlexStatement({
@@ -94,6 +101,10 @@ async function runCron(req, res) {
       toDate: window?.toDate,
     })
     const code = result.ok ? null : (result.code ? String(result.code) : null)
+    account.record = schedule
+    if (result.ok && window) {
+      account.windows = [{ fromDate: window.fromDate, toDate: window.toDate }]
+    }
 
     if (result.ok && window) {
       await sql`
@@ -108,22 +119,29 @@ async function runCron(req, res) {
           last_code = EXCLUDED.last_code,
           updated_at = now()
       `
-      return res.status(200).json({ ran: account.key, status: 'saved', toDate: window.toDate })
+    } else {
+      await sql`
+        INSERT INTO flex_server_sync (account_key, schedule, last_code, updated_at)
+        VALUES (${account.key}, ${JSON.stringify(schedule)}::jsonb, ${code}, now())
+        ON CONFLICT (account_key) DO UPDATE SET
+          schedule = EXCLUDED.schedule,
+          last_code = EXCLUDED.last_code,
+          updated_at = now()
+      `
     }
 
-    await sql`
-      INSERT INTO flex_server_sync (account_key, schedule, last_code, updated_at)
-      VALUES (${account.key}, ${JSON.stringify(schedule)}::jsonb, ${code}, now())
-      ON CONFLICT (account_key) DO UPDATE SET
-        schedule = EXCLUDED.schedule,
-        last_code = EXCLUDED.last_code,
-        updated_at = now()
-    `
+    // After this account. The caller waits and posts again for the other
+    // account and for later slots; one invocation still fetches only one.
+    const follow = followPlan(new Date(), candidates)
+    if (result.ok && window) {
+      return res.status(200).json({ ran: account.key, status: 'saved', toDate: window.toDate, follow })
+    }
     const quiet = code === '1018' || code === '1019'
     return res.status(200).json({
       ran: account.key,
       status: quiet ? 'waiting' : 'error',
       code,
+      follow,
     })
   } catch {
     return res.status(500).json({ error: 'Flex check failed' })
