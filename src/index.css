@@ -2124,6 +2124,17 @@ body {
   overflow: hidden;
   box-sizing: border-box;
 }
+/* Map beside the right-hand cards. The right side has a floor so Live TV's
+   column stays wide enough for a real 16:9 player and the watchlist keeps
+   its columns. The index strip and heatmap sit under this band, full width. */
+.dash-top {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(240px, 0.85fr) minmax(760px, 1.2fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 6px;
+}
 /* Scrolling ticker-tape strip — the content is duplicated once in the
    component (see HeadlinesTicker) and the animation scrolls exactly one
    copy's width (translateX(-50%)) before looping, so the seam is invisible
@@ -2165,18 +2176,6 @@ body {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
 }
-/* Top band: map beside the side cards. The map used to take a fixed 60%
-   of the whole window, which left each right-hand column about 230px and
-   clipped the watchlist. The index strip and heatmap are full width under
-   this band, so the map can give that width up without crushing them. */
-.dash-top {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  gap: 6px;
-}
 .dash-left-map { min-width: 0; min-height: 0; overflow: hidden; }
 .dash-left-charts { flex: 0 0 auto; min-height: 0; min-width: 0; }
 .dash-left-heatmap { flex: 0 0 auto; min-height: 0; min-width: 0; }
@@ -2206,8 +2205,10 @@ body {
   gap: 6px;
   align-items: stretch;
 }
-/* Watchlist is the wider of the two columns so Last, Change, and Volume
-   stay on screen. Live TV can be narrower; its video scales with width. */
+/* The two right columns share the side. Live TV is the first card in the
+   first column, so that column has a floor: the 16:9 player stays a
+   substantial width instead of collapsing into a thumbnail beside a
+   wider watchlist. */
 .dash-right-col {
   min-width: 0;
   min-height: 0;
@@ -2217,14 +2218,13 @@ body {
   flex-direction: column;
   gap: 6px;
 }
-.dash-right-col:first-child { flex: 0.7 1 0; }
-.dash-right-col:last-child { flex: 1.45 1 0; }
+.dash-right-col:first-child { flex: 1 1 380px; min-width: 340px; }
+.dash-right-col:last-child { flex: 1 1 400px; min-width: 0; }
 .dash-right-col:empty { display: none; }
-/* A watchlist that hasn't been hand-resized fills its column, and the
-   rows scroll inside the card. In the other column the last card (Pair
-   Trading) takes whatever height Live TV and Fear & Greed leave, so its
-   header stays on screen and its lists scroll inside the card. A dragged
-   height (data-sized=manual) is left alone. */
+/* Live TV and Fear & Greed keep their content height, so the video is
+   never squeezed to make room underneath it. Pair Trading (last in that
+   column) and a lone Watchlist fill whatever is left. A dragged height
+   (data-sized=manual) is left alone. */
 .dash-right-col > .dash-resizable[data-sized="auto"]:not(:last-child) {
   flex: 0 0 auto;
   min-height: min-content;
@@ -2347,8 +2347,8 @@ body {
      silently clipped with no scrollbar anywhere to reach it. */
   .dash-wrap { overflow-y: auto; overflow-x: hidden; }
   .dash-top { display: flex; flex-direction: column; flex: none; min-height: 0; grid-template-columns: none; }
-  .dash-right-cols-wrap, .dash-right-cols, .dash-right-col { flex: none; height: auto; overflow: visible; width: 100%; }
-  .dash-right-col:first-child, .dash-right-col:last-child { flex: none; width: 100%; }
+  .dash-right-cols-wrap, .dash-right-cols, .dash-right-col { flex: none; height: auto; overflow: visible; width: 100%; min-width: 0; }
+  .dash-right-col:first-child, .dash-right-col:last-child { flex: none; width: 100%; min-width: 0; }
   .dash-right-col > .dash-resizable[data-sized="auto"]:only-child { height: auto !important; max-height: none; flex: none !important; }
   .dash-right-col > .dash-resizable[data-sized="auto"]:last-child:not(:only-child) { flex: none !important; height: auto !important; min-height: 0; }
   .dash-right-cols { flex-direction: column; }
@@ -2460,7 +2460,7 @@ body {
 }
 .dash-watchlist .trade-table th,
 .dash-watchlist .trade-table td {
-  padding: 4px 6px;
+  padding: 4px 4px;
   white-space: nowrap;
 }
 .dash-watchlist .trade-table th {

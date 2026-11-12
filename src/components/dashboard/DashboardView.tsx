@@ -1,18 +1,17 @@
 /**
- * World-Monitor-style overview. The top band is the World Map beside
- * the right-hand cards (Live TV, Fear & Greed, and Pair Trading in one
- * column, Watchlist in the other). The index strip and sector heatmap
- * sit underneath, across the full window, so they keep their columns
- * when the map gives width to the side cards. Each right-side panel has
- * a drag handle on its bottom edge to resize its height (remembered per
- * panel — see ResizablePanel/useResizablePanel) and a right-edge handle
- * to expand across both columns (see useWideMap) — wide panels render
- * in their own full-width row above the two columns. A thin scrolling headlines ticker (top 10 latest across
+ * World-Monitor-style overview. The map sits beside the right-hand cards.
+ * Live TV stays at the top of its column and that column keeps a real
+ * 16:9 width (it does not shrink into a thumbnail). Fear & Greed and Pair
+ * Trading stack under the video; Watchlist is the other column. The index
+ * strip and sector heatmap run full width underneath. Each right-side panel has a drag
+ * handle on its bottom edge to resize its height (remembered per panel —
+ * see ResizablePanel/useResizablePanel) and a right-edge handle to expand
+ * across both columns (see useWideMap) — wide panels render in their own
+ * full-width row above the two columns. A thin scrolling headlines ticker (top 10 latest across
  * followed tickers) runs above everything else, full width — replacing the
  * old boxed "Ticker Headlines" panel and the Market Movers panels (Trending
- * Tickers/Top Gainers/Top Losers/Most Active), both removed. Sector Heatmap
- * sits in the left column, below the Live Charts strip, rather than in the
- * right-side columns. Watchlist Breadth and Earnings Calendar are removed;
+ * Tickers/Top Gainers/Top Losers/Most Active), both removed. The index strip and Sector Heatmap run full width under
+ * the map and the side cards. Watchlist Breadth and Earnings Calendar are removed;
  * the second right-side column holds Watchlist, with Fear & Greed and Pair
  * Trading stacked under Live TV in the first.
  */
