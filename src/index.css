@@ -2224,13 +2224,13 @@ body {
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(var(--heat-cols, 6), minmax(0, 1fr));
   gap: 4px;
-  align-items: center;
+  align-items: stretch;
 }
 .dash-heat-slot {
   container-type: size;
-  flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   height: 100%;
@@ -2274,14 +2274,14 @@ body {
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(var(--chart-cols, 5), minmax(0, 1fr));
   gap: 6px;
-  align-items: center;
+  align-items: stretch;
 }
 .dash-chart-slot {
   container-type: size;
   container-name: chartslot;
-  flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   height: 100%;

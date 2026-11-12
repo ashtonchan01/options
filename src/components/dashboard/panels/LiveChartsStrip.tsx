@@ -140,7 +140,7 @@ export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Re
     }
     return (
       <div className="dash-panel">
-        <div className="dash-charts-rows" ref={rowsRef}>
+        <div className="dash-charts-rows" ref={rowsRef} style={{ '--chart-cols': Math.max(...plan) } as React.CSSProperties}>
           {rows.map((row, i) => (
             <div className="dash-charts-row" key={i}>
               {row.map(ex => (
