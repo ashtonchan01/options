@@ -6,6 +6,7 @@
  * list EXCHANGES holds for the world map — a separate, dedicated list here
  * so changing one doesn't affect the other.
  */
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { MarketQuote } from '../../../services/markets'
 
 // Shared with the dashboard quote fetch, so this file exports more than the component.
@@ -79,16 +80,67 @@ function ChartFace({ ex, quote, compact }: { ex: typeof CHART_CARDS[number]; quo
   )
 }
 
+/** Wide windows keep five charts over four. A stacked window sizes each
+ *  tile from the column width so the name and price fit, and wraps to
+ *  more rows instead of clipping them. */
+function chartPlan(width: number): number[] {
+  const stacked = typeof window !== 'undefined' && window.matchMedia('(max-width: 650px)').matches
+  if (!stacked) return [5, 4]
+  const gap = 6
+  const minTile = 168
+  const cols = Math.max(1, Math.min(4, Math.floor((width + gap) / (minTile + gap))))
+  const plan: number[] = []
+  let left = CHART_CARDS.length
+  while (left > 0) {
+    const n = Math.min(cols, left)
+    plan.push(n)
+    left -= n
+  }
+  return plan
+}
+
+function samePlan(a: number[], b: number[]) {
+  return a.length === b.length && a.every((n, i) => n === b[i])
+}
+
 /** `row`: wide landscape cards flowing in 3 stacked rows, horizontal scroll.
- * `row-single`: two rows under the map (five, then four). Each tile stays
- * landscape. The block matches the heatmap height.
+ * `row-single`: two landscape rows under the map on a wide window. A stacked
+ * window wraps further so each tile stays readable.
  * `column`: single vertical list of cards, for use as a narrow sidebar next to the map. */
 export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Record<string, MarketQuote>; layout?: 'row' | 'row-single' | 'column' }) {
+  const rowsRef = useRef<HTMLDivElement>(null)
+  const [plan, setPlan] = useState<number[]>([5, 4])
+
+  useLayoutEffect(() => {
+    if (layout !== 'row-single') return
+    const el = rowsRef.current
+    if (!el) return
+    const measure = () => {
+      const next = chartPlan(el.getBoundingClientRect().width)
+      setPlan(prev => (samePlan(prev, next) ? prev : next))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    const onChange = () => measure()
+    const query = window.matchMedia('(max-width: 650px)')
+    query.addEventListener('change', onChange)
+    return () => {
+      ro.disconnect()
+      query.removeEventListener('change', onChange)
+    }
+  }, [layout])
+
   if (layout === 'row-single') {
-    const rows = [CHART_CARDS.slice(0, 5), CHART_CARDS.slice(5)]
+    const rows: typeof CHART_CARDS[] = []
+    let cursor = 0
+    for (const count of plan) {
+      rows.push(CHART_CARDS.slice(cursor, cursor + count))
+      cursor += count
+    }
     return (
       <div className="dash-panel">
-        <div className="dash-charts-rows">
+        <div className="dash-charts-rows" ref={rowsRef}>
           {rows.map((row, i) => (
             <div className="dash-charts-row" key={i}>
               {row.map(ex => (
