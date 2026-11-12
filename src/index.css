@@ -2133,14 +2133,14 @@ body {
   overflow: hidden;
   box-sizing: border-box;
 }
-/* Map beside the right-hand cards. The right side has a floor so Live TV's
-   column stays wide enough for a real 16:9 player and the watchlist keeps
-   its columns. The index strip and heatmap sit under this band, full width. */
+/* Even split of the main area: map half and Live TV half. minmax(0, 1fr)
+   so a card's min-content width cannot pull one side wider than the other.
+   The index strip and heatmap stay inside the map half. */
 .dash-top {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(240px, 0.85fr) minmax(760px, 1.2fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   gap: 6px;
 }
@@ -2201,14 +2201,27 @@ body {
    is not stretched to fill it. */
 .dash-left-map { flex: 0 0 auto; min-height: 0; overflow: hidden; }
 .dash-map-panel { flex: 0 0 auto; }
-.dash-map-frame { width: 100%; }
+.dash-map-frame { width: 100%; height: auto; flex: none; }
 .dash-left-charts { flex: 0 0 auto; min-height: 0; min-width: 0; }
 .dash-left-heatmap { flex: 1 1 auto; min-height: 140px; min-width: 0; }
 .dash-left-heatmap .dash-panel > div:last-child { height: 100%; }
-@container dashleft (max-width: 860px) {
+/* 11 tiles in one row once the map half is wide enough. Below that, pick a
+   column count that does not leave a single tile alone on the last row
+   (11 is prime: 6+5, then 4+4+3, then 3+3+3+2). */
+@container dashleft (max-width: 1080px) {
   .dash-left-heatmap .dash-panel > div:last-child {
-    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)) !important;
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
     grid-auto-rows: minmax(72px, 1fr) !important;
+  }
+}
+@container dashleft (max-width: 680px) {
+  .dash-left-heatmap .dash-panel > div:last-child {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+@container dashleft (max-width: 460px) {
+  .dash-left-heatmap .dash-panel > div:last-child {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
 /* Single shared scrollbar for the whole right side — World-Monitor-style —
@@ -2237,10 +2250,9 @@ body {
   gap: 6px;
   align-items: stretch;
 }
-/* The two right columns share the side. Live TV is the first card in the
-   first column, so that column has a floor: the 16:9 player stays a
-   substantial width instead of collapsing into a thumbnail beside a
-   wider watchlist. */
+/* The two columns under Live TV share the right half equally. Live TV
+   itself spans that whole half (it starts wide — see useWideMap), so
+   neither column needs a pixel floor to keep the player large. */
 .dash-right-col {
   min-width: 0;
   min-height: 0;
@@ -2250,8 +2262,8 @@ body {
   flex-direction: column;
   gap: 6px;
 }
-.dash-right-col:first-child { flex: 1 1 380px; min-width: 340px; }
-.dash-right-col:last-child { flex: 1 1 400px; min-width: 0; }
+.dash-right-col:first-child,
+.dash-right-col:last-child { flex: 1 1 0; min-width: 0; }
 .dash-right-col:empty { display: none; }
 /* Live TV and Fear & Greed keep their content height, so the video is
    never squeezed to make room underneath it. Pair Trading (last in that
@@ -2381,7 +2393,7 @@ body {
   .dash-top { display: flex; flex-direction: column; flex: none; min-height: 0; grid-template-columns: none; }
   .dash-left-col, .dash-right-cols-wrap, .dash-right-cols, .dash-right-col { flex: none; height: auto; overflow: visible; width: 100%; min-width: 0; }
   .dash-left-map { min-height: 0; height: auto; }
-  .dash-left-charts { flex: 0 0 130px; min-height: 130px; height: auto; }
+  .dash-left-charts { flex: 0 0 auto; min-height: 130px; height: auto; }
   .dash-left-heatmap { flex: 0 0 auto; height: auto; min-height: 170px; }
   .dash-right-col:first-child, .dash-right-col:last-child { flex: none; width: 100%; min-width: 0; }
   .dash-right-col > .dash-resizable[data-sized="auto"]:only-child { height: auto !important; max-height: none; flex: none !important; }
@@ -2411,7 +2423,7 @@ body {
      unaffected by anything here) plus the panel's own 16px padding and the
      row's own 14px top/bottom padding — 190px left a ~60px dead gap below
      the cards before the heatmap started, exactly the reported bug. */
-  .dash-left-charts { flex: 0 0 130px; min-height: 130px; height: auto; }
+  .dash-left-charts { flex: 0 0 auto; min-height: 130px; height: auto; }
   .dash-left-heatmap { flex: 0 0 auto; height: auto; min-height: 170px; max-height: none; }
 
   /* Live Charts strip: at mobile widths splitting 9 cards into equal flex

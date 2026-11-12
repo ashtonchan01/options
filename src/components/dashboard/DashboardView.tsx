@@ -1,19 +1,17 @@
 /**
- * World-Monitor-style overview. The map sits beside the right-hand cards
- * and keeps its own aspect ratio; the index strip and sector heatmap
- * under it take whatever height the map does not. Live TV stays at the
- * top of its column at a real 16:9 width. Fear & Greed and Pair Trading
- * stack under the video; Watchlist is the other column. Each right-side panel has a drag
- * handle on its bottom edge to resize its height (remembered per panel —
+ * World-Monitor-style overview. The main area is an even split: the map
+ * column and the Live TV column are each half the width. The map fills its
+ * half and keeps its own aspect ratio. Live TV fills its half as a 16:9
+ * player and stays the top card there. The sector heatmap and the index
+ * sparkline strip stay in the map half, under the map — the strip does not
+ * run under the video. Fear & Greed and Pair Trading stack under the video;
+ * Watchlist is the other column on that side. Each right-side panel has a
+ * drag handle on its bottom edge to resize its height (remembered per panel —
  * see ResizablePanel/useResizablePanel) and a right-edge handle to expand
  * across both columns (see useWideMap) — wide panels render in their own
- * full-width row above the two columns. A thin scrolling headlines ticker (top 10 latest across
- * followed tickers) runs above everything else, full width — replacing the
- * old boxed "Ticker Headlines" panel and the Market Movers panels (Trending
- * Tickers/Top Gainers/Top Losers/Most Active), both removed. The index strip and Sector Heatmap run full width under
- * the map and the side cards. Watchlist Breadth and Earnings Calendar are removed;
- * the second right-side column holds Watchlist, with Fear & Greed and Pair
- * Trading stacked under Live TV in the first.
+ * full-width row above the two columns. A thin scrolling headlines ticker
+ * (top 10 latest across followed tickers) runs above everything else, full
+ * width. Watchlist Breadth and Earnings Calendar are removed.
  */
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../types'
@@ -91,6 +89,9 @@ export default function DashboardView({ state, watchlistTickers = [] }: { state:
             <div className="dash-cell dash-left-heatmap">
               <SectorHeatmapPanel />
             </div>
+            <div className="dash-cell dash-left-charts">
+              <LiveChartsStrip quotes={quotes} layout="row-single" />
+            </div>
           </div>
           <div className="dash-right-cols-wrap">
             {wideOnes.map(p => (
@@ -118,9 +119,6 @@ export default function DashboardView({ state, watchlistTickers = [] }: { state:
               </div>
             </div>
           </div>
-        </div>
-        <div className="dash-cell dash-left-charts">
-          <LiveChartsStrip quotes={quotes} layout="row-single" />
         </div>
       </div>
     </div>
