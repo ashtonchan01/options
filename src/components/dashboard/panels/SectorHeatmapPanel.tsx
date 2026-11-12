@@ -36,6 +36,27 @@ function samePlan(a: number[], b: number[]) {
   return a.length === b.length && a.every((n, i) => n === b[i])
 }
 
+/** Stacked layout: the card's height is its content, so measuring that
+ *  height and feeding it back into the row count collapses the grid into
+ *  one overflowing row. Pick columns from the width alone, wide enough
+ *  for a sector name and a percentage. */
+function stackedPlan(width: number, minTile: number, count: number): number[] {
+  const gap = 4
+  const cols = Math.max(1, Math.min(count, Math.floor((width + gap) / (minTile + gap))))
+  const plan: number[] = []
+  let left = count
+  while (left > 0) {
+    const n = Math.min(cols, left)
+    plan.push(n)
+    left -= n
+  }
+  return plan
+}
+
+function stackedLayout(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 650px)').matches
+}
+
 /** Green/red intensity scales with |%change|, capped at 3% so one outlier
  * sector doesn't wash out the rest of the grid. */
 function heatColor(pct: number | undefined): string {
@@ -69,13 +90,18 @@ export default function SectorHeatmapPanel() {
     if (!el) return
     const measure = () => {
       const { width, height } = el.getBoundingClientRect()
-      const next = heatPlan(width, height)
+      const next = stackedLayout() ? stackedPlan(width, 156, SECTOR_ETFS.length) : heatPlan(width, height)
       setPlan(prev => (samePlan(prev, next) ? prev : next))
     }
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
-    return () => ro.disconnect()
+    const query = window.matchMedia('(max-width: 650px)')
+    query.addEventListener('change', measure)
+    return () => {
+      ro.disconnect()
+      query.removeEventListener('change', measure)
+    }
   }, [])
 
   const rows: { symbol: string; name: string }[][] = []
@@ -106,7 +132,7 @@ export default function SectorHeatmapPanel() {
                 <div className="dash-heat-slot" key={s.symbol}>
                   <div className="dash-heat-tile" style={{ background: heatColor(q?.changePercent) }}>
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-2)' }}>{s.symbol}</div>
-                    <div style={{ fontSize: 9, color: 'var(--text-4)', lineHeight: 1.3 }}>{s.name}</div>
+                    <div className="dash-heat-name">{s.name}</div>
                     <div style={{
                       fontSize: 12.5, fontWeight: 800, fontFamily: 'Inter, sans-serif', marginTop: 'auto',
                       color: q ? (q.changePercent >= 0 ? '#10b981' : '#f43f5e') : 'var(--text-4)',

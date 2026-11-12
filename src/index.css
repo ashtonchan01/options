@@ -2252,6 +2252,14 @@ body {
   gap: 2px;
   overflow: hidden;
 }
+.dash-heat-name {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 9px;
+  color: var(--text-4);
+  line-height: 1.3;
+  overflow-wrap: break-word;
+}
 /* Two rows of index charts. Each tile is capped below its own width so it
    stays landscape even when the chart block is as tall as the heatmap. */
 .dash-charts-rows {
@@ -2465,8 +2473,7 @@ body {
   .dash-top { display: flex; flex-direction: column; flex: none; min-height: 0; grid-template-columns: none; }
   .dash-left-col, .dash-right-cols-wrap, .dash-right-cols, .dash-right-col { flex: none; height: auto; overflow: visible; width: 100%; min-width: 0; }
   .dash-left-map { min-height: 0; height: auto; }
-  .dash-left-charts { flex: 0 0 auto; min-height: 130px; height: auto; }
-  .dash-left-heatmap { flex: 0 0 auto; height: auto; min-height: 170px; }
+  .dash-left-charts, .dash-left-heatmap { flex: 0 0 auto; min-height: 0; height: auto; overflow: visible; }
   .dash-right-col:first-child, .dash-right-col:last-child { flex: none; width: 100%; min-width: 0; }
   .dash-right-col > .dash-resizable[data-sized="auto"]:only-child { height: auto !important; max-height: none; flex: none !important; }
   .dash-right-col > .dash-resizable[data-sized="auto"]:last-child:not(:only-child) { flex: none !important; height: auto !important; min-height: 0; }
@@ -2495,20 +2502,31 @@ body {
      unaffected by anything here) plus the panel's own 16px padding and the
      row's own 14px top/bottom padding — 190px left a ~60px dead gap below
      the cards before the heatmap started, exactly the reported bug. */
-  .dash-left-charts { flex: 0 0 auto; min-height: 130px; height: auto; }
-  .dash-left-heatmap { flex: 0 0 auto; height: auto; min-height: 170px; max-height: none; }
+  .dash-left-charts, .dash-left-heatmap { flex: 0 0 auto; min-height: 0; height: auto; max-height: none; overflow: visible; }
 
-  /* Two landscape rows, full width. The desktop equal-height flex would
-     collapse here because the column height is automatic. */
-  .dash-left-charts .dash-charts-rows { overflow: hidden !important; height: auto !important; }
-  .dash-left-charts .dash-panel > .dash-charts-rows > .dash-charts-row {
+  /* The stacked column sizes these cards from their tiles. A size container
+     with height:auto collapses to 0 and clips the charts, and a fixed
+     min-height leaves an empty band above that clip. */
+  .dash-left-charts .dash-charts-rows,
+  .dash-left-heatmap .dash-heat-rows {
+    flex: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .dash-left-charts .dash-panel > .dash-charts-rows > .dash-charts-row,
+  .dash-left-heatmap .dash-panel > .dash-heat-rows > .dash-heat-row {
     flex: none !important;
     min-width: 0 !important;
     width: 100% !important;
     height: auto !important;
   }
-  .dash-left-charts .dash-chart-slot { height: auto !important; }
-  .dash-left-charts .dash-chart-tile {
+  .dash-left-charts .dash-chart-slot,
+  .dash-left-heatmap .dash-heat-slot {
+    container-type: normal !important;
+    height: auto !important;
+  }
+  .dash-left-charts .dash-chart-tile,
+  .dash-left-heatmap .dash-heat-tile {
     height: auto !important;
     aspect-ratio: 8 / 5;
     max-height: none !important;
@@ -2525,20 +2543,6 @@ body {
      scrolling. */
   .dash-pairs-list { flex: none !important; }
   .dash-rsi-card { flex: none !important; min-height: 42px !important; }
-
-  .dash-left-heatmap .dash-heat-rows { height: auto !important; overflow: hidden !important; }
-  .dash-left-heatmap .dash-panel > .dash-heat-rows > .dash-heat-row {
-    flex: none !important;
-    width: 100% !important;
-    height: auto !important;
-    min-width: 0 !important;
-  }
-  .dash-left-heatmap .dash-heat-slot { height: auto !important; }
-  .dash-left-heatmap .dash-heat-tile {
-    height: auto !important;
-    aspect-ratio: 8 / 5;
-    max-height: none !important;
-  }
 
   /* Pair Trading's side-by-side Overbought/Oversold columns don't have room
      at mobile width — each card's price/streak/sparkline row wraps and
