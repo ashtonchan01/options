@@ -123,7 +123,7 @@ export default function SectorHeatmapPanel() {
           <RefreshCw size={11} style={{ animation: loading ? 'spin 1.5s linear infinite' : 'none' }} />
         </button>
       </div>
-      <div className="dash-heat-rows" ref={rowsRef}>
+      <div className="dash-heat-rows" ref={rowsRef} style={{ '--heat-cols': Math.max(...plan) } as React.CSSProperties}>
         {rows.map((row, i) => (
           <div className="dash-heat-row" key={i}>
             {row.map(s => {
