@@ -11,15 +11,15 @@ import type { MarketQuote } from '../../../services/markets'
 // Shared with the dashboard quote fetch, so this file exports more than the component.
 // eslint-disable-next-line react-refresh/only-export-components
 export const MARKET_BAR_SYMBOLS = [
-  { symbol: '^GSPC', name: 'S&P 500' },
-  { symbol: '^DJI', name: 'Dow Jones' },
-  { symbol: '^IXIC', name: 'Nasdaq' },
-  { symbol: '^RUT', name: 'Russell 2000' },
-  { symbol: 'CL=F', name: 'Crude Oil' },
-  { symbol: 'GC=F', name: 'Gold' },
-  { symbol: 'BTC-USD', name: 'Bitcoin USD' },
-  { symbol: '^TNX', name: '10-Yr Yield' },
-  { symbol: '^VIX', name: 'VIX' },
+  { symbol: '^GSPC', name: 'S&P 500', short: 'S&P' },
+  { symbol: '^DJI', name: 'Dow Jones', short: 'Dow' },
+  { symbol: '^IXIC', name: 'Nasdaq', short: 'Nasdaq' },
+  { symbol: '^RUT', name: 'Russell 2000', short: 'Russell' },
+  { symbol: 'CL=F', name: 'Crude Oil', short: 'Crude' },
+  { symbol: 'GC=F', name: 'Gold', short: 'Gold' },
+  { symbol: 'BTC-USD', name: 'Bitcoin USD', short: 'Bitcoin' },
+  { symbol: '^TNX', name: '10-Yr Yield', short: '10Y' },
+  { symbol: '^VIX', name: 'VIX', short: 'VIX' },
 ]
 const CHART_CARDS = MARKET_BAR_SYMBOLS
 
@@ -51,20 +51,62 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   )
 }
 
+function ChartFace({ ex, quote, compact }: { ex: typeof CHART_CARDS[number]; quote: MarketQuote | undefined; compact?: boolean }) {
+  const color = !quote ? 'var(--text-3)' : quote.change >= 0 ? '#10b981' : '#f43f5e'
+  return (
+    <>
+      <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: compact ? 'stretch' : 'baseline', justifyContent: 'space-between', gap: compact ? 1 : 6, flexShrink: 0, minWidth: 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {compact ? ex.short : ex.name}
+        </span>
+        {quote ? (
+          <span style={{ fontSize: 10, fontWeight: 600, fontFamily: 'Inter, sans-serif', color, flexShrink: 0 }}>
+            {quote.change >= 0 ? '+' : ''}{quote.changePercent.toFixed(2)}%
+          </span>
+        ) : (
+          <span style={{ fontSize: 10, color: 'var(--text-4)' }}>—</span>
+        )}
+      </div>
+      {quote && (
+        <span style={{ fontSize: compact ? 12 : 12.5, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {fmtPrice(quote.price)}
+        </span>
+      )}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {quote && quote.sparkline.length > 1 && <Sparkline data={quote.sparkline} color={color} />}
+      </div>
+    </>
+  )
+}
+
 /** `row`: wide landscape cards flowing in 3 stacked rows, horizontal scroll.
- * `row-single`: one single row of cards, horizontal scroll — for a strip under the map.
+ * `row-single`: two rows under the map (five, then four). Each tile stays
+ * landscape. The block matches the heatmap height.
  * `column`: single vertical list of cards, for use as a narrow sidebar next to the map. */
 export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Record<string, MarketQuote>; layout?: 'row' | 'row-single' | 'column' }) {
+  if (layout === 'row-single') {
+    const rows = [CHART_CARDS.slice(0, 5), CHART_CARDS.slice(5)]
+    return (
+      <div className="dash-panel">
+        <div className="dash-charts-rows">
+          {rows.map((row, i) => (
+            <div className="dash-charts-row" key={i}>
+              {row.map(ex => (
+                <div className="dash-chart-slot" key={ex.symbol}>
+                  <div className="dash-chart-tile" title={ex.name}>
+                    <ChartFace ex={ex} quote={quotes[ex.symbol]} compact />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   const gridStyle = layout === 'column'
     ? { flex: 1, minWidth: 0, minHeight: 0, display: 'flex' as const, flexDirection: 'column' as const, gap: 8, overflowY: 'auto' as const, padding: '2px 2px 6px' }
-    : layout === 'row-single'
-    ? {
-      // One row under the whole dashboard. Width follows the window; the
-      // row stays tall enough for a sparkline. The heatmap, not this strip,
-      // takes the vertical space the map does not use.
-      flex: '0 0 auto', minWidth: 0, minHeight: 100, height: 110, display: 'flex' as const, flexDirection: 'row' as const,
-      gap: 10, padding: '2px 2px 6px',
-    }
     : {
       flex: 1, minWidth: 0, minHeight: 0, display: 'grid' as const, gridTemplateRows: 'repeat(3, 1fr)', gridAutoFlow: 'column' as const,
       gridAutoColumns: '220px', gap: 10, overflowX: 'auto' as const, padding: '2px 2px 6px',
@@ -73,40 +115,16 @@ export default function LiveChartsStrip({ quotes, layout = 'row' }: { quotes: Re
   return (
     <div className="dash-panel">
       <div style={gridStyle}>
-        {CHART_CARDS.map(ex => {
-          const q = quotes[ex.symbol]
-          const color = !q ? 'var(--text-3)' : q.change >= 0 ? '#10b981' : '#f43f5e'
-          return (
-            <div key={ex.symbol} style={{
-              background: 'var(--bg-page)', border: '1px solid var(--border-light)',
-              borderRadius: 6, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4,
-              minWidth: 0, minHeight: layout === 'column' ? 90 : 0,
-              flexShrink: layout === 'column' ? 0 : undefined,
-              flex: layout === 'row-single' ? '1 1 0' : undefined,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {ex.name}
-                </span>
-                {q ? (
-                  <span style={{ fontSize: 10.5, fontWeight: 600, fontFamily: 'Inter, sans-serif', color, flexShrink: 0 }}>
-                    {q.change >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}%
-                  </span>
-                ) : (
-                  <span style={{ fontSize: 10, color: 'var(--text-4)' }}>—</span>
-                )}
-              </div>
-              {q && (
-                <span style={{ fontSize: 12.5, fontWeight: 700, fontFamily: 'Inter, sans-serif', color: 'var(--text-1)', flexShrink: 0 }}>
-                  {fmtPrice(q.price)}
-                </span>
-              )}
-              <div style={{ flex: 1, minHeight: 0 }}>
-                {q && q.sparkline.length > 1 && <Sparkline data={q.sparkline} color={color} />}
-              </div>
-            </div>
-          )
-        })}
+        {CHART_CARDS.map(ex => (
+          <div key={ex.symbol} title={ex.name} style={{
+            background: 'var(--bg-page)', border: '1px solid var(--border-light)',
+            borderRadius: 6, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4,
+            minWidth: 0, minHeight: layout === 'column' ? 90 : 0,
+            flexShrink: layout === 'column' ? 0 : undefined,
+          }}>
+            <ChartFace ex={ex} quote={quotes[ex.symbol]} />
+          </div>
+        ))}
       </div>
     </div>
   )

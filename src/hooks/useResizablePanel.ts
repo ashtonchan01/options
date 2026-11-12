@@ -10,6 +10,12 @@ import type { MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } fro
 
 const LS_MANUAL_PREFIX = 'options:panelManualHeight:'
 const LS_WIDE_KEY = 'options:panelWide'
+/** Once per browser, fold the current default wide set into a saved
+ * preference. Live TV spans the right half so the player matches the map's
+ * width. After that, dragging it narrow sticks. */
+const LS_WIDE_DEFAULT_KEY = 'options:panelWideDefault'
+const WIDE_DEFAULT_VERSION = 'map-tv-50'
+const DEFAULT_WIDE_IDS = ['livetv-2']
 
 function loadManualHeight(id: string): number | null {
   try {
@@ -122,8 +128,15 @@ export function useRowDragHandle(elRef: React.RefObject<HTMLElement | null>, onC
 function loadWideSet(): Set<string> {
   try {
     const raw = localStorage.getItem(LS_WIDE_KEY)
-    return raw ? new Set(JSON.parse(raw)) : new Set()
-  } catch { return new Set() }
+    const parsed = raw ? JSON.parse(raw) : []
+    const set = new Set<string>(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [])
+    if (localStorage.getItem(LS_WIDE_DEFAULT_KEY) !== WIDE_DEFAULT_VERSION) {
+      for (const id of DEFAULT_WIDE_IDS) set.add(id)
+      localStorage.setItem(LS_WIDE_KEY, JSON.stringify([...set]))
+      localStorage.setItem(LS_WIDE_DEFAULT_KEY, WIDE_DEFAULT_VERSION)
+    }
+    return set
+  } catch { return new Set(DEFAULT_WIDE_IDS) }
 }
 
 /** Tracks which right-side panels are toggled to span the full width of

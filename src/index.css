@@ -2133,14 +2133,14 @@ body {
   overflow: hidden;
   box-sizing: border-box;
 }
-/* Map beside the right-hand cards. The right side has a floor so Live TV's
-   column stays wide enough for a real 16:9 player and the watchlist keeps
-   its columns. The index strip and heatmap sit under this band, full width. */
+/* 55/45 split of the main area: map column, then Live TV. minmax(0, …fr)
+   so a card's min-content width cannot pull one side off that ratio.
+   11/9 is 55/45. The index charts and heatmap stay inside the map column. */
 .dash-top {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(240px, 0.85fr) minmax(760px, 1.2fr);
+  grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
   grid-template-rows: minmax(0, 1fr);
   gap: 6px;
 }
@@ -2196,20 +2196,105 @@ body {
   container-type: inline-size;
   container-name: dashleft;
 }
-/* The map card is only as tall as its crop. The heatmap under it takes
-   the rest of the column, so that space is not an empty band and the map
-   is not stretched to fill it. */
+/* The map card is only as tall as its crop. The heatmap and the index
+   strip under it split whatever height is left, so the two cards match
+   and the map is not stretched to fill the column. */
 .dash-left-map { flex: 0 0 auto; min-height: 0; overflow: hidden; }
 .dash-map-panel { flex: 0 0 auto; }
-.dash-map-frame { width: 100%; }
-.dash-left-charts { flex: 0 0 auto; min-height: 0; min-width: 0; }
-.dash-left-heatmap { flex: 1 1 auto; min-height: 140px; min-width: 0; }
+.dash-map-frame { width: 100%; height: auto; flex: none; }
+.dash-left-heatmap,
+.dash-left-charts {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
 .dash-left-heatmap .dash-panel > div:last-child { height: 100%; }
-@container dashleft (max-width: 860px) {
-  .dash-left-heatmap .dash-panel > div:last-child {
-    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)) !important;
-    grid-auto-rows: minmax(72px, 1fr) !important;
-  }
+/* Sector tiles wrap into as few rows as stay landscape. Height is capped
+   just under the tile's width so a tall card cannot stretch them into bars. */
+.dash-heat-rows {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dash-heat-row {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.dash-heat-slot {
+  container-type: size;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.dash-heat-tile {
+  width: 100%;
+  height: min(100cqh, 92cqw);
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+/* Two rows of index charts. Each tile is capped below its own width so it
+   stays landscape even when the chart block is as tall as the heatmap. */
+.dash-charts-rows {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dash-charts-row {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.dash-chart-slot {
+  container-type: size;
+  container-name: chartslot;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.dash-chart-tile {
+  width: 100%;
+  height: min(100cqh, 85cqw);
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  background: var(--bg-page);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
 }
 /* Single shared scrollbar for the whole right side — World-Monitor-style —
    covering both the two columns AND any "wide" panel (see useWideMap)
@@ -2237,10 +2322,9 @@ body {
   gap: 6px;
   align-items: stretch;
 }
-/* The two right columns share the side. Live TV is the first card in the
-   first column, so that column has a floor: the 16:9 player stays a
-   substantial width instead of collapsing into a thumbnail beside a
-   wider watchlist. */
+/* The two columns under Live TV share the right half equally. Live TV
+   itself spans that whole half (it starts wide — see useWideMap), so
+   neither column needs a pixel floor to keep the player large. */
 .dash-right-col {
   min-width: 0;
   min-height: 0;
@@ -2250,8 +2334,8 @@ body {
   flex-direction: column;
   gap: 6px;
 }
-.dash-right-col:first-child { flex: 1 1 380px; min-width: 340px; }
-.dash-right-col:last-child { flex: 1 1 400px; min-width: 0; }
+.dash-right-col:first-child,
+.dash-right-col:last-child { flex: 1 1 0; min-width: 0; }
 .dash-right-col:empty { display: none; }
 /* Live TV and Fear & Greed keep their content height, so the video is
    never squeezed to make room underneath it. Pair Trading (last in that
@@ -2381,7 +2465,7 @@ body {
   .dash-top { display: flex; flex-direction: column; flex: none; min-height: 0; grid-template-columns: none; }
   .dash-left-col, .dash-right-cols-wrap, .dash-right-cols, .dash-right-col { flex: none; height: auto; overflow: visible; width: 100%; min-width: 0; }
   .dash-left-map { min-height: 0; height: auto; }
-  .dash-left-charts { flex: 0 0 130px; min-height: 130px; height: auto; }
+  .dash-left-charts { flex: 0 0 auto; min-height: 130px; height: auto; }
   .dash-left-heatmap { flex: 0 0 auto; height: auto; min-height: 170px; }
   .dash-right-col:first-child, .dash-right-col:last-child { flex: none; width: 100%; min-width: 0; }
   .dash-right-col > .dash-resizable[data-sized="auto"]:only-child { height: auto !important; max-height: none; flex: none !important; }
@@ -2411,15 +2495,24 @@ body {
      unaffected by anything here) plus the panel's own 16px padding and the
      row's own 14px top/bottom padding — 190px left a ~60px dead gap below
      the cards before the heatmap started, exactly the reported bug. */
-  .dash-left-charts { flex: 0 0 130px; min-height: 130px; height: auto; }
+  .dash-left-charts { flex: 0 0 auto; min-height: 130px; height: auto; }
   .dash-left-heatmap { flex: 0 0 auto; height: auto; min-height: 170px; max-height: none; }
 
-  /* Live Charts strip: at mobile widths splitting 9 cards into equal flex
-     shares squeezes each into ~40px — unreadably "crumbled". Give cards a
-     real fixed width instead and let the row scroll horizontally, like the
-     wide-card `row`/`column` layouts already do elsewhere. */
-  .dash-left-charts .dash-panel > div { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
-  .dash-left-charts .dash-panel > div > div { flex: 0 0 128px !important; min-width: 128px !important; }
+  /* Two landscape rows, full width. The desktop equal-height flex would
+     collapse here because the column height is automatic. */
+  .dash-left-charts .dash-charts-rows { overflow: hidden !important; height: auto !important; }
+  .dash-left-charts .dash-panel > .dash-charts-rows > .dash-charts-row {
+    flex: none !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+  .dash-left-charts .dash-chart-slot { height: auto !important; }
+  .dash-left-charts .dash-chart-tile {
+    height: auto !important;
+    aspect-ratio: 8 / 5;
+    max-height: none !important;
+  }
 
   /* Pair Trading's Top-5 Overbought/Oversold lists: each RsiCard was sized
      `flex: 1` within a `flex: 1` list inside a now vertically-stacked (see
@@ -2433,13 +2526,18 @@ body {
   .dash-pairs-list { flex: none !important; }
   .dash-rsi-card { flex: none !important; min-height: 42px !important; }
 
-  /* Sector Heatmap: 11 equal columns (fine on desktop) squeeze into slivers
-     at mobile width. Wrap into several rows of wider tiles instead — no
-     horizontal scroll, the row just grows to fit them all (dash-left-heatmap
-     above is height:auto/no max-height so the extra rows have room). */
-  .dash-left-heatmap .dash-panel > div:last-child {
-    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)) !important;
-    grid-auto-rows: minmax(56px, auto) !important;
+  .dash-left-heatmap .dash-heat-rows { height: auto !important; overflow: hidden !important; }
+  .dash-left-heatmap .dash-panel > .dash-heat-rows > .dash-heat-row {
+    flex: none !important;
+    width: 100% !important;
+    height: auto !important;
+    min-width: 0 !important;
+  }
+  .dash-left-heatmap .dash-heat-slot { height: auto !important; }
+  .dash-left-heatmap .dash-heat-tile {
+    height: auto !important;
+    aspect-ratio: 8 / 5;
+    max-height: none !important;
   }
 
   /* Pair Trading's side-by-side Overbought/Oversold columns don't have room
