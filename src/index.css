@@ -2429,14 +2429,13 @@ body {
   color: var(--text-4);
 }
 
-/* Calendar column (Portfolio tab): grid keeps a fixed ratio and the activity
- * list fills whatever height is left under it. The account Calendar page
- * instead lets the month grid grow with the window and caps the list (see
- * CalendarView). calendar-main is shrunk to its natural content height
- * (nav + aspect-ratio grid); the activity list below it is flex:1 so it
- * fills the rest of the column instead of stopping at the page's 300px cap.
- * The embed's own root div and .calendar-layout stay height:100% so that
- * leftover space exists for the list to flex into. */
+/* Calendar column (Portfolio tab): always the list under a fixed-ratio grid.
+ * The account Calendar page chooses right-column vs. under-the-month itself
+ * (see activityPlacement). calendar-main is shrunk to its natural content
+ * height (nav + aspect-ratio grid); the activity list below it is flex:1 so
+ * it fills the rest of the column. The embed's own root div and
+ * .calendar-layout stay height:100% so that leftover space exists for the
+ * list to flex into. */
 .dash-calendar-embed .calendar-layout { flex-direction: column !important; }
 .dash-calendar-embed .calendar-main { flex: none !important; padding: 12px !important; overflow: visible !important; }
 .dash-calendar-embed .calendar-ratio-box {

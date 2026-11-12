@@ -5,6 +5,7 @@
  */
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { activityPlacement } from '../src/components/calendar/activityLayout'
 import { calendarYMD, sydneyTodayYMD, sydneyYearMonth } from '../src/components/calendar/sydneyDate'
 
 let failed = 0
@@ -88,6 +89,30 @@ if (tz.status === 0) {
 }
 
 check('calendarYMD reads local fields', calendarYMD(new Date(2026, 10, 12)) === '2026-11-12')
+
+// A window the 16:9 month already fills keeps All Activity in the right column.
+// 1100px wide, 640 tall: the month beside a 300px column is 800×450, leaving
+// only 190px — not enough to move the list under it.
+const typical = activityPlacement(1100, 640, false)
+check('typical window keeps the right column', typical.stacked === false, JSON.stringify(typical))
+
+// Taller window: the same width leaves 360px under the 16:9 month. The list
+// moves under it, capped so the month can grow past that 16:9 height.
+const tall = activityPlacement(1100, 810, false)
+check('tall window moves activity under the month', tall.stacked === true, JSON.stringify(tall))
+check('stacked list is capped at 300', tall.activityHeight === 300, JSON.stringify(tall))
+
+// Just tall enough to stack: the list takes the band, and the month keeps
+// the 16:9 height while gaining the column's width.
+const just = activityPlacement(1100, 670, false)
+check('220px of leftover stacks', just.stacked === true && just.activityHeight === 220, JSON.stringify(just))
+
+// Shrinking back through the hysteresis band stays stacked, then returns
+// to the column once the band is no longer useful.
+const hold = activityPlacement(1100, 640, true)
+check('hysteresis holds the stacked layout', hold.stacked === true, JSON.stringify(hold))
+const back = activityPlacement(1100, 620, true)
+check('short band returns activity to the side', back.stacked === false, JSON.stringify(back))
 
 if (failed) {
   console.error(`${failed} failed`)

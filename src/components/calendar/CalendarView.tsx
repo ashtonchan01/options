@@ -9,6 +9,7 @@ import { buildEconEventMap, type EconEvent } from '../../data/economicEvents'
 import { buildJournalPositions, buildStockPositions, type JournalPosition } from '../../engine/journal'
 import { tradeId } from '../../store/tradeLabelsStore'
 import { STRAT_ORDER, stratLabel } from '../companies/reportsShared'
+import { activityPlacement, type ActivityPlacement } from './activityLayout'
 import { calendarYMD, sydneyTodayYMD, sydneyYearMonth } from './sydneyDate'
 
 // Calendar's filter chips are a fixed 76px wide — "Synthetic Long" and
@@ -1089,6 +1090,34 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
   const weeks = useMemo(() => calendarWeeks(year, month), [year, month])
   const todayStr = sydneyTodayYMD()
 
+  // All Activity stays in the right-hand column unless the window is tall
+  // enough that a 16:9 month beside that column would leave a real band of
+  // empty space underneath. The list then moves into that band and the month
+  // takes the column's width (and any height past the list). Shrinking the
+  // window back returns the list to the column. Measured from the row's box,
+  // not from whichever layout is currently drawn, so the two modes can't
+  // chase each other.
+  const layoutRef = useRef<HTMLDivElement>(null)
+  const [placement, setPlacement] = useState<ActivityPlacement>({ stacked: false, activityHeight: 0 })
+  useLayoutEffect(() => {
+    if (view !== 'month') return
+    const el = layoutRef.current
+    if (!el) return
+    const apply = () => {
+      const width = el.clientWidth
+      const height = el.clientHeight
+      if (width <= 0 || height <= 0) return
+      setPlacement(prev => {
+        const next = activityPlacement(width, height, prev.stacked)
+        return next.stacked === prev.stacked && next.activityHeight === prev.activityHeight ? prev : next
+      })
+    }
+    const ro = new ResizeObserver(apply)
+    ro.observe(el)
+    apply()
+    return () => ro.disconnect()
+  }, [view])
+
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11) }
     else setMonth(m => m - 1)
@@ -1224,16 +1253,28 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
         <MultiYearCalendarView trades={state.sync.trades} events={events} positions={positions} />
       ) : (
       <>
-      {/* Calendar fills the width and height the activity column used to
-          take. All Activity sits underneath and scrolls on its own, so a
-          taller or wider window grows the month grid instead of leaving a
-          band of empty space under a 16:9 box. */}
-      <div className="calendar-layout" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+      {/* Right-hand column by default — the production layout. `placement`
+          moves the list under the month only while the window leaves a
+          useful band of space under the 16:9 grid. */}
+      <div
+        ref={layoutRef}
+        className="calendar-layout"
+        data-activity-placement={placement.stacked ? 'below' : 'side'}
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: placement.stacked ? 'column' : 'row',
+          minHeight: 0,
+          overflow: 'hidden',
+        }}
+      >
 
         {/* Calendar grid */}
-        <div className="calendar-main" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '0 20px 8px' }}>
+        <div className="calendar-main" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: placement.stacked ? '0 20px 8px' : '0 20px 16px' }}>
 
-          <div className="calendar-ratio-box" style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div className="calendar-ratio-box" style={placement.stacked
+            ? { width: '100%', flex: 1, minHeight: 0, maxHeight: '100%', display: 'flex', flexDirection: 'column' }
+            : { width: '100%', aspectRatio: '16 / 9', maxHeight: '100%', display: 'flex', flexDirection: 'column', margin: '0 auto' }}>
 
             {/* Day headers: Mon–Fri + WK P&L */}
             <div className="calendar-header-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) 100px', gap: 3, marginBottom: 3, flexShrink: 0 }}>
@@ -1272,15 +1313,20 @@ export default function CalendarView({ state, watchlistTickers = [], tradeLabels
           </div>
         </div>
 
-        {/* Activity list — under the grid, bounded so the month can keep
-            the leftover width and height. The list scrolls when the month
-            has more days than the strip can show. */}
-        <div className="calendar-sidebar" style={{
-          flex: '0 1 300px',
-          minHeight: 140,
-          maxHeight: 300,
+        <div className="calendar-sidebar" style={placement.stacked ? {
+          flex: `0 0 ${placement.activityHeight}px`,
+          height: placement.activityHeight,
+          minHeight: 0,
           margin: '0 20px 12px',
           borderTop: '1px solid var(--border)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        } : {
+          width: 300,
+          flexShrink: 0,
+          minHeight: 0,
+          borderLeft: '1px solid var(--border)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
