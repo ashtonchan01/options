@@ -2108,15 +2108,11 @@ body {
 }
 
 /* Dashboard overview — the screen itself never scrolls (dash-wrap is
-   height:100%, overflow:hidden). Left side (map/charts/headlines) is a
-   fixed, non-resizable column sized to exactly fill that height, same as
-   the dashboard's original layout. Right side is two independently
-   vertically-scrolling columns — each panel inside them has a resizable
-   height (native `resize: vertical` handle, size persisted — see
-   ResizablePanel/useResizablePanel) so panels can be shrunk to fit more on
-   screen at once, or left tall with the column scrolling to reach the
-   rest, instead of the previous column-wrapping masonry silently requiring
-   horizontal scrolling to reach panels pushed into extra columns. */
+   height:100%, overflow:hidden). The left column (map, sparklines,
+   heatmap) and the right column share the width and shrink with the
+   window. Right-side panels have a drag handle on the bottom edge; that
+   drag is the only height remembered (see useResizablePanel). Until then
+   each panel tracks its content, including after the window is resized. */
 /* Outer flex column holding the headlines ticker (fixed height) above
    dash-wrap (everything else, taking the remaining height) — dash-wrap used
    to BE the full-height root itself; now it just fills whatever height the
@@ -2132,9 +2128,21 @@ body {
   min-height: 0;
   padding: 6px;
   display: flex;
+  flex-direction: column;
   gap: 6px;
   overflow: hidden;
   box-sizing: border-box;
+}
+/* Map beside the right-hand cards. The right side has a floor so Live TV's
+   column stays wide enough for a real 16:9 player and the watchlist keeps
+   its columns. The index strip and heatmap sit under this band, full width. */
+.dash-top {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(240px, 0.85fr) minmax(760px, 1.2fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 6px;
 }
 /* Scrolling ticker-tape strip — the content is duplicated once in the
    component (see HeadlinesTicker) and the animation scrolls exactly one
@@ -2178,17 +2186,31 @@ body {
   to   { transform: translateX(-50%); }
 }
 .dash-left-col {
-  /* 3:2 split — map at 60% of the dashboard's width, right side (two
-     equal columns) at 40%. */
-  flex: 3 1 0;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow: auto;
+  container-type: inline-size;
+  container-name: dashleft;
 }
-.dash-left-map      { flex: 1; min-height: 0; }
-.dash-left-charts   { flex: 0 0 128px; }
-.dash-left-heatmap  { flex: 0 0 220px; }
+/* The map card is only as tall as its crop. The heatmap under it takes
+   the rest of the column, so that space is not an empty band and the map
+   is not stretched to fill it. */
+.dash-left-map { flex: 0 0 auto; min-height: 0; overflow: hidden; }
+.dash-map-panel { flex: 0 0 auto; }
+.dash-map-frame { width: 100%; }
+.dash-left-charts { flex: 0 0 auto; min-height: 0; min-width: 0; }
+.dash-left-heatmap { flex: 1 1 auto; min-height: 140px; min-width: 0; }
+.dash-left-heatmap .dash-panel > div:last-child { height: 100%; }
+@container dashleft (max-width: 860px) {
+  .dash-left-heatmap .dash-panel > div:last-child {
+    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)) !important;
+    grid-auto-rows: minmax(72px, 1fr) !important;
+  }
+}
 /* Single shared scrollbar for the whole right side — World-Monitor-style —
    covering both the two columns AND any "wide" panel (see useWideMap)
    stacked above them, rather than scrolling just the two-column area. A
@@ -2196,30 +2218,57 @@ body {
    and never moved when the rest of the page scrolled; moving overflow-y up
    to this wrapper fixes that. */
 .dash-right-cols-wrap {
-  flex: 2 1 0;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 /* A "wide" panel renders here, above the two columns, sized to the whole
    right side's width instead of just one column's. */
 .dash-right-cols-wrap > .dash-resizable { width: 100% !important; flex: 0 0 auto; }
 .dash-right-cols {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   display: flex;
   gap: 6px;
+  align-items: stretch;
 }
+/* The two right columns share the side. Live TV is the first card in the
+   first column, so that column has a floor: the 16:9 player stays a
+   substantial width instead of collapsing into a thumbnail beside a
+   wider watchlist. */
 .dash-right-col {
-  flex: 1;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+.dash-right-col:first-child { flex: 1 1 380px; min-width: 340px; }
+.dash-right-col:last-child { flex: 1 1 400px; min-width: 0; }
+.dash-right-col:empty { display: none; }
+/* Live TV and Fear & Greed keep their content height, so the video is
+   never squeezed to make room underneath it. Pair Trading (last in that
+   column) and a lone Watchlist fill whatever is left. A dragged height
+   (data-sized=manual) is left alone. */
+.dash-right-col > .dash-resizable[data-sized="auto"]:not(:last-child) {
+  flex: 0 0 auto;
+  min-height: min-content;
+}
+.dash-right-col > .dash-resizable[data-sized="auto"]:last-child:not(:only-child) {
+  flex: 1 1 auto;
+  min-height: 160px;
+}
+.dash-right-col > .dash-resizable[data-sized="auto"]:only-child {
+  flex: 1 1 auto;
+  height: 100%;
+  max-height: 100%;
 }
 .dash-cell { display: flex; min-width: 0; min-height: 0; }
 .dash-cell > * { flex: 1; min-width: 0; min-height: 0; }
@@ -2328,8 +2377,15 @@ body {
      of <main>) must stay the one bounded, actually-scrollable box. With
      height:auto here it grows past main's fixed box and its content is
      silently clipped with no scrollbar anywhere to reach it. */
-  .dash-wrap { flex-direction: column; overflow-y: auto; overflow-x: hidden; }
-  .dash-left-col, .dash-right-cols-wrap, .dash-right-cols, .dash-right-col { flex: none; overflow: visible; }
+  .dash-wrap { overflow-y: auto; overflow-x: hidden; }
+  .dash-top { display: flex; flex-direction: column; flex: none; min-height: 0; grid-template-columns: none; }
+  .dash-left-col, .dash-right-cols-wrap, .dash-right-cols, .dash-right-col { flex: none; height: auto; overflow: visible; width: 100%; min-width: 0; }
+  .dash-left-map { min-height: 0; height: auto; }
+  .dash-left-charts { flex: 0 0 130px; min-height: 130px; height: auto; }
+  .dash-left-heatmap { flex: 0 0 auto; height: auto; min-height: 170px; }
+  .dash-right-col:first-child, .dash-right-col:last-child { flex: none; width: 100%; min-width: 0; }
+  .dash-right-col > .dash-resizable[data-sized="auto"]:only-child { height: auto !important; max-height: none; flex: none !important; }
+  .dash-right-col > .dash-resizable[data-sized="auto"]:last-child:not(:only-child) { flex: none !important; height: auto !important; min-height: 0; }
   .dash-right-cols { flex-direction: column; }
   /* No "wide" concept on a single mobile column — every panel is already
      full width, so the drag handle would do nothing useful; hide it. */
@@ -2349,7 +2405,7 @@ body {
      actual (autoFit-measured, sometimes 500px+) row-table height, so it had
      to scroll instead of just being that tall. Scoping height rules to only
      these three cells (by class, not the shared blanket) fixes both. */
-  .dash-left-map { min-height: 320px; }
+  .dash-left-map { min-height: 0; height: auto; }
   /* 130px, not the earlier 190px: the card row itself is a fixed 100px tall
      (LiveChartsStrip's row-single gridStyle sets `height: 100` inline,
      unaffected by anything here) plus the panel's own 16px padding and the
@@ -2427,6 +2483,24 @@ body {
   font-size: 11px;
   font-weight: 500;
   color: var(--text-4);
+}
+/* The shared trade-table padding (10px 14px) and 1.5px tracked capitals
+   make seven watchlist columns wider than a dashboard card. Tighten this
+   copy only, and let the table grow to its columns so the card scrolls
+   inside itself when the window is still too narrow. */
+.dash-watchlist .trade-table {
+  width: max-content;
+  min-width: 100%;
+  font-size: 11px;
+}
+.dash-watchlist .trade-table th,
+.dash-watchlist .trade-table td {
+  padding: 4px 4px;
+  white-space: nowrap;
+}
+.dash-watchlist .trade-table th {
+  letter-spacing: 0.04em;
+  font-size: 9px;
 }
 
 /* Calendar column (Portfolio tab): always the list under a fixed-ratio grid.

@@ -1,118 +1,74 @@
 /**
- * Persisted manual resize for a dashboard panel — wraps the native CSS
- * `resize` handle (drag the bottom-right corner) instead of a JS drag
- * library, and remembers the size per panel (by `id`) in localStorage so it
- * survives reloads. Falls back to `defaultWidth`/`defaultHeight` the first
- * time a panel is seen.
+ * Height for a dashboard panel. Width always follows the column. Until the
+ * user drags the bottom edge, the card's height is left to CSS (content,
+ * or the column rules in index.css) so it grows and shrinks with the
+ * window. The drag is the only size written to localStorage — an earlier
+ * ResizeObserver persisted every layout pass, which froze the height.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from 'react'
 
-const LS_PREFIX = 'options:panelSize:'
+const LS_MANUAL_PREFIX = 'options:panelManualHeight:'
 const LS_WIDE_KEY = 'options:panelWide'
 
-function loadSize(id: string): { w: number; h: number } | null {
+function loadManualHeight(id: string): number | null {
   try {
-    const raw = localStorage.getItem(LS_PREFIX + id)
+    const raw = localStorage.getItem(LS_MANUAL_PREFIX + id)
     if (!raw) return null
-    const { w, h } = JSON.parse(raw)
-    return typeof w === 'number' && typeof h === 'number' ? { w, h } : null
+    const h = JSON.parse(raw)
+    return typeof h === 'number' && h > 0 ? h : null
   } catch { return null }
 }
 
-function saveSize(id: string, w: number, h: number) {
-  try { localStorage.setItem(LS_PREFIX + id, JSON.stringify({ w, h })) } catch { /* ignore */ }
+function saveManualHeight(id: string, h: number) {
+  try { localStorage.setItem(LS_MANUAL_PREFIX + id, JSON.stringify(h)) } catch { /* ignore */ }
 }
 
-const AUTO_FIT_MIN = 160
-const AUTO_FIT_MAX = 900
+function clearManualHeight(id: string) {
+  try { localStorage.removeItem(LS_MANUAL_PREFIX + id) } catch { /* ignore */ }
+}
 
 /** `axis: 'vertical'` — for panels stacked in an independently-scrolling
- * column, only height should be user-resizable; width tracking the
- * column's own width (not stored) is what keeps the column a fixed,
- * predictable size instead of individual panels drifting wider than it. */
+ * column, only height should be user-resizable; width tracks the column.
+ * `autoFit` stays in the signature so existing callers keep compiling;
+ * the column CSS does the sizing. */
 export function useResizablePanel(id: string, defaultWidth: number, defaultHeight: number, axis: 'both' | 'vertical' = 'both', autoFit = true) {
+  void autoFit
   const ref = useRef<HTMLDivElement>(null)
-  const stored = loadSize(id)
-  // Consumed once by the ResizeObserver below: set right before the auto-fit
-  // effect writes a height, so that write doesn't get mistaken for a user
-  // drag and permanently persisted — without this, the very first auto-fit
-  // adjustment saves itself as a "stored" size and disables auto-fit forever.
-  const autoFitting = useRef(false)
+  const [manualHeight, setManualHeight] = useState<number | null>(() => (
+    axis === 'vertical' ? loadManualHeight(id) : null
+  ))
 
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const ro = new ResizeObserver(([entry]) => {
-      if (autoFitting.current) { autoFitting.current = false; return }
-      const { width, height } = entry.contentRect
-      if (width <= 0 || height <= 0) return
-      clearTimeout(timer)
-      // Debounced — ResizeObserver fires continuously while dragging the
-      // native resize handle; only the settled final size is worth writing.
-      timer = setTimeout(() => saveSize(id, Math.round(width), Math.round(height)), 300)
-    })
-    ro.observe(el)
-    return () => { ro.disconnect(); clearTimeout(timer) }
-  }, [id])
+  function lockHeight(next: number) {
+    const h = Math.max(120, Math.round(next))
+    saveManualHeight(id, h)
+    setManualHeight(h)
+  }
 
-  // Most panels' hand-picked `defaultHeight` happens to roughly match their
-  // (largely static) content, so they render at "full height with the
-  // content" already. Panels whose content size actually varies — a
-  // followed-ticker headline grid chief among them — don't: the fixed
-  // default either crops real content behind a scrollbar or leaves a slab
-  // of empty space. This re-measures the panel's true (unclamped) content
-  // height whenever its DOM changes (data load, ticker list edits, etc.)
-  // and grows/shrinks the box to match, clamped to a sane range — but only
-  // until the user manually drags a handle, at which point a stored size
-  // exists and this stops touching it permanently.
-  useEffect(() => {
-    // Some panels (Live TV chief among them) shouldn't auto-fit at all — its
-    // video box derives ITS OWN size from the container's height (a
-    // chicken-and-egg loop with this effect's own "measure at height:auto"
-    // step), so auto-fit kept shrinking it back down to a small natural
-    // size no matter how tall its defaultHeight was set.
-    if (axis !== 'vertical' || !autoFit) return
-    const el = ref.current
-    if (!el) return
+  function resetHeight() {
+    clearManualHeight(id)
+    setManualHeight(null)
+  }
 
-    function fit() {
-      if (loadSize(id)) return // user has since set an explicit size — never override it
-      const prevHeight = el!.style.height
-      el!.style.height = 'auto'
-      const natural = el!.scrollHeight
-      el!.style.height = prevHeight
-      const clamped = Math.max(AUTO_FIT_MIN, Math.min(AUTO_FIT_MAX, natural))
-      if (Math.abs(clamped - el!.getBoundingClientRect().height) > 2) {
-        autoFitting.current = true
-        el!.style.height = `${clamped}px`
-      }
-    }
-
-    fit()
-    const mo = new MutationObserver(fit)
-    mo.observe(el, { childList: true, subtree: true, characterData: true })
-    return () => mo.disconnect()
-  }, [id, axis, autoFit])
+  // Until the user drags, leave height and flex off the inline style so the
+  // column CSS can size the card (content height, fill the column, or share
+  // the leftover space). An inline pixel height — including one written by
+  // an old auto-fit pass — froze the card when the window changed size.
+  const manual = manualHeight != null
+  const verticalStyle = manual
+    ? { width: '100%', height: manualHeight, resize: 'none' as const, overflow: 'auto' as const, flex: '0 0 auto' as const }
+    : { width: '100%', resize: 'none' as const, overflow: 'auto' as const }
 
   return {
     ref,
+    lockHeight,
+    resetHeight,
+    manual,
     style: axis === 'vertical'
-      ? {
-        width: '100%',
-        height: stored?.h ?? defaultHeight,
-        // JS drag handle (dash-row-resize-handle, below) replaces native
-        // `resize` — a full-width 20px bottom bar is a far easier target
-        // than the browser's own resize affordance, which only lives in a
-        // ~15px corner nub.
-        resize: 'none' as const,
-        overflow: 'auto' as const,
-        flex: '0 0 auto' as const,
-      }
+      ? verticalStyle
       : {
-        width: stored?.w ?? defaultWidth,
-        height: stored?.h ?? defaultHeight,
+        width: defaultWidth,
+        height: defaultHeight,
         resize: 'both' as const,
         overflow: 'auto' as const,
         flex: '0 0 auto' as const,
@@ -120,14 +76,11 @@ export function useResizablePanel(id: string, defaultWidth: number, defaultHeigh
   }
 }
 
-/** JS drag handle for the bottom edge — the row-height twin of
- * `useColDragHandle`, but continuous rather than threshold-flipped: our
- * panels have a free-form pixel height (persisted via the ResizeObserver in
- * `useResizablePanel` above, which watches the same element), so dragging
- * can just track the cursor directly instead of snapping to discrete steps.
- * Writes straight to the element's inline height — the existing
- * ResizeObserver + debounced localStorage save picks it up for free. */
-export function useRowDragHandle(elRef: React.RefObject<HTMLElement | null>) {
+/** JS drag handle for the bottom edge. Writes the height straight onto the
+ * element while the pointer moves, and commits it through `onCommit` at
+ * the start and end of the drag so the panel locks that height (and
+ * remembers it) instead of auto-fitting back to content. */
+export function useRowDragHandle(elRef: React.RefObject<HTMLElement | null>, onCommit?: (height: number) => void) {
   const [dragging, setDragging] = useState(false)
 
   function startDrag(clientY: number) {
@@ -135,6 +88,7 @@ export function useRowDragHandle(elRef: React.RefObject<HTMLElement | null>) {
     if (!el) return
     const startY = clientY
     const startHeight = el.getBoundingClientRect().height
+    onCommit?.(startHeight)
     setDragging(true)
 
     function handleMove(y: number) {
@@ -150,6 +104,7 @@ export function useRowDragHandle(elRef: React.RefObject<HTMLElement | null>) {
       document.removeEventListener('touchmove', onTouchMove)
       document.removeEventListener('touchend', stop)
       document.removeEventListener('touchcancel', stop)
+      if (elRef.current) onCommit?.(elRef.current.getBoundingClientRect().height)
     }
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', stop)
