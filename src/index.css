@@ -2133,14 +2133,14 @@ body {
   overflow: hidden;
   box-sizing: border-box;
 }
-/* 60/40 split of the main area: map column, then Live TV. minmax(0, …fr)
+/* 55/45 split of the main area: map column, then Live TV. minmax(0, …fr)
    so a card's min-content width cannot pull one side off that ratio.
-   The index strip and heatmap stay inside the map column. */
+   11/9 is 55/45. The index charts and heatmap stay inside the map column. */
 .dash-top {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
   grid-template-rows: minmax(0, 1fr);
   gap: 6px;
 }
@@ -2210,6 +2210,50 @@ body {
   overflow: hidden;
 }
 .dash-left-heatmap .dash-panel > div:last-child { height: 100%; }
+/* Two rows of index charts. Each tile is capped below its own width so it
+   stays landscape even when the chart block is as tall as the heatmap. */
+.dash-charts-rows {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dash-charts-row {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.dash-chart-slot {
+  container-type: size;
+  container-name: chartslot;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.dash-chart-tile {
+  width: 100%;
+  height: min(100cqh, 85cqw);
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  background: var(--bg-page);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
 /* 11 tiles in one row once the map half is wide enough. Below that, pick a
    column count that does not leave a single tile alone on the last row
    (11 is prime: 6+5, then 4+4+3, then 3+3+3+2). */
@@ -2431,12 +2475,21 @@ body {
   .dash-left-charts { flex: 0 0 auto; min-height: 130px; height: auto; }
   .dash-left-heatmap { flex: 0 0 auto; height: auto; min-height: 170px; max-height: none; }
 
-  /* Live Charts strip: at mobile widths splitting 9 cards into equal flex
-     shares squeezes each into ~40px — unreadably "crumbled". Give cards a
-     real fixed width instead and let the row scroll horizontally, like the
-     wide-card `row`/`column` layouts already do elsewhere. */
-  .dash-left-charts .dash-panel > div { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
-  .dash-left-charts .dash-panel > div > div { flex: 0 0 128px !important; min-width: 128px !important; }
+  /* Two landscape rows, full width. The desktop equal-height flex would
+     collapse here because the column height is automatic. */
+  .dash-left-charts .dash-charts-rows { overflow: hidden !important; height: auto !important; }
+  .dash-left-charts .dash-panel > .dash-charts-rows > .dash-charts-row {
+    flex: none !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+  .dash-left-charts .dash-chart-slot { height: auto !important; }
+  .dash-left-charts .dash-chart-tile {
+    height: auto !important;
+    aspect-ratio: 8 / 5;
+    max-height: none !important;
+  }
 
   /* Pair Trading's Top-5 Overbought/Oversold lists: each RsiCard was sized
      `flex: 1` within a `flex: 1` list inside a now vertically-stacked (see
