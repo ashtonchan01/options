@@ -104,6 +104,7 @@ export default function AccountView({ account, loading, error, syncNote, uploadE
               onClear={onClear}
               onSyncFlex={onSyncFlex}
               sessionKey={sessionKey}
+              watchlistTickers={watchlistTickers}
             />
           )}
           {section === 'calendar' && <CalendarView state={accountState} watchlistTickers={watchlistTickers} tradeLabels={tradeLabels} />}

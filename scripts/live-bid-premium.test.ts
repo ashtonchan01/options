@@ -5,12 +5,14 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { DEFAULT_INCOME_SETTINGS } from '../src/income/incomeSeed'
+import { recommendCalls, recommendPuts, toLiveBook } from '../src/income/incomeLive'
 import {
   BID_STALE_MS,
   bidPremium,
   bidQuoteLabel,
   buildCallRecs,
   buildPutRows,
+  incomeScanSymbols,
   parseCboeChain,
   parseCboeTimestamp,
   pickLeg,
@@ -98,20 +100,61 @@ const account: Account = {
   netLiquidation: 1,
   excessLiquidity: 40_000,
 }
+const screened = recommendPuts([
+  { symbol: 'MSTR', premium: 200, cash: 11_000, delta: -0.24, bid: 2 },
+  { symbol: 'IBIT', premium: 100, cash: 5_000, delta: -0.22, bid: 1 },
+  { symbol: 'SPCX', premium: 200, cash: 13_000, delta: -0.18, bid: 2 },
+  { symbol: 'ARM', premium: 400, cash: 18_000, delta: -0.25, bid: 0 },
+], DEFAULT_INCOME_SETTINGS)
+check('a good put stays even when a saved rule or the exclude list names it', screened.map(row => row.symbol).join(',') === 'IBIT,MSTR', screened.map(row => row.symbol).join(','))
+check('an empty watchlist still scans the default names, including MSTR', incomeScanSymbols([]).includes('MSTR') && incomeScanSymbols(undefined).includes('TSLA'))
+check('a watchlist is priced as given', incomeScanSymbols(['baba']).join(',') === 'BABA')
+check('held shares join the put scan and a flat holding does not', incomeScanSymbols(['NVDA'], [{ symbol: 'mstr', shares: 10 }, { symbol: 'SOFI', shares: 0 }]).join(',') === 'NVDA,MSTR')
+
+const coverBook = toLiveBook({
+  name: 'Personal',
+  positions: [
+    { accountId: 'x', symbol: 'AAA', description: 'AAA', assetClass: 'STK', quantity: 100, costBasisPrice: 1, costBasisMoney: 100, markPrice: 100, positionValue: 100, unrealizedPnL: 0, currency: 'USD' },
+    { accountId: 'x', symbol: 'BBB', description: 'BBB', assetClass: 'STK', quantity: 100, costBasisPrice: 1, costBasisMoney: 100, markPrice: 100, positionValue: 100, unrealizedPnL: 0, currency: 'USD' },
+    { accountId: 'x', symbol: 'TSLA', description: 'TSLA', assetClass: 'STK', quantity: 50, costBasisPrice: 1, costBasisMoney: 50, markPrice: 400, positionValue: 20_000, unrealizedPnL: 0, currency: 'USD' },
+  ],
+  trades: [],
+  cashBalance: 1,
+  netLiquidation: 1,
+}, new Date('2026-11-10T02:00:00Z'))
+const rankedCalls = recommendCalls([
+  { symbol: 'AAA', premium: 100, spot: 100, contracts: 1, delta: 0.25, bid: 1 },
+  { symbol: 'BBB', premium: 300, spot: 100, contracts: 1, delta: 0.22, bid: 3 },
+  { symbol: 'TSLA', premium: 500, spot: 400, contracts: 1, delta: 0.25, bid: 5 },
+  { symbol: 'QQQ', premium: 400, spot: 400, contracts: 1, delta: 0.5, bid: 4 },
+], coverBook, DEFAULT_INCOME_SETTINGS)
+check('calls rank by yield and drop a name the shares do not cover', rankedCalls.map(row => row.symbol).join(',') === 'BBB,AAA', rankedCalls.map(row => row.symbol).join(','))
+
 const html = renderToStaticMarkup(createElement(PlanCards, {
   account,
   settings: DEFAULT_INCOME_SETTINGS,
   today: new Date(2026, 10, 9, 18, 0, 0),
   liveScreen: {
     loaded: true,
-    calls,
-    puts,
+    calls: [
+      ...calls,
+      { symbol: 'TSLA', strike: 400, contracts: 1, spot: 400, bid: 5, premium: 500, delta: 0.25, quotedAt: closed, stale: false },
+    ],
+    puts: [
+      ...puts,
+      { symbol: 'IBIT', strike: 50, spot: 60, mid: 1, bid: 1, ask: 1.1, delta: -0.22, iv: 0.4, premium: 100, cash: 5_000, note: '' },
+      { symbol: 'SPCX', strike: 130, spot: 147, mid: 2, bid: 2, ask: 2.2, delta: -0.18, iv: 0.5, premium: 200, cash: 13_000, note: '' },
+      { symbol: 'ARM', strike: 180, spot: 200, mid: 0, bid: 0, ask: 0.4, delta: -0.25, iv: 0.5, premium: 400, cash: 18_000, note: '' },
+    ],
     putQuotedAt: { MSTR: closed },
     putStale: { MSTR: true },
   },
 }))
 check('the card shows the bid stamp beside the credit', html.includes('data-testid="premium-quote"') && html.includes(label) && html.includes('Stale') && html.includes('140C') && html.includes('720'))
 check('the October 175 call premium is not rendered', !html.includes('175C') && !html.includes('1,020'))
+check('a good MSTR put and an ETF put both stay on the card', html.includes('110P') && html.includes('IBIT') && html.includes('50P'))
+check('ticker rules are not painted on the recommendations', !html.includes('No puts') && !html.includes('Excluded') && !html.includes('No calls'))
+check('a strike outside the delta band, a zero bid, and an uncovered call are left off', !html.includes('SPCX') && !html.includes('ARM') && !html.includes('400C'))
 
 if (failed > 0) {
   console.error(`${failed} failed`)

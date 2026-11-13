@@ -179,6 +179,7 @@ check('the Income tab and page are gone', !accountView.includes("label: 'Income'
 check('an old income URL is rewritten to Overview', accountView.includes("params.get('section') === 'income'") && accountView.includes("params.set('section', 'overview')"))
 check('plan cards do not place an order or read a flex token', !planCards.includes('<button') && !planCards.includes('accountId') && !planCards.includes('flexToken') && !planCards.includes('flexQueryId'))
 check('ideas come from the live book, not the October action list', planCards.includes('liveIdeas') && !planCards.includes('SEED_NEXT_ACTIONS') && !planCards.includes('SEED_SELLS'))
+check('put and call cards do not apply ticker exclusion rules', !planCards.includes('SEED_PUTS') && !planCards.includes('blockedMstr') && !planCards.includes('excludeSymbols') && !planCards.includes('No puts') && !planCards.includes('SEED_PUT_NOTE'))
 check('an empty idea list says there is nothing pending', planCards.includes('No pending ideas'))
 
 const nov2 = new Date(2026, 10, 2, 12, 0, 0)

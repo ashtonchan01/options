@@ -225,6 +225,56 @@ export interface RankedPut extends SeedPut {
   ratio: number
 }
 
+function listedBid(bid: number | null | undefined): boolean {
+  return typeof bid === 'number' && Number.isFinite(bid) && bid > 0
+}
+
+/**
+ * Puts worth showing on Overview. The row has to sit in the delta band and
+ * carry a real bid. Rank is premium / cash secured. Ticker rules, the exclude
+ * list, and the ETF list are not read — a name is kept when the contract is.
+ */
+export function recommendPuts<T extends { premium: number; cash: number; delta: number | null; bid?: number | null }>(
+  rows: T[],
+  settings: Pick<IncomeSettings, 'deltaMin' | 'deltaMax'>,
+): (T & { ratio: number })[] {
+  const kept = rows.filter(row =>
+    row.premium > 0
+    && row.cash > 0
+    && listedBid(row.bid)
+    && deltaInBand(row.delta, settings.deltaMin, settings.deltaMax) === 'in',
+  )
+  return rankByPremiumOverCash(kept).map(row => ({
+    ...row,
+    ratio: premiumOverCash(row.premium, row.cash),
+  }))
+}
+
+/**
+ * Covered calls worth showing on Overview. Same delta band and bid rule as
+ * puts. A row is listed only when the open book holds enough shares to cover
+ * the contracts. Rank is the credit over the stock those contracts cover.
+ */
+export function recommendCalls<T extends { symbol: string; premium: number; spot: number; contracts: number; delta: number | null; bid?: number | null }>(
+  rows: T[],
+  book: LiveBook | undefined,
+  settings: Pick<IncomeSettings, 'deltaMin' | 'deltaMax'>,
+): T[] {
+  const kept = rows.filter(row =>
+    row.premium > 0
+    && row.spot > 0
+    && row.contracts >= 1
+    && listedBid(row.bid)
+    && deltaInBand(row.delta, settings.deltaMin, settings.deltaMax) === 'in'
+    && callCover(book, row.symbol, row.contracts) === 'covered',
+  )
+  return [...kept].sort((a, b) => {
+    const byYield = callPremiumRatio(b.premium, b.spot, b.contracts) - callPremiumRatio(a.premium, a.spot, a.contracts)
+    if (Math.abs(byYield) > 1e-12) return byYield
+    return a.symbol.localeCompare(b.symbol)
+  })
+}
+
 export function putScreenRows(rows: SeedPut[], settings: IncomeSettings): RankedPut[] {
   const excluded = symbolSet(settings.excludeSymbols)
   const etfs = symbolSet(settings.etfSymbols)

@@ -1,25 +1,24 @@
 /**
  * Ideas, Puts, and Calls for the open account. Ideas are rebuilt from the
- * open book and the income rules. Puts and Calls stay the saved screens.
+ * open book and the income rules. Puts and Calls are live bids that pass
+ * the income screen: the configured expiry, the delta band, and a real bid,
+ * ranked by premium / cash or by yield. A call is listed only when held
+ * shares cover the contracts. Ticker rules are not applied here.
  * Nothing here places a trade.
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Account } from '../../store/accountsStore'
-import {
-  SEED_PUTS,
-  SEED_PUT_NOTE,
-  type IncomeSettings,
-} from '../../income/incomeSeed'
+import type { IncomeSettings } from '../../income/incomeSeed'
 import {
   annualizedReturn,
   calendarIso,
-  callCover,
   callPremiumRatio,
   daysBetween,
   ideaCopy,
   liveIdeas,
   pct,
-  putScreenRows,
+  recommendCalls,
+  recommendPuts,
   resolvedNetLiquidation,
   toLiveBook,
   usd0,
@@ -28,9 +27,9 @@ import {
 } from '../../income/incomeLive'
 import {
   bidQuoteLabel,
+  incomeScanSymbols,
   loadIncomeScreen,
   type IncomeLiveScreen,
-  type LiveCallRec,
 } from '../../income/livePremium'
 import { tickerColor } from '../../income/tickerColor'
 
@@ -164,7 +163,7 @@ function sourceFor(account: Account): IncomeSource {
   }
 }
 
-export default function PlanCards({ account, settings, today, liveScreen }: { account: Account; settings: IncomeSettings; today?: Date; liveScreen?: IncomeLiveScreen }) {
+export default function PlanCards({ account, settings, today, liveScreen, symbols }: { account: Account; settings: IncomeSettings; today?: Date; liveScreen?: IncomeLiveScreen; symbols?: string[] }) {
   const now = useMemo(() => today ?? new Date(), [today])
   const todayIso = calendarIso(now)
   const focus = useMemo(() => toLiveBook(sourceFor(account), now), [account, now])
@@ -174,6 +173,15 @@ export default function PlanCards({ account, settings, today, liveScreen }: { ac
     [account, focus, now, role, settings],
   )
   const days = daysBetween(todayIso, settings.screenExpiry)
+  const holdings = useMemo(
+    () => focus.shares.filter(row => row.quantity > 0).map(row => ({ symbol: row.symbol, shares: row.quantity })),
+    [focus],
+  )
+  const universeKey = (symbols ?? []).map(symbol => symbol.trim().toUpperCase()).filter(Boolean).join(',')
+  const universe = useMemo(
+    () => incomeScanSymbols(universeKey ? universeKey.split(',') : [], holdings),
+    [universeKey, holdings],
+  )
   const [fetched, setFetched] = useState<IncomeLiveScreen | null>(liveScreen ?? null)
   useEffect(() => {
     if (liveScreen) {
@@ -181,15 +189,14 @@ export default function PlanCards({ account, settings, today, liveScreen }: { ac
       return
     }
     let cancel = false
-    const holdings = focus.shares.map(row => ({ symbol: row.symbol, shares: row.quantity }))
-    loadIncomeScreen(holdings, SEED_PUTS.map(row => ({ symbol: row.symbol, note: row.note })), settings, now)
+    loadIncomeScreen(holdings, universe.map(symbol => ({ symbol, note: '' })), settings, now)
       .then(screen => { if (!cancel) setFetched(screen) })
       .catch(() => { if (!cancel) setFetched({ calls: [], puts: [], putQuotedAt: {}, putStale: {}, loaded: true }) })
     return () => { cancel = true }
-  }, [liveScreen, focus, settings, now])
+  }, [liveScreen, holdings, universe, settings, now])
   const screen = liveScreen ?? fetched
-  const puts = screen ? putScreenRows(screen.puts, settings) : []
-  const calls: LiveCallRec[] = screen?.calls ?? []
+  const puts = screen ? recommendPuts(screen.puts, settings) : []
+  const calls = screen ? recommendCalls(screen.calls, focus, settings) : []
   const putCredit = puts.reduce((sum, row) => sum + row.premium, 0)
   const callCredit = calls.reduce((sum, row) => sum + row.premium, 0)
 
@@ -232,7 +239,7 @@ export default function PlanCards({ account, settings, today, liveScreen }: { ac
             </tr>
           )}
           {puts.map(row => (
-            <tr key={`${row.symbol}-${row.strike}`} className={row.excluded || row.blockedMstr ? 'muted' : undefined} title={row.note}>
+            <tr key={`${row.symbol}-${row.strike}`}>
               <td><TickerChip symbol={row.symbol} /></td>
               <td>
                 <span className="income-kind">📉</span>
@@ -244,20 +251,14 @@ export default function PlanCards({ account, settings, today, liveScreen }: { ac
                 <QuoteStamp quotedAt={screen?.putQuotedAt[row.symbol] ?? null} stale={screen?.putStale[row.symbol] ?? true} />
               </td>
               <td className="n">{pct(annualizedReturn(row.ratio, days))}</td>
-              <td>
-                {row.excluded && <span className="income-flag bad">Excluded</span>}
-                {row.blockedMstr && <span className="income-flag bad">No puts</span>}
-                {row.band === 'out' && <span className="income-flag warn">Outside</span>}
-                {!row.excluded && !row.blockedMstr && row.band !== 'out' && '—'}
-              </td>
+              <td>—</td>
             </tr>
           ))}
         </ScanTable>
         <details className="income-fold">
           <summary><EmojiTitle emoji="📝">How this is calculated</EmojiTitle></summary>
           <ul className="income-actions">
-            <li>{SEED_PUT_NOTE}</li>
-            <li>Credit is the live bid × 100. Strikes with no bid are left off. Rank is that credit / cash secured, {days} days to {formatExpiry(settings.screenExpiry)}, using the live stock price. Δ {settings.deltaMin.toFixed(2)}–{settings.deltaMax.toFixed(2)}.</li>
+            <li>One put per name on the active watchlist, expiry {formatExpiry(settings.screenExpiry)}. Credit is the live bid × 100. Strikes with no bid, or outside Δ {settings.deltaMin.toFixed(2)}–{settings.deltaMax.toFixed(2)}, are left off. Rank is that credit / cash secured over {days} days, using the live stock price. A stale bid stays listed and is marked.</li>
           </ul>
         </details>
       </IncomePanel>
@@ -279,12 +280,9 @@ export default function PlanCards({ account, settings, today, liveScreen }: { ac
               </tr>
             )}
             {calls.map(row => {
-              const coveredOnly = settings.rules.some(rule => rule.type === 'coveredCalls' && rule.symbol.trim().toUpperCase() === row.symbol)
-              const blockedCalls = settings.rules.some(rule => rule.type === 'noNewCalls' && rule.symbol.trim().toUpperCase() === row.symbol)
-              const cover = coveredOnly ? callCover(focus, row.symbol, row.contracts) : null
               const shares = focus.shares.find(holding => holding.symbol === row.symbol)?.quantity
               return (
-                <tr key={`${row.symbol}-${row.strike}`} className={blockedCalls ? 'muted' : undefined}>
+                <tr key={`${row.symbol}-${row.strike}`}>
                   <td><TickerChip symbol={row.symbol} /></td>
                   <td>
                     <span className="income-kind">📈</span>
@@ -297,14 +295,7 @@ export default function PlanCards({ account, settings, today, liveScreen }: { ac
                     <QuoteStamp quotedAt={row.quotedAt} stale={row.stale} />
                   </td>
                   <td className="n">{pct(annualizedReturn(callPremiumRatio(row.premium, row.spot, row.contracts), days))}</td>
-                  <td>
-                    {blockedCalls && <span className="income-flag bad">No calls</span>}
-                    {cover === 'covered' && <span className="income-flag ok">Covered</span>}
-                    {cover === 'short' && <span className="income-flag bad">Uncovered</span>}
-                    {cover === 'unknown' && <span className="income-flag warn">Unknown</span>}
-                    {cover == null && shares != null && <span>{`${Math.round(shares)} sh`}</span>}
-                    {cover == null && shares == null && '—'}
-                  </td>
+                  <td>{shares != null && shares > 0 ? <span>{`${Math.round(shares)} sh`}</span> : '—'}</td>
                 </tr>
               )
             })}
@@ -312,7 +303,7 @@ export default function PlanCards({ account, settings, today, liveScreen }: { ac
           <details className="income-fold">
             <summary><EmojiTitle emoji="🗒️">How this is calculated</EmojiTitle></summary>
             <ul className="income-actions">
-              <li>Credit is the live bid × 100 × contracts. The strike is the call in the delta band against the live stock price. Strikes with no bid are left off. Yield is that credit / (live spot × 100 × contracts), {days} days to {formatExpiry(settings.screenExpiry)}.</li>
+              <li>One call per name whose shares cover the contracts. Credit is the live bid × 100 × contracts. The strike is the call in the delta band against the live stock price. Strikes with no bid are left off. Yield is that credit / (live spot × 100 × contracts), {days} days to {formatExpiry(settings.screenExpiry)}. A stale bid stays listed and is marked.</li>
             </ul>
           </details>
         </IncomePanel>
