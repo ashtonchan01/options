@@ -464,7 +464,7 @@ function EquityChart({ points }: { points: EquityPoint[] }) {
   )
 }
 
-export default function OverviewView({ state, account, loading, error, syncNote, uploadError, onUpload, onClear, onSyncFlex, sessionKey }: {
+export default function OverviewView({ state, account, loading, error, syncNote, uploadError, onUpload, onClear, onSyncFlex, sessionKey, watchlistTickers }: {
   state: AppState
   account: Account
   loading: boolean
@@ -475,6 +475,7 @@ export default function OverviewView({ state, account, loading, error, syncNote,
   onClear: () => void
   onSyncFlex: (token: string, queryId: string) => void
   sessionKey: string | null
+  watchlistTickers?: string[]
 }) {
   const hasData = state.sync.trades.length > 0
   const [monthlyFy, setMonthlyFy] = useState('all')
@@ -538,7 +539,7 @@ export default function OverviewView({ state, account, loading, error, syncNote,
               </div>
             </div>
           </div>
-          <PlanCards account={account} settings={settings} />
+          <PlanCards account={account} settings={settings} symbols={watchlistTickers} />
         </>
       )}
     </div>

@@ -5,6 +5,7 @@
  * dropped. Nothing here places a trade.
  */
 import type { IncomeSettings, SeedPut } from './incomeSeed'
+import { WATCHLIST } from '../data/watchlist'
 import { EXCHANGES } from '../data/exchanges'
 import { isExchangeOpen } from '../utils/marketHours'
 import { fetchQuotes } from '../services/quotes'
@@ -262,6 +263,28 @@ export function parseCboeChain(json: unknown): SymbolChain {
 }
 
 const PROXY = 'https://options-jade.vercel.app'
+const CHAIN_BATCH = 8
+const CHAIN_STAGGER_MS = 250
+
+/**
+ * Names to price for the put card. The active watchlist wins. An empty list
+ * falls back to the app's default watchlist. Held shares are added so a name
+ * you own is still eligible. No symbol is removed for a ticker rule.
+ */
+export function incomeScanSymbols(
+  symbols: readonly string[] | undefined,
+  holdings: { symbol: string; shares: number }[] = [],
+): string[] {
+  const cleaned = [...new Set((symbols ?? []).map(symbol => symbol.trim().toUpperCase()).filter(Boolean))]
+  const base = cleaned.length > 0 ? cleaned : [...WATCHLIST]
+  const set = new Set(base)
+  for (const holding of holdings) {
+    if (!(holding.shares > 0)) continue
+    const symbol = holding.symbol.trim().toUpperCase()
+    if (symbol) set.add(symbol)
+  }
+  return [...set]
+}
 
 export interface IncomeLiveScreen {
   calls: LiveCallRec[]
@@ -309,20 +332,41 @@ export async function loadIncomeScreen(
   return { calls, puts, putQuotedAt, putStale, loaded: true }
 }
 
-async function fetchChains(symbols: string[]): Promise<Record<string, SymbolChain>> {
-  const entries = await Promise.all(symbols.map(async symbol => {
-    try {
-      const res = await fetch(`${PROXY}/api/cboe?symbol=${encodeURIComponent(symbol)}`, { signal: AbortSignal.timeout(20000) })
-      if (!res.ok) return [symbol, null] as const
-      const json = await res.json()
-      return [symbol, parseCboeChain(json)] as const
-    } catch {
-      return [symbol, null] as const
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function fetchOneChain(symbol: string, attempt = 0): Promise<SymbolChain | null> {
+  try {
+    const res = await fetch(`${PROXY}/api/cboe?symbol=${encodeURIComponent(symbol)}`, { signal: AbortSignal.timeout(20000) })
+    if (!res.ok) {
+      if ((res.status === 429 || res.status >= 500) && attempt === 0) {
+        await sleep(600)
+        return fetchOneChain(symbol, attempt + 1)
+      }
+      return null
     }
-  }))
+    const chain = parseCboeChain(await res.json())
+    return chain.legs.length > 0 ? chain : null
+  } catch {
+    if (attempt === 0) {
+      await sleep(600)
+      return fetchOneChain(symbol, attempt + 1)
+    }
+    return null
+  }
+}
+
+/** Batched so a watchlist does not fire every chain request at once. */
+async function fetchChains(symbols: string[]): Promise<Record<string, SymbolChain>> {
   const out: Record<string, SymbolChain> = {}
-  for (const [symbol, chain] of entries) {
-    if (chain && chain.legs.length > 0) out[symbol] = chain
+  for (let start = 0; start < symbols.length; start += CHAIN_BATCH) {
+    if (start > 0) await sleep(CHAIN_STAGGER_MS)
+    const batch = symbols.slice(start, start + CHAIN_BATCH)
+    const entries = await Promise.all(batch.map(async symbol => [symbol, await fetchOneChain(symbol)] as const))
+    for (const [symbol, chain] of entries) {
+      if (chain) out[symbol] = chain
+    }
   }
   return out
 }
