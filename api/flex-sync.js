@@ -32,8 +32,12 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end()
 
   // Scheduled check and the signed-in snapshot read share this function so
-  // the project stays inside the serverless function limit.
-  if (req.method === 'POST') return runFlexCron(req, res)
+  // the project stays inside the serverless function limit. Vercel Cron
+  // sends GET with Authorization: Bearer CRON_SECRET. A snapshot read has
+  // no bearer header.
+  const authorization = req.headers?.authorization || req.headers?.Authorization || ''
+  const cronBearer = typeof authorization === 'string' && authorization.startsWith('Bearer ')
+  if (req.method === 'POST' || (req.method === 'GET' && cronBearer)) return runFlexCron(req, res)
 
   const { token, query, fd, td } = req.query
   if (!token && !query) return readSnapshotResponse(req, res)
