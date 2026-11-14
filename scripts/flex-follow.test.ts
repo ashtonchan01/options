@@ -494,7 +494,8 @@ async function runChain(
   const yml = readFileSync(new URL('../.github/workflows/flex-cron.yml', import.meta.url), 'utf8')
   const handoff = readFileSync(new URL('./flex-cron-handoff.js', import.meta.url), 'utf8')
   const vercel = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')) as {
-    crons?: { path: string; schedule: string }[]
+    crons?: unknown
+    schedules?: Record<string, { path?: string; schedule?: string; requestMethod?: string }>
   }
   const cronRoute = readFileSync(new URL('../api/flex-cron.js', import.meta.url), 'utf8')
   const cronLib = readFileSync(new URL('../api/_lib/flexCron.js', import.meta.url), 'utf8')
@@ -511,7 +512,14 @@ async function runChain(
     'the loop budget fits one hourly gap and the step timeout',
     JOB_BUDGET_MS >= 65 * 60_000 && JOB_BUDGET_MS < 80 * 60_000,
   )
-  check('the backup cron is one UTC hour, once a day', vercel.crons?.length === 1 && vercel.crons[0]?.path === '/api/flex-cron' && vercel.crons[0]?.schedule === '0 6 * * *')
+  const flexCheck = vercel.schedules?.['flex-check']
+  check(
+    'the backup schedule is one UTC hour, once a day',
+    !vercel.crons
+      && flexCheck?.path === '/api/flex-cron'
+      && flexCheck?.schedule === '0 6 * * *'
+      && flexCheck?.requestMethod === 'GET',
+  )
   check('the backup route is the shared check', cronRoute.includes('runFlexCron') && cronRoute.includes("req.method !== 'GET'"))
   check('the shared check claims the slot before it calls Flex', cronBody.indexOf('claimSlot(') !== -1 && cronBody.indexOf('claimSlot(') < cronBody.indexOf('fetchFlexStatement('))
   check('the check does not log', !cronLib.includes('console.') && !cronRoute.includes('console.'))
