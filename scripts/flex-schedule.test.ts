@@ -5,8 +5,10 @@
  */
 import { holidaysForYear } from '../src/data/marketHolidays'
 import {
+  claimAllowed,
   configuredFlexAccounts,
   cronDecision,
+  scheduleWithClaim,
   expectedUsTradingDay,
   flexWindowFromXml,
   isSlotMinute,
@@ -106,6 +108,30 @@ const tue1516 = new Date('2026-11-10T04:16:00Z')
   check('a statement through the expected day finishes the Sydney date', afterSave.doneSydneyDate === '2026-11-10')
   const short = scheduleAfterAttempt({}, picked!.decision, { ok: true, toDate: '20261106' })
   check('a statement that stops early stays due tomorrow', short.lastSlotId === '2026-11-10T15:16' && !short.doneSydneyDate)
+  const cleared = scheduleAfterAttempt(
+    { claimSlotId: '2026-11-10T15:16', claimUntil: '2099-01-01T00:00:00.000Z' },
+    picked!.decision,
+    { ok: false },
+  )
+  check(
+    'finishing a slot drops the claim',
+    cleared.lastSlotId === '2026-11-10T15:16' && cleared.claimSlotId == null && cleared.claimUntil == null,
+  )
+
+  const dueClaim = cronDecision(tue0900, 0, {}, [])
+  const leased = scheduleWithClaim({}, dueClaim, tue0900)
+  check('the first caller may claim 09:00', dueClaim.action === 'sync' && claimAllowed({}, dueClaim, tue0900))
+  const secondLook = cronDecision(tue0900, 0, leased, [])
+  check(
+    'the second caller does not fetch the claimed slot',
+    !claimAllowed(leased, dueClaim, tue0900) && secondLook.reason === 'in-flight',
+    JSON.stringify(secondLook),
+  )
+  const afterLease = new Date(tue0900.getTime() + 91_000)
+  check(
+    'an expired claim can be tried again',
+    claimAllowed(leased, dueClaim, afterLease) && cronDecision(afterLease, 0, leased, []).action === 'sync',
+  )
 
   const xml = '<FlexStatement toDate="20261109" fromDate="20251110" accountId="U1">'
   check('the report window is read in either attribute order', flexWindowFromXml(xml)?.fromDate === '20251110' && flexWindowFromXml(xml)?.toDate === '20261109')

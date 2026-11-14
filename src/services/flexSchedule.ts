@@ -17,6 +17,10 @@ export {
   cronDecision,
   pickDueAccount,
   scheduleAfterAttempt,
+  claimIsLive,
+  claimAllowed,
+  scheduleWithClaim,
+  CLAIM_LEASE_MS,
   flexWindowFromXml,
   configuredFlexAccounts,
 } from '../../api/_lib/flexSchedule.js'

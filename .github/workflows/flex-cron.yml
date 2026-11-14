@@ -4,12 +4,12 @@ on:
   schedule:
     # Every 15 minutes, off the top of the hour. GitHub delays and drops
     # schedule runs under load, especially at :00, and does not replay them.
-    # One start is enough: the job walks the rest of the Sydney day.
+    # One start is enough: each job takes one Sydney slot, then hands off.
     - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
     inputs:
       hop:
-        description: Continuation index after a job hits its time budget
+        description: Continuation index after a slot or a cancelled run
         required: false
         default: '0'
 
@@ -18,37 +18,54 @@ permissions:
   contents: read
 
 # A second fire waits, and only one waiter is kept, so delayed schedules
-# cannot stack six-hour jobs. The running job is left alone: cancelling it
-# would drop the slots it is still going to check.
+# cannot stack jobs. The running job is left alone. A lost runner is
+# recovered by the handoff job, which starts on a fresh runner.
 concurrency:
   group: flex-sydney-schedule
   cancel-in-progress: false
 
 jobs:
-  flex:
+  follow:
     runs-on: ubuntu-latest
-    # GitHub-hosted jobs die at 6 hours. Exit before that and dispatch a
-    # continuation so a late morning start still reaches the evening slots.
-    timeout-minutes: 350
+    # One hourly gap plus the two account checks. A hang is cancelled here
+    # and the handoff job still runs.
+    timeout-minutes: 90
+    outputs:
+      started: ${{ steps.mark.outputs.started }}
+      handoff: ${{ steps.follow.outputs.handoff }}
+      hop: ${{ steps.follow.outputs.hop }}
+      reason: ${{ steps.follow.outputs.reason }}
+      continue: ${{ steps.follow.outputs.continue }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Follow the Sydney Flex schedule
+      - name: Mark the follow job as started
+        id: mark
+        run: echo "started=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+      - name: Follow one Sydney Flex slot
         id: follow
-        timeout-minutes: 340
+        timeout-minutes: 80
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           FLEX_SYNC_URL: https://options-jade.vercel.app/api/flex-sync
           FLEX_CRON_HOP: ${{ inputs.hop || '0' }}
         run: node scripts/flex-cron-run.js
+
+  handoff:
+    needs: follow
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
       - name: Hand off the rest of the Sydney day
-        if: steps.follow.outputs.handoff == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          HOP: ${{ steps.follow.outputs.hop }}
-        run: |
-          case "$HOP" in
-            [1-9]) ;;
-            *) echo "Refusing to hand off without a hop count" >&2; exit 1 ;;
-          esac
-          gh workflow run flex-cron.yml --ref "${{ github.event.repository.default_branch }}" -f "hop=${HOP}"
+          FOLLOW_STARTED: ${{ needs.follow.outputs.started }}
+          FOLLOW_RESULT: ${{ needs.follow.result }}
+          HANDOFF: ${{ needs.follow.outputs.handoff }}
+          HOP_OUT: ${{ needs.follow.outputs.hop }}
+          REASON: ${{ needs.follow.outputs.reason }}
+          CONTINUE: ${{ needs.follow.outputs.continue }}
+          HOP_IN: ${{ inputs.hop || '0' }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch || github.ref_name }}
+        run: node scripts/flex-cron-handoff.js
