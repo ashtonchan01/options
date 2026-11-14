@@ -1,10 +1,10 @@
 /**
  * Laptop-closed Flex follow.
  *
- * GitHub's schedule trigger is delayed and often dropped. When a run does
- * start, stay up and walk the remaining Sydney slots instead of posting
- * once. The API owns the schedule; this process waits, repeats, and hands
- * off before the hosted runner's 6-hour kill.
+ * GitHub's schedule trigger is delayed and often dropped. A run that does
+ * start checks the slot that is due, then hands off. The next job waits for
+ * the following slot. A lost runner therefore costs that slot, and the
+ * handoff job on a fresh runner dispatches the rest of the day.
  *
  * One account per POST. Consecutive checks are at least a minute apart.
  */
@@ -16,14 +16,33 @@ import { sydneyClock } from '../api/_lib/flexSchedule.js'
 export const ACCOUNT_GAP_MS = 60_000
 /** Wake just after the slot minute so a fast clock does not post early and miss it. */
 export const SLOT_GRACE_MS = 5_000
-/** Under the 6-hour GitHub-hosted job limit, with room to dispatch a continuation. */
-export const JOB_BUDGET_MS = 330 * 60_000
+/**
+ * One job waits out at most one hourly gap, then exits so a dead runner
+ * cannot hold the rest of the day. The step timeout sits above this.
+ */
+export const JOB_BUDGET_MS = 75 * 60_000
+/** A wait longer than this, after a check, belongs to the next job. */
+export const SLOT_HANDOFF_MS = 3 * 60_000
 /** Do not start a Flex call that the job timeout would cut off. */
 export const REQUEST_GUARD_MS = 90_000
 /** Give up starting the day if the API never answers. An open day keeps trying. */
 export const FAILURE_BUDGET_MS = 20 * 60_000
-/** Hops 0..3 hand off; hop 4 is the last segment. Enough for a full Sydney day. */
-export const MAX_HANDOFFS = 4
+/**
+ * Hops 0..63 hand off; hop 64 is the last segment.
+ * A full Sydney day of one-slot jobs is about 50 (pre-09:00 chunks of this
+ * budget, then one job per slot through 23:45). The cap stops a loop.
+ */
+export const MAX_HANDOFFS = 64
+/** These do not get better by starting another job. */
+export const PERMANENT_REASONS = Object.freeze([
+  'http-401',
+  'http-403',
+  'http-503',
+  'no-flex-env',
+  'no-secret',
+  'no-follow',
+  'bad-plan',
+])
 
 const SLEEP_CHUNK_MS = 30_000
 const HEARTBEAT_MS = 15 * 60_000
@@ -68,6 +87,50 @@ export function handoffDecision(result, hop) {
     hop: String(hop + 1),
     reason: outputToken(result?.reason),
   }
+}
+
+export function parseHop(value) {
+  const n = Number.parseInt(String(value ?? ''), 10)
+  if (!Number.isFinite(n) || n < 0 || n > 1000) return 0
+  return n
+}
+
+/**
+ * Whether the handoff job should dispatch another run.
+ * A queued run that never started must not dispatch: concurrency already
+ * kept a replacement. A run that started and was then cancelled or failed
+ * still dispatches, up to the hop cap.
+ */
+export function recoveryDispatch({
+  started = '',
+  followResult = '',
+  handoff = '',
+  continueOut = '',
+  reason = '',
+  hopOut = '',
+  hopIn = '0',
+  maxHandoffs = MAX_HANDOFFS,
+} = {}) {
+  const reasonToken = outputToken(reason)
+  const permanent = PERMANENT_REASONS.includes(reasonToken)
+  const inputHop = parseHop(hopIn)
+  const statedHop = hopOut === '' || hopOut == null ? null : parseHop(hopOut)
+  const nextHop = handoff === 'true' && statedHop != null ? statedHop : inputHop + 1
+  if (nextHop < 1 || nextHop > maxHandoffs) {
+    return { dispatch: false, hop: String(Math.max(0, nextHop)), reason: 'hop-limit' }
+  }
+  if ((permanent || continueOut === 'false') && handoff !== 'true') {
+    return { dispatch: false, hop: String(nextHop), reason: reasonToken || 'stop' }
+  }
+  if (handoff === 'true' || continueOut === 'true') {
+    return { dispatch: true, hop: String(nextHop), reason: handoff === 'true' ? 'handoff' : 'continue' }
+  }
+  const result = String(followResult || '').toLowerCase()
+  const broken = result === 'cancelled' || result === 'failure'
+  if (started === 'true' && broken) {
+    return { dispatch: true, hop: String(nextHop), reason: 'recovered' }
+  }
+  return { dispatch: false, hop: String(nextHop), reason: reasonToken || result || 'idle' }
 }
 
 /**
@@ -132,6 +195,7 @@ export async function runFlexFollow(opts) {
   const calls = []
   let lastAttemptAt = null
   let dayOpen = false
+  let checked = false
   let failures = 0
   let firstFailureAt = null
   let immediate = 0
@@ -205,7 +269,10 @@ export async function runFlexFollow(opts) {
     const plan = body.follow
     if (!plan || typeof plan !== 'object') return finish('stop', 'no-follow')
     if (plan.action === 'sync' || plan.action === 'wait') dayOpen = true
-    if (body.ran) lastAttemptAt = now()
+    if (body.ran) {
+      lastAttemptAt = now()
+      checked = true
+    }
 
     const step = nextFollowStep({ now: now(), plan, lastAttemptAt })
     if (step.type === 'stop') return finish('stop', step.reason)
@@ -218,8 +285,14 @@ export async function runFlexFollow(opts) {
       continue
     }
     immediate = 0
+    // The minute between accounts stays here. The wait until a later slot
+    // is the next job, so this process is not the one a lost runner takes down.
+    const bridgingAccounts = plan.action === 'sync'
+    if (!bridgingAccounts && checked && step.ms > SLOT_HANDOFF_MS) {
+      return finish('handoff', 'slot')
+    }
     const slept = await sleepBounded(step.ms)
-    if (slept === 'budget') return finish('handoff', 'budget')
+    if (slept === 'budget') return finish(dayOpen ? 'handoff' : 'stop', dayOpen ? 'budget' : 'unreachable')
   }
 }
 
@@ -246,13 +319,29 @@ function writeOutput(pairs) {
   appendFileSync(file, lines)
 }
 
+function continueOutput(result, decision) {
+  if (decision.handoff === 'true') return 'true'
+  if (result?.reason === 'unreachable') return 'true'
+  return 'false'
+}
+
 async function main() {
   const secret = process.env.CRON_SECRET
-  const hopRaw = Number.parseInt(process.env.FLEX_CRON_HOP || '0', 10)
-  const hop = Number.isFinite(hopRaw) && hopRaw >= 0 ? hopRaw : 0
+  const hop = parseHop(process.env.FLEX_CRON_HOP || '0')
+  const onStop = () => {
+    writeOutput({
+      handoff: 'false',
+      hop: String(hop + 1),
+      reason: 'cancelled',
+      continue: 'true',
+    })
+    process.exit(1)
+  }
+  process.once('SIGTERM', onStop)
+  process.once('SIGINT', onStop)
   if (!secret) {
     console.error('CRON_SECRET is not set')
-    writeOutput({ handoff: 'false', hop: String(hop), reason: 'no-secret' })
+    writeOutput({ handoff: 'false', hop: String(hop), reason: 'no-secret', continue: 'false' })
     process.exit(1)
   }
 
@@ -274,9 +363,9 @@ async function main() {
   } else if (decision.handoff === 'true') {
     console.log(`Handing off the rest of the Sydney day (hop ${decision.hop})`)
   }
-  writeOutput(decision)
+  writeOutput({ ...decision, continue: continueOutput(result, decision) })
 
-  const hard = new Set(['http-401', 'http-403', 'http-503', 'no-follow', 'no-flex-env', 'bad-plan', 'unreachable'])
+  const hard = new Set([...PERMANENT_REASONS, 'unreachable'])
   process.exit(hard.has(result.reason) ? 1 : 0)
 }
 
@@ -284,7 +373,7 @@ const isDirect = process.argv[1] && import.meta.url === pathToFileURL(process.ar
 if (isDirect) {
   main().catch(() => {
     console.error('Flex follow failed')
-    writeOutput({ handoff: 'false', hop: '0', reason: 'crashed' })
+    writeOutput({ handoff: 'false', hop: '', reason: 'crashed', continue: 'true' })
     process.exit(1)
   })
 }

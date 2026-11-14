@@ -1,6 +1,12 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "crons": [
+    {
+      "path": "/api/flex-sync",
+      "schedule": "0 6 * * *"
+    }
+  ],
   "functions": {
     "api/flex-sync.js": {
       "maxDuration": 60

@@ -115,6 +115,39 @@ export function windowCoversTradingDay(windows, expectedYyyymmdd) {
 }
 
 /**
+ * How long a won claim keeps the other caller from sending the same Flex
+ * request. Longer than one Vercel invocation, shorter than the next slot.
+ */
+export const CLAIM_LEASE_MS = 90_000
+
+export function claimIsLive(record, now) {
+  const until = Date.parse(record?.claimUntil ?? '')
+  return Number.isFinite(until) && until > now.getTime()
+}
+
+/**
+ * Whether this caller may mark the slot in-flight. The cron UPDATE uses the
+ * same three checks: not already finished today, not already tried, and no
+ * live claim for this slot.
+ */
+export function claimAllowed(record, decision, now) {
+  const rec = record ?? {}
+  if (!decision?.slot || !decision?.sydneyDate) return false
+  if (rec.doneSydneyDate === decision.sydneyDate) return false
+  if (rec.lastSlotId === decision.slot) return false
+  if (rec.claimSlotId === decision.slot && claimIsLive(rec, now)) return false
+  return true
+}
+
+export function scheduleWithClaim(record, decision, now, leaseMs = CLAIM_LEASE_MS) {
+  return {
+    ...(record ?? {}),
+    claimSlotId: decision.slot,
+    claimUntil: new Date(now.getTime() + leaseMs).toISOString(),
+  }
+}
+
+/**
  * Whether this account should be fetched on this cron tick.
  * `record` is the last slot already tried and the Sydney date already finished.
  */
@@ -129,6 +162,9 @@ export function cronDecision(now, index, record, windows) {
   const slot = latestSlotId(now, index)
   if (!slot) return { action: 'skip', reason: 'off-hours' }
   if (slot === rec.lastSlotId) return { action: 'skip', reason: 'already-tried' }
+  if (slot === rec.claimSlotId && claimIsLive(rec, now)) {
+    return { action: 'skip', reason: 'in-flight', claimUntil: rec.claimUntil }
+  }
   return {
     action: 'sync',
     slot,
@@ -150,6 +186,8 @@ export function pickDueAccount(now, accounts) {
 /** Slot is consumed either way. The Sydney day is done only when the statement covers it. */
 export function scheduleAfterAttempt(record, decision, result) {
   const next = { ...(record ?? {}), lastSlotId: decision.slot }
+  delete next.claimSlotId
+  delete next.claimUntil
   if (result?.ok && result.toDate && result.toDate >= decision.expected) {
     next.doneSydneyDate = decision.sydneyDate
   }

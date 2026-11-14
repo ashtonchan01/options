@@ -35,7 +35,13 @@ export function followPlan(now, accounts) {
   }
   let soonest = null
   for (const row of open) {
-    const at = nextSlotTime(now, row.index)
+    let at = nextSlotTime(now, row.index)
+    if (row.decision.reason === 'in-flight' && typeof row.decision.claimUntil === 'string') {
+      const claimAt = new Date(row.decision.claimUntil)
+      if (Number.isFinite(claimAt.getTime()) && claimAt.getTime() > now.getTime() && claimAt < at) {
+        at = claimAt
+      }
+    }
     if (!soonest || at.getTime() < soonest.getTime()) soonest = at
   }
   if (!soonest || sydneyClock(soonest).ymd !== today.ymd) {

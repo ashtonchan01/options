@@ -15,11 +15,14 @@ import {
 import {
   ACCOUNT_GAP_MS,
   JOB_BUDGET_MS,
+  MAX_HANDOFFS,
+  REQUEST_GUARD_MS,
   SLOT_GRACE_MS,
   formatFollowLog,
   handoffDecision,
   nextFollowStep,
   postFlexSync,
+  recoveryDispatch,
   runFlexFollow,
 } from './flex-cron-run.js'
 
@@ -114,6 +117,27 @@ async function runFrom(
   return { result, trace, logs, clock }
 }
 
+async function runChain(
+  start: Date,
+  accounts: Row[],
+  policy: (account: Row, decision: { slot: string; expected: string; sydneyDate: string }) => Attempt,
+  budgetMs = JOB_BUDGET_MS,
+) {
+  let cursor = new Date(start.getTime())
+  const trace: { key: string; slot: string; at: number }[] = []
+  const logs: string[] = []
+  let result: Awaited<ReturnType<typeof runFrom>>['result'] | undefined
+  for (let hop = 0; hop <= MAX_HANDOFFS; hop++) {
+    const ran = await runFrom(cursor, accounts, policy, budgetMs)
+    trace.push(...ran.trace)
+    logs.push(...ran.logs)
+    result = ran.result
+    cursor = ran.clock.current
+    if (result.type !== 'handoff') return { result, trace, logs, clock: { current: cursor }, hops: hop }
+  }
+  throw new Error(`still handing off, last ${result?.reason}`)
+}
+
 {
   const late = atSydney('2026-11-12', 13, 28)
   check(
@@ -144,6 +168,22 @@ async function runFrom(
     'after the late slot, the next check is 14:00, not the end of the day',
     bothTried.action === 'wait' && nextHour?.hour === 14 && nextHour.minute === 0,
     JSON.stringify(bothTried),
+  )
+
+  const leaseEnd = new Date(late.getTime() + 90_000).toISOString()
+  const inflight = followPlan(late, [
+    {
+      key: 'personal',
+      index: 0,
+      record: { claimSlotId: '2026-11-12T13:00', claimUntil: leaseEnd },
+      windows: [],
+    },
+    { key: 'business', index: 1, record: { lastSlotId: '2026-11-12T13:01' }, windows: [] },
+  ])
+  check(
+    'a claimed slot waits out the lease instead of calling Flex again',
+    inflight.action === 'wait' && inflight.nextCheckAt === leaseEnd,
+    JSON.stringify(inflight),
   )
 
   const afterThree = followPlan(atSydney('2026-11-12', 15, 2), [
@@ -224,7 +264,7 @@ async function runFrom(
 
 {
   const late = atSydney('2026-11-12', 13, 28)
-  const ran = await runFrom(late, pair(), (account, decision) => {
+  const ran = await runChain(late, pair(), (account, decision) => {
     if (account.key === 'business') return { ok: true, toDate: '20261111' }
     if (decision.slot >= '2026-11-12T17:00') return { ok: true, toDate: '20261111' }
     return { ok: false, code: '1019' }
@@ -269,7 +309,7 @@ async function runFrom(
 {
   const accounts = pair()
   accounts[0].windows = [{ fromDate: '20251112', toDate: '20261111' }]
-  const ran = await runFrom(atSydney('2026-11-12', 15, 10), accounts, (_account, decision) => {
+  const ran = await runChain(atSydney('2026-11-12', 15, 10), accounts, (_account, decision) => {
     if (decision.slot >= '2026-11-12T15:16') return { ok: true, toDate: '20261111' }
     return { ok: false, code: '1019' }
   })
@@ -285,18 +325,24 @@ async function runFrom(
   const accounts = pair()
   const first = await runFrom(early, accounts, () => ({ ok: true, toDate: '20261111' }), JOB_BUDGET_MS)
   const elapsed = first.clock.current.getTime() - early.getTime()
-  check('a 1:21 start does not exit before its budget', elapsed > 5 * 60 * 60_000, String(elapsed))
-  check('and it hands off inside that budget', first.result.type === 'handoff' && elapsed <= JOB_BUDGET_MS && first.trace.length === 0, first.result.reason)
+  check(
+    'a 1:21 start hands off on the short budget',
+    first.result.type === 'handoff'
+      && elapsed <= JOB_BUDGET_MS
+      && elapsed >= JOB_BUDGET_MS - REQUEST_GUARD_MS - 30_000
+      && first.trace.length === 0,
+    `${first.result.reason} ${elapsed}`,
+  )
   const woke = sydneyClock(first.clock.current)
   check('the handoff is still before 09:00', woke.ymd === '2026-11-12' && woke.hour < 9, JSON.stringify(woke))
 
-  const second = await runFrom(first.clock.current, accounts, () => ({ ok: true, toDate: '20261111' }), JOB_BUDGET_MS)
+  const second = await runChain(first.clock.current, accounts, () => ({ ok: true, toDate: '20261111' }), JOB_BUDGET_MS)
   check(
-    'the next job reaches 09:00 and 09:01',
+    'later jobs reach 09:00 and 09:01',
     second.trace.map(t => `${t.key}@${t.slot}`).join(',') === 'personal@2026-11-12T09:00,business@2026-11-12T09:01',
     second.trace.map(t => `${t.key}@${t.slot}`).join(',') || second.result.reason,
   )
-  check('and stops when both statements are in', second.result.type === 'stop' && second.result.reason === 'done')
+  check('and stop when both statements are in', second.result.type === 'stop' && second.result.reason === 'done')
 }
 
 {
@@ -377,14 +423,105 @@ async function runFrom(
 }
 
 {
+  const late = atSydney('2026-11-12', 13, 28)
+  const one = await runFrom(late, pair(), () => ({ ok: false, code: '1019' }))
+  check(
+    'one job checks this slot and leaves the next hour',
+    one.result.type === 'handoff'
+      && one.result.reason === 'slot'
+      && one.trace.map(t => `${t.key}@${t.slot}`).join(',') === 'personal@2026-11-12T13:00,business@2026-11-12T13:01'
+      && sydneyClock(one.clock.current).hour === 13,
+    `${one.result.reason} ${one.trace.map(t => t.slot).join(',')}`,
+  )
+}
+
+{
+  const lost = recoveryDispatch({
+    started: 'true',
+    followResult: 'cancelled',
+    handoff: '',
+    continueOut: '',
+    reason: '',
+    hopOut: '',
+    hopIn: '2',
+  })
+  check('a cancelled run that had started dispatches the next hop', lost.dispatch && lost.hop === '3' && lost.reason === 'recovered', JSON.stringify(lost))
+  const queued = recoveryDispatch({
+    started: '',
+    followResult: 'cancelled',
+    hopIn: '0',
+  })
+  check('a run cancelled before it started does not dispatch', !queued.dispatch, JSON.stringify(queued))
+  const denied = recoveryDispatch({
+    started: 'true',
+    followResult: 'failure',
+    handoff: 'false',
+    continueOut: 'false',
+    reason: 'http-401',
+    hopOut: '1',
+    hopIn: '0',
+  })
+  check('a rejected secret does not start another job', !denied.dispatch, JSON.stringify(denied))
+  const passed = recoveryDispatch({
+    started: 'true',
+    followResult: 'success',
+    handoff: 'true',
+    continueOut: 'true',
+    reason: 'slot',
+    hopOut: '4',
+    hopIn: '3',
+  })
+  check('a clean slot handoff uses the hop the follow step wrote', passed.dispatch && passed.hop === '4', JSON.stringify(passed))
+  const capped = recoveryDispatch({
+    started: 'true',
+    followResult: 'cancelled',
+    hopIn: String(MAX_HANDOFFS),
+  })
+  check('the hop cap stops a recovery loop', !capped.dispatch && capped.reason === 'hop-limit', JSON.stringify(capped))
+  const done = recoveryDispatch({
+    started: 'true',
+    followResult: 'success',
+    handoff: 'false',
+    continueOut: 'false',
+    reason: 'done',
+    hopOut: '1',
+    hopIn: '0',
+  })
+  check('a finished day does not dispatch', !done.dispatch, JSON.stringify(done))
+}
+
+{
   const yml = readFileSync(new URL('../.github/workflows/flex-cron.yml', import.meta.url), 'utf8')
+  const handoff = readFileSync(new URL('./flex-cron-handoff.js', import.meta.url), 'utf8')
+  const vercel = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')) as {
+    crons?: { path?: string; schedule?: string }[]
+    functions?: Record<string, unknown>
+  }
+  const cronRoute = readFileSync(new URL('../api/flex-sync.js', import.meta.url), 'utf8')
+  const cronLib = readFileSync(new URL('../api/_lib/flexCron.js', import.meta.url), 'utf8')
+  const cronBody = cronLib.slice(cronLib.indexOf('export async function runFlexCron'))
   check('overlapping runs do not pile up or cancel the one that is following the day', yml.includes('group: flex-sydney-schedule') && yml.includes('cancel-in-progress: false'))
-  check('the job follows the day instead of posting once', yml.includes('node scripts/flex-cron-run.js') && !yml.includes('curl '))
-  check('a budget handoff is a workflow_dispatch hop', yml.includes('workflow_dispatch') && yml.includes('hop=${HOP}'))
-  check('the cron secret stays in the environment', yml.includes('CRON_SECRET: ${{ secrets.CRON_SECRET }}') && !yml.includes('Bearer'))
-  check('the job exits before the 6-hour kill', yml.includes('timeout-minutes: 350') && yml.includes('timeout-minutes: 340'))
+  check('the job follows one slot instead of posting once', yml.includes('node scripts/flex-cron-run.js') && !yml.includes('curl '))
+  check('a cancelled follow still has a handoff job', yml.includes('if: always()') && yml.includes('node scripts/flex-cron-handoff.js') && yml.includes('started=true'))
+  check('a budget handoff is a workflow_dispatch hop', yml.includes('workflow_dispatch') && handoff.includes("workflow', 'run'") && handoff.includes('hop=${decision.hop}'))
+  check('the cron secret stays in the environment', yml.includes('CRON_SECRET: ${{ secrets.CRON_SECRET }}') && !yml.includes('Bearer') && !handoff.includes('CRON_SECRET'))
+  check('one job is shorter than an afternoon', yml.includes('timeout-minutes: 90') && yml.includes('timeout-minutes: 80'))
+  check('checkout is the Node 24 action', yml.includes('actions/checkout@v7') && !yml.includes('actions/checkout@v4'))
   check('the starter is every 15 minutes, off the top of the hour', yml.includes("cron: '7,22,37,52 * * * *'"))
-  check('the loop budget is under that job timeout', JOB_BUDGET_MS < 340 * 60_000 && JOB_BUDGET_MS >= 5 * 60 * 60_000)
+  check(
+    'the loop budget fits one hourly gap and the step timeout',
+    JOB_BUDGET_MS >= 65 * 60_000 && JOB_BUDGET_MS < 80 * 60_000,
+  )
+  check(
+    'the backup cron is daily on the existing flex route',
+    vercel.crons?.length === 1
+      && vercel.crons[0]?.path === '/api/flex-sync'
+      && vercel.crons[0]?.schedule === '0 6 * * *'
+      && !Object.keys(vercel.functions ?? {}).some(key => key.includes('flex-cron')),
+  )
+  check('a cron bearer on that route runs the shared check', cronRoute.includes('runFlexCron') && cronRoute.includes("startsWith('Bearer ')"))
+  check('the shared check claims the slot before it calls Flex', cronBody.indexOf('claimSlot(') !== -1 && cronBody.indexOf('claimSlot(') < cronBody.indexOf('fetchFlexStatement('))
+  check('the check does not log', !cronLib.includes('console.') && !cronRoute.includes('console.'))
 }
 
 if (failed > 0) {
