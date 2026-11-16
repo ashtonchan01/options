@@ -10,7 +10,7 @@
 import { useState } from 'react'
 import {
   LayoutDashboard, Radar, ListChecks, Plus, X as XIcon, ArrowRightLeft,
-  Menu, X, Flag,
+  Menu, X, Flag, ChartLine,
   Sun, Moon, LogOut, ChevronLeft, ChevronRight, RefreshCw,
 } from 'lucide-react'
 import type { Account } from '../../store/accountsStore'
@@ -122,6 +122,14 @@ export default function Sidebar({
             onClick={() => selectTab('pairs')}>
             <ArrowRightLeft size={17} />
             <span>Pairs</span>
+          </button>
+
+          <button
+            className={`ew-nav-item${activeTab === 'backtest' ? ' active' : ''}`}
+            title={collapsed ? 'Backtest' : undefined}
+            onClick={() => selectTab('backtest')}>
+            <ChartLine size={17} />
+            <span>Backtest</span>
           </button>
 
           {accounts.map(account => {

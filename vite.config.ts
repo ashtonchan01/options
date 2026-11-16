@@ -23,8 +23,34 @@ function historyDevApi() {
   }
 }
 
+/** Serves /api/market-history in `vite dev` the same way Vercel serves the node handler. */
+function marketHistoryDevApi() {
+  return {
+    name: 'market-history-dev-api',
+    configureServer(server: { middlewares: { use: (fn: (req: import('http').IncomingMessage, res: import('http').ServerResponse, next: () => void) => void) => void } }) {
+      server.middlewares.use(async (req, res, next) => {
+        const url = req.url ?? ''
+        if (!url.startsWith('/api/market-history')) return next()
+        // @ts-expect-error api/market-history.js is untyped Vercel node code
+        const loaded = await import('./api/market-history.js')
+        const shim = {
+          statusCode: 200,
+          status(code: number) { this.statusCode = code; return this },
+          setHeader(name: string, value: string) { res.setHeader(name, value); return this },
+          json(body: unknown) {
+            res.statusCode = this.statusCode
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(body))
+          },
+        }
+        await loaded.default(req, shim)
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), historyDevApi()],
+  plugins: [react(), tailwindcss(), historyDevApi(), marketHistoryDevApi()],
   base: '/',
   server: {
     proxy: {
