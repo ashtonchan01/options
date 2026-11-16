@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import { getSql, ensureSchema } from '../_lib/db.js'
 import { signSession } from '../_lib/jwt.js'
 import { sessionCookie } from '../_lib/cookies.js'
+import { tokenVersion } from '../_lib/session.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -16,7 +17,7 @@ export default async function handler(req, res) {
     await ensureSchema()
     const sql = getSql()
 
-    const rows = await sql`SELECT id, email, password_hash FROM users WHERE email = ${normalizedEmail}`
+    const rows = await sql`SELECT id, email, password_hash, token_version FROM users WHERE email = ${normalizedEmail}`
     const user = rows[0]
     // Compare against a dummy hash when the user doesn't exist so the response
     // timing doesn't reveal whether the email is registered.
@@ -27,7 +28,7 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Incorrect email or password' })
     }
 
-    const token = await signSession({ sub: user.id, email: user.email })
+    const token = await signSession({ sub: user.id, email: user.email, tv: tokenVersion(user.token_version) })
     res.setHeader('Set-Cookie', sessionCookie(token))
     return res.status(200).json({ email: user.email })
   } catch (err) {

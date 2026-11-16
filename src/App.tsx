@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from 'react'
 import Sidebar, { type TabId, parseAccountTabId } from './components/layout/Sidebar'
 import AuthGate from './components/auth/AuthGate'
+import { ForgotPasswordPage, ResetPasswordPage } from './components/auth/PasswordReset'
 import { useTradeLabelStore } from './store/tradeLabelsStore'
 import { useAuthStore } from './store/authStore'
 import { useAccounts } from './store/accountsStore'
@@ -71,6 +72,9 @@ export default function App() {
       </Suspense>
     )
   }
+  const path = typeof window !== 'undefined' ? window.location.pathname.replace(/\/+$/, '') || '/' : '/'
+  if (path === '/forgot-password') return <ForgotPasswordPage />
+  if (path === '/reset-password') return <ResetPasswordPage />
   return <SignedInApp />
 }
 

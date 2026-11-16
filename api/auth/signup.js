@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import { getSql, ensureSchema } from '../_lib/db.js'
 import { signSession } from '../_lib/jwt.js'
 import { sessionCookie } from '../_lib/cookies.js'
+import { tokenVersion } from '../_lib/session.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -32,10 +33,10 @@ export default async function handler(req, res) {
     const passwordHash = await bcrypt.hash(password, 10)
     const rows = await sql`
       INSERT INTO users (email, password_hash) VALUES (${normalizedEmail}, ${passwordHash})
-      RETURNING id, email
+      RETURNING id, email, token_version
     `
     const user = rows[0]
-    const token = await signSession({ sub: user.id, email: user.email })
+    const token = await signSession({ sub: user.id, email: user.email, tv: tokenVersion(user.token_version) })
     res.setHeader('Set-Cookie', sessionCookie(token))
     return res.status(200).json({ email: user.email })
   } catch (err) {

@@ -42,31 +42,50 @@ export default function AuthGate({ error, onLogin, onSignup }: Props) {
           {mode === 'login' ? 'Welcome back — sign in to continue.' : 'Set up your login to get started.'}
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        <form method="post" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* No autoFocus — on iOS home-screen standalone apps, a focus()
+              call that isn't the direct result of a real touch/click
+              doesn't bring up the keyboard, and can leave the WebView's
+              keyboard subsystem stuck for the rest of the session (every
+              input silently failing to respond to taps afterward, not
+              just this one).
+              name, id, and autocomplete are the signals Safari and Chrome
+              use to pair these two fields. Without them the password
+              manager can treat the email field as the password. */}
+          <label htmlFor="username" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 600 }}>Email address</span>
-            {/* No autoFocus — on iOS home-screen standalone apps, a focus()
-                call that isn't the direct result of a real touch/click
-                doesn't bring up the keyboard, and can leave the WebView's
-                keyboard subsystem stuck for the rest of the session (every
-                input silently failing to respond to taps afterward, not
-                just this one). */}
             <input
-              type="email" required value={email}
+              id="username"
+              name="username"
+              type="email"
+              autoComplete="username"
+              required
+              value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
               style={inputStyle}
             />
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <label htmlFor="password" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 600 }}>Password</span>
             <input
-              type="password" required minLength={8} value={password}
+              id="password"
+              name="password"
+              type="password"
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              required
+              minLength={8}
+              value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder={mode === 'signup' ? 'At least 8 characters' : '••••••••'}
               style={inputStyle}
             />
           </label>
+          {mode === 'login' && (
+            <div style={{ textAlign: 'right', marginTop: -4 }}>
+              <a href="/forgot-password" style={anchorStyle}>Forgot password?</a>
+            </div>
+          )}
 
           {error && (
             <div style={{ fontSize: 12, color: '#f43f5e', background: '#f43f5e14', border: '1px solid #f43f5e30', borderRadius: 6, padding: '6px 10px' }}>
@@ -109,4 +128,8 @@ const inputStyle: React.CSSProperties = {
 const linkStyle: React.CSSProperties = {
   background: 'none', border: 'none', padding: 0, color: 'var(--accent)', fontWeight: 600,
   cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
+}
+
+const anchorStyle: React.CSSProperties = {
+  color: 'var(--accent)', fontWeight: 600, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none',
 }

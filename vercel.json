@@ -7,6 +7,12 @@
       "schedule": "0 6 * * *"
     }
   ],
+  "rewrites": [
+    { "source": "/forgot-password", "destination": "/index.html" },
+    { "source": "/forgot-password/", "destination": "/index.html" },
+    { "source": "/reset-password", "destination": "/index.html" },
+    { "source": "/reset-password/", "destination": "/index.html" }
+  ],
   "functions": {
     "api/flex-sync.js": {
       "maxDuration": 60

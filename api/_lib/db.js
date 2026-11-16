@@ -28,6 +28,40 @@ export async function ensureSchema() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `
+      // Bumped when a password changes. JWTs carry the same number (`tv`).
+      // Existing sessions omit `tv` and match the default 0, so they keep
+      // working until the first reset.
+      await db`ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0`
+      await db`
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+          token_hash TEXT PRIMARY KEY,
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          expires_at TIMESTAMPTZ NOT NULL,
+          used_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `
+      await db`
+        CREATE INDEX IF NOT EXISTS password_reset_tokens_user_idx
+        ON password_reset_tokens (user_id)
+      `
+      await db`
+        CREATE TABLE IF NOT EXISTS password_reset_attempts (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          email TEXT NOT NULL,
+          ip TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `
+      await db`
+        CREATE INDEX IF NOT EXISTS password_reset_attempts_email_idx
+        ON password_reset_attempts (kind, email, created_at)
+      `
+      await db`
+        CREATE INDEX IF NOT EXISTS password_reset_attempts_ip_idx
+        ON password_reset_attempts (kind, ip, created_at)
+      `
       // Per-user IBKR Flex credentials (token + query ID per profile), one row per user.
       await db`
         CREATE TABLE IF NOT EXISTS user_settings (
