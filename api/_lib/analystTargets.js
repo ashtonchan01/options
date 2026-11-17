@@ -3,6 +3,7 @@ import { toYahooSymbol } from './symbolAliases.js'
 import { ANALYST_TARGET_SEEDS } from './analystTargetSeed.js'
 
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000
+const CACHE_FAIL_TTL_MS = 10 * 60 * 1000
 const ACTIONS = new Set(['Assigned', 'Reiterated', 'Raised', 'Lowered', 'Initiated'])
 const RATINGS = new Set(['BUY', 'HOLD', 'SELL'])
 
@@ -122,19 +123,40 @@ function medianFromTargets(rows) {
   return sorted[mid]
 }
 
-function buildSummary(summary, rows, fetchedAt) {
-  const liveRows = rows.filter(r => r.source === 'live')
-  const median = summary?.median ?? medianFromTargets(liveRows.length ? liveRows : rows)
-  const high = summary?.high ?? (liveRows.length ? Math.max(...liveRows.map(r => r.priceTarget)) : null)
-  const low = summary?.low ?? (liveRows.length ? Math.min(...liveRows.map(r => r.priceTarget)) : null)
-  const count = summary?.count ?? (liveRows.length > 0 ? liveRows.length : rows.filter(r => !r.isManual).length)
+export function statsFromDisplayRows(rows) {
+  const pts = rows
+    .filter(r => !r.isManual && r.source !== 'manual')
+    .map(r => r.priceTarget)
+    .filter(n => Number.isFinite(n) && n > 0)
+  if (!pts.length) return { median: null, high: null, low: null, count: null }
   return {
-    median,
-    high,
-    low,
-    count,
+    median: medianFromTargets(rows.filter(r => !r.isManual && r.source !== 'manual')),
+    high: Math.max(...pts),
+    low: Math.min(...pts),
+    count: pts.length,
+  }
+}
+
+export function buildSummary(summary, rows, fetchedAt) {
+  const fromRows = statsFromDisplayRows(rows)
+  return {
+    median: summary?.median ?? fromRows.median,
+    high: summary?.high ?? fromRows.high,
+    low: summary?.low ?? fromRows.low,
+    count: summary?.count ?? fromRows.count,
     fetchedAt: fetchedAt ?? null,
   }
+}
+
+function cacheHasLivePayload(summary, rows) {
+  if ((rows?.length ?? 0) > 0) return true
+  if (!summary) return false
+  return (
+    summary.median != null ||
+    summary.high != null ||
+    summary.low != null ||
+    (summary.count != null && summary.count > 0)
+  )
 }
 
 async function loadCache(sql, ticker) {
@@ -146,11 +168,14 @@ async function loadCache(sql, ticker) {
   if (!rows[0]) return null
   const fetchedAt = rows[0].fetched_at
   const age = Date.now() - new Date(fetchedAt).getTime()
+  const hasData = cacheHasLivePayload(rows[0].summary, rows[0].rows)
+  const ttl = hasData ? CACHE_TTL_MS : CACHE_FAIL_TTL_MS
   return {
     summary: rows[0].summary,
     rows: rows[0].rows,
     fetchedAt: fetchedAt instanceof Date ? fetchedAt.toISOString() : String(fetchedAt),
-    fresh: age < CACHE_TTL_MS,
+    fresh: age < ttl,
+    hasData,
   }
 }
 
@@ -195,13 +220,14 @@ async function resolveTickerLive(sql, ticker, forceRefresh, provider, crumbState
   try {
     const { summary, rows } = await fetchLiveAnalystTargetsForSymbol(yahooSym, provider, crumbState)
     const fetchedAt = new Date().toISOString()
-    if ((rows?.length ?? 0) > 0 || summary) {
+    if (cacheHasLivePayload(summary, rows)) {
       await saveCache(sql, ticker, summary, rows, fetchedAt)
       return { summary, liveRows: rows, fetchedAt, dataSource: 'live' }
     }
+    await saveCache(sql, ticker, null, [], fetchedAt)
   } catch (err) {
     console.error('[analyst-targets] live fetch', ticker, err.message)
-    if (cached && !forceRefresh) {
+    if (cached?.hasData && !forceRefresh) {
       return {
         summary: cached.summary,
         liveRows: cached.rows,
@@ -209,9 +235,10 @@ async function resolveTickerLive(sql, ticker, forceRefresh, provider, crumbState
         dataSource: 'live-stale',
       }
     }
+    await saveCache(sql, ticker, null, [], new Date().toISOString()).catch(() => {})
   }
 
-  if (cached && (cached.rows?.length > 0 || cached.summary)) {
+  if (cached?.hasData) {
     return {
       summary: cached.summary,
       liveRows: cached.rows,
@@ -220,26 +247,25 @@ async function resolveTickerLive(sql, ticker, forceRefresh, provider, crumbState
     }
   }
 
-  const seeds = seedRowsForTicker(ticker)
-  if (seeds.length > 0) {
-    return {
-      summary: buildSummary(null, seeds, null),
-      liveRows: seeds.map(s => ({
-        firm: s.firm,
-        analystName: s.analystName,
-        priceTarget: s.priceTarget,
-        previousTarget: s.previousTarget,
-        rating: s.rating,
-        action: s.action,
-        date: s.date,
-        source: 'seed',
-      })),
-      fetchedAt: null,
-      dataSource: 'seed',
+  return { summary: null, liveRows: [], fetchedAt: null, dataSource: 'none' }
+}
+
+export function dedupeFirmRows(rows) {
+  const byFirm = new Map()
+  for (const row of rows) {
+    const firmKey = (row.firm || '').trim().toLowerCase()
+    if (!firmKey) continue
+    const prev = byFirm.get(firmKey)
+    if (!prev || (row.date ?? '').localeCompare(prev.date ?? '') > 0) {
+      byFirm.set(firmKey, row)
     }
   }
+  return [...byFirm.values()]
+}
 
-  return { summary: null, liveRows: [], fetchedAt: null, dataSource: 'none' }
+function mergeLiveWithSeeds(ticker, liveRows, seedJsonRows) {
+  const jsonLive = (liveRows ?? []).map(r => liveRowToJson(ticker, r))
+  return dedupeFirmRows([...jsonLive, ...seedJsonRows])
 }
 
 function mergeRows(ticker, liveRows, manualRows) {
@@ -273,13 +299,23 @@ export async function handleAnalystTargets(req, res, user, sql) {
     const byTicker = {}
     for (const ticker of tickers) {
       const resolved = await resolveTickerLive(sql, ticker, forceRefresh, provider, crumbState)
-      const rows = mergeRows(ticker, resolved.liveRows, manualByTicker[ticker] ?? [])
+      const seeds = seedRowsForTicker(ticker)
+      const mergedLive = mergeLiveWithSeeds(ticker, resolved.liveRows, seeds)
+      const rows = mergeRows(ticker, mergedLive, manualByTicker[ticker] ?? [])
       const summary = buildSummary(resolved.summary, rows, resolved.fetchedAt)
+      const dataSource =
+        resolved.dataSource === 'live' || resolved.dataSource === 'live-stale'
+          ? resolved.dataSource
+          : (resolved.liveRows?.length ?? 0) > 0
+            ? 'live'
+            : seeds.length > 0
+              ? 'seed'
+              : resolved.dataSource
       byTicker[ticker] = {
         summary,
         rows,
         provider,
-        dataSource: resolved.dataSource,
+        dataSource,
       }
     }
 

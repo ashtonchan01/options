@@ -1,6 +1,8 @@
 import { fetchYahooAnalystTargets } from './yahoo.js'
 import { fetchFmpAnalystTargets } from './fmp.js'
 
+/** Default live chain: Vercel Edge Yahoo quoteSummary → Node Yahoo (crumb) → Nasdaq consensus API. */
+
 export function resolveAnalystTargetProvider() {
   const configured = (process.env.ANALYST_TARGET_PROVIDER || '').toLowerCase()
   if (configured === 'fmp' && process.env.FMP_API_KEY) return 'fmp'
