@@ -3205,9 +3205,47 @@ body {
 /* ─── Backtest ────────────────────────────────────────────────────────────── */
 
 .bt-page { gap: 12px; min-width: 0; }
+.bt-page-compact { gap: 8px; }
 .bt-page h1 { font-size: 20px; font-weight: 700; color: var(--text-1); letter-spacing: -0.02em; }
 .bt-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.bt-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.bt-header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bt-mode-tabs { display: flex; gap: 4px; }
+.bt-data-through { font-size: 12px; color: var(--text-3); font-weight: 600; white-space: nowrap; }
+.bt-one-screen {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+}
+.bt-form-card { padding: 10px 12px; }
+.bt-form-summary { font-size: 12px; color: var(--text-2); margin: 0 0 8px; font-weight: 600; }
+.bt-fields-compact { gap: 6px 10px; }
+.bt-results-compact { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; }
+.bt-results-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bt-save-row { flex: 1; min-width: 200px; }
+.bt-stats-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.bt-stat-compact { flex: 1 1 100px; min-width: 88px; padding: 6px 8px; }
+.bt-stat-compact strong { font-size: 15px; }
+.bt-chart-compact .bt-chart { height: clamp(160px, 28vh, 260px); min-height: 160px; }
+.bt-trades-details summary { list-style: none; }
+.bt-trades-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-1);
+}
+.bt-trades-summary::-webkit-details-marker { display: none; }
+.bt-csv-btn { margin-left: auto; }
+.bt-compare-panel { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.bt-saved-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.bt-saved-row { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); }
+.bt-saved-name { font-weight: 700; color: var(--text-1); }
+.bt-saved-meta { color: var(--text-3); font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-compare-table { margin-top: 4px; }
 .bt-banner {
   background: var(--gold-dim);
   border: 1px solid color-mix(in srgb, var(--gold) 35%, transparent);
@@ -3336,6 +3374,13 @@ body {
   .bt-workspace { display: grid; grid-template-columns: minmax(360px, 440px) minmax(0, 1fr); gap: 12px; align-items: start; }
   .bt-config-col { position: sticky; top: 0; max-height: calc(100vh - 92px); overflow: auto; padding-right: 4px; }
   .bt-configs { grid-template-columns: 1fr; }
+  .bt-one-screen { max-height: calc(100vh - 88px); }
+  .bt-one-screen .bt-form-card { max-height: calc(100vh - 96px); overflow: auto; }
+  .bt-results-compact { max-height: calc(100vh - 96px); overflow: hidden; }
+  .bt-trades-details[open] .bt-trades { max-height: min(240px, 32vh); }
+}
+@media (max-width: 900px) {
+  .bt-one-screen { grid-template-columns: 1fr; }
 }
 .bt-worst { list-style: none; display: flex; flex-direction: column; gap: 6px; }
 .bt-worst li { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); }

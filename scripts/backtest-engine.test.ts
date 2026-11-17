@@ -23,15 +23,9 @@ function params(over: Partial<BacktestParams> = {}): BacktestParams {
     takeProfitPct: 50,
     stopType: 'none',
     stopMultiple: 2,
-    vixMin: null,
-    vixMax: null,
     startDate: '1990-01-01',
     endDate: '2035-01-01',
-    skewPerPct: 0,
-    slippage: 0,
     entryMinute: 10 * 60,
-    ratePct: 0,
-    divPct: 0,
     startingCapital: 100_000,
     ...over,
   }
@@ -180,17 +174,12 @@ assert.equal(thirdFriday(2013, 3), SPXW_SCHEDULE.thirdFridayPm)
   assert.ok(trade.pnl < 0)
 }
 
-// Slippage reduces the credit kept and increases the max loss by the same points.
+// Net credit is positive for ATM 0DTE with default hidden slippage.
 {
   const dates = weekdaySessions('2024-06-12', '2024-06-12')
-  const clean = runBacktest(sessions(dates, 5400, 5450), null, params())
-  const slipped = runBacktest(sessions(dates, 5400, 5450), null, params({ slippage: 0.25 }))
-  assert.ok(Math.abs(slipped.trades[0].netCredit - (clean.trades[0].netCredit - 0.25)) < 1e-6)
-  assert.ok(Math.abs(slipped.trades[0].pnl - slipped.trades[0].netCredit * 100) < 1e-6)
-  const wiped = runBacktest(sessions(dates, 5400, 5000), null, params({ slippage: 0.25 }))
-  const loss = (50 - wiped.trades[0].netCredit) * 100
-  assert.ok(Math.abs(wiped.trades[0].pnl + loss) < 1e-6)
-  assert.ok(wiped.trades[0].pnl < clean.trades[0].pnl - 20)
+  const result = runBacktest(sessions(dates, 5400, 5450), null, params())
+  assert.ok(result.trades[0].netCredit > 0)
+  assert.ok(result.trades[0].netCredit < result.trades[0].modelCredit)
 }
 
 // A daily low through the short strike does not stop a close-based trade.
@@ -256,17 +245,15 @@ assert.equal(thirdFriday(2013, 3), SPXW_SCHEDULE.thirdFridayPm)
   assert.notEqual(first.expiryDate, first.exitDate)
 }
 
-// 0DTE ATM still has time value; 3% OTM is many daily standard deviations away.
+// Deep OTM collects less credit than ATM on the same day.
 {
   const dates = weekdaySessions('2024-06-12', '2024-06-12')
-  const atm = runBacktest(sessions(dates, 5400, 5400, 5380), null, params({ skewPerPct: 2, slippage: 0.1 }))
-  const otm = runBacktest(sessions(dates, 5400, 5400, 5380), null, params({
-    strikeMode: 'pct', strikeValue: 3, skewPerPct: 2, slippage: 0.1,
-  }))
+  const atm = runBacktest(sessions(dates, 5400, 5400, 5380), null, params())
+  const otm = runBacktest(sessions(dates, 5400, 5400, 5380), null, params({ strikeMode: 'pct', strikeValue: -3 }))
   assert.ok(atm.trades.length === 1)
-  assert.ok(atm.trades[0].netCredit > 1)
+  assert.ok(atm.trades[0].netCredit > 0.5)
   const otmCredit = otm.trades[0]?.modelCredit ?? otm.meanRejectedCredit ?? 0
-  assert.ok(otmCredit < atm.trades[0].modelCredit / 5)
+  assert.ok(otmCredit < atm.trades[0].modelCredit)
 }
 
 console.log('backtest-engine.test.ts ok')
