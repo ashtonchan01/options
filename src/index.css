@@ -3366,6 +3366,10 @@ body {
 .bt-table th { position: sticky; top: 0; background: var(--bg-card); color: var(--text-4); font-size: 11px; font-weight: 700; z-index: 1; }
 .bt-table th button { background: none; border: none; color: inherit; font: inherit; font-weight: 700; padding: 0; }
 .bt-table tbody tr:hover { background: var(--bg-elevated); }
+.bt-trades .bt-table th, .bt-trades .bt-table td { padding: 4px 5px; font-size: 11px; }
+.bt-trades .bt-table th { font-size: 10px; }
+.bt-table .bt-num { text-align: right; font-variant-numeric: tabular-nums; }
+.bt-table .bt-tight { padding-left: 4px; padding-right: 4px; max-width: 6rem; overflow: hidden; text-overflow: ellipsis; }
 .bt-compare tbody tr { cursor: pointer; }
 .bt-selected { background: var(--accent-glow); }
 .bt-workspace { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
