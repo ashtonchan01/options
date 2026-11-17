@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import { thirdFriday, weekday, weekdaySessions } from '../src/backtest/calendar.ts'
 import { runBacktest, type BacktestParams, type IntradayBar, type SessionBar } from '../src/backtest/engine.ts'
 import { buildExpiries, resolveExpiry, SPXW_SCHEDULE } from '../src/backtest/expiries.ts'
-import { bsmPut, bsmPutDelta, skewedIv } from '../src/backtest/pricing.ts'
+import { HIDDEN_DEFAULTS } from '../src/backtest/defaults.ts'
+import { bsmPut, bsmPutDelta, roundStrike, skewedIv, spreadMark } from '../src/backtest/pricing.ts'
+import { markVolFromVix } from '../src/backtest/volatility.ts'
+import { yearFraction } from '../src/backtest/calendar.ts'
 
 function indexOf(dates: string[]) {
   return new Map(dates.map((d, i) => [d, i]))
@@ -294,6 +297,66 @@ assert.equal(thirdFriday(2013, 3), SPXW_SCHEDULE.thirdFridayPm)
   }))
   assert.equal(monthly.trades.length, 1)
   assert.equal(monthly.trades[0].entryDate, '2019-05-07')
+}
+
+// 60 DTE 25-wide ATM credits align with typical SPX put-spread markets (VIX ~16).
+{
+  const spot = 5560
+  const width = 25
+  const shortK = roundStrike(spot)
+  const longK = shortK - width
+  const t = yearFraction('2024-08-19', 10 * 60, '2024-10-18', 16 * 60)
+  const r = HIDDEN_DEFAULTS.ratePct / 100
+  const q = HIDDEN_DEFAULTS.divPct / 100
+  const skew = HIDDEN_DEFAULTS.skewPerPct
+  const vol = markVolFromVix(16, 60)
+  const atm = spreadMark(spot, shortK, longK, t, r, q, vol, skew)
+  assert.ok(atm >= 7.5 && atm <= 10.5, `60 DTE ATM model credit ${atm}`)
+  const shortOtm = roundStrike(spot * 0.97)
+  const otm = spreadMark(spot, shortOtm, shortOtm - width, t, r, q, vol, skew)
+  assert.ok(otm > 1 && otm < atm, `OTM ${otm} vs ATM ${atm}`)
+  assert.ok(otm >= 5 && otm <= 8.5, `60 DTE -3% model credit ${otm}`)
+}
+
+// Backtest marks use VIX (not trailing realized) on a calm tape with low realized vol.
+{
+  const dates = weekdaySessions('2024-03-01', '2024-12-31')
+  const bars: SessionBar[] = dates.map(date => ({
+    date,
+    open: 5560,
+    high: 5570,
+    low: 5555,
+    close: 5560,
+    vixOpen: 16,
+    vixClose: 16,
+  }))
+  const wide = runBacktest(bars, null, params({
+    dte: 60,
+    width: 25,
+    strikeMode: 'pct',
+    strikeValue: 0,
+    takeProfitOn: false,
+    stopType: 'none',
+    startDate: '2024-08-19',
+    endDate: '2024-12-31',
+  }))
+  const atmTrade = wide.trades.find(t => t.entryDate === '2024-08-19')
+  assert.ok(atmTrade, `trades ${wide.trades.length}`)
+  assert.ok(atmTrade!.netCredit >= 7.5, `net credit ${atmTrade!.netCredit}`)
+  const otm = runBacktest(bars, null, params({
+    dte: 60,
+    width: 25,
+    strikeMode: 'pct',
+    strikeValue: -3,
+    takeProfitOn: false,
+    stopType: 'none',
+    startDate: '2024-08-19',
+    endDate: '2024-12-31',
+  }))
+  const otmTrade = otm.trades.find(t => t.entryDate === '2024-08-19')
+  assert.ok(otmTrade)
+  assert.ok(otmTrade!.netCredit < atmTrade!.netCredit)
+  assert.ok(otmTrade!.netCredit >= 5)
 }
 
 console.log('backtest-engine.test.ts ok')

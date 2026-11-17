@@ -9,7 +9,7 @@ export const SAMPLE_END = '2026-04-24'
 
 /** Applied inside the engine — not exposed in the UI. */
 export const HIDDEN_DEFAULTS = {
-  skewPerPct: 2,
+  skewPerPct: 0.5,
   slippage: 0.1,
   ratePct: 4,
   divPct: 1.3,
