@@ -34,9 +34,9 @@ function cell(value: string | number): string {
 
 export function tradesToCsv(trades: readonly Trade[]): string {
   const headers = [
-    'entry', 'expiry', 'exit', 'targetDte', 'actualDte', 'snapped', 'settle',
-    'entrySpot', 'exitSpot', 'shortStrike', 'longStrike', 'entryVol',
-    'modelCredit', 'netCredit', 'exitDebit', 'contracts', 'pnl', 'risk',
+    'entryDate', 'exitDate', 'expiryDate', 'targetDte', 'actualDte', 'snapped', 'settle',
+    'spxAtEntry', 'spxAtExit', 'shortStrike', 'longStrike', 'entryVol',
+    'modelCredit', 'creditAtEntry', 'debitAtExit', 'contracts', 'pnl', 'risk',
     'exitReason', 'stopBasis',
   ]
   const lines = trades.map(t => [

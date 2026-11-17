@@ -256,4 +256,18 @@ assert.equal(thirdFriday(2013, 3), SPXW_SCHEDULE.thirdFridayPm)
   assert.ok(otmCredit < atm.trades[0].modelCredit)
 }
 
+// Width-scaled slippage keeps narrow spreads from paying the full 50-wide haircut.
+{
+  const dates = weekdaySessions('2024-06-10', '2024-08-09')
+  const wide = runBacktest(sessions(dates, 5400, 5400, 5200), null, params({ dte: 30, width: 50 }))
+  const narrow = runBacktest(sessions(dates, 5400, 5400, 5200), null, params({ dte: 30, width: 5, strikeMode: 'pct', strikeValue: -3 }))
+  assert.ok(wide.trades.length >= 1)
+  assert.ok(narrow.trades.length >= 1)
+  const w0 = wide.trades[0]
+  const n0 = narrow.trades[0]
+  assert.ok(w0.modelCredit - w0.netCredit > 0.09)
+  assert.ok(n0.modelCredit - n0.netCredit <= 0.02)
+  assert.ok(n0.netCredit >= n0.modelCredit * 0.75)
+}
+
 console.log('backtest-engine.test.ts ok')

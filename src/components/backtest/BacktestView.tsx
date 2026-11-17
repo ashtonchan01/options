@@ -11,7 +11,15 @@ import { addSavedRun, deleteSavedRun, loadSavedRuns, type SavedRun } from '../..
 import { useThemeStore } from '../../store/themeStore'
 
 type PageMode = 'run' | 'compare'
-type SortKey = 'entryDate' | 'expiryDate' | 'actualDte' | 'netCredit' | 'pnl'
+type SortKey = 'entryDate' | 'exitDate' | 'expiryDate' | 'actualDte' | 'netCredit' | 'exitDebit' | 'pnl'
+
+function spot(n: number): string {
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 })
+}
+
+function sprd(n: number): string {
+  return n.toFixed(2)
+}
 
 function signed(n: number): string {
   return n < 0 ? 'bt-neg' : n > 0 ? 'bt-pos' : ''
@@ -344,11 +352,15 @@ function RunResults({
             <thead>
               <tr>
                 <SortTh label="Entry" k="entryDate" sort={sort} onSort={onSort} />
-                <SortTh label="Expiry" k="expiryDate" sort={sort} onSort={onSort} />
+                <SortTh label="Exit" k="exitDate" sort={sort} onSort={onSort} />
+                <SortTh label="Exp" k="expiryDate" sort={sort} onSort={onSort} />
                 <SortTh label="DTE" k="actualDte" sort={sort} onSort={onSort} />
-                <th>Strikes</th>
-                <SortTh label="Credit" k="netCredit" sort={sort} onSort={onSort} />
-                <th>Exit</th>
+                <th className="bt-tight">K</th>
+                <th className="bt-num">SPX₀</th>
+                <th className="bt-num">SPX₁</th>
+                <SortTh label="Cr" k="netCredit" sort={sort} onSort={onSort} />
+                <SortTh label="Db" k="exitDebit" sort={sort} onSort={onSort} />
+                <th className="bt-tight">Why</th>
                 <SortTh label="P&L" k="pnl" sort={sort} onSort={onSort} />
               </tr>
             </thead>
@@ -374,11 +386,15 @@ function TradeRow({ trade }: { trade: Trade }) {
   return (
     <tr>
       <td>{trade.entryDate}</td>
+      <td>{trade.exitDate}</td>
       <td>{trade.expiryDate}</td>
       <td>{trade.actualDte}</td>
-      <td>{trade.shortK} / {trade.longK}</td>
-      <td>{trade.netCredit.toFixed(2)}</td>
-      <td>{trade.exitReason}</td>
+      <td className="bt-tight">{trade.shortK}/{trade.longK}</td>
+      <td className="bt-num">{spot(trade.entrySpot)}</td>
+      <td className="bt-num">{spot(trade.exitSpot)}</td>
+      <td className="bt-num">{sprd(trade.netCredit)}</td>
+      <td className="bt-num">{sprd(trade.exitDebit)}</td>
+      <td className="bt-tight" title={trade.exitReason}>{trade.exitReason}</td>
       <td className={signed(trade.pnl)}>{money(trade.pnl)}</td>
     </tr>
   )

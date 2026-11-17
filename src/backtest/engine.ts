@@ -306,7 +306,8 @@ export function runBacktest(
   const { ratePct, divPct, slippage, skewPerPct } = HIDDEN_DEFAULTS
   const r = ratePct / 100
   const q = divPct / 100
-  const slip = Math.max(0, slippage)
+  // Slippage is calibrated for the default 50-point width; scale so narrow spreads are not wiped out.
+  const slip = Math.max(0, slippage * (params.width / 50))
   const skew = Math.max(0, skewPerPct)
   const volByDate = buildRealizedVol(sessions)
   const dte = Math.max(0, Math.floor(params.dte))
