@@ -70,10 +70,17 @@ function processHistory(history) {
     .map(({ epoch: _e, ...rest }) => rest)
 }
 
+function highLowFromRows(rows) {
+  const pts = rows.map(r => r.priceTarget).filter(n => Number.isFinite(n) && n > 0)
+  if (!pts.length) return { high: null, low: null }
+  return { high: Math.max(...pts), low: Math.min(...pts) }
+}
+
 function summaryFromFinancial(fd, rows) {
+  const fromPts = highLowFromRows(rows)
   const median = num(fd?.targetMedianPrice) ?? medianFromRows(rows)
-  const high = num(fd?.targetHighPrice)
-  const low = num(fd?.targetLowPrice)
+  const high = num(fd?.targetHighPrice) ?? fromPts.high
+  const low = num(fd?.targetLowPrice) ?? fromPts.low
   let count = num(fd?.numberOfAnalystOpinions)
   if (count == null && rows.length > 0) count = rows.length
   if (median == null && high == null && low == null && count == null) return null
