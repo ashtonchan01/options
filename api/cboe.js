@@ -14,6 +14,13 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.status(204).end()
 
+  // History updates share this function. A new /api file puts the project
+  // over its serverless function limit and Vercel rejects the preview.
+  if (req.query?.history) {
+    const { handleMarketHistory } = await import('./_lib/marketHistory.js')
+    return handleMarketHistory(req, res)
+  }
+
   const { symbol } = req.query
   if (!symbol) return res.status(400).json({ error: 'Missing symbol' })
   if (!/^[A-Za-z0-9.\-]+$/.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' })
