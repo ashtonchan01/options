@@ -85,12 +85,10 @@ const SORT_COLUMNS: { key: SortKey; label: string }[] = [
 
 const TABLE_COL_COUNT = SORT_COLUMNS.length + 1
 
-const PT_LOADING_STYLE = { opacity: 0.45 } as const
-
 function PtCells({
   expanded,
   onToggleThesis,
-  busy,
+  refreshing,
   ptMedian,
   ptHigh,
   ptLow,
@@ -99,14 +97,16 @@ function PtCells({
 }: {
   expanded: boolean
   onToggleThesis: () => void
-  busy: boolean
+  refreshing: boolean
   ptMedian: number | null
   ptHigh: number | null
   ptLow: number | null
   ptUpside: number | null
   ptCount: number | null
 }) {
-  const shimmer = busy && ptMedian == null && ptHigh == null && ptLow == null && ptCount == null
+  const cellStyle = refreshing
+    ? { boxShadow: 'inset 0 -1px 0 var(--accent-border)' as const }
+    : undefined
   const chevron = (
     <button type="button" onClick={onToggleThesis} title="Expand per-firm targets" style={{
       background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer',
@@ -115,30 +115,17 @@ function PtCells({
       {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
     </button>
   )
-  if (shimmer) {
-    return (
-      <>
-        <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap', ...PT_LOADING_STYLE }}>
-          {chevron}…
-        </td>
-        <td className="mono" style={{ textAlign: 'right', ...PT_LOADING_STYLE }}>…</td>
-        <td className="mono" style={{ textAlign: 'right', ...PT_LOADING_STYLE }}>…</td>
-        <td className="mono neu" style={{ textAlign: 'right', ...PT_LOADING_STYLE }}>…</td>
-        <td className="mono" style={{ textAlign: 'right', ...PT_LOADING_STYLE }}>…</td>
-      </>
-    )
-  }
   return (
     <>
-      <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+      <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap', ...cellStyle }} title={refreshing ? 'Updating targets…' : undefined}>
         {chevron}{fmtPt(ptMedian)}
       </td>
-      <td className="mono" style={{ textAlign: 'right' }}>{fmtPt(ptHigh)}</td>
-      <td className="mono" style={{ textAlign: 'right' }}>{fmtPt(ptLow)}</td>
-      <td className={`mono ${ptUpside != null && ptUpside > 0 ? 'pos' : ptUpside != null && ptUpside < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right' }}>
+      <td className="mono" style={{ textAlign: 'right', ...cellStyle }}>{fmtPt(ptHigh)}</td>
+      <td className="mono" style={{ textAlign: 'right', ...cellStyle }}>{fmtPt(ptLow)}</td>
+      <td className={`mono ${ptUpside != null && ptUpside > 0 ? 'pos' : ptUpside != null && ptUpside < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right', ...cellStyle }}>
         {fmtUpside(ptUpside)}
       </td>
-      <td className="mono" style={{ textAlign: 'right' }}>{ptCount ?? '—'}</td>
+      <td className="mono" style={{ textAlign: 'right', ...cellStyle }}>{ptCount ?? '—'}</td>
     </>
   )
 }
@@ -192,7 +179,7 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
   const [earnings, setEarnings] = useState<Record<string, string[]>>({})
   const [loading, setLoading] = useState(false)
   const [analystBundles, setAnalystBundles] = useState<Record<string, AnalystTickerBundle>>({})
-  const [analystPtBusy, setAnalystPtBusy] = useState<Record<string, boolean>>({})
+  const [analystRefreshing, setAnalystRefreshing] = useState<Record<string, boolean>>({})
   const [analystRevalidating, setAnalystRevalidating] = useState(false)
   const [expandedTheses, setExpandedTheses] = useState<Set<string>>(() => new Set())
   const loadGenRef = useRef(0)
@@ -202,20 +189,26 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
   const tickersKey = useMemo(() => [...tickers].sort().join(','), [tickers])
 
   function mergeAnalystBundles(partial: Record<string, AnalystTickerBundle>) {
-    if (Object.keys(partial).length === 0) return
+    const meaningful: Record<string, AnalystTickerBundle> = {}
+    for (const [sym, bundle] of Object.entries(partial)) {
+      if (!bundle) continue
+      if (!analystBundleHasPtData(bundle) && !(bundle.rows?.length)) continue
+      meaningful[sym] = bundle
+    }
+    if (Object.keys(meaningful).length === 0) return
     setAnalystBundles(prev => {
-      const next = { ...prev, ...partial }
+      const next = { ...prev, ...meaningful }
       analystBundlesRef.current = next
       return next
     })
-    persistAnalystBundles(partial)
+    persistAnalystBundles(meaningful)
   }
 
-  function setPtBusy(symbols: string[], busy: boolean) {
-    setAnalystPtBusy(prev => {
+  function setAnalystRefreshFlags(symbols: string[], on: boolean) {
+    setAnalystRefreshing(prev => {
       const next = { ...prev }
       for (const sym of symbols) {
-        if (busy) next[sym] = true
+        if (on) next[sym] = true
         else delete next[sym]
       }
       return next
@@ -229,8 +222,7 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
       for (let i = 0; i < tickerList.length; i += ANALYST_REVALIDATE_BATCH) {
         if (gen !== loadGenRef.current) return
         const batch = tickerList.slice(i, i + ANALYST_REVALIDATE_BATCH)
-        const awaiting = batch.filter(sym => !analystBundleHasPtData(analystBundlesRef.current[sym]))
-        setPtBusy(awaiting, true)
+        setAnalystRefreshFlags(batch, true)
         try {
           const fresh = await fetchAnalystTargets(batch, true)
           if (gen !== loadGenRef.current) return
@@ -238,7 +230,7 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
         } catch {
           /* keep cached / prior values */
         } finally {
-          setPtBusy(batch, false)
+          if (gen === loadGenRef.current) setAnalystRefreshFlags(batch, false)
         }
       }
     } finally {
@@ -250,7 +242,7 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
     const gen = ++loadGenRef.current
     if (tickers.length === 0) {
       setQuotes({}); setRsi({}); setEarnings({}); setAnalystBundles({})
-      setAnalystPtBusy({})
+      setAnalystRefreshing({})
       analystBundlesRef.current = {}
       return
     }
@@ -260,9 +252,6 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
       mergeAnalystBundles(cached)
     }
 
-    const awaitingCache = tickers.filter(sym => !analystBundleHasPtData(cached[sym]))
-    setPtBusy(awaitingCache, true)
-
     setLoading(true)
     try {
       const [q, r, e] = await Promise.all([
@@ -271,7 +260,9 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
         fetchEarningsDates(tickers),
       ])
       if (gen !== loadGenRef.current) return
-      setQuotes(q); setRsi(r); setEarnings(e)
+      setQuotes(prev => ({ ...prev, ...q }))
+      setRsi(prev => ({ ...prev, ...r }))
+      setEarnings(prev => ({ ...prev, ...e }))
     } finally {
       if (gen === loadGenRef.current) setLoading(false)
     }
@@ -283,9 +274,6 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
         const fromServer = await fetchAnalystTargets(tickers, false)
         if (gen !== loadGenRef.current) return
         mergeAnalystBundles(fromServer)
-        setPtBusy(tickers, false)
-        const stillMissing = tickers.filter(sym => !analystBundleHasPtData(analystBundlesRef.current[sym]))
-        setPtBusy(stillMissing, true)
       } catch {
         /* local cache still shown */
       }
@@ -490,7 +478,7 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                 {rows.map(({ sym, q, change, changePct, ne, r, signal, ptMedian, ptHigh, ptLow, ptUpside, ptCount }) => {
                   const expanded = expandedTheses.has(sym)
                   const bundle = analystBundles[sym]
-                  const ptBusy = !!analystPtBusy[sym]
+                  const ptRefreshing = !!analystRefreshing[sym]
                   return (
                     <Fragment key={sym}>
                     <tr>
@@ -507,7 +495,7 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                           </span>
                         ) : '—'}
                       </td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{q ? fmt$(q.price) : loading ? '…' : '—'}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{q ? fmt$(q.price) : '—'}</td>
                       <td className={`mono ${change != null && change > 0 ? 'pos' : change != null && change < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right' }}>
                         {change != null ? `${change > 0 ? '+' : ''}${change.toFixed(2)}` : '—'}
                       </td>
@@ -524,7 +512,7 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                       <PtCells
                         expanded={expanded}
                         onToggleThesis={() => toggleThesis(sym)}
-                        busy={ptBusy}
+                        refreshing={ptRefreshing}
                         ptMedian={ptMedian}
                         ptHigh={ptHigh}
                         ptLow={ptLow}

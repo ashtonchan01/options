@@ -64,6 +64,11 @@ export function WatchlistAnalystExpanded({
 
   const s = bundle?.summary
   const rows = bundle?.rows ?? []
+  const namedFirms = s?.namedFirmCount ?? rows.filter(r => !r.isManual && r.firm?.trim()).length
+  const coverageNote =
+    s?.count != null && namedFirms > 0 && namedFirms < s.count
+      ? `${namedFirms} of ${s.count} firms named by source`
+      : null
 
   const startAdd = useCallback(() => {
     setEditId(null)
@@ -119,6 +124,9 @@ export function WatchlistAnalystExpanded({
         </span>
         {bundle?.dataSource && (
           <span style={{ color: 'var(--text-4)', fontSize: 10 }}>{bundle.dataSource === 'live' ? 'Yahoo live' : bundle.dataSource}</span>
+        )}
+        {coverageNote && (
+          <span style={{ color: 'var(--text-4)', fontSize: 10, fontStyle: 'italic' }}>{coverageNote}</span>
         )}
       </div>
 

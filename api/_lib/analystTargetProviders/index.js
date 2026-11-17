@@ -1,7 +1,9 @@
 import { fetchYahooAnalystTargets } from './yahoo.js'
 import { fetchFmpAnalystTargets } from './fmp.js'
+import { fetchNasdaqAnalystTargets } from './nasdaq.js'
+import { mergeLiveAnalystPayloads } from './mergeAnalystLive.js'
 
-/** Default live chain: Vercel Edge Yahoo quoteSummary → Node Yahoo (crumb) → Nasdaq consensus API. */
+/** Default live chain: Yahoo quoteSummary (+ Nasdaq consensus) → optional FMP. */
 
 export function resolveAnalystTargetProvider() {
   const configured = (process.env.ANALYST_TARGET_PROVIDER || '').toLowerCase()
@@ -12,10 +14,17 @@ export function resolveAnalystTargetProvider() {
 }
 
 export async function fetchLiveAnalystTargetsForSymbol(symbol, provider, crumbState) {
+  const yahoo = await fetchYahooAnalystTargets(symbol, crumbState)
+  const nasdaq = await fetchNasdaqAnalystTargets(symbol)
+
   if (provider === 'fmp') {
-    const out = await fetchFmpAnalystTargets(symbol)
-    if (out) return out
-    return fetchYahooAnalystTargets(symbol, crumbState)
+    const fmp = await fetchFmpAnalystTargets(symbol)
+    const merged = mergeLiveAnalystPayloads([yahoo, nasdaq, fmp])
+    if (merged.summary || merged.rows?.length) return merged
+    return mergeLiveAnalystPayloads([yahoo, nasdaq])
   }
-  return fetchYahooAnalystTargets(symbol, crumbState)
+
+  const merged = mergeLiveAnalystPayloads([yahoo, nasdaq])
+  if (merged.summary || merged.rows?.length) return merged
+  return { summary: null, rows: [] }
 }

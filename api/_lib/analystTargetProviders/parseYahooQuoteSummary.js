@@ -1,4 +1,4 @@
-const MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000
+const MAX_AGE_MS = 12 * 30 * 24 * 60 * 60 * 1000 // ~12 months of upgrade/downgrade history
 
 function num(raw) {
   const n = raw?.raw ?? raw

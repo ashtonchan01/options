@@ -137,13 +137,28 @@ export function statsFromDisplayRows(rows) {
   }
 }
 
+export function countNamedFirmRows(rows) {
+  const firms = new Set()
+  for (const r of rows ?? []) {
+    if (r.isManual) continue
+    const firm = (r.firm || '').trim().toLowerCase()
+    if (!firm) continue
+    const pt = Number(r.priceTarget)
+    if (!Number.isFinite(pt) || pt <= 0) continue
+    firms.add(firm)
+  }
+  return firms.size > 0 ? firms.size : null
+}
+
 export function buildSummary(summary, rows, fetchedAt) {
   const fromRows = statsFromDisplayRows(rows)
+  const namedFirmCount = countNamedFirmRows(rows)
   return {
     median: summary?.median ?? fromRows.median,
     high: summary?.high ?? fromRows.high,
     low: summary?.low ?? fromRows.low,
     count: summary?.count ?? fromRows.count,
+    namedFirmCount,
     fetchedAt: fetchedAt ?? null,
   }
 }

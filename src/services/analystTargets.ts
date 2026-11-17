@@ -22,7 +22,10 @@ export interface AnalystTargetSummary {
   median: number | null
   high: number | null
   low: number | null
+  /** Total analysts per consensus (e.g. Yahoo numberOfAnalystOpinions). */
   count: number | null
+  /** Firms with named targets in the merged row list. */
+  namedFirmCount?: number | null
   fetchedAt: string | null
 }
 
