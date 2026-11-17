@@ -13,6 +13,8 @@ import AccountView from './components/portfolio/AccountView'
 import OpportunitiesView from './components/opportunities/OpportunitiesView'
 import WatchlistView from './components/watchlist/WatchlistView'
 import PairsView from './components/pairs/PairsView'
+
+const BacktestView = lazy(() => import('./components/backtest/BacktestView'))
 import { tradesToAppState } from './components/shared/syntheticAccountState'
 import { WATCHLIST } from './data/watchlist'
 import type { TradeLabel } from './store/tradeLabelsStore'
@@ -81,13 +83,15 @@ export default function App() {
 function SignedInApp() {
   // Local-only shortcut so the Pairs page can be opened without a session.
   // Production builds never take this path.
-  const previewEmail = import.meta.env.DEV && typeof window !== 'undefined'
-    && new URLSearchParams(window.location.search).get('preview') === 'pairs'
-    ? 'preview@local'
+  const previewKind = import.meta.env.DEV && typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('preview')
     : null
+  const previewEmail = previewKind === 'pairs' || previewKind === 'backtest' ? 'preview@local' : null
   if (previewEmail) seedPreviewWatchlist(previewEmail)
 
-  const [activeTab, setActiveTab] = useState<TabId>(previewEmail ? 'pairs' : 'dashboard')
+  const [activeTab, setActiveTab] = useState<TabId>(
+    previewKind === 'pairs' ? 'pairs' : previewKind === 'backtest' ? 'backtest' : 'dashboard',
+  )
   const auth = useAuthStore()
   const sessionEmail = previewEmail ?? auth.user?.email ?? null
   const { labels, setLabel, setMany, clearAll } = useTradeLabelStore(sessionEmail)
@@ -175,6 +179,10 @@ function SignedInApp() {
             />
           ) : activeTab === 'milestone' ? (
             <MilestoneView accounts={accountsStore.accounts} />
+          ) : activeTab === 'backtest' ? (
+            <Suspense fallback={<div style={{ height: '100%', background: 'var(--bg-surface)' }} />}>
+              <BacktestView />
+            </Suspense>
           ) : (
             <DashboardView state={EMPTY_STATE} watchlistTickers={watchlists.activeTickers} />
           )}

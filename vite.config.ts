@@ -23,8 +23,39 @@ function historyDevApi() {
   }
 }
 
+/** Serves /api/cboe?history= in `vite dev` the same way Vercel serves api/cboe.js. */
+function marketHistoryDevApi() {
+  return {
+    name: 'market-history-dev-api',
+    configureServer(server: { middlewares: { use: (fn: (req: import('http').IncomingMessage, res: import('http').ServerResponse, next: () => void) => void) => void } }) {
+      server.middlewares.use(async (req, res, next) => {
+        const url = req.url ?? ''
+        if (!url.startsWith('/api/cboe')) return next()
+        const parsed = new URL(url, 'http://localhost')
+        if (!parsed.searchParams.has('history')) return next()
+        // @ts-expect-error api/cboe.js is untyped Vercel node code
+        const loaded = await import('./api/cboe.js')
+        const query: Record<string, string> = {}
+        parsed.searchParams.forEach((value, key) => { query[key] = value })
+        Object.assign(req, { query })
+        const shim = {
+          statusCode: 200,
+          status(code: number) { this.statusCode = code; return this },
+          setHeader(name: string, value: string) { res.setHeader(name, value); return this },
+          json(body: unknown) {
+            res.statusCode = this.statusCode
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(body))
+          },
+        }
+        await loaded.default(req, shim)
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), historyDevApi()],
+  plugins: [react(), tailwindcss(), historyDevApi(), marketHistoryDevApi()],
   base: '/',
   server: {
     proxy: {

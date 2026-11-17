@@ -110,6 +110,37 @@ export async function ensureSchema() {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `
+      await db`
+        CREATE TABLE IF NOT EXISTS analyst_price_targets (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          seed_key TEXT UNIQUE,
+          ticker TEXT NOT NULL,
+          analyst_name TEXT,
+          firm TEXT,
+          star_rating SMALLINT CHECK (star_rating IS NULL OR (star_rating >= 0 AND star_rating <= 5)),
+          rating TEXT CHECK (rating IS NULL OR rating IN ('BUY', 'HOLD', 'SELL')),
+          price_target NUMERIC NOT NULL,
+          previous_target NUMERIC,
+          action TEXT NOT NULL CHECK (action IN ('Assigned', 'Reiterated', 'Raised', 'Lowered', 'Initiated')),
+          target_date DATE NOT NULL,
+          source_note TEXT,
+          is_manual BOOLEAN NOT NULL DEFAULT false,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `
+      await db`ALTER TABLE analyst_price_targets ADD COLUMN IF NOT EXISTS is_manual BOOLEAN NOT NULL DEFAULT false`
+      await db`CREATE INDEX IF NOT EXISTS analyst_price_targets_ticker_idx ON analyst_price_targets (ticker)`
+      await db`
+        CREATE TABLE IF NOT EXISTS analyst_target_live_cache (
+          ticker TEXT PRIMARY KEY,
+          summary JSONB NOT NULL,
+          rows JSONB NOT NULL,
+          fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `
+      const { seedAnalystPriceTargets } = await import('./analystTargetSeed.js')
+      await seedAnalystPriceTargets(db)
     })()
   }
   return schemaReady
