@@ -1,5 +1,6 @@
 import type { BacktestParams } from '../../backtest/engine'
 import { formatStrikePct, shortLabel } from '../../backtest/defaults'
+import { MONTH_WEEKS, TRADE_FREQUENCIES, type MonthWeek, type TradeFrequency } from '../../backtest/tradeFrequency'
 
 const WEEKDAYS: { id: number; label: string; title: string }[] = [
   { id: 1, label: 'M', title: 'Monday' },
@@ -34,6 +35,17 @@ export default function ConfigCard({ config, onChange }: Props) {
     const has = config.entryWeekdays.includes(id)
     const next = has ? config.entryWeekdays.filter(d => d !== id) : [...config.entryWeekdays, id].sort()
     set('entryWeekdays', next)
+  }
+  const freq = config.tradeFrequency ?? 'daily'
+  function setFrequency(next: TradeFrequency) {
+    onChange({
+      ...config,
+      tradeFrequency: next,
+      frequencyWeekday: config.frequencyWeekday || config.entryWeekdays[0] || 1,
+    })
+  }
+  function pickScheduleDay(id: number) {
+    set('frequencyWeekday', id)
   }
 
   const strikeStep = config.strikeMode === 'delta' ? 0.01 : 0.1
@@ -70,20 +82,62 @@ export default function ConfigCard({ config, onChange }: Props) {
             }}
           />
         </label>
-        <label className="bt-field">
-          <span>Entry days</span>
-          <div className="bt-chips" role="group" aria-label="Entry days">
-            {WEEKDAYS.map(day => (
-              <button
-                key={day.id}
-                type="button"
-                title={day.title}
-                className={`bt-chip${config.entryWeekdays.includes(day.id) ? ' on' : ''}`}
-                onClick={() => toggleDay(day.id)}
-              >{day.label}</button>
-            ))}
+        <label className="bt-field wide">
+          <span>Trade frequency</span>
+          <div className="bt-inline bt-freq-row">
+            <select
+              className="bt-input"
+              value={freq}
+              aria-label="Trade frequency"
+              onChange={e => setFrequency(e.target.value as TradeFrequency)}
+            >
+              {TRADE_FREQUENCIES.map(f => (
+                <option key={f.id} value={f.id}>{f.label}</option>
+              ))}
+            </select>
+            {freq === 'monthly' && (
+              <select
+                className="bt-input"
+                value={config.frequencyMonthWeek}
+                aria-label="Week of month"
+                onChange={e => set('frequencyMonthWeek', Number(e.target.value) as MonthWeek)}
+              >
+                {MONTH_WEEKS.map(w => (
+                  <option key={w.id} value={w.id}>{w.label} week</option>
+                ))}
+              </select>
+            )}
+            {(freq === 'weekly' || freq === 'monthly') && (
+              <div className="bt-chips" role="group" aria-label="Weekday">
+                {WEEKDAYS.map(day => (
+                  <button
+                    key={`sched-${day.id}`}
+                    type="button"
+                    title={day.title}
+                    className={`bt-chip${config.frequencyWeekday === day.id ? ' on' : ''}`}
+                    onClick={() => pickScheduleDay(day.id)}
+                  >{day.label}</button>
+                ))}
+              </div>
+            )}
           </div>
         </label>
+        {freq === 'daily' && (
+          <label className="bt-field">
+            <span>Entry days</span>
+            <div className="bt-chips" role="group" aria-label="Entry days">
+              {WEEKDAYS.map(day => (
+                <button
+                  key={day.id}
+                  type="button"
+                  title={day.title}
+                  className={`bt-chip${config.entryWeekdays.includes(day.id) ? ' on' : ''}`}
+                  onClick={() => toggleDay(day.id)}
+                >{day.label}</button>
+              ))}
+            </div>
+          </label>
+        )}
         <label className="bt-field">
           <span>Strike mode</span>
           <select

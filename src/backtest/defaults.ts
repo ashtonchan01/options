@@ -1,4 +1,5 @@
 import type { BacktestParams } from './engine'
+import { frequencySummary } from './tradeFrequency'
 
 export const SCENARIO_COLORS = ['#14f195', '#b26bff', '#f59e0b', '#60a5fa', '#fb7185', '#2dd4bf', '#facc15', '#a3e635']
 
@@ -19,6 +20,9 @@ export function defaultParams(): BacktestParams {
     id: crypto.randomUUID(),
     dte: 0,
     entryWeekdays: [1, 2, 3, 4, 5],
+    tradeFrequency: 'daily',
+    frequencyWeekday: 1,
+    frequencyMonthWeek: 1,
     strikeMode: 'pct',
     strikeValue: 0,
     width: 50,
@@ -51,7 +55,9 @@ export function shortLabel(p: BacktestParams): string {
     : p.strikeMode === 'delta'
       ? `${trimNum(p.strikeValue)} delta`
       : `${trimNum(p.strikeValue)} pts below`
-  return `${dte}, ${strike}, ${trimNum(p.width)}-wide`
+  const freq = frequencySummary(p)
+  const tail = freq ? `, ${freq}` : ''
+  return `${dte}, ${strike}, ${trimNum(p.width)}-wide${tail}`
 }
 
 function trimNum(n: number): string {

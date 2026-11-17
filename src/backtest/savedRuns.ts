@@ -11,10 +11,20 @@ export interface SavedRun {
 
 /** Older saves used positive % for below spot; flip to the signed convention. */
 function migrateParams(params: BacktestParams): BacktestParams {
-  if (params.strikeMode === 'pct' && params.strikeValue > 0) {
-    return { ...params, strikeValue: -params.strikeValue }
+  let next = params
+  if (next.strikeMode === 'pct' && next.strikeValue > 0) {
+    next = { ...next, strikeValue: -next.strikeValue }
   }
-  return params
+  const savedFreq = (next as { tradeFrequency?: string }).tradeFrequency
+  if (savedFreq == null || savedFreq === 'alternate') {
+    next = {
+      ...next,
+      tradeFrequency: 'daily',
+      frequencyWeekday: next.frequencyWeekday ?? 1,
+      frequencyMonthWeek: next.frequencyMonthWeek ?? 1,
+    }
+  }
+  return next
 }
 
 export function loadSavedRuns(): SavedRun[] {

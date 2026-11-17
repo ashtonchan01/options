@@ -9,7 +9,10 @@ import { yearFraction } from './calendar'
 import { HIDDEN_DEFAULTS } from './defaults'
 import { buildExpiries, resolveExpiry, type ExpiryInfo } from './expiries'
 import { selectShortStrike, spreadIntrinsic, spreadMark } from './pricing'
+import { createFrequencyGate, frequencyAllowsEntry, type MonthWeek, type TradeFrequency } from './tradeFrequency'
 import { buildRealizedVol } from './volatility'
+
+export type { MonthWeek, TradeFrequency } from './tradeFrequency'
 
 export type StrikeMode = 'pct' | 'delta' | 'points'
 export type ExitReason = 'expiry' | 'take-profit' | 'stop-multiple' | 'stop-strike'
@@ -39,6 +42,12 @@ export interface BacktestParams {
   dte: number
   /** 1 = Monday … 5 = Friday. */
   entryWeekdays: number[]
+  /** Default `daily` keeps legacy behaviour (any selected entry weekday). */
+  tradeFrequency?: TradeFrequency
+  /** Weekday for weekly / monthly schedules (1 = Mon … 5 = Fri). */
+  frequencyWeekday: number
+  /** Monthly: which week of the month (5 = last). */
+  frequencyMonthWeek: MonthWeek
   strikeMode: StrikeMode
   /** Pct mode: signed % vs spot (−3 = 3% below). Delta mode: put delta. Points: below spot. */
   strikeValue: number
@@ -296,7 +305,9 @@ export function runBacktest(
   expiries?: readonly ExpiryInfo[],
 ): BacktestResult {
   const empty = emptyResult(params.startingCapital)
-  if (sessions.length === 0 || params.width <= 0 || params.entryWeekdays.length === 0) return empty
+  const freq = params.tradeFrequency ?? 'daily'
+  const needsEntryDays = freq === 'daily'
+  if (sessions.length === 0 || params.width <= 0 || (needsEntryDays && params.entryWeekdays.length === 0)) return empty
 
   const dates = sessions.map(s => s.date)
   const sessionIndex = new Map<string, number>()
@@ -319,12 +330,13 @@ export function runBacktest(
   const skipped = { credit: 0, expiry: 0, size: 0 }
   let rejectedCredit = 0
   const path = { intraday: 0, close: 0 }
+  const frequencyGate = createFrequencyGate(dates, params, start, end)
 
   for (let i = 0; i < sessions.length; i++) {
     const entry = sessions[i]
     if (entry.date < start || entry.date > end) continue
     const entryDow = dow(entry.date)
-    if (!weekdays.has(entryDow)) continue
+    if (!frequencyAllowsEntry(entry.date, entryDow, params, weekdays, frequencyGate)) continue
 
     const resolved = resolveExpiry(dates, sessionIndex, calendar, entry.date, dte)
     if (!resolved || resolved.expiry.date > end) {

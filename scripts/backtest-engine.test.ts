@@ -13,6 +13,9 @@ function params(over: Partial<BacktestParams> = {}): BacktestParams {
     id: 't',
     dte: 0,
     entryWeekdays: [1, 2, 3, 4, 5],
+    tradeFrequency: 'daily',
+    frequencyWeekday: 1,
+    frequencyMonthWeek: 1,
     strikeMode: 'pct',
     strikeValue: 0,
     width: 50,
@@ -268,6 +271,29 @@ assert.equal(thirdFriday(2013, 3), SPXW_SCHEDULE.thirdFridayPm)
   assert.ok(w0.modelCredit - w0.netCredit > 0.09)
   assert.ok(n0.modelCredit - n0.netCredit <= 0.02)
   assert.ok(n0.netCredit >= n0.modelCredit * 0.75)
+}
+
+// Trade frequency throttles entries (daily vs weekly / monthly).
+{
+  const dates = weekdaySessions('2024-06-10', '2024-06-14') // Mon–Fri
+  const bars = sessions(dates, 5400, 5450)
+  const daily = runBacktest(bars, null, params())
+  assert.equal(daily.trades.length, 5)
+
+  const weekly = runBacktest(bars, null, params({ tradeFrequency: 'weekly', frequencyWeekday: 1 }))
+  assert.equal(weekly.trades.length, 1)
+  assert.equal(weekday(weekly.trades[0].entryDate), 1)
+
+  const may = weekdaySessions('2019-05-01', '2019-05-31', ['2019-05-06'])
+  const monthly = runBacktest(sessions(may, 5400, 5450), null, params({
+    tradeFrequency: 'monthly',
+    frequencyMonthWeek: 1,
+    frequencyWeekday: 1,
+    startDate: '2019-05-01',
+    endDate: '2019-05-31',
+  }))
+  assert.equal(monthly.trades.length, 1)
+  assert.equal(monthly.trades[0].entryDate, '2019-05-07')
 }
 
 console.log('backtest-engine.test.ts ok')
