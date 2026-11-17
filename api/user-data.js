@@ -1,5 +1,6 @@
 import { getSql, ensureSchema } from './_lib/db.js'
 import { getSessionUser } from './_lib/session.js'
+import { handleAnalystTargets } from './_lib/analystTargets.js'
 
 // Allowlist of recognized blob keys — keeps data_key from becoming an
 // arbitrary free-form column an unexpected client could pollute.
@@ -8,6 +9,18 @@ const ALLOWED_KEYS = new Set(['watchlists', 'tradeLabels', 'journalEntries', 'jo
 export default async function handler(req, res) {
   const user = await getSessionUser(req)
   if (!user) return res.status(401).json({ error: 'Not signed in' })
+
+  const resource = req.query?.resource ?? req.body?.resource
+  if (resource === 'analyst-targets') {
+    try {
+      await ensureSchema()
+      const sql = getSql()
+      return await handleAnalystTargets(req, res, user, sql)
+    } catch (err) {
+      console.error('[user-data analyst-targets]', err)
+      return res.status(500).json({ error: 'Could not load analyst targets.' })
+    }
+  }
 
   const key = req.method === 'GET' ? req.query?.key : (req.body ?? {}).key
   if (typeof key !== 'string' || !ALLOWED_KEYS.has(key)) {
