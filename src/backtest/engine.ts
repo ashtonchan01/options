@@ -1,17 +1,15 @@
 /**
  * Put-credit-spread backtest.
  *
- * Credits are Black-Scholes marks. IV is VIX/100 plus a flat skew slope.
- * They are not historical quotes and not fills.
- *
- * Daily bars settle expiry and, when there is no 5-minute bar, mark stops
- * at the close. 5-minute bars, when the day has them, mark take-profit and
- * stops inside the session. A 0DTE trade with only a daily bar is held to
- * the settlement print — there is no earlier close to stop on.
+ * Credits are model marks from trailing SPX realized volatility (not quotes).
+ * Daily bars settle expiry and, when there is no 5-minute bar, mark stops at
+ * the close. 5-minute bars mark take-profit and stops inside the session.
  */
 import { yearFraction } from './calendar'
+import { HIDDEN_DEFAULTS } from './defaults'
 import { buildExpiries, resolveExpiry, type ExpiryInfo } from './expiries'
 import { selectShortStrike, spreadIntrinsic, spreadMark } from './pricing'
+import { buildRealizedVol } from './volatility'
 
 export type StrikeMode = 'pct' | 'delta' | 'points'
 export type ExitReason = 'expiry' | 'take-profit' | 'stop-multiple' | 'stop-strike'
@@ -42,7 +40,7 @@ export interface BacktestParams {
   /** 1 = Monday … 5 = Friday. */
   entryWeekdays: number[]
   strikeMode: StrikeMode
-  /** Percent OTM, absolute put delta, or points below spot, depending on strikeMode. */
+  /** Pct mode: signed % vs spot (−3 = 3% below). Delta mode: put delta. Points: below spot. */
   strikeValue: number
   width: number
   sizing: 'contracts' | 'risk'
@@ -53,19 +51,10 @@ export interface BacktestParams {
   takeProfitPct: number
   stopType: 'none' | 'multiple' | 'strike'
   stopMultiple: number
-  vixMin: number | null
-  vixMax: number | null
   startDate: string
   endDate: string
-  /** Volatility points added per 1% OTM. 2 means a 3% OTM put is priced at VIX + 6. */
-  skewPerPct: number
-  /** Index points taken off the credit, and added again when closing early. */
-  slippage: number
   /** Minutes from midnight ET. 600 is 10:00. */
   entryMinute: number
-  /** Annualized percent, e.g. 4 for 4%. */
-  ratePct: number
-  divPct: number
   startingCapital: number
 }
 
@@ -80,7 +69,8 @@ export interface Trade {
   exitSpot: number
   shortK: number
   longK: number
-  entryVix: number
+  /** Annualized realized vol at entry (decimal). */
+  entryVol: number
   modelCredit: number
   netCredit: number
   exitDebit: number
@@ -104,7 +94,7 @@ export interface BreakdownRow {
 
 export interface BacktestResult {
   trades: Trade[]
-  skipped: { credit: number; vix: number; expiry: number; size: number }
+  skipped: { credit: number; expiry: number; size: number }
   meanRejectedCredit: number | null
   summary: {
     trades: number
@@ -129,7 +119,6 @@ export interface BacktestResult {
   }
   equity: { date: string; equity: number }[]
   byYear: BreakdownRow[]
-  byVix: BreakdownRow[]
   path: { intraday: number; close: number }
 }
 
@@ -146,15 +135,6 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n))
 }
 
-export function vixRegime(vix: number): string {
-  if (vix < 15) return '<15'
-  if (vix < 20) return '15–20'
-  if (vix < 30) return '20–30'
-  return '≥30'
-}
-
-const VIX_ORDER = ['<15', '15–20', '20–30', '≥30']
-
 function barClock(minuteAfterOpen: number): number {
   return OPEN_MIN + minuteAfterOpen
 }
@@ -165,7 +145,7 @@ interface Position {
   targetDate: string
   actualDte: number
   spot: number
-  vix: number
+  vol: number
   shortK: number
   longK: number
   modelCredit: number
@@ -189,8 +169,8 @@ interface ExitFill {
   date: string
 }
 
-function markAt(pos: Position, spot: number, t: number, vix: number): number {
-  return spreadMark(spot, pos.shortK, pos.longK, t, pos.r, pos.q, vix, pos.skew)
+function markAt(pos: Position, spot: number, t: number, vol: number): number {
+  return spreadMark(spot, pos.shortK, pos.longK, t, pos.r, pos.q, vol, pos.skew)
 }
 
 function scanBars(
@@ -199,7 +179,7 @@ function scanBars(
   bars: readonly IntradayBar[],
   fromClock: number,
   settleClock: number,
-  vix: number,
+  vol: number,
   finalSession: boolean,
 ): ExitFill | null {
   let start = 0
@@ -212,21 +192,21 @@ function scanBars(
     const finalBar = finalSession && i === bars.length - 1
     if (pos.stopType === 'strike' && bar.low <= pos.shortK) {
       const spot = bar.open <= pos.shortK ? bar.open : pos.shortK
-      const debit = markAt(pos, spot, t, vix) + pos.slip
+      const debit = markAt(pos, spot, t, vol) + pos.slip
       return { reason: 'stop-strike', basis: 'intraday', debit, spot, date }
     }
     if (pos.stopType === 'multiple') {
-      const adverse = markAt(pos, bar.low, t, vix)
+      const adverse = markAt(pos, bar.low, t, vol)
       if (adverse >= pos.stopLevel) {
-        const openMark = markAt(pos, bar.open, t, vix)
+        const openMark = markAt(pos, bar.open, t, vol)
         const debit = (openMark >= pos.stopLevel ? openMark : pos.stopLevel) + pos.slip
         return { reason: 'stop-multiple', basis: 'intraday', debit, spot: bar.low, date }
       }
     }
     if (!finalBar && pos.tp != null) {
-      const favorable = markAt(pos, bar.high, t, vix)
+      const favorable = markAt(pos, bar.high, t, vol)
       if (favorable <= pos.tp) {
-        const openMark = markAt(pos, bar.open, t, vix)
+        const openMark = markAt(pos, bar.open, t, vol)
         const debit = (openMark <= pos.tp ? openMark : pos.tp) + pos.slip
         return { reason: 'take-profit', basis: 'intraday', debit, spot: bar.high, date }
       }
@@ -241,10 +221,10 @@ function scanClose(
   close: number,
   clock: number,
   settleClock: number,
-  vix: number,
+  vol: number,
 ): ExitFill | null {
   const t = yearFraction(date, clock, pos.expiry.date, settleClock)
-  const mark = markAt(pos, close, t, vix)
+  const mark = markAt(pos, close, t, vol)
   if (pos.stopType === 'strike' && close <= pos.shortK) {
     return { reason: 'stop-strike', basis: 'close', debit: mark + pos.slip, spot: close, date }
   }
@@ -271,7 +251,7 @@ function finish(pos: Position, fill: ExitFill, targetDte: number): Trade {
     exitSpot: fill.spot,
     shortK: pos.shortK,
     longK: pos.longK,
-    entryVix: pos.vix,
+    entryVol: pos.vol,
     modelCredit: pos.modelCredit,
     netCredit: pos.netCredit,
     exitDebit: fill.debit,
@@ -323,17 +303,19 @@ export function runBacktest(
   dates.forEach((d, i) => sessionIndex.set(d, i))
   const calendar = expiries ?? buildExpiries(dates)
   const weekdays = new Set(params.entryWeekdays)
-  const r = params.ratePct / 100
-  const q = params.divPct / 100
-  const slip = Math.max(0, params.slippage)
-  const skew = Math.max(0, params.skewPerPct)
+  const { ratePct, divPct, slippage, skewPerPct } = HIDDEN_DEFAULTS
+  const r = ratePct / 100
+  const q = divPct / 100
+  const slip = Math.max(0, slippage)
+  const skew = Math.max(0, skewPerPct)
+  const volByDate = buildRealizedVol(sessions)
   const dte = Math.max(0, Math.floor(params.dte))
   const start = params.startDate || dates[0]
   const end = params.endDate || dates[dates.length - 1]
   const tp = params.takeProfitOn ? clamp(params.takeProfitPct, 0, 100) : null
 
   const trades: Trade[] = []
-  const skipped = { credit: 0, vix: 0, expiry: 0, size: 0 }
+  const skipped = { credit: 0, expiry: 0, size: 0 }
   let rejectedCredit = 0
   const path = { intraday: 0, close: 0 }
 
@@ -349,9 +331,7 @@ export function runBacktest(
       continue
     }
 
-    const vixEntry = entry.vixOpen > 0 ? entry.vixOpen : entry.vixClose
-    if (params.vixMin != null && vixEntry < params.vixMin) { skipped.vix++; continue }
-    if (params.vixMax != null && vixEntry > params.vixMax) { skipped.vix++; continue }
+    const volEntry = volByDate.get(entry.date) ?? 0.12
 
     const expIdx = sessionIndex.get(resolved.expiry.date) ?? i
     const lastIdx = sessionIndex.get(resolved.expiry.lastTrade) ?? expIdx
@@ -368,11 +348,11 @@ export function runBacktest(
     }
     if (!(spot > 0) || !(tEntry > 0)) { skipped.expiry++; continue }
 
-    const shortK = selectShortStrike(spot, params.strikeMode, params.strikeValue, tEntry, r, q, vixEntry, skew)
+    const shortK = selectShortStrike(spot, params.strikeMode, params.strikeValue, tEntry, r, q, volEntry, skew)
     const longK = shortK - params.width
     if (!(longK > 0) || !(shortK > longK)) { skipped.size++; continue }
 
-    const modelCredit = spreadMark(spot, shortK, longK, tEntry, r, q, vixEntry, skew)
+    const modelCredit = spreadMark(spot, shortK, longK, tEntry, r, q, volEntry, skew)
     const netCredit = modelCredit - slip
     if (!(netCredit > 0)) {
       skipped.credit++
@@ -392,7 +372,7 @@ export function runBacktest(
       targetDate: resolved.targetDate,
       actualDte: resolved.actualDte,
       spot,
-      vix: vixEntry,
+      vol: volEntry,
       shortK,
       longK,
       modelCredit,
@@ -412,17 +392,17 @@ export function runBacktest(
     let watchedIntra = false
     for (let s = i; s <= lastIdx; s++) {
       const day = sessions[s]
-      const vix = s === i ? vixEntry : (day.vixClose > 0 ? day.vixClose : vixEntry)
+      const vol = volByDate.get(day.date) ?? volEntry
       const finalSession = s === lastIdx && resolved.expiry.settle === 'pm'
       const bars = intraday?.get(day.date)
       const fromClock = s === i ? entryClock : OPEN_MIN
       if (bars && bars.length) {
         path.intraday++
         watchedIntra = true
-        fill = scanBars(pos, day.date, bars, fromClock, settleClock, vix, finalSession)
+        fill = scanBars(pos, day.date, bars, fromClock, settleClock, vol, finalSession)
       } else if (!finalSession) {
         path.close++
-        fill = scanClose(pos, day.date, day.close, CLOSE_MIN, settleClock, vix)
+        fill = scanClose(pos, day.date, day.close, CLOSE_MIN, settleClock, vol)
       } else {
         path.close++
       }
@@ -448,7 +428,7 @@ export function runBacktest(
 }
 
 function emptyResult(capital: number): BacktestResult {
-  return summarize([], { credit: 0, vix: 0, expiry: 0, size: 0 }, 0, { intraday: 0, close: 0 }, capital, [])
+  return summarize([], { credit: 0, expiry: 0, size: 0 }, 0, { intraday: 0, close: 0 }, capital, [])
 }
 
 function summarize(
@@ -532,7 +512,6 @@ function summarize(
     },
     equity,
     byYear: breakdown(trades, t => t.entryDate.slice(0, 4)),
-    byVix: breakdown(trades, t => vixRegime(t.entryVix), VIX_ORDER),
     path,
   }
 }
