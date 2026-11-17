@@ -306,7 +306,7 @@ export function runBacktest(
 ): BacktestResult {
   const empty = emptyResult(params.startingCapital)
   const freq = params.tradeFrequency ?? 'daily'
-  const needsEntryDays = freq === 'daily' || freq === 'alternate'
+  const needsEntryDays = freq === 'daily'
   if (sessions.length === 0 || params.width <= 0 || (needsEntryDays && params.entryWeekdays.length === 0)) return empty
 
   const dates = sessions.map(s => s.date)

@@ -15,7 +15,8 @@ function migrateParams(params: BacktestParams): BacktestParams {
   if (next.strikeMode === 'pct' && next.strikeValue > 0) {
     next = { ...next, strikeValue: -next.strikeValue }
   }
-  if (next.tradeFrequency == null) {
+  const savedFreq = (next as { tradeFrequency?: string }).tradeFrequency
+  if (savedFreq == null || savedFreq === 'alternate') {
     next = {
       ...next,
       tradeFrequency: 'daily',

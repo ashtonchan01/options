@@ -122,7 +122,7 @@ export default function ConfigCard({ config, onChange }: Props) {
             )}
           </div>
         </label>
-        {(freq === 'daily' || freq === 'alternate') && (
+        {freq === 'daily' && (
           <label className="bt-field">
             <span>Entry days</span>
             <div className="bt-chips" role="group" aria-label="Entry days">

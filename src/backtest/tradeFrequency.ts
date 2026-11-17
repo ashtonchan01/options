@@ -1,13 +1,12 @@
 import { addCalendarDays, daysInMonth, weekday, ymd } from './calendar'
 import type { BacktestParams } from './engine'
 
-export type TradeFrequency = 'daily' | 'alternate' | 'weekly' | 'monthly'
+export type TradeFrequency = 'daily' | 'weekly' | 'monthly'
 /** 1 = first week … 4 = fourth week; 5 = last week of month. */
 export type MonthWeek = 1 | 2 | 3 | 4 | 5
 
 export const TRADE_FREQUENCIES: { id: TradeFrequency; label: string }[] = [
   { id: 'daily', label: 'Every day' },
-  { id: 'alternate', label: 'Every other day' },
   { id: 'weekly', label: 'Once a week' },
   { id: 'monthly', label: 'Once a month' },
 ]
@@ -90,7 +89,6 @@ export function buildMonthlyEntryDates(
 }
 
 export interface FrequencyGate {
-  alternateIndex: number
   lastWeeklyMonday: string | null
   monthlyEntries: Set<string> | null
 }
@@ -103,7 +101,6 @@ export function createFrequencyGate(
 ): FrequencyGate {
   const freq = params.tradeFrequency ?? 'daily'
   return {
-    alternateIndex: -1,
     lastWeeklyMonday: null,
     monthlyEntries: freq === 'monthly'
       ? buildMonthlyEntryDates(sessions, start, end, params.frequencyMonthWeek, params.frequencyWeekday)
@@ -131,10 +128,6 @@ export function frequencyAllowsEntry(
   switch (freq) {
     case 'daily':
       return true
-    case 'alternate': {
-      gate.alternateIndex++
-      return gate.alternateIndex % 2 === 0
-    }
     case 'weekly': {
       const mon = mondayOfWeek(date)
       if (gate.lastWeeklyMonday === mon) return false
@@ -150,7 +143,6 @@ export function frequencySummary(p: BacktestParams): string | null {
   const freq = p.tradeFrequency ?? 'daily'
   const wd = WEEKDAY_NAMES[p.frequencyWeekday] ?? 'Mon'
   if (freq === 'daily') return null
-  if (freq === 'alternate') return 'every other day'
   if (freq === 'weekly') return `weekly · ${wd}`
   const wk = MONTH_WEEKS.find(w => w.id === p.frequencyMonthWeek)?.label ?? '1st'
   return `monthly · ${wk} ${wd}`
