@@ -3,6 +3,8 @@
  * to avoid datacenter-specific rate limits on Yahoo's API.
  */
 
+import { parseYahooQuoteSummary } from './_lib/analystTargetProviders/parseYahooQuoteSummary.js'
+
 export const config = { runtime: 'edge' }
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
@@ -108,11 +110,19 @@ export default async function handler(req) {
   if (!/^[A-Za-z0-9.\-]+$/.test(symbol)) return jsonResponse({ error: 'Invalid symbol' }, 400)
 
   const isEarnings = type === 'earnings'
+  const isAnalystTargets = type === 'analyst-targets'
 
   // Check response cache
-  const cacheKey = `${symbol}:${isEarnings ? 'earnings' : date || 'default'}`
+  const cacheKey = `${symbol}:${isAnalystTargets ? 'analyst' : isEarnings ? 'earnings' : date || 'default'}`
   const cached = responseCache.get(cacheKey)
   if (cached && Date.now() - cached.time < RESPONSE_TTL) {
+    if (isAnalystTargets) {
+      const parsed = typeof cached.data === 'string' ? JSON.parse(cached.data) : cached.data
+      return jsonResponse(parsed, 200, {
+        'X-Cache': 'HIT',
+        'Cache-Control': 's-maxage=180, stale-while-revalidate=600',
+      })
+    }
     return rawResponse(cached.data, 200, {
       'X-Cache': 'HIT',
       'Cache-Control': 's-maxage=180, stale-while-revalidate=600',
@@ -129,7 +139,9 @@ export default async function handler(req) {
       const { crumb, cookies } = await getCrumb()
       const dataHost = attempt % 2 === 0 ? 'query2.finance.yahoo.com' : 'query1.finance.yahoo.com'
       let yahooUrl
-      if (isEarnings) {
+      if (isAnalystTargets) {
+        yahooUrl = `https://${dataHost}/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=financialData,upgradeDowngradeHistory&crumb=${encodeURIComponent(crumb)}`
+      } else if (isEarnings) {
         yahooUrl = `https://${dataHost}/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=calendarEvents&crumb=${encodeURIComponent(crumb)}`
       } else {
         yahooUrl = `https://${dataHost}/v7/finance/options/${encodeURIComponent(symbol)}?crumb=${encodeURIComponent(crumb)}`
@@ -160,6 +172,16 @@ export default async function handler(req) {
       }
 
       const data = await yahooRes.text()
+
+      if (isAnalystTargets) {
+        const parsed = parseYahooQuoteSummary(JSON.parse(data))
+        const body = JSON.stringify(parsed)
+        responseCache.set(cacheKey, { data: body, time: Date.now() })
+        return jsonResponse(parsed, 200, {
+          'X-Cache': 'MISS',
+          'Cache-Control': 's-maxage=180, stale-while-revalidate=600',
+        })
+      }
 
       // Cache the response
       responseCache.set(cacheKey, { data, time: Date.now() })
