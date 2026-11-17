@@ -1,6 +1,7 @@
 import { resolveAnalystTargetProvider, fetchLiveAnalystTargetsForSymbol } from './analystTargetProviders/index.js'
 import { toYahooSymbol } from './symbolAliases.js'
 import { ANALYST_TARGET_SEEDS } from './analystTargetSeed.js'
+import { filterAnalystRowsInWindow } from './analystTargetWindow.js'
 
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000
 const CACHE_FAIL_TTL_MS = 10 * 60 * 1000
@@ -150,14 +151,28 @@ export function countNamedFirmRows(rows) {
   return firms.size > 0 ? firms.size : null
 }
 
-export function buildSummary(summary, rows, fetchedAt) {
-  const fromRows = statsFromDisplayRows(rows)
-  const namedFirmCount = countNamedFirmRows(rows)
+export function buildSummary(summary, rows, fetchedAt, nowMs = Date.now()) {
+  const inWindow = filterAnalystRowsInWindow(rows, nowMs)
+  const autoRows = inWindow.filter(r => !r.isManual && r.source !== 'manual')
+  const namedFirmCount = countNamedFirmRows(inWindow)
+
+  if (autoRows.length === 0) {
+    return {
+      median: null,
+      high: null,
+      low: null,
+      count: null,
+      namedFirmCount: namedFirmCount && inWindow.some(r => !r.isManual) ? namedFirmCount : null,
+      fetchedAt: fetchedAt ?? null,
+    }
+  }
+
+  const fromRows = statsFromDisplayRows(inWindow)
   return {
-    median: summary?.median ?? fromRows.median,
-    high: summary?.high ?? fromRows.high,
-    low: summary?.low ?? fromRows.low,
-    count: summary?.count ?? fromRows.count,
+    median: fromRows.median,
+    high: fromRows.high,
+    low: fromRows.low,
+    count: fromRows.count,
     namedFirmCount,
     fetchedAt: fetchedAt ?? null,
   }
@@ -234,10 +249,13 @@ async function resolveTickerLive(sql, ticker, forceRefresh, provider, crumbState
   const yahooSym = toYahooSymbol(ticker)
   try {
     const { summary, rows } = await fetchLiveAnalystTargetsForSymbol(yahooSym, provider, crumbState)
+    const inWindowRows = filterAnalystRowsInWindow(rows)
     const fetchedAt = new Date().toISOString()
-    if (cacheHasLivePayload(summary, rows)) {
-      await saveCache(sql, ticker, summary, rows, fetchedAt)
-      return { summary, liveRows: rows, fetchedAt, dataSource: 'live' }
+    const displayLive = inWindowRows.map(r => liveRowToJson(ticker, r))
+    const windowSummary = buildSummary(null, displayLive, fetchedAt)
+    if (cacheHasLivePayload(windowSummary, inWindowRows)) {
+      await saveCache(sql, ticker, windowSummary, inWindowRows, fetchedAt)
+      return { summary: windowSummary, liveRows: inWindowRows, fetchedAt, dataSource: 'live' }
     }
     await saveCache(sql, ticker, null, [], fetchedAt)
   } catch (err) {
@@ -316,7 +334,8 @@ export async function handleAnalystTargets(req, res, user, sql) {
       const resolved = await resolveTickerLive(sql, ticker, forceRefresh, provider, crumbState)
       const seeds = seedRowsForTicker(ticker)
       const mergedLive = mergeLiveWithSeeds(ticker, resolved.liveRows, seeds)
-      const rows = mergeRows(ticker, mergedLive, manualByTicker[ticker] ?? [])
+      const allRows = mergeRows(ticker, mergedLive, manualByTicker[ticker] ?? [])
+      const rows = filterAnalystRowsInWindow(allRows)
       const summary = buildSummary(resolved.summary, rows, resolved.fetchedAt)
       const dataSource =
         resolved.dataSource === 'live' || resolved.dataSource === 'live-stale'
