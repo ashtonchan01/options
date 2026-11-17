@@ -1,3 +1,5 @@
+import { ANALYST_TARGET_WINDOW_MS } from '../analystTargetWindow.js'
+
 /** Financial Modeling Prep price-target API — swap-in when Yahoo is unreliable. */
 export async function fetchFmpAnalystTargets(symbol) {
   const key = process.env.FMP_API_KEY
@@ -21,7 +23,7 @@ export async function fetchFmpAnalystTargets(symbol) {
     const histUrl = `https://financialmodelingprep.com/stable/price-target?symbol=${encodeURIComponent(symbol)}&apikey=${encodeURIComponent(key)}`
     const hres = await fetch(histUrl, { signal: AbortSignal.timeout(15000) })
     const hist = hres.ok ? await hres.json() : []
-    const cutoff = Date.now() - 365 * 24 * 60 * 60 * 1000
+    const cutoff = Date.now() - ANALYST_TARGET_WINDOW_MS
     const byFirm = new Map()
     for (const h of Array.isArray(hist) ? hist : []) {
       const firm = (h.analystCompany || h.company || '').trim()

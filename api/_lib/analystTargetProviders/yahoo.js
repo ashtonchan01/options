@@ -1,6 +1,6 @@
 import { fetchYahooQuoteSummary } from '../yahooCrumb.js'
 import { parseYahooQuoteSummary } from './parseYahooQuoteSummary.js'
-import { fetchNasdaqAnalystTargets } from './nasdaq.js'
+import { mergeLiveAnalystPayloads } from './mergeAnalystLive.js'
 
 function proxyBases() {
   const bases = [
@@ -12,19 +12,6 @@ function proxyBases() {
     'https://options-jade.vercel.app',
   ].filter(Boolean)
   return [...new Set(bases)]
-}
-
-function hasLivePayload(out) {
-  if (!out) return false
-  if ((out.rows?.length ?? 0) > 0) return true
-  const s = out.summary
-  if (!s) return false
-  return (
-    s.median != null ||
-    s.high != null ||
-    s.low != null ||
-    (s.count != null && s.count > 0)
-  )
 }
 
 async function fetchYahooAnalystViaEdge(symbol) {
@@ -44,30 +31,9 @@ async function fetchYahooAnalystViaEdge(symbol) {
   return null
 }
 
-function mergeSummaries(primary, fallback) {
-  if (!primary?.summary && !fallback?.summary) {
-    return {
-      summary: null,
-      rows: [...(primary?.rows ?? []), ...(fallback?.rows ?? [])],
-    }
-  }
-  const a = primary?.summary ?? {}
-  const b = fallback?.summary ?? {}
-  const rows = (primary?.rows?.length ?? 0) > 0 ? primary.rows : fallback?.rows ?? []
-  return {
-    summary: {
-      median: a.median ?? b.median,
-      high: a.high ?? b.high,
-      low: a.low ?? b.low,
-      count: a.count ?? b.count,
-    },
-    rows: rows ?? [],
-  }
-}
-
+/** Yahoo quoteSummary via edge proxy and Node crumb; rows merged and deduped. */
 export async function fetchYahooAnalystTargets(symbol, crumbState) {
   const viaEdge = await fetchYahooAnalystViaEdge(symbol)
-  if (hasLivePayload(viaEdge)) return viaEdge
 
   let fromNode = null
   try {
@@ -80,14 +46,6 @@ export async function fetchYahooAnalystTargets(symbol, crumbState) {
   } catch {
     fromNode = null
   }
-  if (hasLivePayload(fromNode)) return fromNode
 
-  const nasdaq = await fetchNasdaqAnalystTargets(symbol)
-  if (hasLivePayload(nasdaq)) {
-    const best =
-      (viaEdge?.rows?.length ?? 0) > (fromNode?.rows?.length ?? 0) ? viaEdge : fromNode
-    return mergeSummaries(best, nasdaq)
-  }
-
-  return viaEdge ?? fromNode ?? { summary: null, rows: [] }
+  return mergeLiveAnalystPayloads([viaEdge, fromNode])
 }

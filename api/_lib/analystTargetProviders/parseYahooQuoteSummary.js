@@ -1,4 +1,4 @@
-const MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000
+import { ANALYST_TARGET_WINDOW_MS } from '../analystTargetWindow.js'
 
 function num(raw) {
   const n = raw?.raw ?? raw
@@ -40,7 +40,7 @@ function medianFromRows(rows) {
 }
 
 function processHistory(history) {
-  const cutoff = Date.now() - MAX_AGE_MS
+  const cutoff = Date.now() - ANALYST_TARGET_WINDOW_MS
   const byFirm = new Map()
 
   for (const h of history ?? []) {
