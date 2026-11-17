@@ -24,7 +24,7 @@ export function ForgotPasswordPage() {
     setError(null)
     setMessage(null)
     try {
-      const { ok, data } = await postAuth('forgot-password', { email })
+      const { ok, data } = await postAuth('login?action=forgot', { email })
       if (!ok) {
         setError(typeof data.error === 'string' ? data.error : 'Request failed')
         return
@@ -87,7 +87,7 @@ export function ResetPasswordPage() {
     setSubmitting(true)
     setError(null)
     try {
-      const { ok, data } = await postAuth('reset-password', { token, password })
+      const { ok, data } = await postAuth('login?action=reset', { token, password })
       if (!ok) {
         setError(typeof data.error === 'string' ? data.error : 'Request failed')
         return

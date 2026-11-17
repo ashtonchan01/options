@@ -3,7 +3,7 @@
  * an email is registered. Login fields expose the autocomplete tokens
  * password managers need. Run with: npm test
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import bcrypt from 'bcryptjs'
 import { mailerConfig, resetEmailContent, sendResetEmail } from '../api/_lib/mailer.js'
 import {
@@ -366,6 +366,7 @@ const login = readFileSync(new URL('../api/auth/login.js', import.meta.url), 'ut
 const signup = readFileSync(new URL('../api/auth/signup.js', import.meta.url), 'utf8')
 const me = readFileSync(new URL('../api/auth/me.js', import.meta.url), 'utf8')
 check('login and signup stamp the session version', login.includes('tv: tokenVersion(user.token_version)') && signup.includes('tv: tokenVersion(user.token_version)') && me.includes('getSessionUser'))
+check('reset shares the login function instead of a new api file', login.includes("action === 'forgot'") && login.includes("action === 'reset'") && !existsSync(new URL('../api/auth/forgot-password.js', import.meta.url)) && !existsSync(new URL('../api/auth/reset-password.js', import.meta.url)))
 
 if (failed > 0) {
   console.error(`\n${failed} failed`)
