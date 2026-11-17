@@ -23,16 +23,21 @@ function historyDevApi() {
   }
 }
 
-/** Serves /api/market-history in `vite dev` the same way Vercel serves the node handler. */
+/** Serves /api/cboe?history= in `vite dev` the same way Vercel serves api/cboe.js. */
 function marketHistoryDevApi() {
   return {
     name: 'market-history-dev-api',
     configureServer(server: { middlewares: { use: (fn: (req: import('http').IncomingMessage, res: import('http').ServerResponse, next: () => void) => void) => void } }) {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url ?? ''
-        if (!url.startsWith('/api/market-history')) return next()
-        // @ts-expect-error api/market-history.js is untyped Vercel node code
-        const loaded = await import('./api/market-history.js')
+        if (!url.startsWith('/api/cboe')) return next()
+        const parsed = new URL(url, 'http://localhost')
+        if (!parsed.searchParams.has('history')) return next()
+        // @ts-expect-error api/cboe.js is untyped Vercel node code
+        const loaded = await import('./api/cboe.js')
+        const query: Record<string, string> = {}
+        parsed.searchParams.forEach((value, key) => { query[key] = value })
+        Object.assign(req, { query })
         const shim = {
           statusCode: 200,
           status(code: number) { this.statusCode = code; return this },

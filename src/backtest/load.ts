@@ -51,7 +51,7 @@ export async function loadMarket(): Promise<MarketBundle> {
   const [daily, intra, tail] = await Promise.all([
     gunzipJson<DailyFile>('/data/spx_vix_daily.bin'),
     gunzipJson<IntradayFile>('/data/spx_5min.bin'),
-    fetch('/api/market-history', { credentials: 'include' })
+    fetch('/api/cboe?history=tail', { credentials: 'include' })
       .then(async res => (res.ok ? await res.json() as { bars?: DailyTuple[] } : { bars: [] }))
       .catch(() => ({ bars: [] as DailyTuple[] })),
   ])
@@ -72,7 +72,7 @@ export async function loadMarket(): Promise<MarketBundle> {
 }
 
 export async function fetchNewerBars(since: string): Promise<{ bars: DailyTuple[]; persisted: boolean; note?: string; error?: string }> {
-  const res = await fetch('/api/market-history', {
+  const res = await fetch('/api/cboe?history=update', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
