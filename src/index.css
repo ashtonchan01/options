@@ -3215,20 +3215,24 @@ body {
   display: grid;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   gap: 10px;
-  align-items: start;
+  align-items: stretch;
   min-width: 0;
+  min-height: 0;
 }
 .bt-form-card { padding: 10px 12px; }
 .bt-form-summary { font-size: 12px; color: var(--text-2); margin: 0 0 8px; font-weight: 600; }
 .bt-fields-compact { gap: 6px 10px; }
-.bt-results-compact { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; }
+.bt-results-compact { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; flex: 1; }
 .bt-results-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .bt-save-row { flex: 1; min-width: 200px; }
 .bt-stats-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .bt-stat-compact { flex: 1 1 100px; min-width: 88px; padding: 6px 8px; }
 .bt-stat-compact strong { font-size: 15px; }
 .bt-chart-compact .bt-chart { height: clamp(160px, 28vh, 260px); min-height: 160px; }
-.bt-trades-details summary { list-style: none; }
+.bt-trades-details { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.bt-trades-details[open] { flex: 1; min-height: 0; }
+.bt-trades-details summary { list-style: none; flex-shrink: 0; }
+.bt-trades-details > .bt-table-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .bt-trades-summary {
   display: flex;
   align-items: center;
@@ -3362,15 +3366,17 @@ body {
 .bt-neg { color: var(--pink) !important; }
 .bt-splits { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .bt-table-wrap { overflow: auto; }
-.bt-trades { max-height: min(520px, 60vh); }
+.bt-trades { flex: 1; min-height: 0; max-height: none; }
 .bt-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 .bt-table th, .bt-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; color: var(--text-2); }
 .bt-table th { position: sticky; top: 0; background: var(--bg-card); color: var(--text-4); font-size: 11px; font-weight: 700; z-index: 1; }
-.bt-table th button { background: none; border: none; color: inherit; font: inherit; font-weight: 700; padding: 0; }
+.bt-table th button { background: none; border: none; color: inherit; font: inherit; font-weight: 700; padding: 0; width: 100%; text-align: inherit; }
+.bt-table th.bt-num button.bt-num { text-align: right; }
 .bt-table tbody tr:hover { background: var(--bg-elevated); }
 .bt-trades .bt-table th, .bt-trades .bt-table td { padding: 4px 5px; font-size: 11px; }
 .bt-trades .bt-table th { font-size: 10px; }
-.bt-table .bt-num { text-align: right; font-variant-numeric: tabular-nums; }
+.bt-table .bt-num,
+.bt-table th.bt-num { text-align: right; font-variant-numeric: tabular-nums; }
 .bt-table .bt-tight { padding-left: 4px; padding-right: 4px; max-width: 6rem; overflow: hidden; text-overflow: ellipsis; }
 .bt-compare tbody tr { cursor: pointer; }
 .bt-selected { background: var(--accent-glow); }
@@ -3380,10 +3386,9 @@ body {
   .bt-workspace { display: grid; grid-template-columns: minmax(360px, 440px) minmax(0, 1fr); gap: 12px; align-items: start; }
   .bt-config-col { position: sticky; top: 0; max-height: calc(100vh - 92px); overflow: auto; padding-right: 4px; }
   .bt-configs { grid-template-columns: 1fr; }
-  .bt-one-screen { max-height: calc(100vh - 88px); }
+  .bt-one-screen { max-height: calc(100vh - 88px); height: calc(100vh - 88px); }
   .bt-one-screen .bt-form-card { max-height: calc(100vh - 96px); overflow: auto; }
   .bt-results-compact { max-height: calc(100vh - 96px); overflow: hidden; }
-  .bt-trades-details[open] .bt-trades { max-height: min(240px, 32vh); }
 }
 @media (max-width: 900px) {
   .bt-one-screen { grid-template-columns: 1fr; }

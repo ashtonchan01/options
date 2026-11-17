@@ -1,7 +1,7 @@
 /**
  * Put-credit-spread backtest.
  *
- * Credits are model marks from trailing SPX realized volatility (not quotes).
+ * Credits are model marks from stored VIX (implied-vol proxy), not realized vol or live quotes.
  * Daily bars settle expiry and, when there is no 5-minute bar, mark stops at
  * the close. 5-minute bars mark take-profit and stops inside the session.
  */
@@ -10,7 +10,7 @@ import { HIDDEN_DEFAULTS } from './defaults'
 import { buildExpiries, resolveExpiry, type ExpiryInfo } from './expiries'
 import { selectShortStrike, spreadIntrinsic, spreadMark } from './pricing'
 import { createFrequencyGate, frequencyAllowsEntry, type MonthWeek, type TradeFrequency } from './tradeFrequency'
-import { buildRealizedVol } from './volatility'
+import { buildRealizedVol, sessionMarkVol } from './volatility'
 
 export type { MonthWeek, TradeFrequency } from './tradeFrequency'
 
@@ -344,7 +344,7 @@ export function runBacktest(
       continue
     }
 
-    const volEntry = volByDate.get(entry.date) ?? 0.12
+    const volEntry = sessionMarkVol(entry, resolved.actualDte, volByDate.get(entry.date))
 
     const expIdx = sessionIndex.get(resolved.expiry.date) ?? i
     const lastIdx = sessionIndex.get(resolved.expiry.lastTrade) ?? expIdx
@@ -403,9 +403,11 @@ export function runBacktest(
 
     let fill: ExitFill | null = null
     let watchedIntra = false
+    const expiryIdx = sessionIndex.get(resolved.expiry.date) ?? lastIdx
     for (let s = i; s <= lastIdx; s++) {
       const day = sessions[s]
-      const vol = volByDate.get(day.date) ?? volEntry
+      const remainingDte = Math.max(0, expiryIdx - s)
+      const vol = sessionMarkVol(day, remainingDte, volByDate.get(day.date) ?? volEntry)
       const finalSession = s === lastIdx && resolved.expiry.settle === 'pm'
       const bars = intraday?.get(day.date)
       const fromClock = s === i ? entryClock : OPEN_MIN

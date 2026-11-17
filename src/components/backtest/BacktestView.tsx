@@ -332,7 +332,7 @@ function RunResults({
         <EquityChart theme={theme} curves={equityCurve} />
       </div>
 
-      <details className="bt-card bt-trades-details">
+      <details className="bt-card bt-trades-details" open>
         <summary className="bt-trades-summary">
           Trades ({result.trades.length})
           <button
@@ -354,14 +354,14 @@ function RunResults({
                 <SortTh label="Entry" k="entryDate" sort={sort} onSort={onSort} />
                 <SortTh label="Exit" k="exitDate" sort={sort} onSort={onSort} />
                 <SortTh label="Exp" k="expiryDate" sort={sort} onSort={onSort} />
-                <SortTh label="DTE" k="actualDte" sort={sort} onSort={onSort} />
+                <SortTh label="DTE" k="actualDte" sort={sort} onSort={onSort} className="bt-num" />
                 <th className="bt-tight">K</th>
                 <th className="bt-num">SPX₀</th>
                 <th className="bt-num">SPX₁</th>
-                <SortTh label="Cr" k="netCredit" sort={sort} onSort={onSort} />
-                <SortTh label="Db" k="exitDebit" sort={sort} onSort={onSort} />
+                <SortTh label="Cr" k="netCredit" sort={sort} onSort={onSort} className="bt-num" />
+                <SortTh label="Db" k="exitDebit" sort={sort} onSort={onSort} className="bt-num" />
                 <th className="bt-tight">Why</th>
-                <SortTh label="P&L" k="pnl" sort={sort} onSort={onSort} />
+                <SortTh label="P&L" k="pnl" sort={sort} onSort={onSort} className="bt-num" />
               </tr>
             </thead>
             <tbody>
@@ -377,9 +377,13 @@ function RunResults({
   )
 }
 
-function SortTh({ label, k, sort, onSort }: { label: string; k: SortKey; sort: { key: SortKey; dir: 1 | -1 }; onSort: (key: SortKey) => void }) {
+function SortTh({ label, k, sort, onSort, className }: { label: string; k: SortKey; sort: { key: SortKey; dir: 1 | -1 }; onSort: (key: SortKey) => void; className?: string }) {
   const arrow = sort.key === k ? (sort.dir > 0 ? ' ↑' : ' ↓') : ''
-  return <th aria-sort={sort.key === k ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}><button type="button" onClick={() => onSort(k)}>{label}{arrow}</button></th>
+  return (
+    <th className={className} aria-sort={sort.key === k ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" className={className === 'bt-num' ? 'bt-num' : undefined} onClick={() => onSort(k)}>{label}{arrow}</button>
+    </th>
+  )
 }
 
 function TradeRow({ trade }: { trade: Trade }) {
@@ -388,14 +392,14 @@ function TradeRow({ trade }: { trade: Trade }) {
       <td>{trade.entryDate}</td>
       <td>{trade.exitDate}</td>
       <td>{trade.expiryDate}</td>
-      <td>{trade.actualDte}</td>
+      <td className="bt-num">{trade.actualDte}</td>
       <td className="bt-tight">{trade.shortK}/{trade.longK}</td>
       <td className="bt-num">{spot(trade.entrySpot)}</td>
       <td className="bt-num">{spot(trade.exitSpot)}</td>
       <td className="bt-num">{sprd(trade.netCredit)}</td>
       <td className="bt-num">{sprd(trade.exitDebit)}</td>
       <td className="bt-tight" title={trade.exitReason}>{trade.exitReason}</td>
-      <td className={signed(trade.pnl)}>{money(trade.pnl)}</td>
+      <td className={`bt-num ${signed(trade.pnl)}`}>{money(trade.pnl)}</td>
     </tr>
   )
 }
