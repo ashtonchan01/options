@@ -6,14 +6,22 @@
  * "Earnings Plays" list around without it flooding the Scanner unless you
  * switch to it.
  */
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, ListChecks, Plus, X, RefreshCw, Star, Pencil, Trash2 } from 'lucide-react'
 import type { Watchlist } from '../../store/watchlistStore'
 import { fetchQuotes, type Quote } from '../../services/quotes'
 import { fetchRSI, type RsiData } from '../../services/rsi'
 import { fetchEarningsDates } from '../../services/earnings'
 import { meanReversionSignal, SIGNAL_STYLE } from '../../services/signal'
-import { fetchAnalystTargets, upsidePct, type AnalystTickerBundle } from '../../services/analystTargets'
+import {
+  ANALYST_REVALIDATE_BATCH,
+  analystBundleHasPtData,
+  fetchAnalystTargets,
+  loadCachedAnalystBundles,
+  persistAnalystBundles,
+  upsidePct,
+  type AnalystTickerBundle,
+} from '../../services/analystTargets'
 import { WatchlistAnalystExpanded } from './WatchlistAnalystPanel'
 
 function fmt$(n: number | null): string {
@@ -77,6 +85,64 @@ const SORT_COLUMNS: { key: SortKey; label: string }[] = [
 
 const TABLE_COL_COUNT = SORT_COLUMNS.length + 1
 
+const PT_LOADING_STYLE = { opacity: 0.45 } as const
+
+function PtCells({
+  expanded,
+  onToggleThesis,
+  busy,
+  ptMedian,
+  ptHigh,
+  ptLow,
+  ptUpside,
+  ptCount,
+}: {
+  expanded: boolean
+  onToggleThesis: () => void
+  busy: boolean
+  ptMedian: number | null
+  ptHigh: number | null
+  ptLow: number | null
+  ptUpside: number | null
+  ptCount: number | null
+}) {
+  const shimmer = busy && ptMedian == null && ptHigh == null && ptLow == null && ptCount == null
+  const chevron = (
+    <button type="button" onClick={onToggleThesis} title="Expand per-firm targets" style={{
+      background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer',
+      padding: 0, marginRight: 4, display: 'inline-flex', verticalAlign: 'middle',
+    }}>
+      {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+    </button>
+  )
+  if (shimmer) {
+    return (
+      <>
+        <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap', ...PT_LOADING_STYLE }}>
+          {chevron}…
+        </td>
+        <td className="mono" style={{ textAlign: 'right', ...PT_LOADING_STYLE }}>…</td>
+        <td className="mono" style={{ textAlign: 'right', ...PT_LOADING_STYLE }}>…</td>
+        <td className="mono neu" style={{ textAlign: 'right', ...PT_LOADING_STYLE }}>…</td>
+        <td className="mono" style={{ textAlign: 'right', ...PT_LOADING_STYLE }}>…</td>
+      </>
+    )
+  }
+  return (
+    <>
+      <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+        {chevron}{fmtPt(ptMedian)}
+      </td>
+      <td className="mono" style={{ textAlign: 'right' }}>{fmtPt(ptHigh)}</td>
+      <td className="mono" style={{ textAlign: 'right' }}>{fmtPt(ptLow)}</td>
+      <td className={`mono ${ptUpside != null && ptUpside > 0 ? 'pos' : ptUpside != null && ptUpside < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right' }}>
+        {fmtUpside(ptUpside)}
+      </td>
+      <td className="mono" style={{ textAlign: 'right' }}>{ptCount ?? '—'}</td>
+    </>
+  )
+}
+
 /** null/undefined always sort to the bottom regardless of direction — an
  * unknown "Next Earnings" or a quote that hasn't loaded yet shouldn't jump
  * to the top just because "ascending" treats a missing value as smaller
@@ -126,27 +192,106 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
   const [earnings, setEarnings] = useState<Record<string, string[]>>({})
   const [loading, setLoading] = useState(false)
   const [analystBundles, setAnalystBundles] = useState<Record<string, AnalystTickerBundle>>({})
-  const [analystLoading, setAnalystLoading] = useState(false)
+  const [analystPtBusy, setAnalystPtBusy] = useState<Record<string, boolean>>({})
+  const [analystRevalidating, setAnalystRevalidating] = useState(false)
   const [expandedTheses, setExpandedTheses] = useState<Set<string>>(() => new Set())
+  const loadGenRef = useRef(0)
+  const analystBundlesRef = useRef(analystBundles)
+  analystBundlesRef.current = analystBundles
 
   const tickersKey = useMemo(() => [...tickers].sort().join(','), [tickers])
 
-  async function load(refreshAnalysts = false) {
+  function mergeAnalystBundles(partial: Record<string, AnalystTickerBundle>) {
+    if (Object.keys(partial).length === 0) return
+    setAnalystBundles(prev => {
+      const next = { ...prev, ...partial }
+      analystBundlesRef.current = next
+      return next
+    })
+    persistAnalystBundles(partial)
+  }
+
+  function setPtBusy(symbols: string[], busy: boolean) {
+    setAnalystPtBusy(prev => {
+      const next = { ...prev }
+      for (const sym of symbols) {
+        if (busy) next[sym] = true
+        else delete next[sym]
+      }
+      return next
+    })
+  }
+
+  async function revalidateAnalystTargets(gen: number, tickerList: string[]) {
+    if (tickerList.length === 0) return
+    setAnalystRevalidating(true)
+    try {
+      for (let i = 0; i < tickerList.length; i += ANALYST_REVALIDATE_BATCH) {
+        if (gen !== loadGenRef.current) return
+        const batch = tickerList.slice(i, i + ANALYST_REVALIDATE_BATCH)
+        const awaiting = batch.filter(sym => !analystBundleHasPtData(analystBundlesRef.current[sym]))
+        setPtBusy(awaiting, true)
+        try {
+          const fresh = await fetchAnalystTargets(batch, true)
+          if (gen !== loadGenRef.current) return
+          mergeAnalystBundles(fresh)
+        } catch {
+          /* keep cached / prior values */
+        } finally {
+          setPtBusy(batch, false)
+        }
+      }
+    } finally {
+      if (gen === loadGenRef.current) setAnalystRevalidating(false)
+    }
+  }
+
+  async function load(forceRefresh = false) {
+    const gen = ++loadGenRef.current
     if (tickers.length === 0) {
       setQuotes({}); setRsi({}); setEarnings({}); setAnalystBundles({})
+      setAnalystPtBusy({})
+      analystBundlesRef.current = {}
       return
     }
+
+    const cached = loadCachedAnalystBundles(tickers)
+    if (Object.keys(cached).length > 0) {
+      mergeAnalystBundles(cached)
+    }
+
+    const awaitingCache = tickers.filter(sym => !analystBundleHasPtData(cached[sym]))
+    setPtBusy(awaitingCache, true)
+
     setLoading(true)
-    setAnalystLoading(true)
-    const [q, r, e, analysts] = await Promise.all([
-      fetchQuotes(tickers),
-      fetchRSI(tickers),
-      fetchEarningsDates(tickers),
-      fetchAnalystTargets(tickers, refreshAnalysts),
-    ])
-    setQuotes(q); setRsi(r); setEarnings(e); setAnalystBundles(analysts)
-    setLoading(false)
-    setAnalystLoading(false)
+    try {
+      const [q, r, e] = await Promise.all([
+        fetchQuotes(tickers),
+        fetchRSI(tickers),
+        fetchEarningsDates(tickers),
+      ])
+      if (gen !== loadGenRef.current) return
+      setQuotes(q); setRsi(r); setEarnings(e)
+    } finally {
+      if (gen === loadGenRef.current) setLoading(false)
+    }
+
+    if (gen !== loadGenRef.current) return
+
+    if (!forceRefresh) {
+      try {
+        const fromServer = await fetchAnalystTargets(tickers, false)
+        if (gen !== loadGenRef.current) return
+        mergeAnalystBundles(fromServer)
+        setPtBusy(tickers, false)
+        const stillMissing = tickers.filter(sym => !analystBundleHasPtData(analystBundlesRef.current[sym]))
+        setPtBusy(stillMissing, true)
+      } catch {
+        /* local cache still shown */
+      }
+    }
+
+    await revalidateAnalystTargets(gen, tickers)
   }
   useEffect(() => { void load() }, [tickersKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -231,17 +376,17 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <ListChecks size={16} style={{ color: 'var(--accent)' }} />
         <div className="cc-section-title" style={{ padding: 0 }}>Watchlists</div>
-        <button onClick={() => load(true)} disabled={loading || analystLoading} style={{
+        <button onClick={() => load(true)} disabled={loading || analystRevalidating} style={{
           marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px',
           fontSize: 11, fontWeight: 600, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
-          color: 'var(--accent)', cursor: loading || analystLoading ? 'not-allowed' : 'pointer', borderRadius: 4,
+          color: 'var(--accent)', cursor: loading || analystRevalidating ? 'not-allowed' : 'pointer', borderRadius: 4,
         }}>
-          <RefreshCw size={12} style={{ animation: loading || analystLoading ? 'spin 1.5s linear infinite' : 'none' }} />
-          {loading || analystLoading ? 'Refreshing…' : 'Refresh'}
+          <RefreshCw size={12} style={{ animation: loading || analystRevalidating ? 'spin 1.5s linear infinite' : 'none' }} />
+          {loading || analystRevalidating ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
       <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: -8 }}>
-        The starred watchlist populates the Scanner and shows earnings dates on every account's Calendar. Analyst targets load from Yahoo (12h cache) — expand a row for firms; Refresh forces a live pull.
+        The starred watchlist populates the Scanner and shows earnings dates on every account's Calendar. Analyst targets show saved values immediately, then refresh in the background from Yahoo (12h server cache) — expand a row for firms; Refresh forces a live pull.
       </div>
 
       {/* ── List tabs ──────────────────────────────────────────────────── */}
@@ -345,6 +490,7 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                 {rows.map(({ sym, q, change, changePct, ne, r, signal, ptMedian, ptHigh, ptLow, ptUpside, ptCount }) => {
                   const expanded = expandedTheses.has(sym)
                   const bundle = analystBundles[sym]
+                  const ptBusy = !!analystPtBusy[sym]
                   return (
                     <Fragment key={sym}>
                     <tr>
@@ -375,21 +521,16 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                       <td className="mono" style={{ textAlign: 'right' }}>
                         {ne ? <span title={ne} style={{ padding: '1px 5px', fontSize: 10, fontWeight: 700, background: '#F0B42915', border: '1px solid #F0B42940', color: '#F0B429' }}>{fmtEarnings(ne)}</span> : '—'}
                       </td>
-                      <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <button type="button" onClick={() => toggleThesis(sym)} title="Expand per-firm targets" style={{
-                          background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer',
-                          padding: 0, marginRight: 4, display: 'inline-flex', verticalAlign: 'middle',
-                        }}>
-                          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                        </button>
-                        {fmtPt(ptMedian)}
-                      </td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{fmtPt(ptHigh)}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{fmtPt(ptLow)}</td>
-                      <td className={`mono ${ptUpside != null && ptUpside > 0 ? 'pos' : ptUpside != null && ptUpside < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right' }}>
-                        {fmtUpside(ptUpside)}
-                      </td>
-                      <td className="mono" style={{ textAlign: 'right' }}>{ptCount ?? '—'}</td>
+                      <PtCells
+                        expanded={expanded}
+                        onToggleThesis={() => toggleThesis(sym)}
+                        busy={ptBusy}
+                        ptMedian={ptMedian}
+                        ptHigh={ptHigh}
+                        ptLow={ptLow}
+                        ptUpside={ptUpside}
+                        ptCount={ptCount}
+                      />
                       <td style={{ textAlign: 'right' }}>
                         <button onClick={() => onRemoveTicker(selected.id, sym)} title="Remove" style={{
                           background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)',

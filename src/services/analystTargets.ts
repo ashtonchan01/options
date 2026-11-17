@@ -51,6 +51,54 @@ export function upsidePct(price: number | null | undefined, target: number): num
   return ((target - price) / price) * 100
 }
 
+const ANALYST_CACHE_KEY = 'options:analyst-target-bundles'
+
+type AnalystBundleStore = Record<string, AnalystTickerBundle>
+
+function readAnalystBundleStore(): AnalystBundleStore {
+  try {
+    const raw = localStorage.getItem(ANALYST_CACHE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as AnalystBundleStore
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+/** Bundles for the given tickers from localStorage (instant first paint). */
+export function loadCachedAnalystBundles(tickers: string[]): Record<string, AnalystTickerBundle> {
+  if (tickers.length === 0) return {}
+  const store = readAnalystBundleStore()
+  const out: Record<string, AnalystTickerBundle> = {}
+  for (const t of tickers) {
+    const b = store[t]
+    if (b) out[t] = b
+  }
+  return out
+}
+
+export function persistAnalystBundles(partial: Record<string, AnalystTickerBundle>): void {
+  const keys = Object.keys(partial)
+  if (keys.length === 0) return
+  try {
+    const store = readAnalystBundleStore()
+    for (const t of keys) store[t] = partial[t]
+    localStorage.setItem(ANALYST_CACHE_KEY, JSON.stringify(store))
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+export function analystBundleHasPtData(bundle: AnalystTickerBundle | undefined): boolean {
+  const s = bundle?.summary
+  if (!s) return false
+  return s.median != null || s.high != null || s.low != null || (s.count != null && s.count > 0)
+}
+
+/** Background revalidate batch size (tickers per API call). */
+export const ANALYST_REVALIDATE_BATCH = 4
+
 export async function fetchAnalystTargets(
   tickers: string[],
   refresh = false,
