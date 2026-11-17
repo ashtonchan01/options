@@ -9,8 +9,8 @@ export const REALIZED_VOL_FLOOR = 0.12
 /** VIX quotes ~30 calendar days of implied vol; lift longer-dated entries slightly. */
 export const VIX_TERM_BASELINE_DTE = 30
 
-/** Hidden term-structure lift applied above the VIX baseline (decimal, e.g. 0.12 = +12% at 60 DTE). */
-export const VIX_TERM_SLOPE = 0.12
+/** Hidden term-structure lift applied above the VIX baseline (decimal, e.g. 0.10 = +10% at 60 DTE). */
+export const VIX_TERM_SLOPE = 0.10
 
 const ANNUALIZE = Math.sqrt(252)
 
