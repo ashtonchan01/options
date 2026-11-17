@@ -76,8 +76,10 @@ const intraday = {
 }
 
 mkdirSync(outDir, { recursive: true })
-writeFileSync(join(outDir, 'spx_vix_daily.json.gz'), gzipSync(Buffer.from(JSON.stringify(daily))))
-writeFileSync(join(outDir, 'spx_5min.json.gz'), gzipSync(Buffer.from(JSON.stringify(intraday))))
+// Not a .gz suffix: Vercel treats foo.json.gz as a precompressed foo.json and
+// refuses the deploy when that uncompressed file is not next to it.
+writeFileSync(join(outDir, 'spx_vix_daily.bin'), gzipSync(Buffer.from(JSON.stringify(daily))))
+writeFileSync(join(outDir, 'spx_5min.bin'), gzipSync(Buffer.from(JSON.stringify(intraday))))
 
 console.log(`daily ${daily.from} → ${daily.to} (${daily.rows} rows, close-only ${daily.closeOnlyDays}, yahoo-close kept ${daily.outsideRangeKeptYahoo})`)
 console.log(`5min ${intraday.from} → ${intraday.to} (${days.length} days)`)

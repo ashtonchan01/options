@@ -49,8 +49,8 @@ async function gunzipJson<T>(url: string): Promise<T> {
 
 export async function loadMarket(): Promise<MarketBundle> {
   const [daily, intra, tail] = await Promise.all([
-    gunzipJson<DailyFile>('/data/spx_vix_daily.json.gz'),
-    gunzipJson<IntradayFile>('/data/spx_5min.json.gz'),
+    gunzipJson<DailyFile>('/data/spx_vix_daily.bin'),
+    gunzipJson<IntradayFile>('/data/spx_5min.bin'),
     fetch('/api/market-history', { credentials: 'include' })
       .then(async res => (res.ok ? await res.json() as { bars?: DailyTuple[] } : { bars: [] }))
       .catch(() => ({ bars: [] as DailyTuple[] })),

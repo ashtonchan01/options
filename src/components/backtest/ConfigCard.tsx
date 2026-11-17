@@ -56,16 +56,18 @@ export default function ConfigCard({ config, color, canRemove, onChange, onRemov
 
       <div className="bt-field wide">
         <span>DTE, in trading days</span>
-        <div className="bt-chips" role="group" aria-label="Days to expiry">
-          {DTE_CHIPS.map(n => (
-            <button
-              key={n}
-              type="button"
-              className={`bt-chip${config.dte === n ? ' on' : ''}`}
-              onClick={() => set('dte', n)}
-            >{n}</button>
-          ))}
-          <label className="bt-custom">
+        <div className="bt-dte-row">
+          <div className="bt-chips" role="group" aria-label="Days to expiry">
+            {DTE_CHIPS.map(n => (
+              <button
+                key={n}
+                type="button"
+                className={`bt-chip${config.dte === n ? ' on' : ''}`}
+                onClick={() => set('dte', n)}
+              >{n}</button>
+            ))}
+          </div>
+          <label className={`bt-custom${config.dte > 21 ? ' on' : ''}`}>
             Custom
             <input
               className="bt-input bt-dte"
@@ -74,7 +76,7 @@ export default function ConfigCard({ config, color, canRemove, onChange, onRemov
               max={400}
               step={1}
               value={config.dte}
-              aria-label="Custom DTE"
+              aria-label="Custom DTE in trading days"
               onChange={e => {
                 if (Number.isFinite(e.target.valueAsNumber)) set('dte', Math.max(0, Math.floor(e.target.valueAsNumber)))
               }}

@@ -13,9 +13,6 @@
     },
     "api/option-marks.js": {
       "maxDuration": 30
-    },
-    "api/market-history.js": {
-      "maxDuration": 30
     }
   }
 }
