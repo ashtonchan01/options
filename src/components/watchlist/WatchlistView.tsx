@@ -7,18 +7,26 @@
  * switch to it.
  */
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { ListChecks, Plus, X, RefreshCw, Star, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, ListChecks, Plus, X, RefreshCw, Star, Pencil, Trash2 } from 'lucide-react'
 import type { Watchlist } from '../../store/watchlistStore'
 import { fetchQuotes, type Quote } from '../../services/quotes'
 import { fetchRSI, type RsiData } from '../../services/rsi'
 import { fetchEarningsDates } from '../../services/earnings'
 import { meanReversionSignal, SIGNAL_STYLE } from '../../services/signal'
-import { fetchAnalystTargets, type AnalystTickerBundle } from '../../services/analystTargets'
-import { WatchlistAnalystExpanded, WatchlistAnalystSummary } from './WatchlistAnalystPanel'
+import { fetchAnalystTargets, upsidePct, type AnalystTickerBundle } from '../../services/analystTargets'
+import { WatchlistAnalystExpanded } from './WatchlistAnalystPanel'
 
 function fmt$(n: number | null): string {
   if (n == null) return '—'
   return `$${n.toFixed(2)}`
+}
+function fmtPt(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—'
+  return `$${n >= 100 ? n.toFixed(0) : n.toFixed(2)}`
+}
+function fmtUpside(n: number | null): string {
+  if (n == null) return '—'
+  return `${n > 0 ? '+' : ''}${n.toFixed(1)}%`
 }
 function fmtVol(n: number | null): string {
   if (n == null) return '—'
@@ -45,7 +53,9 @@ function rsiColor(rsi: number | null): string {
   return 'var(--text-2)'
 }
 
-type SortKey = 'ticker' | 'signal' | 'last' | 'change' | 'changePct' | 'volume' | 'high52' | 'low52' | 'rsi' | 'earnings'
+type SortKey =
+  | 'ticker' | 'signal' | 'last' | 'change' | 'changePct' | 'volume' | 'high52' | 'low52' | 'rsi' | 'earnings'
+  | 'ptMedian' | 'ptHigh' | 'ptLow' | 'ptUpside' | 'ptCount'
 
 const SORT_COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'ticker', label: 'Ticker' },
@@ -58,7 +68,14 @@ const SORT_COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'low52', label: '52W Low' },
   { key: 'rsi', label: 'RSI(14)' },
   { key: 'earnings', label: 'Next Earnings' },
+  { key: 'ptMedian', label: 'PT Median' },
+  { key: 'ptHigh', label: 'PT High' },
+  { key: 'ptLow', label: 'PT Low' },
+  { key: 'ptUpside', label: 'Upside %' },
+  { key: 'ptCount', label: '# Analysts' },
 ]
+
+const TABLE_COL_COUNT = SORT_COLUMNS.length + 1
 
 /** null/undefined always sort to the bottom regardless of direction — an
  * unknown "Next Earnings" or a quote that hasn't loaded yet shouldn't jump
@@ -174,7 +191,17 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
       const ne = nextEarnings(earnings[sym])
       const r = rsi[sym]?.rsi ?? null
       const signal = meanReversionSignal(r)
-      return { sym, q, change, changePct, ne, r, signal }
+      const summary = analystBundles[sym]?.summary
+      const ptMedian = summary?.median ?? null
+      const ptUpside = ptMedian != null ? upsidePct(q?.price ?? null, ptMedian) : null
+      return {
+        sym, q, change, changePct, ne, r, signal,
+        ptMedian,
+        ptHigh: summary?.high ?? null,
+        ptLow: summary?.low ?? null,
+        ptUpside,
+        ptCount: summary?.count ?? null,
+      }
     })
     if (!sortKey) return built
     const valueOf = (row: typeof built[number]): string | number | null => {
@@ -189,10 +216,15 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
         case 'low52': return row.q?.low52 ?? null
         case 'rsi': return row.r
         case 'earnings': return row.ne
+        case 'ptMedian': return row.ptMedian
+        case 'ptHigh': return row.ptHigh
+        case 'ptLow': return row.ptLow
+        case 'ptUpside': return row.ptUpside
+        case 'ptCount': return row.ptCount
       }
     }
     return [...built].sort((a, b) => compareSortValue(valueOf(a), valueOf(b), sortDir))
-  }, [tickers, quotes, rsi, earnings, sortKey, sortDir])
+  }, [tickers, quotes, rsi, earnings, analystBundles, sortKey, sortDir])
 
   return (
     <div className="jr-root">
@@ -303,15 +335,14 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                       {col.label}{sortKey === col.key ? (sortDir === 1 ? ' ▲' : ' ▼') : ''}
                     </th>
                   ))}
-                  <th style={{ textAlign: 'left' }}>Theses</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 && (
-                  <tr><td colSpan={12} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No tickers yet — add one above.</td></tr>
+                  <tr><td colSpan={TABLE_COL_COUNT} style={{ padding: '16px 18px', color: 'var(--text-4)' }}>No tickers yet — add one above.</td></tr>
                 )}
-                {rows.map(({ sym, q, change, changePct, ne, r, signal }) => {
+                {rows.map(({ sym, q, change, changePct, ne, r, signal, ptMedian, ptHigh, ptLow, ptUpside, ptCount }) => {
                   const expanded = expandedTheses.has(sym)
                   const bundle = analystBundles[sym]
                   return (
@@ -344,15 +375,21 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                       <td className="mono" style={{ textAlign: 'right' }}>
                         {ne ? <span title={ne} style={{ padding: '1px 5px', fontSize: 10, fontWeight: 700, background: '#F0B42915', border: '1px solid #F0B42940', color: '#F0B429' }}>{fmtEarnings(ne)}</span> : '—'}
                       </td>
-                      <td style={{ textAlign: 'left' }}>
-                        <WatchlistAnalystSummary
-                          sym={sym}
-                          price={q?.price ?? null}
-                          bundle={bundle}
-                          expanded={expanded}
-                          onToggle={() => toggleThesis(sym)}
-                        />
+                      <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <button type="button" onClick={() => toggleThesis(sym)} title="Expand per-firm targets" style={{
+                          background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer',
+                          padding: 0, marginRight: 4, display: 'inline-flex', verticalAlign: 'middle',
+                        }}>
+                          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        </button>
+                        {fmtPt(ptMedian)}
                       </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{fmtPt(ptHigh)}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{fmtPt(ptLow)}</td>
+                      <td className={`mono ${ptUpside != null && ptUpside > 0 ? 'pos' : ptUpside != null && ptUpside < 0 ? 'neg' : 'neu'}`} style={{ textAlign: 'right' }}>
+                        {fmtUpside(ptUpside)}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>{ptCount ?? '—'}</td>
                       <td style={{ textAlign: 'right' }}>
                         <button onClick={() => onRemoveTicker(selected.id, sym)} title="Remove" style={{
                           background: 'none', border: '1px solid var(--border)', color: 'var(--text-4)',
@@ -364,7 +401,7 @@ export default function WatchlistView({ lists, activeId, onSetActive, onAddList,
                     </tr>
                     {expanded && (
                       <tr key={`${sym}-theses`}>
-                        <td colSpan={12} style={{ padding: 0 }}>
+                        <td colSpan={TABLE_COL_COUNT} style={{ padding: 0 }}>
                           <WatchlistAnalystExpanded
                             sym={sym}
                             price={q?.price ?? null}

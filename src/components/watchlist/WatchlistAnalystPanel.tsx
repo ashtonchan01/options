@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import {
   type AnalystPriceTarget,
   type AnalystTargetInput,
@@ -43,46 +43,6 @@ function emptyForm(ticker: string): AnalystTargetInput {
     date: new Date().toISOString().slice(0, 10),
     sourceNote: '',
   }
-}
-
-export function WatchlistAnalystSummary({
-  price,
-  bundle,
-  expanded,
-  onToggle,
-}: {
-  sym: string
-  price: number | null
-  bundle: AnalystTickerBundle | undefined
-  expanded: boolean
-  onToggle: () => void
-}) {
-  const s = bundle?.summary
-  const hasData = (s?.count ?? 0) > 0 || (bundle?.rows?.length ?? 0) > 0
-  const upside = upsidePct(price, s?.median ?? NaN)
-
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      title="Analyst price targets"
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 6px',
-        background: expanded ? 'var(--accent-dim)' : 'transparent',
-        border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', maxWidth: '100%',
-      }}
-    >
-      {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-      <span style={{ fontSize: 10, color: 'var(--text-4)' }}>PT</span>
-      {hasData ? (
-        <span className="mono" style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-2)' }}>
-          {fmt$(s?.median)} · {fmtPct(upside)} · {s?.count ?? bundle?.rows.length ?? 0}
-        </span>
-      ) : (
-        <span style={{ fontSize: 10, color: 'var(--text-4)' }}>—</span>
-      )}
-    </button>
-  )
 }
 
 export function WatchlistAnalystExpanded({
